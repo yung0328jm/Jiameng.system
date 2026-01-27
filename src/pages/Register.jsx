@@ -1,0 +1,159 @@
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { saveUser } from '../utils/storage'
+
+function Register() {
+  const navigate = useNavigate()
+  const [formData, setFormData] = useState({
+    name: '',
+    account: '',
+    password: '',
+    confirmPassword: ''
+  })
+  const [message, setMessage] = useState('')
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    })
+    setMessage('')
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    
+    // 验证
+    if (!formData.name || !formData.account || !formData.password || !formData.confirmPassword) {
+      setMessage('請填寫所有必填欄位')
+      return
+    }
+
+    if (formData.password.length < 3) {
+      setMessage('密碼至少需要3個字符')
+      return
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setMessage('兩次輸入的密碼不一致')
+      return
+    }
+
+    // 保存用户
+    const result = saveUser({
+      name: formData.name,
+      account: formData.account,
+      password: formData.password
+    })
+
+    if (result.success) {
+      setMessage('註冊成功！正在跳轉到登錄頁面...')
+      setTimeout(() => {
+        navigate('/login')
+      }, 1500)
+    } else {
+      setMessage(result.message)
+    }
+  }
+
+  return (
+    <div
+      className="min-h-screen bg-gray-800 flex items-center justify-center p-4 w-full"
+      style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))', paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))', paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))' }}
+    >
+      <div className="w-full max-w-md">
+        <div className="bg-charcoal rounded-xl border border-yellow-400/80 p-5 sm:p-8 shadow-2xl">
+          {/* 标题 */}
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-2">
+              佳盟事業群
+            </h1>
+            <p className="text-white text-sm">
+              企業管理系統
+            </p>
+          </div>
+
+          {/* 消息提示 */}
+          {message && (
+            <div className={`mb-6 p-3 rounded-lg text-sm ${
+              message.includes('成功') 
+                ? 'bg-green-900/50 text-green-300 border border-green-500/50' 
+                : 'bg-red-900/50 text-red-300 border border-red-500/50'
+            }`}>
+              {message}
+            </div>
+          )}
+
+          {/* 注册表单 */}
+          <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">姓名 *</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="請輸入姓名"
+                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">帳號 *</label>
+              <input
+                type="text"
+                name="account"
+                value={formData.account}
+                onChange={handleChange}
+                placeholder="請輸入帳號"
+                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">密碼 *</label>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="請輸入密碼 (至少3個字符)"
+                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                required
+                minLength={3}
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">確認密碼 *</label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="請再次輸入密碼"
+                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full min-h-[48px] bg-yellow-400 text-black font-semibold py-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors shadow-lg mt-4 touch-manipulation text-base"
+            >
+              立即註冊
+            </button>
+          </form>
+
+          <div className="mt-5 sm:mt-6 text-center">
+            <span className="text-gray-400 text-sm">已有帳號? </span>
+            <Link to="/login" className="text-yellow-400 text-sm hover:text-yellow-500 transition-colors">
+              返回登錄
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Register
