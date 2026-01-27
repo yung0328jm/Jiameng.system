@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
 import { getSchedules, saveSchedule, updateSchedule, deleteSchedule } from '../utils/scheduleStorage'
 import { getDropdownOptionsByCategory, addDropdownOption } from '../utils/dropdownStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { getTripReportsByProject } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
@@ -153,6 +154,12 @@ function Calendar() {
     setVehicleOptions(vehicles.map(opt => opt.value))
     setResponsiblePersonOptions(responsiblePersons.map(opt => opt.value))
   }
+
+  const refetchForRealtime = () => {
+    setSchedules(getSchedules())
+    loadDropdownOptions()
+  }
+  useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options'], refetchForRealtime)
 
   // 点击外部关闭下拉選單
   useEffect(() => {

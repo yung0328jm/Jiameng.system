@@ -1,4 +1,5 @@
 // 待辦事項存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const TODO_STORAGE_KEY = 'jiameng_todos'
 
 // 獲取所有待辦事項
@@ -15,7 +16,9 @@ export const getTodos = () => {
 // 保存待辦事項
 export const saveTodos = (todos) => {
   try {
-    localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos))
+    const val = JSON.stringify(todos)
+    localStorage.setItem(TODO_STORAGE_KEY, val)
+    syncKeyToSupabase(TODO_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving todos:', error)

@@ -1,4 +1,5 @@
 // 測試記錄存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const TEST_RECORD_STORAGE_KEY = 'jiameng_leaderboard_test_records'
 
 // 獲取所有測試記錄
@@ -28,7 +29,9 @@ export const saveTestRecords = (leaderboardItemId, records) => {
   try {
     const allRecords = getAllTestRecords()
     allRecords[leaderboardItemId] = records
-    localStorage.setItem(TEST_RECORD_STORAGE_KEY, JSON.stringify(allRecords))
+    const val = JSON.stringify(allRecords)
+    localStorage.setItem(TEST_RECORD_STORAGE_KEY, val)
+    syncKeyToSupabase(TEST_RECORD_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving test records:', error)

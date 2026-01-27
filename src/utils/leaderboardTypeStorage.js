@@ -1,5 +1,12 @@
 // 排行榜類型：供「載入類型」到編輯排行榜時套用（第一/二/三名稱號 + 名子/發話/稱號特效）
+import { syncKeyToSupabase } from './supabaseSync'
 const LEADERBOARD_TYPE_STORAGE_KEY = 'jiameng_leaderboard_types'
+
+const persist = (list) => {
+  const val = JSON.stringify(list)
+  localStorage.setItem(LEADERBOARD_TYPE_STORAGE_KEY, val)
+  syncKeyToSupabase(LEADERBOARD_TYPE_STORAGE_KEY, val)
+}
 
 export const getLeaderboardTypes = () => {
   try {
@@ -38,7 +45,7 @@ export const addLeaderboardType = (type) => {
       createdAt: new Date().toISOString()
     }
     list.push(newItem)
-    localStorage.setItem(LEADERBOARD_TYPE_STORAGE_KEY, JSON.stringify(list))
+    persist(list)
     return { success: true, item: newItem }
   } catch (e) {
     console.error('addLeaderboardType:', e)
@@ -52,7 +59,7 @@ export const updateLeaderboardType = (id, updates) => {
     const idx = list.findIndex((t) => t.id === id)
     if (idx === -1) return { success: false, message: '類型不存在' }
     list[idx] = { ...list[idx], ...updates, updatedAt: new Date().toISOString() }
-    localStorage.setItem(LEADERBOARD_TYPE_STORAGE_KEY, JSON.stringify(list))
+    persist(list)
     return { success: true }
   } catch (e) {
     console.error('updateLeaderboardType:', e)

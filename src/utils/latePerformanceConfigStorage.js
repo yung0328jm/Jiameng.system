@@ -1,4 +1,5 @@
 // 遲到績效評分配置存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const LATE_PERFORMANCE_CONFIG_KEY = 'jiameng_late_performance_config'
 
 // 預設規則（按遲到次數扣分）
@@ -51,7 +52,9 @@ export const saveLatePerformanceConfig = (config) => {
       ...config,
       updatedAt: new Date().toISOString()
     }
-    localStorage.setItem(LATE_PERFORMANCE_CONFIG_KEY, JSON.stringify(configToSave))
+    const val = JSON.stringify(configToSave)
+    localStorage.setItem(LATE_PERFORMANCE_CONFIG_KEY, val)
+    syncKeyToSupabase(LATE_PERFORMANCE_CONFIG_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving late performance config:', error)

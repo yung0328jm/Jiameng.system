@@ -1,5 +1,12 @@
 // 專案記錄存储工具
+import { syncKeyToSupabase } from './supabaseSync'
 const PROJECT_RECORD_STORAGE_KEY = 'jiameng_project_records'
+
+const persist = (data) => {
+  const val = JSON.stringify(data)
+  localStorage.setItem(PROJECT_RECORD_STORAGE_KEY, val)
+  syncKeyToSupabase(PROJECT_RECORD_STORAGE_KEY, val)
+}
 
 // 获取專案的所有記錄
 export const getProjectRecords = (projectId) => {
@@ -34,7 +41,7 @@ export const saveProjectRecord = (projectId, record) => {
     } else {
       records[projectId].push(newRecord)
     }
-    localStorage.setItem(PROJECT_RECORD_STORAGE_KEY, JSON.stringify(records))
+    persist(records)
     return { success: true, record: newRecord }
   } catch (error) {
     console.error('Error saving project record:', error)
@@ -52,7 +59,7 @@ export const saveAllProjectRecords = (projectId, records) => {
       record.rowNumber = index + 1
     })
     allRecords[projectId] = records
-    localStorage.setItem(PROJECT_RECORD_STORAGE_KEY, JSON.stringify(allRecords))
+    persist(allRecords)
     return { success: true }
   } catch (error) {
     console.error('Error saving all project records:', error)
@@ -77,7 +84,7 @@ export const updateProjectRecord = (projectId, recordId, updates) => {
       ...updates,
       updatedAt: new Date().toISOString()
     }
-    localStorage.setItem(PROJECT_RECORD_STORAGE_KEY, JSON.stringify(records))
+    persist(records)
     return { success: true }
   } catch (error) {
     console.error('Error updating project record:', error)
@@ -98,7 +105,7 @@ export const deleteProjectRecord = (projectId, recordId) => {
     records[projectId].forEach((record, index) => {
       record.rowNumber = index + 1
     })
-    localStorage.setItem(PROJECT_RECORD_STORAGE_KEY, JSON.stringify(records))
+    persist(records)
     return { success: true }
   } catch (error) {
     console.error('Error deleting project record:', error)

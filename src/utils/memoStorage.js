@@ -1,4 +1,5 @@
 // 交流區存储工具
+import { syncKeyToSupabase } from './supabaseSync'
 const MEMO_STORAGE_KEY = 'jiameng_memos'
 
 // 获取所有话题
@@ -23,7 +24,9 @@ export const createTopic = (topicTitle) => {
       messages: []
     }
     topics.push(newTopic)
-    localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(topics))
+    const val = JSON.stringify(topics)
+    localStorage.setItem(MEMO_STORAGE_KEY, val)
+    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
     return { success: true, topic: newTopic }
   } catch (error) {
     console.error('Error creating topic:', error)
@@ -60,7 +63,9 @@ export const addMessage = (topicId, messageContent, author = '使用者') => {
     }
     
     topics[topicIndex].messages.push(newMessage)
-    localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(topics))
+    const val = JSON.stringify(topics)
+    localStorage.setItem(MEMO_STORAGE_KEY, val)
+    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
     return { success: true, message: newMessage }
   } catch (error) {
     console.error('Error adding message:', error)
@@ -73,7 +78,9 @@ export const deleteTopic = (topicId) => {
   try {
     const topics = getTopics()
     const filtered = topics.filter(t => t.id !== topicId)
-    localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(filtered))
+    const val = JSON.stringify(filtered)
+    localStorage.setItem(MEMO_STORAGE_KEY, val)
+    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error deleting topic:', error)
@@ -91,7 +98,9 @@ export const updateTopicTitle = (topicId, newTitle) => {
     }
     
     topics[topicIndex].title = newTitle
-    localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(topics))
+    const val = JSON.stringify(topics)
+    localStorage.setItem(MEMO_STORAGE_KEY, val)
+    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error updating topic title:', error)

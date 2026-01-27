@@ -1,4 +1,5 @@
 // 公司活動篩選標籤存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const ACTIVITY_FILTER_TAGS_STORAGE_KEY = 'jiameng_activity_filter_tags'
 
 // 默認標籤配置
@@ -23,7 +24,9 @@ export const getActivityFilterTags = () => {
 // 保存篩選標籤列表
 export const saveActivityFilterTags = (tags) => {
   try {
-    localStorage.setItem(ACTIVITY_FILTER_TAGS_STORAGE_KEY, JSON.stringify(tags))
+    const val = JSON.stringify(tags)
+    localStorage.setItem(ACTIVITY_FILTER_TAGS_STORAGE_KEY, val)
+    syncKeyToSupabase(ACTIVITY_FILTER_TAGS_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving activity filter tags:', error)

@@ -1,4 +1,5 @@
 // 工程紀錄存储工具
+import { syncKeyToSupabase } from './supabaseSync'
 const RECORD_STORAGE_KEY = 'jiameng_engineering_records'
 
 export const getRecords = (scheduleId) => {
@@ -17,7 +18,9 @@ export const saveRecords = (scheduleId, records) => {
     const allRecords = localStorage.getItem(RECORD_STORAGE_KEY)
     const recordsObj = allRecords ? JSON.parse(allRecords) : {}
     recordsObj[scheduleId] = records
-    localStorage.setItem(RECORD_STORAGE_KEY, JSON.stringify(recordsObj))
+    const val = JSON.stringify(recordsObj)
+    localStorage.setItem(RECORD_STORAGE_KEY, val)
+    syncKeyToSupabase(RECORD_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving records:', error)

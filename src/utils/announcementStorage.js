@@ -1,4 +1,5 @@
 // 公佈欄存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const ANNOUNCEMENT_STORAGE_KEY = 'jiameng_announcements'
 
 // 獲取所有公佈欄項目
@@ -15,7 +16,9 @@ export const getAnnouncements = () => {
 // 保存公佈欄項目
 export const saveAnnouncements = (announcements) => {
   try {
-    localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, JSON.stringify(announcements))
+    const val = JSON.stringify(announcements)
+    localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, val)
+    syncKeyToSupabase(ANNOUNCEMENT_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving announcements:', error)

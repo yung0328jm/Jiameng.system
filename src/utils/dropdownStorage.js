@@ -1,4 +1,5 @@
 // 下拉選單存储工具
+import { syncKeyToSupabase } from './supabaseSync'
 const DROPDOWN_STORAGE_KEY = 'jiameng_dropdown_options'
 
 // 获取所有下拉選單选项
@@ -26,7 +27,9 @@ export const getDropdownOptionsByCategory = (category) => {
 // 保存下拉選單选项
 export const saveDropdownOptions = (options) => {
   try {
-    localStorage.setItem(DROPDOWN_STORAGE_KEY, JSON.stringify(options))
+    const val = JSON.stringify(options)
+    localStorage.setItem(DROPDOWN_STORAGE_KEY, val)
+    syncKeyToSupabase(DROPDOWN_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving dropdown options:', error)

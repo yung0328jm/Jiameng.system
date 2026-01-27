@@ -8,6 +8,7 @@ import {
   updateLeaveApplicationStatus,
   getLeaveApplicationById
 } from '../utils/leaveApplicationStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 import { saveSchedule } from '../utils/scheduleStorage'
 import {
   getSpecialLeaveQuota,
@@ -70,6 +71,8 @@ function LeaveApplication() {
     setApplications(getLeaveApplications())
     setPendingList(getPendingLeaveApplications())
   }
+
+  useRealtimeKeys(['jiameng_leave_applications', 'jiameng_special_leave_quota'], loadApplications)
 
   useEffect(() => {
     const user = getCurrentUser()

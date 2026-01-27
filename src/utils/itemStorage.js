@@ -1,4 +1,5 @@
 // 道具系統存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const ITEM_STORAGE_KEY = 'jiameng_items'
 
 // 預定義道具類型
@@ -28,7 +29,9 @@ export const getItems = () => {
         createdAt: new Date().toISOString()
       }
     ]
-    localStorage.setItem(ITEM_STORAGE_KEY, JSON.stringify(defaultItems))
+    const val = JSON.stringify(defaultItems)
+    localStorage.setItem(ITEM_STORAGE_KEY, val)
+    syncKeyToSupabase(ITEM_STORAGE_KEY, val)
     return defaultItems
   } catch (error) {
     console.error('Error getting items:', error)
@@ -57,7 +60,9 @@ export const createItem = (itemData) => {
       createdAt: new Date().toISOString()
     }
     items.push(newItem)
-    localStorage.setItem(ITEM_STORAGE_KEY, JSON.stringify(items))
+    const val = JSON.stringify(items)
+    localStorage.setItem(ITEM_STORAGE_KEY, val)
+    syncKeyToSupabase(ITEM_STORAGE_KEY, val)
     return { success: true, item: newItem }
   } catch (error) {
     console.error('Error creating item:', error)
@@ -74,7 +79,9 @@ export const updateItem = (itemId, updates) => {
       return { success: false, message: '道具不存在' }
     }
     items[itemIndex] = { ...items[itemIndex], ...updates }
-    localStorage.setItem(ITEM_STORAGE_KEY, JSON.stringify(items))
+    const val = JSON.stringify(items)
+    localStorage.setItem(ITEM_STORAGE_KEY, val)
+    syncKeyToSupabase(ITEM_STORAGE_KEY, val)
     return { success: true, item: items[itemIndex] }
   } catch (error) {
     console.error('Error updating item:', error)
@@ -87,7 +94,9 @@ export const deleteItem = (itemId) => {
   try {
     const items = getItems()
     const filtered = items.filter(item => item.id !== itemId)
-    localStorage.setItem(ITEM_STORAGE_KEY, JSON.stringify(filtered))
+    const val = JSON.stringify(filtered)
+    localStorage.setItem(ITEM_STORAGE_KEY, val)
+    syncKeyToSupabase(ITEM_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error deleting item:', error)

@@ -1,5 +1,12 @@
 // 專案缺失追蹤存储工具
+import { syncKeyToSupabase } from './supabaseSync'
 const DEFICIENCY_STORAGE_KEY = 'jiameng_project_deficiencies'
+
+const persist = (deficiencies) => {
+  const val = JSON.stringify(deficiencies)
+  localStorage.setItem(DEFICIENCY_STORAGE_KEY, val)
+  syncKeyToSupabase(DEFICIENCY_STORAGE_KEY, val)
+}
 
 // 获取所有缺失记录（可選：按專案ID篩選）
 export const getDeficiencies = (projectId = null) => {
@@ -33,7 +40,7 @@ export const saveDeficiency = (deficiency) => {
     } else {
       deficiencies.push(newDeficiency)
     }
-    localStorage.setItem(DEFICIENCY_STORAGE_KEY, JSON.stringify(deficiencies))
+    persist(deficiencies)
     return { success: true, deficiency: newDeficiency }
   } catch (error) {
     console.error('Error saving deficiency:', error)
@@ -49,9 +56,9 @@ export const saveAllDeficiencies = (deficiencies, projectId = null) => {
       const all = getDeficiencies()
       const others = all.filter(d => d.projectId !== projectId)
       const updated = [...others, ...deficiencies]
-      localStorage.setItem(DEFICIENCY_STORAGE_KEY, JSON.stringify(updated))
+      persist(updated)
     } else {
-      localStorage.setItem(DEFICIENCY_STORAGE_KEY, JSON.stringify(deficiencies))
+      persist(deficiencies)
     }
     return { success: true }
   } catch (error) {
@@ -65,7 +72,7 @@ export const deleteDeficienciesByProject = (projectId) => {
   try {
     const all = getDeficiencies()
     const filtered = all.filter(d => d.projectId !== projectId)
-    localStorage.setItem(DEFICIENCY_STORAGE_KEY, JSON.stringify(filtered))
+    persist(filtered)
     return { success: true }
   } catch (error) {
     console.error('Error deleting deficiencies by project:', error)
@@ -86,7 +93,7 @@ export const updateDeficiency = (id, updates) => {
       ...updates,
       updatedAt: new Date().toISOString()
     }
-    localStorage.setItem(DEFICIENCY_STORAGE_KEY, JSON.stringify(deficiencies))
+    persist(deficiencies)
     return { success: true }
   } catch (error) {
     console.error('Error updating deficiency:', error)
@@ -99,7 +106,7 @@ export const deleteDeficiency = (id) => {
   try {
     const deficiencies = getDeficiencies()
     const filtered = deficiencies.filter(d => d.id !== id)
-    localStorage.setItem(DEFICIENCY_STORAGE_KEY, JSON.stringify(filtered))
+    persist(filtered)
     return { success: true }
   } catch (error) {
     console.error('Error deleting deficiency:', error)

@@ -1,5 +1,12 @@
 // 彈幕系統存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const DANMU_STORAGE_KEY = 'jiameng_danmus'
+
+const persist = (data) => {
+  const val = JSON.stringify(data)
+  localStorage.setItem(DANMU_STORAGE_KEY, val)
+  syncKeyToSupabase(DANMU_STORAGE_KEY, val)
+}
 
 // 獲取所有彈幕
 export const getDanmus = () => {
@@ -27,7 +34,7 @@ export const addDanmu = (danmuData) => {
     danmus.push(newDanmu)
     // 只保留最近500條彈幕
     const recentDanmus = danmus.slice(-500)
-    localStorage.setItem(DANMU_STORAGE_KEY, JSON.stringify(recentDanmus))
+    persist(recentDanmus)
     return { success: true, danmu: newDanmu }
   } catch (error) {
     console.error('Error adding danmu:', error)
@@ -40,7 +47,7 @@ export const deleteDanmu = (danmuId) => {
   try {
     const danmus = getDanmus()
     const filtered = danmus.filter(d => d.id !== danmuId)
-    localStorage.setItem(DANMU_STORAGE_KEY, JSON.stringify(filtered))
+    persist(filtered)
     return { success: true }
   } catch (error) {
     console.error('Error deleting danmu:', error)
@@ -92,7 +99,7 @@ export const cleanExpiredDanmus = () => {
       return createdAt >= twentyFourHoursAgo
     })
     
-    localStorage.setItem(DANMU_STORAGE_KEY, JSON.stringify(activeDanmus))
+    persist(activeDanmus)
     return { success: true, removed: danmus.length - activeDanmus.length }
   } catch (error) {
     console.error('Error cleaning expired danmus:', error)

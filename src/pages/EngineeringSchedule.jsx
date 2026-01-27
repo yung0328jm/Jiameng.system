@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getSchedules, saveSchedule, deleteSchedule, updateSchedule } from '../utils/scheduleStorage'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function EngineeringSchedule() {
   const [schedules, setSchedules] = useState([])
@@ -36,6 +37,8 @@ function EngineeringSchedule() {
     const data = getSchedules()
     setSchedules(data.sort((a, b) => new Date(b.date) - new Date(a.date)))
   }
+
+  useRealtimeKeys(['jiameng_engineering_schedules'], loadSchedules)
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target

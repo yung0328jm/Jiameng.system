@@ -5,6 +5,7 @@ import { getUserInventory, getItemQuantity, addItemToInventory, removeItemFromIn
 import { getActiveTrades, createTrade, requestTrade, confirmTrade, rejectTrade, cancelBuyRequest, cancelTrade, getUserTrades, deleteTrade, getPendingTrades } from '../utils/tradeStorage'
 import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getUsers } from '../utils/storage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function Exchange() {
   const [userRole, setUserRole] = useState(null)
@@ -76,6 +77,15 @@ function Exchange() {
     const userTrades = getUserTrades(currentUser)
     setMyTrades(userTrades)
   }
+
+  const refetchForRealtime = () => {
+    loadTrades()
+    loadPendingTrades()
+    loadMyTrades()
+    const u = getCurrentUser()
+    if (u) setWalletBalance(getWalletBalance(u))
+  }
+  useRealtimeKeys(['jiameng_trades', 'jiameng_wallets'], refetchForRealtime)
   
   const handleCreateTrade = () => {
     if (!tradeForm.quantity || tradeForm.quantity <= 0) {

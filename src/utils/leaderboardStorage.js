@@ -1,4 +1,5 @@
 // 排行榜項目存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const LEADERBOARD_STORAGE_KEY = 'jiameng_leaderboard_items'
 const LEADERBOARD_UI_STORAGE_KEY = 'jiameng_leaderboard_ui'
 
@@ -16,7 +17,9 @@ export const getLeaderboardItems = () => {
 // 保存排行榜項目
 export const saveLeaderboardItems = (items) => {
   try {
-    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(items))
+    const val = JSON.stringify(items)
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, val)
+    syncKeyToSupabase(LEADERBOARD_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving leaderboard items:', error)
@@ -120,7 +123,9 @@ export const getLeaderboardUIConfig = () => {
 // 保存排行榜UI配置
 export const saveLeaderboardUIConfig = (config) => {
   try {
-    localStorage.setItem(LEADERBOARD_UI_STORAGE_KEY, JSON.stringify(config))
+    const val = JSON.stringify(config)
+    localStorage.setItem(LEADERBOARD_UI_STORAGE_KEY, val)
+    syncKeyToSupabase(LEADERBOARD_UI_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving leaderboard UI config:', error)
@@ -188,7 +193,9 @@ export const saveManualRankings = (leaderboardItemId, rankings) => {
     const allRankings = localStorage.getItem(MANUAL_RANKINGS_STORAGE_KEY)
     const data = allRankings ? JSON.parse(allRankings) : {}
     data[leaderboardItemId] = rankings
-    localStorage.setItem(MANUAL_RANKINGS_STORAGE_KEY, JSON.stringify(data))
+    const val = JSON.stringify(data)
+    localStorage.setItem(MANUAL_RANKINGS_STORAGE_KEY, val)
+    syncKeyToSupabase(MANUAL_RANKINGS_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving manual rankings:', error)

@@ -1,4 +1,5 @@
 // 日历事件存储工具
+import { syncKeyToSupabase } from './supabaseSync'
 const CALENDAR_STORAGE_KEY = 'jiameng_calendar_events'
 
 export const getEvents = () => {
@@ -19,7 +20,9 @@ export const saveEvent = (event) => {
       id: event.id || Date.now().toString()
     }
     events.push(newEvent)
-    localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(events))
+    const val = JSON.stringify(events)
+    localStorage.setItem(CALENDAR_STORAGE_KEY, val)
+    syncKeyToSupabase(CALENDAR_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving event:', error)
@@ -33,7 +36,9 @@ export const updateEvent = (eventId, updates) => {
     const index = events.findIndex(e => e.id === eventId)
     if (index !== -1) {
       events[index] = { ...events[index], ...updates }
-      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(events))
+      const val = JSON.stringify(events)
+      localStorage.setItem(CALENDAR_STORAGE_KEY, val)
+      syncKeyToSupabase(CALENDAR_STORAGE_KEY, val)
       return { success: true }
     }
     return { success: false, message: '事件不存在' }
@@ -47,7 +52,9 @@ export const deleteEvent = (eventId) => {
   try {
     const events = getEvents()
     const filtered = events.filter(e => e.id !== eventId)
-    localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(filtered))
+    const val = JSON.stringify(filtered)
+    localStorage.setItem(CALENDAR_STORAGE_KEY, val)
+    syncKeyToSupabase(CALENDAR_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error deleting event:', error)

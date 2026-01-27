@@ -1,5 +1,12 @@
 // 交易系統存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const TRADE_STORAGE_KEY = 'jiameng_trades'
+
+const persist = (trades) => {
+  const val = JSON.stringify(trades)
+  localStorage.setItem(TRADE_STORAGE_KEY, val)
+  syncKeyToSupabase(TRADE_STORAGE_KEY, val)
+}
 
 // 獲取所有交易
 export const getTrades = () => {
@@ -33,7 +40,7 @@ export const createTrade = (tradeData) => {
       requestedAt: null // 購買請求時間
     }
     trades.push(newTrade)
-    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trades))
+    persist(trades)
     return { success: true, trade: newTrade }
   } catch (error) {
     console.error('Error creating trade:', error)
@@ -67,7 +74,7 @@ export const requestTrade = (tradeId, buyer) => {
       requestedAt: new Date().toISOString()
     }
     
-    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trades))
+    persist(trades)
     return { success: true, trade: trades[tradeIndex] }
   } catch (error) {
     console.error('Error requesting trade:', error)
@@ -106,7 +113,7 @@ export const confirmTrade = (tradeId, seller) => {
       pendingBuyer: null
     }
     
-    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trades))
+    persist(trades)
     return { success: true, trade: trades[tradeIndex] }
   } catch (error) {
     console.error('Error confirming trade:', error)
@@ -140,7 +147,7 @@ export const rejectTrade = (tradeId, seller) => {
       requestedAt: null
     }
     
-    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trades))
+    persist(trades)
     return { success: true, trade: trades[tradeIndex] }
   } catch (error) {
     console.error('Error rejecting trade:', error)
@@ -174,7 +181,7 @@ export const cancelBuyRequest = (tradeId, buyer) => {
       requestedAt: null
     }
     
-    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trades))
+    persist(trades)
     return { success: true, trade: trades[tradeIndex] }
   } catch (error) {
     console.error('Error canceling buy request:', error)
@@ -209,7 +216,7 @@ export const cancelTrade = (tradeId, username) => {
       status: 'cancelled'
     }
     
-    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trades))
+    persist(trades)
     return { success: true }
   } catch (error) {
     console.error('Error cancelling trade:', error)
@@ -265,7 +272,7 @@ export const deleteTrade = (tradeId) => {
   try {
     const trades = getTrades()
     const filtered = trades.filter(t => t.id !== tradeId)
-    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(filtered))
+    persist(filtered)
     return { success: true }
   } catch (error) {
     console.error('Error deleting trade:', error)

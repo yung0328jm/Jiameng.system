@@ -1,4 +1,5 @@
 // 兌換請求存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const EXCHANGE_REQUEST_STORAGE_KEY = 'jiameng_exchange_requests'
 
 // 獲取所有兌換請求
@@ -24,7 +25,9 @@ export const createExchangeRequest = (request) => {
       updatedAt: new Date().toISOString()
     }
     requests.push(newRequest)
-    localStorage.setItem(EXCHANGE_REQUEST_STORAGE_KEY, JSON.stringify(requests))
+    const val = JSON.stringify(requests)
+    localStorage.setItem(EXCHANGE_REQUEST_STORAGE_KEY, val)
+    syncKeyToSupabase(EXCHANGE_REQUEST_STORAGE_KEY, val)
     return { success: true, request: newRequest }
   } catch (error) {
     console.error('Error creating exchange request:', error)
@@ -45,7 +48,9 @@ export const updateExchangeRequest = (requestId, updates) => {
       ...updates,
       updatedAt: new Date().toISOString()
     }
-    localStorage.setItem(EXCHANGE_REQUEST_STORAGE_KEY, JSON.stringify(requests))
+    const val = JSON.stringify(requests)
+    localStorage.setItem(EXCHANGE_REQUEST_STORAGE_KEY, val)
+    syncKeyToSupabase(EXCHANGE_REQUEST_STORAGE_KEY, val)
     return { success: true, request: requests[index] }
   } catch (error) {
     console.error('Error updating exchange request:', error)
@@ -58,7 +63,9 @@ export const deleteExchangeRequest = (requestId) => {
   try {
     const requests = getExchangeRequests()
     const filtered = requests.filter(r => r.id !== requestId)
-    localStorage.setItem(EXCHANGE_REQUEST_STORAGE_KEY, JSON.stringify(filtered))
+    const val = JSON.stringify(filtered)
+    localStorage.setItem(EXCHANGE_REQUEST_STORAGE_KEY, val)
+    syncKeyToSupabase(EXCHANGE_REQUEST_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error deleting exchange request:', error)

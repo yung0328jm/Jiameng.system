@@ -1,4 +1,5 @@
 // 稱號配置存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const TITLE_CONFIG_STORAGE_KEY = 'jiameng_title_config'
 
 // 獲取稱號配置
@@ -27,7 +28,9 @@ export const getTitleConfig = () => {
 // 保存稱號配置
 export const saveTitleConfig = (config) => {
   try {
-    localStorage.setItem(TITLE_CONFIG_STORAGE_KEY, JSON.stringify(config))
+    const val = JSON.stringify(config)
+    localStorage.setItem(TITLE_CONFIG_STORAGE_KEY, val)
+    syncKeyToSupabase(TITLE_CONFIG_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving title config:', error)

@@ -1,5 +1,12 @@
 // 特效裝備系統存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const EFFECT_STORAGE_KEY = 'jiameng_equipped_effects'
+
+const persist = (effects) => {
+  const val = JSON.stringify(effects)
+  localStorage.setItem(EFFECT_STORAGE_KEY, val)
+  syncKeyToSupabase(EFFECT_STORAGE_KEY, val)
+}
 
 // 獲取用戶裝備的特效
 export const getEquippedEffects = (username) => {
@@ -43,7 +50,7 @@ export const equipEffect = (username, itemId, effectType) => {
       effects[username].title = itemId
     }
     
-    localStorage.setItem(EFFECT_STORAGE_KEY, JSON.stringify(effects))
+    persist(effects)
     return { success: true }
   } catch (error) {
     console.error('Error equipping effect:', error)
@@ -69,7 +76,7 @@ export const unequipEffect = (username, effectType) => {
       effects[username].title = null
     }
     
-    localStorage.setItem(EFFECT_STORAGE_KEY, JSON.stringify(effects))
+    persist(effects)
     return { success: true }
   } catch (error) {
     console.error('Error unequipping effect:', error)

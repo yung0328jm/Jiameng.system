@@ -1,4 +1,5 @@
 // 特效顯示效果配置存儲（名子特效、發話特效、稱號徽章）
+import { syncKeyToSupabase } from './supabaseSync'
 const EFFECT_DISPLAY_STORAGE_KEY = 'jiameng_effect_display_config'
 
 const defaultNameEffect = {
@@ -169,7 +170,9 @@ export const getEffectDisplayConfig = () => {
 
 export const saveEffectDisplayConfig = (config) => {
   try {
-    localStorage.setItem(EFFECT_DISPLAY_STORAGE_KEY, JSON.stringify(config))
+    const val = JSON.stringify(config)
+    localStorage.setItem(EFFECT_DISPLAY_STORAGE_KEY, val)
+    syncKeyToSupabase(EFFECT_DISPLAY_STORAGE_KEY, val)
     return { success: true }
   } catch (e) {
     console.error('saveEffectDisplayConfig:', e)

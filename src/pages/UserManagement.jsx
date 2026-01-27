@@ -29,6 +29,7 @@ function UserManagement() {
     const allUsers = getUsers()
     setUsers(allUsers)
   }
+  useRealtimeKeys(['jiameng_users'], loadUsers)
 
   const getDateRange = () => {
     const today = new Date()

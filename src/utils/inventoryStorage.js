@@ -1,4 +1,5 @@
 // 背包系統存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const INVENTORY_STORAGE_KEY = 'jiameng_inventories'
 
 // 獲取用戶背包
@@ -34,7 +35,9 @@ export const addItemToInventory = (username, itemId, quantity = 1) => {
       })
     }
     
-    localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(inventories))
+    const val = JSON.stringify(inventories)
+    localStorage.setItem(INVENTORY_STORAGE_KEY, val)
+    syncKeyToSupabase(INVENTORY_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error adding item to inventory:', error)
@@ -64,7 +67,9 @@ export const removeItemFromInventory = (username, itemId, quantity = 1) => {
       item.quantity -= quantity
     }
     
-    localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(inventories))
+    const val = JSON.stringify(inventories)
+    localStorage.setItem(INVENTORY_STORAGE_KEY, val)
+    syncKeyToSupabase(INVENTORY_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error removing item from inventory:', error)

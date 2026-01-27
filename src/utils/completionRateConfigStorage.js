@@ -1,4 +1,5 @@
 // 達成率調整規則配置存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const COMPLETION_RATE_CONFIG_KEY = 'jiameng_completion_rate_config'
 
 // 預設規則
@@ -33,7 +34,9 @@ export const saveCompletionRateRules = (rules) => {
       rules: rules,
       updatedAt: new Date().toISOString()
     }
-    localStorage.setItem(COMPLETION_RATE_CONFIG_KEY, JSON.stringify(config))
+    const val = JSON.stringify(config)
+    localStorage.setItem(COMPLETION_RATE_CONFIG_KEY, val)
+    syncKeyToSupabase(COMPLETION_RATE_CONFIG_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving completion rate rules:', error)

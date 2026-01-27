@@ -1,5 +1,12 @@
 // 個人績效存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const PERFORMANCE_STORAGE_KEY = 'jiameng_personal_performance'
+
+const persist = (records) => {
+  const val = JSON.stringify(records)
+  localStorage.setItem(PERFORMANCE_STORAGE_KEY, val)
+  syncKeyToSupabase(PERFORMANCE_STORAGE_KEY, val)
+}
 
 // 獲取所有績效記錄
 export const getPerformanceRecords = () => {
@@ -23,7 +30,7 @@ export const saveLateRecord = (record) => {
       createdAt: record.createdAt || new Date().toISOString()
     }
     records.push(newRecord)
-    localStorage.setItem(PERFORMANCE_STORAGE_KEY, JSON.stringify(records))
+    persist(records)
     return { success: true, record: newRecord }
   } catch (error) {
     console.error('Error saving late record:', error)
@@ -43,7 +50,7 @@ export const savePerformanceRecord = (record) => {
     }
     // 每條記錄都保留，不檢查是否已存在（允許同一天多條記錄）
     records.push(newRecord)
-    localStorage.setItem(PERFORMANCE_STORAGE_KEY, JSON.stringify(records))
+    persist(records)
     return { success: true, record: newRecord }
   } catch (error) {
     console.error('Error saving performance record:', error)
@@ -110,7 +117,7 @@ export const saveAttendanceRecord = (record) => {
       createdAt: record.createdAt || new Date().toISOString()
     }
     records.push(newRecord)
-    localStorage.setItem(PERFORMANCE_STORAGE_KEY, JSON.stringify(records))
+    persist(records)
     return { success: true, record: newRecord }
   } catch (error) {
     console.error('Error saving attendance record:', error)
@@ -143,7 +150,7 @@ export const deletePerformanceRecord = (id) => {
   try {
     const records = getPerformanceRecords()
     const filtered = records.filter(r => r.id !== id)
-    localStorage.setItem(PERFORMANCE_STORAGE_KEY, JSON.stringify(filtered))
+    persist(filtered)
     return { success: true }
   } catch (error) {
     console.error('Error deleting performance record:', error)

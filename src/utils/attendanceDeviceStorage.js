@@ -1,4 +1,5 @@
 // 刷卡機設備配置存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const ATTENDANCE_DEVICE_CONFIG_KEY = 'jiameng_attendance_device_config'
 
 // 預設配置
@@ -35,7 +36,9 @@ export const saveDeviceConfig = (config) => {
       ...config,
       updatedAt: new Date().toISOString()
     }
-    localStorage.setItem(ATTENDANCE_DEVICE_CONFIG_KEY, JSON.stringify(fullConfig))
+    const val = JSON.stringify(fullConfig)
+    localStorage.setItem(ATTENDANCE_DEVICE_CONFIG_KEY, val)
+    syncKeyToSupabase(ATTENDANCE_DEVICE_CONFIG_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving device config:', error)

@@ -1,4 +1,5 @@
 // 每日簽到儲存：獎勵設定（每日 1–31 格）、使用者簽到紀錄
+import { syncKeyToSupabase } from './supabaseSync'
 const REWARD_CONFIG_KEY = 'jiameng_checkin_rewards'
 const CHECKIN_RECORDS_KEY = 'jiameng_checkin_records'
 
@@ -39,7 +40,9 @@ export const setRewardConfig = (config) => {
     for (let d = 1; d <= 31; d++) {
       if (!next.days[d]) next.days[d] = defaultDayReward(d)
     }
-    localStorage.setItem(REWARD_CONFIG_KEY, JSON.stringify(next))
+    const val = JSON.stringify(next)
+    localStorage.setItem(REWARD_CONFIG_KEY, val)
+    syncKeyToSupabase(REWARD_CONFIG_KEY, val)
     return { success: true }
   } catch (e) {
     console.error('setRewardConfig error', e)
@@ -83,7 +86,9 @@ export const performCheckIn = (username, dateStr) => {
     const all = data ? JSON.parse(data) : {}
     if (!all[username]) all[username] = {}
     all[username][dateStr] = true
-    localStorage.setItem(CHECKIN_RECORDS_KEY, JSON.stringify(all))
+    const val = JSON.stringify(all)
+    localStorage.setItem(CHECKIN_RECORDS_KEY, val)
+    syncKeyToSupabase(CHECKIN_RECORDS_KEY, val)
 
     return { success: true, reward, day }
   } catch (e) {

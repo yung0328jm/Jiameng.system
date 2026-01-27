@@ -1,5 +1,12 @@
 // 本地存储工具函数
+import { syncKeyToSupabase } from './supabaseSync'
 const STORAGE_KEY = 'jiameng_users'
+
+const setUsersAndSync = (users) => {
+  const val = JSON.stringify(users)
+  localStorage.setItem(STORAGE_KEY, val)
+  syncKeyToSupabase(STORAGE_KEY, val)
+}
 
 export const getUsers = () => {
   try {
@@ -30,7 +37,7 @@ export const initializeAdminUser = () => {
         createdAt: new Date().toISOString()
       }
       users.push(defaultAdmin)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(users))
+      setUsersAndSync(users)
       return { success: true, message: '已創建默認管理者賬戶' }
     }
     
@@ -54,7 +61,7 @@ export const saveUser = (user) => {
       id: Date.now().toString(),
       createdAt: new Date().toISOString()
     })
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users))
+    setUsersAndSync(users)
     return { success: true, message: '註冊成功' }
   } catch (error) {
     console.error('Error saving user:', error)
@@ -83,7 +90,7 @@ export const updateUserRole = (account, newRole) => {
       return { success: false, message: '用戶不存在' }
     }
     users[userIndex].role = newRole
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users))
+    setUsersAndSync(users)
     return { success: true }
   } catch (error) {
     console.error('Error updating user role:', error)
@@ -107,7 +114,7 @@ export const deleteUser = (account) => {
     }
     
     users.splice(userIndex, 1)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users))
+    setUsersAndSync(users)
     return { success: true }
   } catch (error) {
     console.error('Error deleting user:', error)

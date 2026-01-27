@@ -15,6 +15,7 @@ import { getTitleConfig } from '../utils/titleStorage'
 import { getEffectDisplayConfig, saveEffectDisplayConfig, getStyleForPreset, getDecorationById, getDecorationForPreset, NAME_EFFECT_PRESETS, MESSAGE_EFFECT_PRESETS, TITLE_BADGE_PRESETS, DECORATION_PRESETS } from '../utils/effectDisplayStorage'
 import { getLeaderboardTypes, addLeaderboardType, updateLeaderboardType, deleteLeaderboardType, getPresetIdByRank } from '../utils/leaderboardTypeStorage'
 import { getEquippedEffects } from '../utils/effectStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -209,6 +210,7 @@ function Home() {
     })
     setTodos(sorted)
   }
+  useRealtimeKeys(['jiameng_todos'], loadTodos)
 
   const handleAddTodo = () => {
     if (!newTodoText.trim()) {

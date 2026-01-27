@@ -1,4 +1,5 @@
 // 專案存储工具
+import { syncKeyToSupabase } from './supabaseSync'
 const PROJECT_STORAGE_KEY = 'jiameng_projects'
 
 // 获取所有專案
@@ -49,7 +50,9 @@ export const updateProject = (id, updates) => {
       ...updates,
       updatedAt: new Date().toISOString()
     }
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects))
+    const val = JSON.stringify(projects)
+    localStorage.setItem(PROJECT_STORAGE_KEY, val)
+    syncKeyToSupabase(PROJECT_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error updating project:', error)
@@ -62,7 +65,9 @@ export const deleteProject = (id) => {
   try {
     const projects = getProjects()
     const filtered = projects.filter(p => p.id !== id)
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(filtered))
+    const val = JSON.stringify(filtered)
+    localStorage.setItem(PROJECT_STORAGE_KEY, val)
+    syncKeyToSupabase(PROJECT_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error deleting project:', error)

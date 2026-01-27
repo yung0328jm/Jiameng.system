@@ -1,4 +1,5 @@
 // 佳盟幣錢包系統存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const WALLET_STORAGE_KEY = 'jiameng_wallets'
 
 // 獲取用戶錢包餘額
@@ -19,7 +20,9 @@ export const setWalletBalance = (username, balance) => {
     const data = localStorage.getItem(WALLET_STORAGE_KEY)
     const wallets = data ? JSON.parse(data) : {}
     wallets[username] = Math.max(0, balance) // 確保餘額不為負數
-    localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(wallets))
+    const val = JSON.stringify(wallets)
+    localStorage.setItem(WALLET_STORAGE_KEY, val)
+    syncKeyToSupabase(WALLET_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error setting wallet balance:', error)
@@ -85,7 +88,9 @@ export const addTransaction = (transaction) => {
     transactions.push(newTransaction)
     // 只保留最近1000筆記錄
     const recentTransactions = transactions.slice(-1000)
-    localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(recentTransactions))
+    const val = JSON.stringify(recentTransactions)
+    localStorage.setItem(TRANSACTION_STORAGE_KEY, val)
+    syncKeyToSupabase(TRANSACTION_STORAGE_KEY, val)
     return { success: true, transaction: newTransaction }
   } catch (error) {
     console.error('Error adding transaction:', error)

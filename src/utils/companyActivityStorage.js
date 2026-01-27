@@ -1,4 +1,5 @@
 // 公司活動存儲工具
+import { syncKeyToSupabase } from './supabaseSync'
 const COMPANY_ACTIVITY_STORAGE_KEY = 'jiameng_company_activities'
 
 // 獲取所有公司活動
@@ -17,7 +18,9 @@ export const getCompanyActivities = () => {
 // 保存公司活動列表
 export const saveCompanyActivities = (activities) => {
   try {
-    localStorage.setItem(COMPANY_ACTIVITY_STORAGE_KEY, JSON.stringify(activities))
+    const val = JSON.stringify(activities)
+    localStorage.setItem(COMPANY_ACTIVITY_STORAGE_KEY, val)
+    syncKeyToSupabase(COMPANY_ACTIVITY_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
     console.error('Error saving company activities:', error)

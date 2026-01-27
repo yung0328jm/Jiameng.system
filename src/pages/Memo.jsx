@@ -9,6 +9,7 @@ import { getUsers } from '../utils/storage'
 import { getEquippedEffects } from '../utils/effectStorage'
 import { getEffectDisplayConfig, getStyleForPreset, getDecorationForPreset, getDecorationById } from '../utils/effectDisplayStorage'
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
+import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
 function Memo() {
   const [userRole, setUserRole] = useState(null)
@@ -103,6 +104,22 @@ function Memo() {
     // 自动滚动到底部
     scrollToBottom()
   }, [selectedTopicId, topics])
+
+  // 即時同步：有人新增/修改交流區、公佈欄、彈幕時，其他人不需重整即可看到
+  useEffect(() => {
+    const fn = (e) => {
+      const k = e.detail?.key
+      if (k === 'jiameng_memos') {
+        const allTopics = getTopics()
+        setTopics(allTopics)
+        setSelectedTopicId((prev) => (allTopics.some((t) => t.id === prev) ? prev : (allTopics[0]?.id ?? null)))
+      }
+      if (k === 'jiameng_announcements') setAnnouncements(getAnnouncements())
+      if (k === 'jiameng_danmus') setDanmus(getActiveDanmus())
+    }
+    window.addEventListener(REALTIME_UPDATE_EVENT, fn)
+    return () => window.removeEventListener(REALTIME_UPDATE_EVENT, fn)
+  }, [])
 
   // 切回此頁或取得焦點時重讀排行榜項目，讓「編輯排行榜」儲存的名子／發話／勳章設定即時反映在交流區
   useEffect(() => {
