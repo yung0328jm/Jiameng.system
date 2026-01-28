@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTopics, createTopic, addMessage, deleteTopic } from '../utils/memoStorage'
+import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic } from '../utils/memoStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement } from '../utils/announcementStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
@@ -25,11 +25,8 @@ function Memo() {
   })
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null)
   
-  // 交流區狀態
-  const [topics, setTopics] = useState([])
-  const [selectedTopicId, setSelectedTopicId] = useState(null)
-  const [newTopicTitle, setNewTopicTitle] = useState('')
-  const [showNewTopicForm, setShowNewTopicForm] = useState(false)
+  // 交流區狀態（單一對話框，所有用戶直接發話）
+  const [messages, setMessages] = useState([])
   const [messageContent, setMessageContent] = useState('')
   const [author, setAuthor] = useState('')
   const messagesEndRef = useRef(null)
@@ -44,7 +41,6 @@ function Memo() {
   const [inventory, setInventory] = useState([])
   // 排行榜項目（用於名子／發話／稱號特效）：切回此頁或取得焦點時重讀，確保編輯排行榜後的設定會反映
   const [leaderboardItems, setLeaderboardItems] = useState(() => getLeaderboardItems())
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false) // 聊天區收合狀態
 
 
 
@@ -54,18 +50,12 @@ function Memo() {
     setAnnouncements(allAnnouncements)
   }
 
-  // 交流區相關函數
-  const loadTopics = () => {
-    const allTopics = getTopics()
-    setTopics(allTopics)
-    // 如果有话题且没有选中，自动选中第一个
-    if (allTopics.length > 0 && !selectedTopicId) {
-      setSelectedTopicId(allTopics[0].id)
-    }
+  const loadMessages = () => {
+    getOrCreateGlobalTopic()
+    setMessages(getGlobalMessages())
   }
 
   useEffect(() => {
-    // 自动获取当前登录用户名和角色
     const currentUser = getCurrentUser()
     const role = getCurrentUserRole()
     setCurrentUser(currentUser || '')
@@ -76,7 +66,7 @@ function Memo() {
       setAuthor('使用者')
     }
     loadAnnouncements()
-    loadTopics()
+    loadMessages()
     loadDanmus()
     checkDanmuItem()
     loadInventory()
@@ -102,19 +92,13 @@ function Memo() {
   }, [])
 
   useEffect(() => {
-    // 自动滚动到底部
     scrollToBottom()
-  }, [selectedTopicId, topics])
+  }, [messages])
 
-  // 即時同步：有人新增/修改交流區、公佈欄、彈幕時，其他人不需重整即可看到
   useEffect(() => {
     const fn = (e) => {
       const k = e.detail?.key
-      if (k === 'jiameng_memos') {
-        const allTopics = getTopics()
-        setTopics(allTopics)
-        setSelectedTopicId((prev) => (allTopics.some((t) => t.id === prev) ? prev : (allTopics[0]?.id ?? null)))
-      }
+      if (k === 'jiameng_memos') loadMessages()
       if (k === 'jiameng_announcements') setAnnouncements(getAnnouncements())
       if (k === 'jiameng_danmus') setDanmus(getActiveDanmus())
     }
@@ -210,56 +194,18 @@ function Memo() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const handleCreateTopic = (e) => {
-    e.preventDefault()
-    if (!newTopicTitle.trim()) {
-      alert('請輸入話題標題')
-      return
-    }
-    
-    const result = createTopic(newTopicTitle.trim())
-    if (result.success) {
-      setNewTopicTitle('')
-      setShowNewTopicForm(false)
-      loadTopics()
-      setSelectedTopicId(result.topic.id)
-    } else {
-      alert(result.message || '創建話題失敗')
-    }
-  }
-
   const handleSendMessage = (e) => {
     e.preventDefault()
-    if (!messageContent.trim() || !selectedTopicId) {
-      return
-    }
-    
-    const result = addMessage(selectedTopicId, messageContent.trim(), author)
+    if (!messageContent.trim()) return
+    const result = addGlobalMessage(messageContent.trim(), author)
     if (result.success) {
       setMessageContent('')
-      loadTopics()
+      loadMessages()
       setTimeout(scrollToBottom, 100)
     } else {
       alert(result.message || '發送消息失敗')
     }
   }
-
-  const handleDeleteTopic = (topicId) => {
-    if (window.confirm('確定要刪除此話題嗎？所有消息將一併刪除。')) {
-      const result = deleteTopic(topicId)
-      if (result.success) {
-        loadTopics()
-        if (selectedTopicId === topicId) {
-          setSelectedTopicId(null)
-        }
-      } else {
-        alert(result.message || '刪除話題失敗')
-      }
-    }
-  }
-
-  const selectedTopic = topics.find(t => t.id === selectedTopicId)
-  const messages = selectedTopic ? selectedTopic.messages : []
 
   const formatTime = (dateString) => {
     const date = new Date(dateString)
@@ -1053,230 +999,103 @@ function Memo() {
           </div>
         )}
         
-        {/* 管理員道具分配表單 */}
-
-        <div className={`grid gap-6 min-h-0 flex-1 ${isChatCollapsed ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'}`} style={{ minHeight: '50vh' }}>
-        {/* 左侧：话题列表（點擊空白處收合聊天） */}
-        <div
-          className={`bg-gray-800 rounded-lg p-2 sm:p-4 border border-gray-700 flex flex-col cursor-default ${isChatCollapsed ? 'lg:col-span-1' : 'lg:col-span-1'}`}
-          onClick={() => setIsChatCollapsed(true)}
-        >
-          <div className="flex items-center justify-between mb-2 sm:mb-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xs sm:text-sm font-semibold text-white">話題列表</h3>
-            <button
-              onClick={() => setShowNewTopicForm(!showNewTopicForm)}
-              className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
-            >
-              + 新增話題
-            </button>
+        {/* 對話框：所有用戶直接發話，不需開設話題 */}
+        <div className="bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0 flex-1" style={{ minHeight: '50vh' }}>
+          <div className="p-4 border-b border-gray-700 shrink-0">
+            <h3 className="text-lg font-semibold text-white">對話框</h3>
+            <p className="text-sm sm:text-xs text-gray-400 mt-0.5">所有用戶在此發話，無需新增話題</p>
           </div>
 
-          {/* 新增话题表单 */}
-          {showNewTopicForm && (
-            <form onSubmit={handleCreateTopic} className="mb-4 pb-4 border-b border-gray-700" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="text"
-                value={newTopicTitle}
-                onChange={(e) => setNewTopicTitle(e.target.value)}
-                placeholder="請輸入話題標題"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 mb-2"
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-1 rounded text-sm transition-colors"
-                >
-                  創建
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowNewTopicForm(false)
-                    setNewTopicTitle('')
-                  }}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-1 rounded text-sm transition-colors"
-                >
-                  取消
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* 话题列表：點擊話題進入聊天 */}
-          <div className="flex-1 overflow-y-auto">
-            {topics.length === 0 ? (
-              <div className="text-gray-400 text-center py-8 text-[10px] sm:text-xs">
-                尚無話題，點擊「新增話題」開始
+          {/* 消息列表（可上下滑動瀏覽） */}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+            {messages.length === 0 ? (
+              <div className="text-gray-400 text-center py-12">
+                <p>尚無消息</p>
+                <p className="text-sm mt-2">輸入下方訊息後按發送即可開始聊天</p>
               </div>
             ) : (
-              <div className="grid grid-cols-4 gap-1 sm:gap-2">
-                {topics.map((topic) => (
-                  <div
-                    key={topic.id}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedTopicId(topic.id)
-                      setIsChatCollapsed(false)
-                    }}
-                    className={`p-1.5 sm:p-2 rounded cursor-pointer transition-colors ${
-                      selectedTopicId === topic.id
-                        ? 'bg-yellow-400 text-gray-800'
-                        : 'bg-gray-700 text-white hover:bg-gray-600'
-                    }`}
-                  >
-                    <div className="flex flex-col items-center text-center min-h-0">
-                      <div className="font-semibold truncate w-full text-[10px] sm:text-xs mb-0.5">{topic.title}</div>
-                      <div className={`text-[9px] sm:text-[10px] ${
-                        selectedTopicId === topic.id ? 'text-gray-600' : 'text-gray-400'
-                      }`}>
-                        {topic.messages.length} 則
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteTopic(topic.id)
-                        }}
-                        className={`mt-1 text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                          selectedTopicId === topic.id
-                            ? 'bg-red-500 hover:bg-red-600 text-white'
-                            : 'bg-gray-600 hover:bg-red-500 text-gray-300 hover:text-white'
-                        }`}
+              messages.map((message) => {
+                const nameEffectStyle = getNameEffectStyle(message.author)
+                const messageEffectStyle = getMessageEffectStyle(message.author)
+                const userTitle = getUserTitle(message.author)
+                const nameDeco = getDecorationForNameEffect(message.author)
+                return (
+                  <div key={message.id} className="flex flex-col">
+                    <div className="flex items-center space-x-2 mb-1 flex-wrap">
+                      <span
+                        className="font-semibold text-sm"
+                        style={nameEffectStyle || { color: '#FFFFFF' }}
                       >
-                        刪除
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 右侧：聊天界面 */}
-        {!isChatCollapsed && (
-          <div className="lg:col-span-2 bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0">
-            {selectedTopic ? (
-              <>
-                {/* 话题标题栏（點擊左側話題列表空白處可收合） */}
-                <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white">{selectedTopic.title}</h3>
-                  <div className="text-sm sm:text-xs text-gray-400 mt-1">
-                    創建於 {new Date(selectedTopic.createdAt).toLocaleString('zh-TW')}
-                  </div>
-                </div>
-
-              {/* 消息列表（可上下滑動瀏覽） */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
-                {messages.length === 0 ? (
-                  <div className="text-gray-400 text-center py-12">
-                    <p>尚無消息</p>
-                    <p className="text-sm mt-2">開始發送第一則消息吧！</p>
-                  </div>
-                ) : (
-                  messages.map((message) => {
-                    const nameEffectStyle = getNameEffectStyle(message.author)
-                    const messageEffectStyle = getMessageEffectStyle(message.author)
-                    const userTitle = getUserTitle(message.author)
-                    
-                    const nameDeco = getDecorationForNameEffect(message.author)
-                    return (
-                    <div key={message.id} className="flex flex-col">
-                      <div className="flex items-center space-x-2 mb-1 flex-wrap">
-                          <span 
-                            className="font-semibold text-sm"
-                            style={nameEffectStyle || { color: '#FFFFFF' }}
-                          >
-                          {message.author}
-                        </span>
-                        {nameDeco && <span className={nameDeco.className}>{nameDeco.emoji}</span>}
-                        {userTitle && (
-                          <span className="text-xs font-bold rounded" style={getTitleBadgeStyle(message.author)}>
-                            {userTitle}
-                          </span>
-                        )}
-                        <span className="text-gray-500 text-sm sm:text-xs">
-                          {formatTime(message.createdAt)}
-                        </span>
-                      </div>
-                        <div 
-                          className="bg-gray-700 rounded-lg p-4 sm:p-3 text-base sm:text-sm"
-                          style={messageEffectStyle ? { ...messageEffectStyle, color: '#F5F1E8' } : { color: '#FFFFFF' }}
-                        >
-                        {message.content}
-                      </div>
-                    </div>
-                    )
-                  })
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* 发送者名称显示（只读）：顯示註冊名 */}
-              <div className="px-4 py-2 border-t border-gray-700 bg-gray-900">
-                <div className="text-gray-400 text-sm flex items-center flex-wrap gap-1">
-                  發送者: <span 
-                    className="font-semibold"
-                    style={getNameEffectStyle(author) || { color: '#FFFFFF' }}
-                  >
-                    {(getUsers().find((x) => x.account === author)?.name) || author}
-                  </span>
-                  {(() => {
-                    const authorDeco = getDecorationForNameEffect(author)
-                    return authorDeco ? <span className={authorDeco.className}>{authorDeco.emoji}</span> : null
-                  })()}
-                  {(() => {
-                    const authorTitle = getUserTitle(author)
-                    return authorTitle ? (
-                      <span className="text-xs font-bold ml-2 rounded" style={getTitleBadgeStyle(author)}>
-                        {authorTitle}
+                        {message.author}
                       </span>
-                    ) : null
-                  })()}
-                </div>
-              </div>
-
-              {/* 消息输入框與收合按鈕（置於下方方便點擊） */}
-              <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-700">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={messageContent}
-                    onChange={(e) => setMessageContent(e.target.value)}
-                    placeholder="輸入消息..."
-                    className="flex-1 min-w-0 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsChatCollapsed(true)}
-                    className="flex-shrink-0 bg-gray-600 hover:bg-gray-500 text-white font-semibold px-3 py-2 rounded transition-colors text-sm"
-                    title="收合聊天"
-                  >
-                    收合
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!messageContent.trim()}
-                    className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-gray-800 font-semibold px-4 py-2 rounded transition-colors text-sm"
-                  >
-                    發送
-                  </button>
-                </div>
-              </form>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-gray-400">
-                <p className="text-lg mb-2">請選擇一個話題</p>
-                <p className="text-sm">或創建新話題開始聊天</p>
-              </div>
-            </div>
-          )}
+                      {nameDeco && <span className={nameDeco.className}>{nameDeco.emoji}</span>}
+                      {userTitle && (
+                        <span className="text-xs font-bold rounded" style={getTitleBadgeStyle(message.author)}>
+                          {userTitle}
+                        </span>
+                      )}
+                      <span className="text-gray-500 text-sm sm:text-xs">
+                        {formatTime(message.createdAt)}
+                      </span>
+                    </div>
+                    <div
+                      className="bg-gray-700 rounded-lg p-4 sm:p-3 text-base sm:text-sm"
+                      style={messageEffectStyle ? { ...messageEffectStyle, color: '#F5F1E8' } : { color: '#FFFFFF' }}
+                    >
+                      {message.content}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        )}
+
+          {/* 發送者名稱顯示 */}
+          <div className="px-4 py-2 border-t border-gray-700 bg-gray-900 shrink-0">
+            <div className="text-gray-400 text-sm flex items-center flex-wrap gap-1">
+              發送者: <span
+                className="font-semibold"
+                style={getNameEffectStyle(author) || { color: '#FFFFFF' }}
+              >
+                {(getUsers().find((x) => x.account === author)?.name) || author}
+              </span>
+              {(() => {
+                const authorDeco = getDecorationForNameEffect(author)
+                return authorDeco ? <span className={authorDeco.className}>{authorDeco.emoji}</span> : null
+              })()}
+              {(() => {
+                const authorTitle = getUserTitle(author)
+                return authorTitle ? (
+                  <span className="text-xs font-bold ml-2 rounded" style={getTitleBadgeStyle(author)}>
+                    {authorTitle}
+                  </span>
+                ) : null
+              })()}
+            </div>
+          </div>
+
+          {/* 消息輸入框 */}
+          <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-700 shrink-0">
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                placeholder="輸入消息..."
+                className="flex-1 min-w-0 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+              />
+              <button
+                type="submit"
+                disabled={!messageContent.trim()}
+                className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-gray-800 font-semibold px-4 py-2 rounded transition-colors text-sm"
+              >
+                發送
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-    </div>
     </>
   )
 }
