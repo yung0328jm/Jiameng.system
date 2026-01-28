@@ -1845,8 +1845,8 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 動態面板（網格加寬、字體比照行事曆） */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-1 sm:gap-2 md:gap-3 items-stretch w-full min-w-0">
+          {/* 排行榜 - 動態面板（網格大一點：少欄、大間距） */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 items-stretch w-full min-w-0">
             {leaderboardItems.length === 0 ? (
               <div className="col-span-full text-center py-8">
                 <p className="text-[10px] sm:text-xs text-gray-400 mb-3">尚無排行榜項目</p>
