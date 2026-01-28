@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react'
 import { getUsers } from '../utils/storage'
 import { getUserPerformanceRecords, getUserLateRecords, getUserAttendanceRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
-import { getLeaderboardItems, initializeDefaultLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking } from '../utils/leaderboardStorage'
+import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking } from '../utils/leaderboardStorage'
 import { addTestRecord, getTestRecords, deleteTestRecord } from '../utils/testRecordStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getTodos, addTodo, updateTodo, deleteTodo, toggleTodo } from '../utils/todoStorage'
@@ -83,7 +83,7 @@ function Home() {
     setCurrentUser(user || '')
     loadTodos()
     loadLeaderboardItems()
-    initializeDefaultLeaderboardItems() // 初始化默認項目
+    // 不預設任何排行榜，由使用者自行新增
     // 載入可用道具列表
     const items = getItems()
     setAvailableItems(items)
@@ -109,9 +109,6 @@ function Home() {
 
   useEffect(() => {
     if (leaderboardItems.length > 0) {
-      if (!selectedRankingId && leaderboardItems[0]) {
-        setSelectedRankingId(leaderboardItems[0].id)
-      }
       loadManualRankings()
       calculateAllRankings()
       loadTestRecords()
@@ -576,9 +573,7 @@ function Home() {
   const loadLeaderboardItems = () => {
     const items = getLeaderboardItems()
     setLeaderboardItems(items)
-    if (items.length > 0 && !selectedRankingId) {
-      setSelectedRankingId(items[0].id)
-    }
+    // 不自動選取第一個排行榜，由使用者自行選擇
   }
 
   const getDateRange = () => {
