@@ -62,6 +62,26 @@ function TripReport() {
     }
   }
 
+  // 判斷按鈕是否可點擊：必須按照順序 出發→抵達→休息→上工→收工→離場
+  const isActionEnabled = (actionType) => {
+    if (!currentUser || !selectedSiteName) return false
+    if (records.length === 0) {
+      // 沒有紀錄時，只能點「出發」
+      return actionType === '出發'
+    }
+    // 取得最新一筆紀錄的類型（records 已按時間新到舊排序）
+    const latestAction = records[0]?.actionType
+    const order = ['出發', '抵達', '休息', '上工', '收工', '離場']
+    const latestIndex = order.indexOf(latestAction)
+    const actionIndex = order.indexOf(actionType)
+    // 如果最新紀錄不在順序中，或已經到最後一步（離場），則禁用所有按鈕
+    if (latestIndex === -1 || latestIndex === order.length - 1) {
+      return false
+    }
+    // 只能點擊下一個順序的按鈕
+    return actionIndex === latestIndex + 1
+  }
+
   const formatTime = (iso) => {
     try {
       const d = new Date(iso)
@@ -128,19 +148,27 @@ function TripReport() {
           )}
         </div>
 
-        {/* 按鈕：出發、抵達、休息、上工、收工、離場 */}
+        {/* 按鈕：出發、抵達、休息、上工、收工、離場（必須按順序點擊） */}
         <div className="mb-8 grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:gap-3">
-          {actionTypes.map((action) => (
-            <button
-              key={action}
-              type="button"
-              onClick={() => handleAction(action)}
-              disabled={!currentUser || !selectedSiteName}
-              className="px-6 py-4 sm:py-3 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors text-base sm:text-sm min-h-[52px] sm:min-h-0"
-            >
-              {action}
-            </button>
-          ))}
+          {actionTypes.map((action) => {
+            const enabled = isActionEnabled(action)
+            return (
+              <button
+                key={action}
+                type="button"
+                onClick={() => handleAction(action)}
+                disabled={!enabled}
+                className={`px-6 py-4 sm:py-3 rounded-xl font-semibold transition-colors text-base sm:text-sm min-h-[52px] sm:min-h-0 ${
+                  enabled
+                    ? 'bg-yellow-500 text-gray-900 hover:bg-yellow-400'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                }`}
+                title={!enabled && selectedSiteName ? '請按照順序點擊：出發→抵達→休息→上工→收工→離場' : ''}
+              >
+                {action}
+              </button>
+            )
+          })}
         </div>
 
         {/* 案場名稱＋紀錄列表 */}
