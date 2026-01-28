@@ -1133,32 +1133,41 @@ function Home() {
             })
           }
           
+          // 非手動榜時，僅對「該榜數值 > 0」的前三名發放獎勵，避免新帳號（value 0）被誤發稱號與特效
+          const shouldGiveRank = (index) => manualRanks.length > 0 || (parseFloat(topThree[index]?.value) || 0) > 0
+
           // 第一名：移除此榜且非第一名的稱號／名子／發話特效，再發放此榜第一名的稱號、名子特效、發話特效
-          if (topThree[0]) {
+          if (topThree[0] && shouldGiveRank(0)) {
             const firstUserName = topThree[0].userName
             removeThisBoardOtherRank(firstUserName, 1)
             tryGive(firstUserName, titleByRank(1), firstTitleItemCreated)
             tryGive(firstUserName, nameEffectByRank(1), false)
             tryGive(firstUserName, msgEffectByRank(1), false)
           }
-          
+
           // 第二名：只發稱號與發話特效，不發名子特效；並收回此榜名子特效
-          if (topThree[1]) {
+          if (topThree[1] && shouldGiveRank(1)) {
             const secondUserName = topThree[1].userName
             removeThisBoardOtherRank(secondUserName, 2)
             removeNameEffectForBoard(secondUserName)
             tryGive(secondUserName, titleByRank(2), secondTitleItemCreated)
             tryGive(secondUserName, msgEffectByRank(2), false)
           }
-          
+
           // 第三名：只發稱號與發話特效，不發名子特效；並收回此榜名子特效
-          if (topThree[2]) {
+          if (topThree[2] && shouldGiveRank(2)) {
             const thirdUserName = topThree[2].userName
             removeThisBoardOtherRank(thirdUserName, 3)
             removeNameEffectForBoard(thirdUserName)
             tryGive(thirdUserName, titleByRank(3), thirdTitleItemCreated)
             tryGive(thirdUserName, msgEffectByRank(3), false)
           }
+
+          // 在非手動榜下，前三名中數值為 0 的用戶不發獎勵，並收回此榜全部稱號／特效（rank 0 表示全部移除），避免新帳號或無貢獻者保留舊獎勵
+          ;[0, 1, 2].forEach((idx) => {
+            if (!topThree[idx] || shouldGiveRank(idx)) return
+            removeThisBoardOtherRank(topThree[idx].userName, 0)
+          })
         }
       })
   }
