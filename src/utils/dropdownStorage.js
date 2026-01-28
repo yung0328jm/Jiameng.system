@@ -2,11 +2,12 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const DROPDOWN_STORAGE_KEY = 'jiameng_dropdown_options'
 
-// 获取所有下拉選單选项
+// 获取所有下拉選單选项（保證回傳陣列）
 export const getDropdownOptions = () => {
   try {
-    const options = localStorage.getItem(DROPDOWN_STORAGE_KEY)
-    return options ? JSON.parse(options) : []
+    const raw = localStorage.getItem(DROPDOWN_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
   } catch (error) {
     console.error('Error getting dropdown options:', error)
     return []
