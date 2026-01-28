@@ -3243,6 +3243,9 @@ function Home() {
                         titleBadgePresetIdRank1: t.titleBadgePresetIdRank1 ?? '', titleBadgePresetIdRank2: t.titleBadgePresetIdRank2 ?? '', titleBadgePresetIdRank3: t.titleBadgePresetIdRank3 ?? '',
                         decorationPresetIdRank1: t.decorationPresetIdRank1 ?? '', decorationPresetIdRank2: t.decorationPresetIdRank2 ?? '', decorationPresetIdRank3: t.decorationPresetIdRank3 ?? ''
                       }))
+                      // 自動展開特效區塊，讓用戶可以看到已載入的特效
+                      setExpandEditEffects(true)
+                      setExpandEditTitles(true)
                     }
                     e.target.value = ''
                   }}

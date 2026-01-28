@@ -44,6 +44,7 @@ function Memo() {
   const [inventory, setInventory] = useState([])
   // 排行榜項目（用於名子／發話／稱號特效）：切回此頁或取得焦點時重讀，確保編輯排行榜後的設定會反映
   const [leaderboardItems, setLeaderboardItems] = useState(() => getLeaderboardItems())
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false) // 聊天區收合狀態
 
 
 
@@ -1054,17 +1055,26 @@ function Memo() {
         
         {/* 管理員道具分配表單 */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-500px)] min-h-[400px]">
+        <div className={`grid gap-6 h-[calc(100vh-500px)] min-h-[400px] ${isChatCollapsed ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'}`}>
         {/* 左侧：话题列表 */}
-        <div className="bg-gray-800 rounded-lg p-2 sm:p-4 border border-gray-700 flex flex-col">
+        <div className={`bg-gray-800 rounded-lg p-2 sm:p-4 border border-gray-700 flex flex-col ${isChatCollapsed ? 'lg:col-span-1' : 'lg:col-span-1'}`}>
           <div className="flex items-center justify-between mb-2 sm:mb-4">
             <h3 className="text-xs sm:text-sm font-semibold text-white">話題列表</h3>
-            <button
-              onClick={() => setShowNewTopicForm(!showNewTopicForm)}
-              className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
-            >
-              + 新增話題
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setIsChatCollapsed(!isChatCollapsed)}
+                className="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
+                title={isChatCollapsed ? '展開聊天' : '收合聊天'}
+              >
+                {isChatCollapsed ? '▶' : '◀'}
+              </button>
+              <button
+                onClick={() => setShowNewTopicForm(!showNewTopicForm)}
+                className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
+              >
+                + 新增話題
+              </button>
+            </div>
           </div>
 
           {/* 新增话题表单 */}
@@ -1146,16 +1156,28 @@ function Memo() {
         </div>
 
         {/* 右侧：聊天界面 */}
-        <div className="lg:col-span-2 bg-gray-800 rounded-lg border border-gray-700 flex flex-col">
-          {selectedTopic ? (
-            <>
-              {/* 话题标题栏 */}
-              <div className="p-4 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">{selectedTopic.title}</h3>
-                <div className="text-sm sm:text-xs text-gray-400 mt-1">
-                  創建於 {new Date(selectedTopic.createdAt).toLocaleString('zh-TW')}
+        {!isChatCollapsed && (
+          <div className="lg:col-span-2 bg-gray-800 rounded-lg border border-gray-700 flex flex-col">
+            {selectedTopic ? (
+              <>
+                {/* 话题标题栏 */}
+                <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{selectedTopic.title}</h3>
+                    <div className="text-sm sm:text-xs text-gray-400 mt-1">
+                      創建於 {new Date(selectedTopic.createdAt).toLocaleString('zh-TW')}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsChatCollapsed(true)}
+                    className="text-gray-400 hover:text-white transition-colors ml-2"
+                    title="收合聊天"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              </div>
 
               {/* 消息列表 */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -1255,7 +1277,8 @@ function Memo() {
               </div>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
     </div>
