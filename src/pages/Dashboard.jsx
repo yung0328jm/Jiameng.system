@@ -928,9 +928,9 @@ function NavItem({ icon, label, isActive, onClick, badge }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick?.() }}
       className={`
-        flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base shrink-0
+        flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base shrink-0
         ${isActive 
           ? 'bg-yellow-400 text-gray-800 font-semibold' 
           : 'text-white hover:bg-gray-600 active:bg-gray-600'

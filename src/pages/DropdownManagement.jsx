@@ -190,7 +190,7 @@ function DropdownManagement({ userRole: propUserRole }) {
               <select
                 value={newBoundAccount}
                 onChange={(e) => setNewBoundAccount(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
+                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400 cursor-pointer min-h-[44px] touch-manipulation"
               >
                 <option value="">不綁定</option>
                 {(Array.isArray(users) ? users : []).map(user => (
@@ -245,7 +245,7 @@ function DropdownManagement({ userRole: propUserRole }) {
                         <select
                           value={editBoundAccount}
                           onChange={(e) => setEditBoundAccount(e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 cursor-pointer min-h-[44px] touch-manipulation"
                         >
                           <option value="">不綁定</option>
                           {(Array.isArray(users) ? users : []).map(user => (
