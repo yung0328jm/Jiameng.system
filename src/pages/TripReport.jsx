@@ -117,8 +117,8 @@ function TripReport() {
                   }`}
                 >
                   <div className="text-center">
-                    <h3 className="text-xl font-bold text-white mb-1">{name}</h3>
-                    <p className="text-gray-400 text-sm">
+                    <h3 className="text-2xl sm:text-xl font-bold text-white mb-2 sm:mb-1">{name}</h3>
+                    <p className="text-gray-400 text-base sm:text-sm">
                       {selectedSiteName === name ? '已選擇此案場' : '點擊選擇此案場'}
                     </p>
                   </div>
@@ -129,14 +129,14 @@ function TripReport() {
         </div>
 
         {/* 五個按鈕：出發、休息、上工、收工、離場 */}
-        <div className="mb-8 flex flex-wrap gap-3">
+        <div className="mb-8 grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:gap-3">
           {actionTypes.map((action) => (
             <button
               key={action}
               type="button"
               onClick={() => handleAction(action)}
               disabled={!currentUser || !selectedSiteName}
-              className="px-6 py-3 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-4 sm:py-3 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors text-base sm:text-sm min-h-[52px] sm:min-h-0"
             >
               {action}
             </button>

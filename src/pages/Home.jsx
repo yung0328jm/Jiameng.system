@@ -1695,13 +1695,13 @@ function Home() {
       </div>
 
       {/* 待辦事項區塊 */}
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-yellow-400">待辦事項</h3>
+      <div className="bg-gray-800 rounded-lg p-5 sm:p-6 border border-gray-700 mb-6">
+        <div className="flex items-center justify-between mb-5 sm:mb-4">
+          <h3 className="text-xl sm:text-lg font-bold text-yellow-400">待辦事項</h3>
         </div>
         
         {/* 新增待辦事項 */}
-        <div className="mb-4 flex gap-2">
+        <div className="mb-5 sm:mb-4 flex gap-3 sm:gap-2">
           <input
             type="text"
             value={newTodoText}
@@ -1712,11 +1712,11 @@ function Home() {
               }
             }}
             placeholder="輸入待辦事項..."
-            className="flex-1 bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
+            className="flex-1 bg-gray-700 border border-gray-600 rounded px-4 py-3 sm:py-2 text-white text-base sm:text-sm focus:outline-none focus:border-yellow-400 min-h-[44px] sm:min-h-0"
           />
           <button
             onClick={handleAddTodo}
-            className="bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold"
+            className="bg-yellow-400 text-gray-900 px-5 sm:px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-base sm:text-sm min-h-[44px] sm:min-h-0"
           >
             新增
           </button>

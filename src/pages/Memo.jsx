@@ -653,25 +653,25 @@ function Memo() {
                       </h4>
                     )}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs px-2 py-1 rounded ${
+                      <span className={`text-sm sm:text-xs px-3 sm:px-2 py-1.5 sm:py-1 rounded ${
                         announcement.priority === 'urgent' ? 'bg-red-500 text-white' :
                         announcement.priority === 'high' ? 'bg-orange-500 text-white' :
                         'bg-gray-600 text-gray-300'
                       }`}>
                         {getPriorityLabel(announcement.priority)}
                       </span>
-                      <span className="text-gray-400 text-xs">
+                      <span className="text-gray-400 text-sm sm:text-xs">
                         {announcement.createdBy} · {formatAnnouncementDate(announcement.createdAt)}
                       </span>
                     </div>
                   </div>
                   {userRole === 'admin' && (
-                    <div className="flex gap-2 ml-4">
+                    <div className="flex gap-3 sm:gap-2 ml-4 flex-shrink-0">
                       {editingAnnouncementId === announcement.id ? (
                         <>
                           <button
                             onClick={() => handleUpdateAnnouncement(announcement.id, announcementForm)}
-                            className="text-green-400 hover:text-green-300 text-sm"
+                            className="text-green-400 hover:text-green-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
                           >
                             保存
                           </button>
@@ -680,7 +680,7 @@ function Memo() {
                               setEditingAnnouncementId(null)
                               setAnnouncementForm({ title: '', content: '', priority: 'normal' })
                             }}
-                            className="text-gray-400 hover:text-gray-300 text-sm"
+                            className="text-gray-400 hover:text-gray-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
                           >
                             取消
                           </button>
@@ -696,13 +696,13 @@ function Memo() {
                                 priority: announcement.priority
                               })
                             }}
-                            className="text-yellow-400 hover:text-yellow-300 text-sm"
+                            className="text-yellow-400 hover:text-yellow-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
                           >
                             編輯
                           </button>
                           <button
                             onClick={() => handleDeleteAnnouncement(announcement.id)}
-                            className="text-red-400 hover:text-red-300 text-sm"
+                            className="text-red-400 hover:text-red-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
                           >
                             刪除
                           </button>
@@ -1119,7 +1119,7 @@ function Memo() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold truncate">{topic.title}</div>
-                      <div className={`text-xs mt-1 ${
+                      <div className={`text-sm sm:text-xs mt-1 ${
                         selectedTopicId === topic.id ? 'text-gray-600' : 'text-gray-400'
                       }`}>
                         {topic.messages.length} 則消息
@@ -1130,7 +1130,7 @@ function Memo() {
                         e.stopPropagation()
                         handleDeleteTopic(topic.id)
                       }}
-                      className={`ml-2 text-xs px-2 py-1 rounded transition-colors ${
+                      className={`ml-2 text-sm sm:text-xs px-3 sm:px-2 py-1.5 sm:py-1 rounded transition-colors min-h-[32px] sm:min-h-0 ${
                         selectedTopicId === topic.id
                           ? 'bg-red-500 hover:bg-red-600 text-white'
                           : 'bg-gray-600 hover:bg-red-500 text-gray-300 hover:text-white'
@@ -1152,7 +1152,7 @@ function Memo() {
               {/* 话题标题栏 */}
               <div className="p-4 border-b border-gray-700">
                 <h3 className="text-lg font-semibold text-white">{selectedTopic.title}</h3>
-                <div className="text-xs text-gray-400 mt-1">
+                <div className="text-sm sm:text-xs text-gray-400 mt-1">
                   創建於 {new Date(selectedTopic.createdAt).toLocaleString('zh-TW')}
                 </div>
               </div>
@@ -1186,12 +1186,12 @@ function Memo() {
                             {userTitle}
                           </span>
                         )}
-                        <span className="text-gray-500 text-xs">
+                        <span className="text-gray-500 text-sm sm:text-xs">
                           {formatTime(message.createdAt)}
                         </span>
                       </div>
                         <div 
-                          className="bg-gray-700 rounded-lg p-3 text-sm"
+                          className="bg-gray-700 rounded-lg p-4 sm:p-3 text-base sm:text-sm"
                           style={messageEffectStyle ? { ...messageEffectStyle, color: '#F5F1E8' } : { color: '#FFFFFF' }}
                         >
                         {message.content}

@@ -184,19 +184,19 @@ function MyBackpack() {
         </div>
 
         {/* 背包統計 */}
-        <div className="mb-6 bg-purple-400/20 border border-purple-400 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">道具總數</p>
-              <p className="text-3xl font-bold text-purple-400">
+        <div className="mb-6 bg-purple-400/20 border border-purple-400 rounded-lg p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-gray-400 text-base sm:text-sm mb-1">道具總數</p>
+              <p className="text-4xl sm:text-3xl font-bold text-purple-400">
                 {inventory.reduce((sum, item) => sum + (item.quantity || 0), 0)}
               </p>
             </div>
-            <div>
-              <p className="text-gray-400 text-sm">道具種類</p>
-              <p className="text-3xl font-bold text-purple-400">{inventory.length}</p>
+            <div className="flex-1">
+              <p className="text-gray-400 text-base sm:text-sm mb-1">道具種類</p>
+              <p className="text-4xl sm:text-3xl font-bold text-purple-400">{inventory.length}</p>
             </div>
-            <div className="text-4xl">🎒</div>
+            <div className="text-5xl sm:text-4xl">🎒</div>
           </div>
         </div>
 
@@ -208,31 +208,31 @@ function MyBackpack() {
             <p className="text-gray-500 text-sm">前往兌換商城購買道具吧！</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {inventory.map((invItem) => (
               <div
                 key={invItem.itemId}
-                className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:border-purple-400 transition-colors"
+                className="bg-gray-800 border border-gray-700 rounded-lg p-5 sm:p-6 hover:border-purple-400 transition-colors"
               >
                 {/* 道具圖標和名稱 */}
-                <div className="text-center mb-4">
-                  <div className="text-6xl mb-2">{invItem.icon}</div>
-                  <h3 className="text-xl font-bold text-white mb-2">{invItem.name}</h3>
+                <div className="text-center mb-5 sm:mb-4">
+                  <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{invItem.icon}</div>
+                  <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{invItem.name}</h3>
                   {invItem.description && (
-                    <p className="text-gray-400 text-sm mb-4">{invItem.description}</p>
+                    <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{invItem.description}</p>
                   )}
                 </div>
 
                 {/* 數量 */}
-                <div className="mb-4 text-center">
-                  <p className="text-gray-400 text-sm mb-1">擁有數量</p>
-                  <p className="text-2xl font-bold text-purple-400">{invItem.quantity || 0}</p>
+                <div className="mb-5 sm:mb-4 text-center">
+                  <p className="text-gray-400 text-base sm:text-sm mb-2">擁有數量</p>
+                  <p className="text-3xl sm:text-2xl font-bold text-purple-400">{invItem.quantity || 0}</p>
                 </div>
 
                 {/* 獲得時間 */}
                 {invItem.obtainedAt && (
-                  <div className="mb-4 text-center">
-                    <p className="text-gray-500 text-xs">
+                  <div className="mb-5 sm:mb-4 text-center">
+                    <p className="text-gray-500 text-sm sm:text-xs">
                       獲得時間：{new Date(invItem.obtainedAt).toLocaleDateString('zh-TW')}
                     </p>
                   </div>
@@ -241,77 +241,77 @@ function MyBackpack() {
                 {/* 操作按鈕 */}
                 <div className="w-full">
                   {invItem.item && invItem.item.type === ITEM_TYPES.DANMU ? (
-                    <div className="w-full bg-gray-700 text-gray-400 px-4 py-2 rounded text-center text-sm">
+                    <div className="w-full bg-gray-700 text-gray-400 px-4 py-3 sm:py-2 rounded text-center text-base sm:text-sm">
                       交流區使用
                     </div>
                   ) : invItem.item && invItem.item.type === ITEM_TYPES.NAME_EFFECT ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3 sm:space-y-2">
                       {equippedEffects.nameEffect === invItem.itemId ? (
                         <button
                           onClick={() => handleUnequipEffect('name')}
-                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded transition-colors"
+                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                         >
                           卸下名子特效
                         </button>
                       ) : (
                         <button
                           onClick={() => handleEquipEffect(invItem.itemId, 'name')}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded transition-colors"
+                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                         >
                           裝備名子特效
                         </button>
                       )}
-                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-xs">特殊道具，不可刪除、不可交易</div>
+                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
                     </div>
                   ) : invItem.item && invItem.item.type === ITEM_TYPES.MESSAGE_EFFECT ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3 sm:space-y-2">
                       {equippedEffects.messageEffect === invItem.itemId ? (
                         <button
                           onClick={() => handleUnequipEffect('message')}
-                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded transition-colors"
+                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                         >
                           卸下發話特效
                         </button>
                       ) : (
                         <button
                           onClick={() => handleEquipEffect(invItem.itemId, 'message')}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded transition-colors"
+                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                         >
                           裝備發話特效
                         </button>
                       )}
-                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-xs">特殊道具，不可刪除、不可交易</div>
+                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
                     </div>
                   ) : invItem.item && invItem.item.type === ITEM_TYPES.TITLE ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3 sm:space-y-2">
                       {equippedEffects.title === invItem.itemId ? (
                         <button
                           onClick={() => handleUnequipEffect('title')}
-                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded transition-colors"
+                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                         >
                           卸下稱號
                         </button>
                       ) : (
                         <button
                           onClick={() => handleEquipEffect(invItem.itemId, 'title')}
-                          className="w-full bg-purple-500 hover:bg-purple-600 text-white font-semibold px-4 py-2 rounded transition-colors"
+                          className="w-full bg-purple-500 hover:bg-purple-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                         >
                           裝備稱號
                         </button>
                       )}
-                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-xs">特殊道具，不可刪除、不可交易</div>
+                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
                     </div>
                   ) : hasPendingExchangeRequest(invItem.itemId) ? (
                     <button
                       disabled
-                      className="w-full bg-gray-600 text-gray-400 px-4 py-2 rounded cursor-not-allowed font-semibold"
+                      className="w-full bg-gray-600 text-gray-400 px-4 py-3 sm:py-2 rounded cursor-not-allowed font-semibold text-base sm:text-sm min-h-[44px]"
                     >
                       確認兌換中
                     </button>
                   ) : (
                     <button
                       onClick={() => handleExchangeItem(invItem)}
-                      className="w-full bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold"
+                      className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-base sm:text-sm min-h-[44px]"
                     >
                       兌換
                     </button>

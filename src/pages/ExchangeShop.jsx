@@ -172,13 +172,13 @@ function ExchangeShop() {
 
         {/* 用戶餘額顯示 */}
         {currentUser && (
-          <div className="mb-6 bg-yellow-400/20 border border-yellow-400 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">我的佳盟幣餘額</p>
-                <p className="text-3xl font-bold text-yellow-400">{walletBalance}</p>
+          <div className="mb-6 bg-yellow-400/20 border border-yellow-400 rounded-lg p-5 sm:p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-gray-400 text-base sm:text-sm mb-1">我的佳盟幣餘額</p>
+                <p className="text-4xl sm:text-3xl font-bold text-yellow-400">{walletBalance}</p>
               </div>
-              <div className="text-4xl">💰</div>
+              <div className="text-5xl sm:text-4xl">💰</div>
             </div>
           </div>
         )}
@@ -196,40 +196,40 @@ function ExchangeShop() {
         )}
 
         {/* 道具列表 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {items.map(item => (
             <div
               key={item.id}
-              className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:border-yellow-400 transition-colors"
+              className="bg-gray-800 border border-gray-700 rounded-lg p-5 sm:p-6 hover:border-yellow-400 transition-colors"
             >
               {/* 道具圖標和名稱 */}
-              <div className="text-center mb-4">
-                <div className="text-6xl mb-2">{item.icon}</div>
-                <h3 className="text-xl font-bold text-white mb-2">{item.name}</h3>
+              <div className="text-center mb-5 sm:mb-4">
+                <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{item.icon}</div>
+                <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{item.name}</h3>
                 {item.description && (
-                  <p className="text-gray-400 text-sm mb-4">{item.description}</p>
+                  <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{item.description}</p>
                 )}
               </div>
 
               {/* 價格 */}
-              <div className="mb-4 text-center">
-                <p className="text-gray-400 text-sm mb-1">兌換價格</p>
-                <p className="text-2xl font-bold text-yellow-400">{item.price || 0} 佳盟幣</p>
+              <div className="mb-5 sm:mb-4 text-center">
+                <p className="text-gray-400 text-base sm:text-sm mb-2">兌換價格</p>
+                <p className="text-3xl sm:text-2xl font-bold text-yellow-400">{item.price || 0} 佳盟幣</p>
               </div>
 
               {/* 操作按鈕 */}
-              <div className="flex gap-2">
+              <div className="flex gap-3 sm:gap-2">
                 {userRole === 'admin' ? (
                   <>
                     <button
                       onClick={() => handleEditItem(item)}
-                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
+                      className="flex-1 bg-blue-600 text-white px-4 py-3 sm:py-2 rounded hover:bg-blue-700 transition-colors text-base sm:text-sm min-h-[44px]"
                     >
                       編輯
                     </button>
                     <button
                       onClick={() => handleDeleteItem(item.id)}
-                      className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
+                      className="flex-1 bg-red-600 text-white px-4 py-3 sm:py-2 rounded hover:bg-red-700 transition-colors text-base sm:text-sm min-h-[44px]"
                     >
                       刪除
                     </button>
@@ -238,7 +238,7 @@ function ExchangeShop() {
                   <button
                     onClick={() => handleExchange(item)}
                     disabled={!currentUser || walletBalance < (item.price || 0)}
-                    className="w-full bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed text-base sm:text-sm min-h-[44px]"
                   >
                     {!currentUser ? '請先登入' : walletBalance < (item.price || 0) ? '餘額不足' : '兌換'}
                   </button>

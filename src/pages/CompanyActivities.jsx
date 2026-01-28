@@ -249,10 +249,10 @@ function CompanyActivities() {
       {!viewingActivityId && (
         <>
           {/* 狀態分類標籤 */}
-          <div className="flex items-center space-x-2 mb-6 pb-4 border-b border-gray-700">
+          <div className="flex items-center flex-wrap gap-3 sm:gap-2 mb-6 pb-4 border-b border-gray-700">
             <button
               onClick={() => setFilterStatus('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterStatus === 'all'
                   ? 'bg-yellow-400 text-gray-800'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -262,7 +262,7 @@ function CompanyActivities() {
             </button>
             <button
               onClick={() => setFilterStatus('planning')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterStatus === 'planning'
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -272,7 +272,7 @@ function CompanyActivities() {
             </button>
             <button
               onClick={() => setFilterStatus('registration')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterStatus === 'registration'
                   ? 'bg-yellow-400 text-gray-800'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -282,7 +282,7 @@ function CompanyActivities() {
             </button>
             <button
               onClick={() => setFilterStatus('ongoing')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterStatus === 'ongoing'
                   ? 'bg-orange-500 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -292,7 +292,7 @@ function CompanyActivities() {
             </button>
             <button
               onClick={() => setFilterStatus('ended')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterStatus === 'ended'
                   ? 'bg-green-500 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'

@@ -483,10 +483,10 @@ function ProjectDeficiencyTracking() {
           </div>
 
           {/* 狀態分類標籤 */}
-          <div className="flex items-center space-x-2 mb-6 pb-4 border-b border-gray-700">
+          <div className="flex items-center flex-wrap gap-3 sm:gap-2 mb-6 pb-4 border-b border-gray-700">
             <button
               onClick={() => setFilterProjectStatus('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterProjectStatus === 'all'
                   ? 'bg-yellow-400 text-gray-800'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -496,7 +496,7 @@ function ProjectDeficiencyTracking() {
             </button>
             <button
               onClick={() => setFilterProjectStatus('planning')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterProjectStatus === 'planning'
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -506,9 +506,9 @@ function ProjectDeficiencyTracking() {
             </button>
             <button
               onClick={() => setFilterProjectStatus('in_progress')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterProjectStatus === 'in_progress'
-                  ? 'bg-yellow-400 text-gray-800'
+                  ? 'bg-orange-500 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >
@@ -516,7 +516,7 @@ function ProjectDeficiencyTracking() {
             </button>
             <button
               onClick={() => setFilterProjectStatus('completed')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
                 filterProjectStatus === 'completed'
                   ? 'bg-green-500 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
