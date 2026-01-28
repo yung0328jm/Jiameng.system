@@ -1695,14 +1695,14 @@ function Home() {
         </div>
       </div>
 
-      {/* 待辦事項區塊 */}
-      <div className="bg-gray-800 rounded-lg p-5 sm:p-6 border border-gray-700 mb-6">
-        <div className="flex items-center justify-between mb-5 sm:mb-4">
-          <h3 className="text-xl sm:text-lg font-bold text-yellow-400">待辦事項</h3>
+      {/* 待辦事項區塊（字體比照行事曆） */}
+      <div className="bg-gray-800 rounded-lg p-3 sm:p-5 border border-gray-700 mb-4">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h3 className="text-sm sm:text-base font-bold text-yellow-400">待辦事項</h3>
         </div>
         
         {/* 新增待辦事項 */}
-        <div className="mb-5 sm:mb-4 flex gap-3 sm:gap-2">
+        <div className="mb-3 sm:mb-4 flex gap-2">
           <input
             type="text"
             value={newTodoText}
@@ -1713,27 +1713,27 @@ function Home() {
               }
             }}
             placeholder="輸入待辦事項..."
-            className="flex-1 bg-gray-700 border border-gray-600 rounded px-4 py-3 sm:py-2 text-white text-base sm:text-sm focus:outline-none focus:border-yellow-400 min-h-[44px] sm:min-h-0"
+            className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-xs sm:text-sm focus:outline-none focus:border-yellow-400 min-h-[40px] sm:min-h-0"
           />
           <button
             onClick={handleAddTodo}
-            className="bg-yellow-400 text-gray-900 px-5 sm:px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-base sm:text-sm min-h-[44px] sm:min-h-0"
+            className="bg-yellow-400 text-gray-900 px-3 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-xs sm:text-sm min-h-[40px] sm:min-h-0"
           >
             新增
           </button>
         </div>
 
         {/* 待辦事項列表 */}
-        <div className="space-y-2 max-h-64 overflow-y-auto">
+        <div className="space-y-1.5 max-h-64 overflow-y-auto">
           {todos.length === 0 ? (
-            <div className="text-gray-400 text-center py-8">
-              <p>尚無待辦事項</p>
+            <div className="text-gray-400 text-center py-6">
+              <p className="text-[10px] sm:text-xs">尚無待辦事項</p>
             </div>
           ) : (
             todos.map((todo) => (
               <div
                 key={todo.id}
-                className={`flex items-center gap-3 p-3 bg-gray-900 rounded border border-gray-700 hover:bg-gray-850 ${
+                className={`flex items-center gap-2 p-2 sm:p-2.5 bg-gray-900 rounded border border-gray-700 hover:bg-gray-850 ${
                   todo.completed ? 'opacity-60' : ''
                 }`}
               >
@@ -1743,9 +1743,9 @@ function Home() {
                   onChange={() => handleToggleTodo(todo.id)}
                   className="w-5 h-5 text-yellow-400 bg-gray-700 border-gray-600 rounded focus:ring-yellow-400 focus:ring-2"
                 />
-                <div className="flex-1 flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-1.5 min-w-0">
                   {todo.completed ? (
-                    <span className="text-gray-500 line-through flex-1">{todo.text}</span>
+                    <span className="text-gray-500 line-through flex-1 text-xs sm:text-sm truncate">{todo.text}</span>
                   ) : (
                     <input
                       type="text"
@@ -1756,11 +1756,11 @@ function Home() {
                           handleUpdateTodo(todo.id, e.target.value)
                         }
                       }}
-                      className="flex-1 bg-transparent border-b border-transparent hover:border-gray-500 focus:border-yellow-400 text-white focus:outline-none"
+                      className="flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-gray-500 focus:border-yellow-400 text-white text-xs sm:text-sm focus:outline-none"
                     />
                   )}
                   {todo.createdBy && (
-                    <span className="inline-flex items-center gap-1 text-xs flex-wrap">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-xs flex-wrap flex-shrink-0">
                       <span style={getTodoCreatorNameStyle(todo.createdBy)}>({todo.createdBy})</span>
                       {(() => {
                         const deco = getTodoCreatorDecoration(todo.createdBy)
@@ -1777,10 +1777,10 @@ function Home() {
                 </div>
                 <button
                   onClick={() => handleDeleteTodo(todo.id)}
-                  className="text-red-400 hover:text-red-300 text-sm"
+                  className="text-red-400 hover:text-red-300 text-xs flex-shrink-0"
                   title="刪除"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -1813,15 +1813,15 @@ function Home() {
           backgroundSize: '40px 40px'
         }}></div>
         
-        {/* 內容區域：手機縮小 padding */}
-        <div className="relative p-4 sm:p-6 lg:p-8">
+        {/* 內容區域：手機縮小 padding，網格更寬 */}
+        <div className="relative p-2 sm:p-4 lg:p-6">
           {/* 控制選項 */}
           {userRole === 'admin' && (
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 mb-3 sm:mb-4">
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="bg-yellow-400 text-gray-900 px-3 py-2.5 sm:px-4 rounded hover:bg-yellow-500 active:bg-yellow-500 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm sm:text-base"
+                className="bg-yellow-400 text-gray-900 px-2.5 py-2 sm:px-3 rounded hover:bg-yellow-500 active:bg-yellow-500 transition-colors font-semibold min-h-[40px] touch-manipulation text-xs sm:text-sm"
               >
                 新增項目
               </button>
@@ -1829,7 +1829,7 @@ function Home() {
                 <button
                   type="button"
                   onClick={handleClearAll}
-                  className="bg-red-500 text-white px-3 py-2.5 sm:px-4 rounded hover:bg-red-600 active:bg-red-600 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm sm:text-base"
+                  className="bg-red-500 text-white px-2.5 py-2 sm:px-3 rounded hover:bg-red-600 active:bg-red-600 transition-colors font-semibold min-h-[40px] touch-manipulation text-xs sm:text-sm"
                 >
                   清空所有版面
                 </button>
@@ -1837,15 +1837,15 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 動態面板（雙欄網格、對齊整齊、手機不跑版） */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 items-stretch w-full min-w-0">
+          {/* 排行榜 - 動態面板（網格加寬、字體比照行事曆） */}
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-1 sm:gap-2 md:gap-3 items-stretch w-full min-w-0">
             {leaderboardItems.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <p className="text-gray-400 mb-4">尚無排行榜項目</p>
+              <div className="col-span-full text-center py-8">
+                <p className="text-[10px] sm:text-xs text-gray-400 mb-3">尚無排行榜項目</p>
                 {userRole === 'admin' && (
                   <button
                     onClick={handleAddItem}
-                    className="bg-yellow-400 text-gray-900 px-6 py-3 rounded hover:bg-yellow-500 transition-colors font-semibold"
+                    className="bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-xs sm:text-sm"
                   >
                     + 新增排行榜面板
                   </button>
@@ -2963,20 +2963,20 @@ function Home() {
                       className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-yellow-400 transition-colors cursor-pointer"
                       style={{ background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)' }}
                     >
-                      <div className="flex items-center gap-3 p-3 flex-1">
+                      <div className="flex items-center gap-2 p-2 flex-1">
                         {item.imageUrl ? (
-                          <img src={item.imageUrl} alt="" className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded flex-shrink-0" />
+                          <img src={item.imageUrl} alt="" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded flex-shrink-0" />
                         ) : (
-                          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-2xl">?</div>
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-lg">?</div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-white font-semibold truncate">{item.title || item.name || '排行榜'}</p>
-                          <p className="text-gray-400 text-xs mt-0.5">點擊預覽</p>
+                          <p className="text-white font-semibold truncate text-xs sm:text-sm">{item.title || item.name || '排行榜'}</p>
+                          <p className="text-gray-400 text-[10px] mt-0.5">點擊預覽</p>
                         </div>
                       </div>
                       {userRole === 'admin' && (
-                        <div className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
-                          <button type="button" onClick={() => handleDeleteItem(item.id)} className="w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-xs">×</button>
+                        <div className="absolute top-1 right-1" onClick={e => e.stopPropagation()}>
+                          <button type="button" onClick={() => handleDeleteItem(item.id)} className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-[10px] leading-none">×</button>
                         </div>
                       )}
                     </div>
@@ -2995,13 +2995,13 @@ function Home() {
                 }}
                 onClick={handleAddItem}
               >
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-3">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-400 rounded-full flex items-center justify-center mb-2">
-                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-yellow-400 rounded-full flex items-center justify-center mb-1">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
-                  <p className="text-white text-sm font-semibold text-center">新增排行榜面板</p>
+                  <p className="text-white text-xs font-semibold text-center">新增排行榜面板</p>
                 </div>
               </div>
             )}
