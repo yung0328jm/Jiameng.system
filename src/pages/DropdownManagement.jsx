@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getDropdownOptions, getDropdownOptionsByCategory, saveDropdownOptions, addDropdownOption, updateDropdownOption, deleteDropdownOption } from '../utils/dropdownStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 
 function DropdownManagement({ userRole: propUserRole }) {
   const [userRole, setUserRole] = useState(propUserRole)
@@ -19,11 +21,23 @@ function DropdownManagement({ userRole: propUserRole }) {
       const role = getCurrentUserRole()
       setUserRole(role)
     }
-    // 載入用戶列表（用於帳號綁定）
-    const allUsers = getUsers()
-    setUsers(allUsers)
-    loadDropdownOptions()
+    loadUsersAndOptions()
   }, [propUserRole])
+
+  const loadUsersAndOptions = async () => {
+    try {
+      if (isAuthSupabase()) {
+        const profiles = await getAllProfiles()
+        setUsers(profiles.map(p => ({ account: p.account, name: p.display_name || p.account, role: p.is_admin ? 'admin' : 'user' })))
+      } else {
+        setUsers(Array.isArray(getUsers()) ? getUsers() : [])
+      }
+      loadDropdownOptions()
+    } catch (e) {
+      setUsers(Array.isArray(getUsers()) ? getUsers() : [])
+      loadDropdownOptions()
+    }
+  }
 
   const loadDropdownOptions = () => {
     try {
@@ -35,13 +49,7 @@ function DropdownManagement({ userRole: propUserRole }) {
   }
 
   const refetchDropdown = () => {
-    try {
-      setUsers(Array.isArray(getUsers()) ? getUsers() : [])
-      loadDropdownOptions()
-    } catch (e) {
-      setUsers([])
-      setDropdownOptions([])
-    }
+    loadUsersAndOptions()
   }
   useRealtimeKeys(['jiameng_users', 'jiameng_dropdown_options'], refetchDropdown)
 
@@ -127,8 +135,9 @@ function DropdownManagement({ userRole: propUserRole }) {
         <h3 className="text-lg font-semibold text-white mb-4">選擇分類</h3>
         <div className="flex gap-3">
           <button
+            type="button"
             onClick={() => setSelectedCategory('participants')}
-            className={`px-4 py-2 rounded transition-colors ${
+            className={`px-4 py-2 rounded transition-colors cursor-pointer touch-manipulation min-h-[44px] ${
               selectedCategory === 'participants'
                 ? 'bg-yellow-400 text-gray-800 font-semibold'
                 : 'bg-gray-700 text-white hover:bg-gray-600'
@@ -137,8 +146,9 @@ function DropdownManagement({ userRole: propUserRole }) {
             參與人員
           </button>
           <button
+            type="button"
             onClick={() => setSelectedCategory('vehicles')}
-            className={`px-4 py-2 rounded transition-colors ${
+            className={`px-4 py-2 rounded transition-colors cursor-pointer touch-manipulation min-h-[44px] ${
               selectedCategory === 'vehicles'
                 ? 'bg-yellow-400 text-gray-800 font-semibold'
                 : 'bg-gray-700 text-white hover:bg-gray-600'
@@ -147,8 +157,9 @@ function DropdownManagement({ userRole: propUserRole }) {
             車輛
           </button>
           <button
+            type="button"
             onClick={() => setSelectedCategory('responsible_persons')}
-            className={`px-4 py-2 rounded transition-colors ${
+            className={`px-4 py-2 rounded transition-colors cursor-pointer touch-manipulation min-h-[44px] ${
               selectedCategory === 'responsible_persons'
                 ? 'bg-yellow-400 text-gray-800 font-semibold'
                 : 'bg-gray-700 text-white hover:bg-gray-600'
@@ -179,7 +190,7 @@ function DropdownManagement({ userRole: propUserRole }) {
             />
             <button
               type="submit"
-              className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-6 py-2 rounded transition-colors"
+              className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-6 py-2 rounded transition-colors cursor-pointer touch-manipulation min-h-[44px]"
             >
               新增
             </button>
