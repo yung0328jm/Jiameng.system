@@ -364,6 +364,43 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     navigate(path)
   }
 
+  // 依目前分頁回傳標題（上方導覽列中央顯示用）
+  const getTabTitle = (tab) => {
+    const titles = {
+      home: '首頁',
+      calendar: '行事曆',
+      'trip-report': '行程回報',
+      deficiency: '專案管理',
+      vehicle: '車輛資訊',
+      memo: '交流區',
+      activities: '公司活動',
+      management: '下拉選單管理',
+      performance: '個人績效',
+      'exchange-shop': '兌換商城',
+      exchange: '交易所',
+      'my-backpack': '我的背包',
+      'check-in': '每日簽到',
+      'leave-application': '請假申請',
+      'user-management': '用戶管理'
+    }
+    return titles[tab] || '佳盟事業群'
+  }
+
+  // 目前日期時間字串（參考圖格式：2026.1.28 下午 3:10），切換分頁時會更新
+  const [dateTimeStr, setDateTimeStr] = useState(() => {
+    const n = new Date()
+    return `${n.getFullYear()}.${n.getMonth() + 1}.${n.getDate()} ${n.getHours() >= 12 ? '下午' : '上午'} ${n.getHours() % 12 || 12}:${String(n.getMinutes()).padStart(2, '0')}`
+  })
+  useEffect(() => {
+    const tick = () => {
+      const n = new Date()
+      setDateTimeStr(`${n.getFullYear()}.${n.getMonth() + 1}.${n.getDate()} ${n.getHours() >= 12 ? '下午' : '上午'} ${n.getHours() % 12 || 12}:${String(n.getMinutes()).padStart(2, '0')}`)
+    }
+    tick()
+    const id = setInterval(tick, 60000)
+    return () => clearInterval(id)
+  }, [activeTab])
+
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
@@ -404,10 +441,27 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
   return (
     <div className="min-h-screen bg-gray-800 flex flex-col">
-      {/* 頂部標題欄：手機加大間距、按鈕觸控區域至少 44px */}
-      <div className="bg-dark-gray px-3 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 shrink-0">
-        <h1 className="text-lg sm:text-2xl font-bold text-yellow-400 shrink-0">佳盟事業群</h1>
-        <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
+      {/* 上方導覽列：左＝主題篩選、中＝標題＋日期時間、右＝按鈕（參考圖結構，邏輯與樣式不變） */}
+      <div className="bg-dark-gray px-3 py-3 sm:px-6 sm:py-4 flex flex-row items-center justify-between gap-2 sm:gap-4 shrink-0">
+        {/* 左：圖示＋主題篩選 */}
+        <div className="flex items-center gap-2 shrink-0 min-w-0">
+          <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+          <span className="text-gray-400 text-sm sm:text-base whitespace-nowrap">主題篩選:</span>
+        </div>
+        {/* 中：目前分頁標題＋日期時間與箭頭 */}
+        <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-2">
+          <h1 className="text-base sm:text-xl font-bold text-yellow-400 truncate w-full text-center">
+            {getTabTitle(activeTab)}
+          </h1>
+          <div className="flex items-center gap-1 text-gray-400 text-xs sm:text-sm mt-0.5">
+            <span>{dateTimeStr}</span>
+            <span className="text-gray-500">›</span>
+          </div>
+        </div>
+        {/* 右：佳盟幣、管理員按鈕、登出 */}
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 shrink-0">
           {/* 餘額錢包顯示 */}
           <div className="flex flex-wrap items-center gap-3">
             <button

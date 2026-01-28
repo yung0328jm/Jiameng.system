@@ -1837,8 +1837,8 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 動態面板（根據項目數量） */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* 排行榜 - 動態面板（雙欄網格顯示，與參考圖一致） */}
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
             {leaderboardItems.length === 0 ? (
               <div className="col-span-full text-center py-12">
                 <p className="text-gray-400 mb-4">尚無排行榜項目</p>
