@@ -988,15 +988,15 @@ function Memo() {
           </div>
         )}
         
-        {/* 對話框：所有用戶直接發話，不需開設話題 */}
-        <div className="bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0 flex-1" style={{ minHeight: '50vh' }}>
+        {/* 對話框：所有用戶直接發話，不需開設話題；僅發話內容區可上下滑動 */}
+        <div className="bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0 flex-1 max-h-[70vh]" style={{ minHeight: '50vh' }}>
           <div className="p-4 border-b border-gray-700 shrink-0">
             <h3 className="text-lg font-semibold text-white">對話框</h3>
             <p className="text-sm sm:text-xs text-gray-400 mt-0.5">所有用戶在此發話，無需新增話題</p>
           </div>
 
-          {/* 消息列表（可上下滑動瀏覽） */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+          {/* 發話內容區：僅此區可上下滑動，標題與輸入列固定 */}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-auto p-4 space-y-4">
             {messages.length === 0 ? (
               <div className="text-gray-400 text-center py-12">
                 <p>尚無消息</p>
