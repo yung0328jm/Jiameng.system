@@ -1050,11 +1050,11 @@ function Calendar() {
         </div>
 
         {/* 周标题 */}
-        <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2 sm:mb-2">
+        <div className="grid grid-cols-7 gap-px sm:gap-1 mb-1.5 sm:mb-2">
           {weekDays.map((day, index) => (
             <div
               key={index}
-              className="text-center text-gray-400 text-xs sm:text-sm font-medium py-1"
+              className="text-center text-gray-400 text-[10px] sm:text-sm font-medium py-0.5"
             >
               {day}
             </div>
@@ -1062,21 +1062,21 @@ function Calendar() {
         </div>
 
         {/* 日期网格 */}
-        <div className="grid grid-cols-7 gap-0.5 sm:gap-1 min-w-0 w-full">
+        <div className="grid grid-cols-7 gap-px sm:gap-1 min-w-0 w-full">
           {/* 上个月的日期 */}
           {prevMonthDays.map((day) => {
             const events = []
             return (
               <div
                 key={`prev-${day}`}
-                className="min-h-[110px] sm:min-h-[100px] bg-gray-900 border border-gray-700 rounded p-1 text-gray-600 overflow-hidden min-w-0"
+                className="min-h-[110px] sm:min-h-[100px] bg-gray-900 border border-gray-700 rounded p-0.5 text-gray-600 overflow-hidden min-w-0"
               >
-                <div className="text-xs mb-0.5 font-medium">{day}</div>
+                <div className="text-[10px] mb-0.5 font-medium">{day}</div>
                 <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[10px] px-1 py-0.5 rounded truncate`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate`}
                       title={event.title}
                     >
                       {event.title}
@@ -1098,16 +1098,16 @@ function Calendar() {
               <div
                 key={day}
                 onClick={() => handleDateClick(day, true)}
-                className={`min-h-[110px] sm:min-h-[100px] bg-gray-800 border rounded p-1 cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
+                className={`min-h-[110px] sm:min-h-[100px] bg-gray-800 border rounded p-0.5 cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
                   today ? 'border-yellow-400 ring-2 ring-yellow-400' : 
                   holiday ? 'border-red-500' : 
                   'border-gray-700'
                 }`}
               >
-                <div className={`text-sm sm:text-xs mb-0.5 font-medium truncate ${today ? 'text-yellow-400 font-bold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
+                <div className={`text-[10px] sm:text-xs mb-0.5 font-medium truncate ${today ? 'text-yellow-400 font-bold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
                   {day}
                   {day === 1 && month === 0 && (
-                    <span className="ml-0.5 text-xs">元旦</span>
+                    <span className="ml-0.5 text-[10px]">元旦</span>
                   )}
                 </div>
                 <div className="space-y-0.5 overflow-hidden min-w-0">
@@ -1128,15 +1128,15 @@ function Calendar() {
                     return (
                       <div 
                         key={schedule.id} 
-                        className={`${displayClass} text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden`}
+                        className={`${displayClass} text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${schedule.siteName}${timeDisplay} - 工程排程`}
                       >
                         <span className="truncate flex-1 min-w-0">{schedule.siteName}{timeDisplay}</span>
-                        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+                        <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 加油指示灯 */}
                           <div 
-                            className={`relative w-3 h-3 rounded-full shadow-lg ${
+                            className={`relative w-2 h-2 rounded-full shadow ${
                               schedule.needRefuel 
                                 ? 'bg-green-500' 
                                 : 'bg-gray-500'
@@ -1155,7 +1155,7 @@ function Calendar() {
                           </div>
                           {/* 發票指示灯 */}
                           <div 
-                            className={`relative w-3 h-3 rounded-full shadow-lg ${
+                            className={`relative w-2 h-2 rounded-full shadow ${
                               // 如果未勾选加油，發票灯为灰色（无状态）
                               !schedule.needRefuel
                                 ? 'bg-gray-500'
@@ -1200,7 +1200,7 @@ function Calendar() {
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80`}
                       title={event.title}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -1221,14 +1221,14 @@ function Calendar() {
             return (
               <div
                 key={`next-${day}`}
-                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-1 text-gray-600 overflow-hidden min-w-0"
+                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-0.5 text-gray-600 overflow-hidden min-w-0"
               >
-                <div className="text-xs mb-0.5">{day}</div>
+                <div className="text-[10px] mb-0.5">{day}</div>
                 <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[10px] px-1 py-0.5 rounded truncate`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate`}
                       title={event.title}
                     >
                       {event.title}
