@@ -2,10 +2,11 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const STORAGE_KEY = 'jiameng_users'
 
+/** 寫入本地並同步到 Supabase；回傳 sync 的 Promise，呼叫方可 await 以確保刷新前已寫入雲端 */
 const setUsersAndSync = (users) => {
   const val = JSON.stringify(users)
   localStorage.setItem(STORAGE_KEY, val)
-  syncKeyToSupabase(STORAGE_KEY, val)
+  return syncKeyToSupabase(STORAGE_KEY, val)
 }
 
 export const getUsers = () => {
@@ -48,20 +49,20 @@ export const initializeAdminUser = () => {
   }
 }
 
-export const saveUser = (user) => {
+/** 註冊新用戶；會先寫入 localStorage，並等待 Supabase 同步完成再回傳，避免刷新後用戶消失 */
+export const saveUser = async (user) => {
   try {
     const users = getUsers()
-    // 检查账号是否已存在
     if (users.some(u => u.account === user.account)) {
       return { success: false, message: '該帳號已存在' }
     }
     users.push({
       ...user,
-      role: user.role || 'user', // 默认为普通用户，如果没有指定角色
+      role: user.role || 'user',
       id: Date.now().toString(),
       createdAt: new Date().toISOString()
     })
-    setUsersAndSync(users)
+    await setUsersAndSync(users)
     return { success: true, message: '註冊成功' }
   } catch (error) {
     console.error('Error saving user:', error)
