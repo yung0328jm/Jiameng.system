@@ -1062,17 +1062,17 @@ function Calendar() {
         </div>
 
         {/* 日期网格 */}
-        <div className="grid grid-cols-7 gap-2 sm:gap-1">
+        <div className="grid grid-cols-7 gap-2 sm:gap-1 min-w-0 w-full">
           {/* 上个月的日期 */}
           {prevMonthDays.map((day) => {
             const events = []
             return (
               <div
                 key={`prev-${day}`}
-                className="min-h-[110px] sm:min-h-[100px] bg-gray-900 border border-gray-700 rounded p-2 sm:p-1 text-gray-600"
+                className="min-h-[110px] sm:min-h-[100px] bg-gray-900 border border-gray-700 rounded p-2 sm:p-1 text-gray-600 overflow-hidden min-w-0"
               >
                 <div className="text-sm sm:text-xs mb-1 font-medium">{day}</div>
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
@@ -1098,19 +1098,19 @@ function Calendar() {
               <div
                 key={day}
                 onClick={() => handleDateClick(day, true)}
-                className={`min-h-[110px] sm:min-h-[100px] bg-gray-800 border rounded p-2 sm:p-1 cursor-pointer hover:bg-gray-750 transition-colors ${
+                className={`min-h-[110px] sm:min-h-[100px] bg-gray-800 border rounded p-2 sm:p-1 cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
                   today ? 'border-yellow-400 ring-2 ring-yellow-400' : 
                   holiday ? 'border-red-500' : 
                   'border-gray-700'
                 }`}
               >
-                <div className={`text-base sm:text-sm mb-1 font-medium ${today ? 'text-yellow-400 font-bold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
+                <div className={`text-base sm:text-sm mb-1 font-medium truncate ${today ? 'text-yellow-400 font-bold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
                   {day}
                   {day === 1 && month === 0 && (
                     <span className="ml-1 text-sm sm:text-xs">元旦</span>
                   )}
                 </div>
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 overflow-hidden min-w-0">
                   {/* 显示排程（案场名称） */}
                   {daySchedules.map((schedule) => {
                     const scheduleTag = schedule.tag || 'blue'
@@ -1128,12 +1128,12 @@ function Calendar() {
                     return (
                       <div 
                         key={schedule.id} 
-                        className={`${displayClass} text-sm sm:text-xs px-2 sm:px-1 py-1 sm:py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-1`}
+                        className={`${displayClass} text-sm sm:text-xs px-2 sm:px-1 py-1 sm:py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-1 min-w-0 overflow-hidden`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${schedule.siteName}${timeDisplay} - 工程排程`}
                       >
-                        <span className="truncate flex-1">{schedule.siteName}{timeDisplay}</span>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="truncate flex-1 min-w-0">{schedule.siteName}{timeDisplay}</span>
+                        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                           {/* 加油指示灯 */}
                           <div 
                             className={`relative w-3 h-3 rounded-full shadow-lg ${
@@ -1221,10 +1221,10 @@ function Calendar() {
             return (
               <div
                 key={`next-${day}`}
-                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-1 text-gray-600"
+                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-1 text-gray-600 overflow-hidden min-w-0"
               >
                 <div className="text-xs mb-1">{day}</div>
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
