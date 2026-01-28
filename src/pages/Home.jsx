@@ -2965,21 +2965,30 @@ function Home() {
                       }}
                     >
                       <div className="flex items-center gap-2 p-2 flex-1">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt="" className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded flex-shrink-0" />
+                        {!hasRankingEffect ? (
+                          /* 灰色問號卡無資料：封面只顯示 ?，不顯示項目名稱 */
+                          <div className="w-full h-full min-h-[60px] sm:min-h-[72px] flex items-center justify-center">
+                            <span className="text-gray-400 text-4xl sm:text-5xl font-bold opacity-60">?</span>
+                          </div>
                         ) : (
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-sm">?</div>
+                          <>
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt="" className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-sm">?</div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-semibold truncate text-[10px] sm:text-xs">{item.title || item.name || '排行榜'}</p>
+                              {firstPlaceName ? (
+                                <p className="text-yellow-400 font-semibold truncate text-[10px] sm:text-xs mt-0.5" style={{ textShadow: '0 0 8px rgba(251, 191, 36, 0.9), 0 0 16px rgba(251, 191, 36, 0.6)' }}>
+                                  第一名：{firstPlaceName}
+                                </p>
+                              ) : (
+                                <p className="text-gray-400 text-[9px] mt-0.5">點擊預覽</p>
+                              )}
+                            </div>
+                          </>
                         )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-semibold truncate text-[10px] sm:text-xs">{item.title || item.name || '排行榜'}</p>
-                          {hasRankingEffect && firstPlaceName ? (
-                            <p className="text-yellow-400 font-semibold truncate text-[10px] sm:text-xs mt-0.5" style={{ textShadow: '0 0 8px rgba(251, 191, 36, 0.9), 0 0 16px rgba(251, 191, 36, 0.6)' }}>
-                              第一名：{firstPlaceName}
-                            </p>
-                          ) : (
-                            <p className="text-gray-400 text-[9px] mt-0.5">點擊預覽</p>
-                          )}
-                        </div>
                       </div>
                       {userRole === 'admin' && (
                         <div className="absolute top-1 right-1" onClick={e => e.stopPropagation()}>
