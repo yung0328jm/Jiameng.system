@@ -13,6 +13,7 @@ function Register() {
     confirmPassword: ''
   })
   const [message, setMessage] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const handleChange = (e) => {
     setFormData({
@@ -22,16 +23,14 @@ function Register() {
     setMessage('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    // 验证
+
     if (!formData.name || !formData.account || !formData.password || !formData.confirmPassword) {
       setMessage('請填寫所有必填欄位')
       return
     }
 
-    // 檢查註冊密碼（若管理員已設置則必須正確）
     const pwdCheck = checkRegistrationPassword(formData.registrationPassword || '')
     if (!pwdCheck.success) {
       setMessage(pwdCheck.message || '註冊密碼錯誤')
@@ -48,20 +47,27 @@ function Register() {
       return
     }
 
-    // 保存用户
-    const result = saveUser({
-      name: formData.name,
-      account: formData.account,
-      password: formData.password
-    })
+    setSubmitting(true)
+    setMessage('')
+    try {
+      const result = await saveUser({
+        name: formData.name,
+        account: formData.account,
+        password: formData.password
+      })
 
-    if (result.success) {
-      setMessage('註冊成功！正在跳轉到登錄頁面...')
-      setTimeout(() => {
-        navigate('/login')
-      }, 1500)
-    } else {
-      setMessage(result.message)
+      if (result.success) {
+        setMessage('註冊成功！正在跳轉到登錄頁面...')
+        setTimeout(() => {
+          navigate('/login')
+        }, 1500)
+      } else {
+        setMessage(result.message)
+      }
+    } catch (err) {
+      setMessage('註冊失敗，請稍後再試')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -158,9 +164,10 @@ function Register() {
             </div>
             <button
               type="submit"
-              className="w-full min-h-[48px] bg-yellow-400 text-black font-semibold py-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors shadow-lg mt-4 touch-manipulation text-base"
+              disabled={submitting}
+              className="w-full min-h-[48px] bg-yellow-400 text-black font-semibold py-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              立即註冊
+              {submitting ? '註冊中並同步…' : '立即註冊'}
             </button>
           </form>
 
