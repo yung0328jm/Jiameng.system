@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems, getItem, ITEM_TYPES } from '../utils/itemStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
@@ -14,6 +14,7 @@ function MyBackpack() {
   const [selectedItemForExchange, setSelectedItemForExchange] = useState(null)
   const [exchangeRequests, setExchangeRequests] = useState([])
   const [equippedEffects, setEquippedEffects] = useState({})
+  const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -208,117 +209,180 @@ function MyBackpack() {
             <p className="text-gray-500 text-sm">前往兌換商城購買道具吧！</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {inventory.map((invItem) => (
-              <div
-                key={invItem.itemId}
-                className="bg-gray-800 border border-gray-700 rounded-lg p-5 sm:p-6 hover:border-purple-400 transition-colors"
-              >
-                {/* 道具圖標和名稱 */}
-                <div className="text-center mb-5 sm:mb-4">
-                  <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{invItem.icon}</div>
-                  <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{invItem.name}</h3>
-                  {invItem.description && (
-                    <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{invItem.description}</p>
-                  )}
-                </div>
-
-                {/* 數量 */}
-                <div className="mb-5 sm:mb-4 text-center">
-                  <p className="text-gray-400 text-base sm:text-sm mb-2">擁有數量</p>
-                  <p className="text-3xl sm:text-2xl font-bold text-purple-400">{invItem.quantity || 0}</p>
-                </div>
-
-                {/* 獲得時間 */}
-                {invItem.obtainedAt && (
-                  <div className="mb-5 sm:mb-4 text-center">
-                    <p className="text-gray-500 text-sm sm:text-xs">
-                      獲得時間：{new Date(invItem.obtainedAt).toLocaleDateString('zh-TW')}
-                    </p>
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-1 sm:gap-2">
+            {inventory.map((invItem) => {
+              const fullCardEl = (
+                <div
+                  key={invItem.itemId}
+                  className="bg-gray-800 border border-gray-700 rounded-lg p-5 sm:p-6 hover:border-purple-400 transition-colors"
+                >
+                  {/* 道具圖標和名稱 */}
+                  <div className="text-center mb-5 sm:mb-4">
+                    <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{invItem.icon}</div>
+                    <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{invItem.name}</h3>
+                    {invItem.description && (
+                      <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{invItem.description}</p>
+                    )}
                   </div>
-                )}
 
-                {/* 操作按鈕 */}
-                <div className="w-full">
-                  {invItem.item && invItem.item.type === ITEM_TYPES.DANMU ? (
-                    <div className="w-full bg-gray-700 text-gray-400 px-4 py-3 sm:py-2 rounded text-center text-base sm:text-sm">
-                      交流區使用
+                  {/* 數量 */}
+                  <div className="mb-5 sm:mb-4 text-center">
+                    <p className="text-gray-400 text-base sm:text-sm mb-2">擁有數量</p>
+                    <p className="text-3xl sm:text-2xl font-bold text-purple-400">{invItem.quantity || 0}</p>
+                  </div>
+
+                  {/* 獲得時間 */}
+                  {invItem.obtainedAt && (
+                    <div className="mb-5 sm:mb-4 text-center">
+                      <p className="text-gray-500 text-sm sm:text-xs">
+                        獲得時間：{new Date(invItem.obtainedAt).toLocaleDateString('zh-TW')}
+                      </p>
                     </div>
-                  ) : invItem.item && invItem.item.type === ITEM_TYPES.NAME_EFFECT ? (
-                    <div className="space-y-3 sm:space-y-2">
-                      {equippedEffects.nameEffect === invItem.itemId ? (
-                        <button
-                          onClick={() => handleUnequipEffect('name')}
-                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                        >
-                          卸下名子特效
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleEquipEffect(invItem.itemId, 'name')}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                        >
-                          裝備名子特效
-                        </button>
-                      )}
-                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
-                    </div>
-                  ) : invItem.item && invItem.item.type === ITEM_TYPES.MESSAGE_EFFECT ? (
-                    <div className="space-y-3 sm:space-y-2">
-                      {equippedEffects.messageEffect === invItem.itemId ? (
-                        <button
-                          onClick={() => handleUnequipEffect('message')}
-                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                        >
-                          卸下發話特效
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleEquipEffect(invItem.itemId, 'message')}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                        >
-                          裝備發話特效
-                        </button>
-                      )}
-                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
-                    </div>
-                  ) : invItem.item && invItem.item.type === ITEM_TYPES.TITLE ? (
-                    <div className="space-y-3 sm:space-y-2">
-                      {equippedEffects.title === invItem.itemId ? (
-                        <button
-                          onClick={() => handleUnequipEffect('title')}
-                          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                        >
-                          卸下稱號
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleEquipEffect(invItem.itemId, 'title')}
-                          className="w-full bg-purple-500 hover:bg-purple-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                        >
-                          裝備稱號
-                        </button>
-                      )}
-                      <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
-                    </div>
-                  ) : hasPendingExchangeRequest(invItem.itemId) ? (
-                    <button
-                      disabled
-                      className="w-full bg-gray-600 text-gray-400 px-4 py-3 sm:py-2 rounded cursor-not-allowed font-semibold text-base sm:text-sm min-h-[44px]"
-                    >
-                      確認兌換中
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleExchangeItem(invItem)}
-                      className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-base sm:text-sm min-h-[44px]"
-                    >
-                      兌換
-                    </button>
                   )}
+
+                  {/* 操作按鈕 */}
+                  <div className="w-full">
+                    {invItem.item && invItem.item.type === ITEM_TYPES.DANMU ? (
+                      <div className="w-full bg-gray-700 text-gray-400 px-4 py-3 sm:py-2 rounded text-center text-base sm:text-sm">
+                        交流區使用
+                      </div>
+                    ) : invItem.item && invItem.item.type === ITEM_TYPES.NAME_EFFECT ? (
+                      <div className="space-y-3 sm:space-y-2">
+                        {equippedEffects.nameEffect === invItem.itemId ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleUnequipEffect('name')
+                            }}
+                            className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            卸下名子特效
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEquipEffect(invItem.itemId, 'name')
+                            }}
+                            className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            裝備名子特效
+                          </button>
+                        )}
+                        <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
+                      </div>
+                    ) : invItem.item && invItem.item.type === ITEM_TYPES.MESSAGE_EFFECT ? (
+                      <div className="space-y-3 sm:space-y-2">
+                        {equippedEffects.messageEffect === invItem.itemId ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleUnequipEffect('message')
+                            }}
+                            className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            卸下發話特效
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEquipEffect(invItem.itemId, 'message')
+                            }}
+                            className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            裝備發話特效
+                          </button>
+                        )}
+                        <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
+                      </div>
+                    ) : invItem.item && invItem.item.type === ITEM_TYPES.TITLE ? (
+                      <div className="space-y-3 sm:space-y-2">
+                        {equippedEffects.title === invItem.itemId ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleUnequipEffect('title')
+                            }}
+                            className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            卸下稱號
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEquipEffect(invItem.itemId, 'title')
+                            }}
+                            className="w-full bg-purple-500 hover:bg-purple-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            裝備稱號
+                          </button>
+                        )}
+                        <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
+                      </div>
+                    ) : hasPendingExchangeRequest(invItem.itemId) ? (
+                      <button
+                        disabled
+                        className="w-full bg-gray-600 text-gray-400 px-4 py-3 sm:py-2 rounded cursor-not-allowed font-semibold text-base sm:text-sm min-h-[44px]"
+                      >
+                        確認兌換中
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleExchangeItem(invItem)
+                        }}
+                        className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-base sm:text-sm min-h-[44px]"
+                      >
+                        兌換
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+
+              return (
+                <Fragment key={invItem.itemId}>
+                  {previewItemId === invItem.itemId && (
+                    <div
+                      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 overflow-auto"
+                      onClick={() => setPreviewItemId(null)}
+                    >
+                      <div
+                        className="relative max-h-[90vh] w-full max-w-2xl my-auto rounded-lg overflow-y-auto overflow-x-hidden"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {fullCardEl}
+                        <button
+                          type="button"
+                          onClick={() => setPreviewItemId(null)}
+                          className="absolute top-2 right-2 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg"
+                          aria-label="關閉預覽"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setPreviewItemId(invItem.itemId)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewItemId(invItem.itemId); } }}
+                    className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-purple-400 transition-colors cursor-pointer bg-gray-800"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
+                      <div className="text-4xl sm:text-5xl">{invItem.icon}</div>
+                      <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{invItem.name}</p>
+                      <p className="text-purple-400 text-[10px] sm:text-xs font-bold">{invItem.quantity || 0} 個</p>
+                      <p className="text-gray-400 text-[10px] mt-0.5">點擊預覽</p>
+                    </div>
+                  </div>
+                </Fragment>
+              )
+            })}
           </div>
         )}
 

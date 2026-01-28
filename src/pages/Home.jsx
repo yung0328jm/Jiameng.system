@@ -1701,8 +1701,8 @@ function Home() {
           <h3 className="text-sm sm:text-base font-bold text-yellow-400">待辦事項</h3>
         </div>
         
-        {/* 新增待辦事項 */}
-        <div className="mb-3 sm:mb-4 flex gap-2">
+        {/* 新增待辦事項（可換行，字體小一點） */}
+        <div className="mb-3 sm:mb-4 flex flex-wrap gap-2">
           <input
             type="text"
             value={newTodoText}
@@ -1713,11 +1713,11 @@ function Home() {
               }
             }}
             placeholder="輸入待辦事項..."
-            className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-xs sm:text-sm focus:outline-none focus:border-yellow-400 min-h-[40px] sm:min-h-0"
+            className="flex-1 min-w-[200px] bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-[10px] sm:text-xs focus:outline-none focus:border-yellow-400 min-h-[36px] sm:min-h-0"
           />
           <button
             onClick={handleAddTodo}
-            className="bg-yellow-400 text-gray-900 px-3 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-xs sm:text-sm min-h-[40px] sm:min-h-0"
+            className="bg-yellow-400 text-gray-900 px-3 py-1.5 rounded hover:bg-yellow-500 transition-colors font-semibold text-[10px] sm:text-xs min-h-[36px] sm:min-h-0 whitespace-nowrap"
           >
             新增
           </button>

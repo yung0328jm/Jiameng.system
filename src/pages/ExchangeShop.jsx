@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { getItems, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
@@ -18,6 +18,7 @@ function ExchangeShop() {
   const [userRole, setUserRole] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
   const [walletBalance, setWalletBalance] = useState(0)
+  const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
 
   useEffect(() => {
     loadItems()
@@ -195,57 +196,123 @@ function ExchangeShop() {
           </div>
         )}
 
-        {/* 道具列表 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {items.map(item => (
-            <div
-              key={item.id}
-              className="bg-gray-800 border border-gray-700 rounded-lg p-5 sm:p-6 hover:border-yellow-400 transition-colors"
-            >
-              {/* 道具圖標和名稱 */}
-              <div className="text-center mb-5 sm:mb-4">
-                <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{item.icon}</div>
-                <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{item.name}</h3>
-                {item.description && (
-                  <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{item.description}</p>
-                )}
-              </div>
+        {/* 道具列表（小網格、點擊預覽） */}
+        <div className="grid grid-cols-4 sm:grid-cols-5 gap-1 sm:gap-2">
+          {items.map(item => {
+            const fullCardEl = (
+              <div
+                key={item.id}
+                className="bg-gray-800 border border-gray-700 rounded-lg p-5 sm:p-6 hover:border-yellow-400 transition-colors"
+              >
+                {/* 道具圖標和名稱 */}
+                <div className="text-center mb-5 sm:mb-4">
+                  <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{item.icon}</div>
+                  <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{item.name}</h3>
+                  {item.description && (
+                    <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{item.description}</p>
+                  )}
+                </div>
 
-              {/* 價格 */}
-              <div className="mb-5 sm:mb-4 text-center">
-                <p className="text-gray-400 text-base sm:text-sm mb-2">兌換價格</p>
-                <p className="text-3xl sm:text-2xl font-bold text-yellow-400">{item.price || 0} 佳盟幣</p>
-              </div>
+                {/* 價格 */}
+                <div className="mb-5 sm:mb-4 text-center">
+                  <p className="text-gray-400 text-base sm:text-sm mb-2">兌換價格</p>
+                  <p className="text-3xl sm:text-2xl font-bold text-yellow-400">{item.price || 0} 佳盟幣</p>
+                </div>
 
-              {/* 操作按鈕 */}
-              <div className="flex gap-3 sm:gap-2">
-                {userRole === 'admin' ? (
-                  <>
+                {/* 操作按鈕 */}
+                <div className="flex gap-3 sm:gap-2">
+                  {userRole === 'admin' ? (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditItem(item)
+                        }}
+                        className="flex-1 bg-blue-600 text-white px-4 py-3 sm:py-2 rounded hover:bg-blue-700 transition-colors text-base sm:text-sm min-h-[44px]"
+                      >
+                        編輯
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteItem(item.id)
+                        }}
+                        className="flex-1 bg-red-600 text-white px-4 py-3 sm:py-2 rounded hover:bg-red-700 transition-colors text-base sm:text-sm min-h-[44px]"
+                      >
+                        刪除
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      onClick={() => handleEditItem(item)}
-                      className="flex-1 bg-blue-600 text-white px-4 py-3 sm:py-2 rounded hover:bg-blue-700 transition-colors text-base sm:text-sm min-h-[44px]"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleExchange(item)
+                      }}
+                      disabled={!currentUser || walletBalance < (item.price || 0)}
+                      className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed text-base sm:text-sm min-h-[44px]"
                     >
-                      編輯
+                      {!currentUser ? '請先登入' : walletBalance < (item.price || 0) ? '餘額不足' : '兌換'}
                     </button>
-                    <button
-                      onClick={() => handleDeleteItem(item.id)}
-                      className="flex-1 bg-red-600 text-white px-4 py-3 sm:py-2 rounded hover:bg-red-700 transition-colors text-base sm:text-sm min-h-[44px]"
-                    >
-                      刪除
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => handleExchange(item)}
-                    disabled={!currentUser || walletBalance < (item.price || 0)}
-                    className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed text-base sm:text-sm min-h-[44px]"
+                  )}
+                </div>
+              </div>
+            )
+
+            return (
+              <Fragment key={item.id}>
+                {previewItemId === item.id && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 overflow-auto"
+                    onClick={() => setPreviewItemId(null)}
                   >
-                    {!currentUser ? '請先登入' : walletBalance < (item.price || 0) ? '餘額不足' : '兌換'}
-                  </button>
+                    <div
+                      className="relative max-h-[90vh] w-full max-w-2xl my-auto rounded-lg overflow-y-auto overflow-x-hidden"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {fullCardEl}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewItemId(null)}
+                        className="absolute top-2 right-2 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg"
+                        aria-label="關閉預覽"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </div>
-            </div>
-          ))}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setPreviewItemId(item.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewItemId(item.id); } }}
+                  className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-yellow-400 transition-colors cursor-pointer bg-gray-800"
+                >
+                  <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
+                    <div className="text-4xl sm:text-5xl">{item.icon}</div>
+                    <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{item.name}</p>
+                    <p className="text-yellow-400 text-[10px] sm:text-xs font-bold">{item.price || 0} 幣</p>
+                    <p className="text-gray-400 text-[10px] mt-0.5">點擊預覽</p>
+                  </div>
+                  {userRole === 'admin' && (
+                    <div className="absolute top-1 right-1" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditItem(item)
+                        }}
+                        className="w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 text-[10px] leading-none"
+                        title="編輯"
+                      >
+                        ✎
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Fragment>
+            )
+          })}
         </div>
 
         {items.length === 0 && (
