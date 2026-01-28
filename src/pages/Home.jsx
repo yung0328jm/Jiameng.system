@@ -1889,11 +1889,10 @@ function Home() {
                 const greyCardEl = (!hasValidRankings && !isManual) ? (
                     <div
                       key={item.id}
-                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px] ring-2 ring-yellow-400/50"
+                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
                       style={{
                         background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 50%, #2a2a2a 100%)',
-                        position: 'relative',
-                        boxShadow: '0 0 24px rgba(251, 191, 36, 0.25), inset 0 0 0 1px rgba(251, 191, 36, 0.15)'
+                        position: 'relative'
                       }}
                     >
                       {/* 灰色背景遮罩 */}
@@ -2925,7 +2924,9 @@ function Home() {
                 );
 
                 const fullCardContentInPreview = greyCardEl ?? fullCardEl
-                const hasRankingEffect = hasValidRankings // 有人上榜時顯示金色光環特效
+                const hasRankingEffect = hasValidRankings // 有資料卡：封面顯排名第一並發光
+                const firstPlace = manualRanks.length > 0 ? manualRanks[0] : (rankings[item.id] && rankings[item.id][0]) ? { name: rankings[item.id][0].name || rankings[item.id][0].userName } : null
+                const firstPlaceName = firstPlace ? (firstPlace.name || '') : ''
                 return (
                   <Fragment key={item.id}>
                     {previewLeaderboardId === item.id && fullCardContentInPreview && (
@@ -2971,7 +2972,13 @@ function Home() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-semibold truncate text-[10px] sm:text-xs">{item.title || item.name || '排行榜'}</p>
-                          <p className="text-gray-400 text-[9px] mt-0.5">點擊預覽</p>
+                          {hasRankingEffect && firstPlaceName ? (
+                            <p className="text-yellow-400 font-semibold truncate text-[10px] sm:text-xs mt-0.5" style={{ textShadow: '0 0 8px rgba(251, 191, 36, 0.9), 0 0 16px rgba(251, 191, 36, 0.6)' }}>
+                              第一名：{firstPlaceName}
+                            </p>
+                          ) : (
+                            <p className="text-gray-400 text-[9px] mt-0.5">點擊預覽</p>
+                          )}
                         </div>
                       </div>
                       {userRole === 'admin' && (
