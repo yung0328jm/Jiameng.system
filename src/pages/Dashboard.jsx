@@ -404,15 +404,15 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
   return (
     <div className="min-h-screen bg-gray-800 flex flex-col">
-      {/* 顶部标题栏：手機縮小、按鈕可換行 */}
-      <div className="bg-dark-gray px-4 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 shrink-0">
+      {/* 頂部標題欄：手機加大間距、按鈕觸控區域至少 44px */}
+      <div className="bg-dark-gray px-3 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 shrink-0">
         <h1 className="text-lg sm:text-2xl font-bold text-yellow-400 shrink-0">佳盟事業群</h1>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
           {/* 餘額錢包顯示 */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => setShowWalletModal(!showWalletModal)}
-              className="bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-500 text-gray-800 font-semibold px-3 py-2 sm:px-4 rounded-lg transition-colors flex items-center space-x-2 min-h-[44px] touch-manipulation text-sm sm:text-base"
+              className="bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-500 text-gray-800 font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
             >
               <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -423,7 +423,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               <>
                 <button
                   onClick={() => setShowDistributionModal(!showDistributionModal)}
-                  className="bg-green-500 hover:bg-green-600 active:bg-green-600 text-white font-semibold px-3 py-2 sm:px-4 rounded-lg transition-colors flex items-center space-x-2 min-h-[44px] touch-manipulation text-sm sm:text-base"
+                  className="bg-green-500 hover:bg-green-600 active:bg-green-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
                 >
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -432,7 +432,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 </button>
                 <button
                   onClick={() => setShowItemDistributionModal(!showItemDistributionModal)}
-                  className="bg-blue-500 hover:bg-blue-600 active:bg-blue-600 text-white font-semibold px-3 py-2 sm:px-4 rounded-lg transition-colors flex items-center space-x-2 min-h-[44px] touch-manipulation text-sm sm:text-base"
+                  className="bg-blue-500 hover:bg-blue-600 active:bg-blue-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
                 >
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -441,14 +441,14 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 </button>
                 <button
                   onClick={() => setShowExchangeRequestModal(!showExchangeRequestModal)}
-                  className="bg-purple-500 hover:bg-purple-600 active:bg-purple-600 text-white font-semibold px-3 py-2 sm:px-4 rounded-lg transition-colors flex items-center space-x-2 relative min-h-[44px] touch-manipulation text-sm sm:text-base"
+                  className="bg-purple-500 hover:bg-purple-600 active:bg-purple-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
                 >
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span className="hidden sm:inline">兌換請求</span>
                   {pendingExchangeRequests.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-yellow-400 text-gray-800 rounded-full px-2 py-0.5 text-xs font-bold">
+                    <span className="absolute top-0 right-0 sm:-top-1 sm:-right-1 bg-yellow-400 text-gray-800 rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-bold">
                       {pendingExchangeRequests.length}
                     </span>
                   )}
@@ -458,7 +458,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           </div>
           <button
             onClick={onLogout}
-            className="bg-red-500 hover:bg-red-600 active:bg-red-600 text-white font-semibold px-3 py-2 sm:px-4 rounded-lg transition-colors flex items-center space-x-2 min-h-[44px] touch-manipulation text-sm sm:text-base"
+            className="bg-red-500 hover:bg-red-600 active:bg-red-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
           >
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -537,16 +537,17 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
       {/* 分配佳盟幣模態框（管理員） */}
       {showDistributionModal && userRole === 'admin' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-green-400">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl p-5 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border border-green-400">
+            <div className="flex items-center justify-between mb-4 gap-2">
               <h2 className="text-xl font-bold text-green-400">分配佳盟幣</h2>
               <button
+                type="button"
                 onClick={() => {
                   setShowDistributionModal(false)
                   setDistributionForm({ username: '', amount: 0 })
                 }}
-                className="text-gray-400 hover:text-white"
+                className="flex items-center justify-center min-h-[48px] min-w-[48px] rounded-lg text-gray-400 hover:text-white hover:bg-gray-600 active:bg-gray-600 touch-manipulation text-xl"
               >
                 ✕
               </button>
@@ -557,7 +558,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 <select
                   value={distributionForm.username}
                   onChange={(e) => setDistributionForm({ ...distributionForm, username: e.target.value })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-green-400"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-green-400 touch-manipulation text-base"
                 >
                   <option value="">請選擇用戶</option>
                   {allUsers.map((user) => (
@@ -575,13 +576,14 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   value={distributionForm.amount}
                   onChange={(e) => setDistributionForm({ ...distributionForm, amount: parseInt(e.target.value) || 0 })}
                   placeholder="輸入佳盟幣數量"
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-green-400"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-green-400 touch-manipulation text-base"
                 />
               </div>
               <button
+                type="button"
                 onClick={handleDistributeCoins}
                 disabled={!distributionForm.username || distributionForm.amount <= 0}
-                className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-2 rounded transition-colors"
+                className="w-full min-h-[48px] bg-green-500 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors touch-manipulation"
               >
                 分配
               </button>
@@ -592,16 +594,17 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
       {/* 分配道具模態框（管理員） */}
       {showItemDistributionModal && userRole === 'admin' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-blue-400">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl p-5 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border border-blue-400">
+            <div className="flex items-center justify-between mb-4 gap-2">
               <h2 className="text-xl font-bold text-blue-400">分配道具</h2>
               <button
+                type="button"
                 onClick={() => {
                   setShowItemDistributionModal(false)
                   setItemDistributionForm({ username: '', itemId: '', quantity: 1 })
                 }}
-                className="text-gray-400 hover:text-white"
+                className="flex items-center justify-center min-h-[48px] min-w-[48px] rounded-lg text-gray-400 hover:text-white hover:bg-gray-600 active:bg-gray-600 touch-manipulation text-xl"
               >
                 ✕
               </button>
@@ -612,7 +615,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 <select
                   value={itemDistributionForm.username}
                   onChange={(e) => setItemDistributionForm({ ...itemDistributionForm, username: e.target.value })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-blue-400"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-blue-400 touch-manipulation text-base"
                 >
                   <option value="">請選擇用戶</option>
                   {allUsers.map((user) => (
@@ -627,7 +630,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 <select
                   value={itemDistributionForm.itemId}
                   onChange={(e) => setItemDistributionForm({ ...itemDistributionForm, itemId: e.target.value })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-blue-400"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-blue-400 touch-manipulation text-base"
                 >
                   <option value="">請選擇道具</option>
                   {availableItems.map((item) => (
@@ -644,13 +647,14 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   min="1"
                   value={itemDistributionForm.quantity}
                   onChange={(e) => setItemDistributionForm({ ...itemDistributionForm, quantity: parseInt(e.target.value) || 1 })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-blue-400"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-blue-400 touch-manipulation text-base"
                 />
               </div>
               <button
+                type="button"
                 onClick={handleDistributeItem}
                 disabled={!itemDistributionForm.username || !itemDistributionForm.itemId || itemDistributionForm.quantity <= 0}
-                className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-2 rounded transition-colors"
+                className="w-full min-h-[48px] bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors touch-manipulation"
               >
                 分配道具
               </button>
@@ -661,13 +665,14 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
       {/* 兌換請求模態框（管理員） */}
       {showExchangeRequestModal && userRole === 'admin' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 border border-purple-400 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl p-5 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-purple-400">
+            <div className="flex items-center justify-between mb-4 gap-2">
               <h2 className="text-xl font-bold text-purple-400">兌換請求管理</h2>
               <button
+                type="button"
                 onClick={() => setShowExchangeRequestModal(false)}
-                className="text-gray-400 hover:text-white"
+                className="flex items-center justify-center min-h-[48px] min-w-[48px] rounded-lg text-gray-400 hover:text-white hover:bg-gray-600 active:bg-gray-600 touch-manipulation text-xl"
               >
                 ✕
               </button>
@@ -708,16 +713,18 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                         </div>
                       )}
                       
-                      <div className="flex gap-2">
+                      <div className="flex gap-3 mt-3">
                         <button
+                          type="button"
                           onClick={() => handleApproveExchange(request.id)}
-                          className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded transition-colors"
+                          className="flex-1 min-h-[48px] bg-green-500 hover:bg-green-600 active:bg-green-600 text-white font-semibold py-3 rounded-lg transition-colors touch-manipulation"
                         >
                           確認兌換
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleRejectExchange(request.id)}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded transition-colors"
+                          className="flex-1 min-h-[48px] bg-red-500 hover:bg-red-600 active:bg-red-600 text-white font-semibold py-3 rounded-lg transition-colors touch-manipulation"
                         >
                           拒絕
                         </button>
@@ -731,9 +738,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         </div>
       )}
 
-      {/* 导航栏：手機橫向捲動、觸控友善 */}
+      {/* 導航列：手機橫向捲動、每顆至少 44px 觸控區 */}
       <div className="bg-gray-700 border-b border-yellow-400 shrink-0">
-        <nav className="flex items-center px-3 py-2 sm:px-6 sm:py-3 space-x-1 scroll-touch gap-0.5 sm:gap-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <nav className="flex items-stretch flex-nowrap overflow-x-auto scroll-touch px-2 py-2 sm:px-6 sm:py-3 gap-2 sm:gap-1">
           <NavItem
             icon={<HomeIcon />}
             label="首頁"
@@ -832,8 +839,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         </nav>
       </div>
 
-      {/* 内容区域：手機縮小 padding、底部留安全區域 */}
-      <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-auto" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
+      {/* 內容區：手機加大間距、底部留安全區域 */}
+      <div className="px-4 py-4 sm:p-6 flex-1 min-h-0 overflow-auto" style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
         {renderContent()}
       </div>
     </div>
@@ -846,7 +853,7 @@ function NavItem({ icon, label, isActive, onClick, badge }) {
       type="button"
       onClick={onClick}
       className={`
-        flex items-center space-x-1.5 sm:space-x-2 px-3 py-2.5 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap relative min-h-[44px] touch-manipulation text-sm sm:text-base shrink-0
+        flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base shrink-0
         ${isActive 
           ? 'bg-yellow-400 text-gray-800 font-semibold' 
           : 'text-white hover:bg-gray-600 active:bg-gray-600'
@@ -856,7 +863,7 @@ function NavItem({ icon, label, isActive, onClick, badge }) {
       {icon}
       <span>{label}</span>
       {badge && badge > 0 && (
-        <span className={`absolute -top-1 -right-1 bg-yellow-400 text-gray-800 rounded-full px-2 py-0.5 text-xs font-bold ${
+        <span className={`absolute top-0.5 right-0.5 sm:-top-1 sm:-right-1 bg-yellow-400 text-gray-800 rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-bold ${
           isActive ? 'bg-gray-800 text-yellow-400' : ''
         }`}>
           {badge}
