@@ -441,34 +441,34 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
   return (
     <div className="min-h-screen bg-gray-800 flex flex-col">
-      {/* 上方導覽列：左＝主題篩選、中＝標題＋日期時間、右＝按鈕（手機不溢出、整齊） */}
-      <div className="bg-dark-gray px-3 py-3 sm:px-6 sm:py-4 flex flex-row items-center justify-between gap-2 sm:gap-4 shrink-0 overflow-hidden min-h-[56px] sm:min-h-0">
+      {/* 上方導覽列：左＝主題篩選、中＝標題＋日期時間、右＝按鈕（網格縮小以一次顯示全部） */}
+      <div className="bg-dark-gray px-2 py-2 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-1 sm:gap-2 shrink-0 overflow-hidden min-h-[44px] sm:min-h-0">
         {/* 左：圖示＋主題篩選 */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0 max-w-[28%] sm:max-w-none">
-          <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-1 shrink-0 min-w-0 max-w-[24%] sm:max-w-none">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
           </svg>
-          <span className="text-gray-400 text-xs sm:text-base whitespace-nowrap truncate">主題篩選:</span>
+          <span className="text-gray-400 text-xs whitespace-nowrap truncate">主題篩選:</span>
         </div>
         {/* 中：目前分頁標題＋日期時間與箭頭 */}
-        <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-1 sm:px-2 overflow-hidden">
-          <h1 className="text-sm sm:text-xl font-bold text-yellow-400 truncate w-full text-center">
+        <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-0.5 sm:px-1 overflow-hidden">
+          <h1 className="text-xs sm:text-lg font-bold text-yellow-400 truncate w-full text-center">
             {getTabTitle(activeTab)}
           </h1>
-          <div className="flex items-center gap-1 text-gray-400 text-xs sm:text-sm mt-0.5 truncate">
+          <div className="flex items-center gap-0.5 text-gray-400 text-xs mt-0 truncate">
             <span className="truncate">{dateTimeStr}</span>
             <span className="text-gray-500 shrink-0">›</span>
           </div>
         </div>
         {/* 右：佳盟幣、管理員按鈕、登出 */}
-        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-3 shrink-0 min-w-0">
+        <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-1.5 shrink-0 min-w-0">
           {/* 餘額錢包顯示 */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
             <button
               onClick={() => setShowWalletModal(!showWalletModal)}
-              className="bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-500 text-gray-800 font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
+              className="bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-500 text-gray-800 font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-0 sm:min-w-0 touch-manipulation text-xs sm:text-sm"
             >
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="whitespace-nowrap">佳盟幣: {walletBalance.toLocaleString()}</span>
@@ -477,32 +477,32 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               <>
                 <button
                   onClick={() => setShowDistributionModal(!showDistributionModal)}
-                  className="bg-green-500 hover:bg-green-600 active:bg-green-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
+                  className="bg-green-500 hover:bg-green-600 active:bg-green-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
                 >
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   <span className="hidden sm:inline">分配佳盟幣</span>
                 </button>
                 <button
                   onClick={() => setShowItemDistributionModal(!showItemDistributionModal)}
-                  className="bg-blue-500 hover:bg-blue-600 active:bg-blue-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
+                  className="bg-blue-500 hover:bg-blue-600 active:bg-blue-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
                 >
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
                   <span className="hidden sm:inline">分配道具</span>
                 </button>
                 <button
                   onClick={() => setShowExchangeRequestModal(!showExchangeRequestModal)}
-                  className="bg-purple-500 hover:bg-purple-600 active:bg-purple-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
+                  className="bg-purple-500 hover:bg-purple-600 active:bg-purple-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 relative min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
                 >
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span className="hidden sm:inline">兌換請求</span>
                   {pendingExchangeRequests.length > 0 && (
-                    <span className="absolute top-0 right-0 sm:-top-1 sm:-right-1 bg-yellow-400 text-gray-800 rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-bold">
+                    <span className="absolute top-0 right-0 sm:-top-0.5 sm:-right-0.5 bg-yellow-400 text-gray-800 rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold">
                       {pendingExchangeRequests.length}
                     </span>
                   )}
@@ -512,9 +512,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           </div>
           <button
             onClick={onLogout}
-            className="bg-red-500 hover:bg-red-600 active:bg-red-600 text-white font-semibold px-4 py-3 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation text-sm sm:text-base"
+            className="bg-red-500 hover:bg-red-600 active:bg-red-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
           >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
             <span>登出</span>
