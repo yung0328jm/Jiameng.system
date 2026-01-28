@@ -26,13 +26,22 @@ function DropdownManagement({ userRole: propUserRole }) {
   }, [propUserRole])
 
   const loadDropdownOptions = () => {
-    const options = getDropdownOptionsByCategory(selectedCategory)
-    setDropdownOptions(options)
+    try {
+      const options = getDropdownOptionsByCategory(selectedCategory)
+      setDropdownOptions(Array.isArray(options) ? options : [])
+    } catch (e) {
+      setDropdownOptions([])
+    }
   }
 
   const refetchDropdown = () => {
-    setUsers(getUsers())
-    loadDropdownOptions()
+    try {
+      setUsers(Array.isArray(getUsers()) ? getUsers() : [])
+      loadDropdownOptions()
+    } catch (e) {
+      setUsers([])
+      setDropdownOptions([])
+    }
   }
   useRealtimeKeys(['jiameng_users', 'jiameng_dropdown_options'], refetchDropdown)
 
@@ -184,7 +193,7 @@ function DropdownManagement({ userRole: propUserRole }) {
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
               >
                 <option value="">不綁定</option>
-                {users.map(user => (
+                {(Array.isArray(users) ? users : []).map(user => (
                   <option key={user.account} value={user.account}>
                     {user.account} {user.name ? `(${user.name})` : ''}
                   </option>
@@ -199,13 +208,13 @@ function DropdownManagement({ userRole: propUserRole }) {
       {/* 選項列表 */}
       <div className="bg-gray-800 rounded-lg border border-gray-700">
         <h3 className="text-lg font-semibold text-white p-4 border-b border-gray-700">選項列表</h3>
-        {dropdownOptions.length === 0 ? (
+        {(Array.isArray(dropdownOptions) ? dropdownOptions : []).length === 0 ? (
           <div className="text-gray-400 text-center py-12">
             <p>尚無選項，請新增選項</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-700">
-            {dropdownOptions.map((option) => (
+            {(Array.isArray(dropdownOptions) ? dropdownOptions : []).map((option) => (
               <div key={option.id} className="p-4 hover:bg-gray-750 flex items-center justify-between">
                 {editingId === option.id ? (
                   <div className="flex-1 space-y-3">
@@ -239,7 +248,7 @@ function DropdownManagement({ userRole: propUserRole }) {
                           className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                         >
                           <option value="">不綁定</option>
-                          {users.map(user => (
+                          {(Array.isArray(users) ? users : []).map(user => (
                             <option key={user.account} value={user.account}>
                               {user.account} {user.name ? `(${user.name})` : ''}
                             </option>

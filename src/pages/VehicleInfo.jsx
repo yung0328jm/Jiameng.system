@@ -5,12 +5,6 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 function VehicleInfo() {
   const [vehicleData, setVehicleData] = useState({})
 
-  useRealtimeKeys(['jiameng_engineering_schedules'], loadVehicleData)
-
-  useEffect(() => {
-    loadVehicleData()
-  }, [])
-
   const loadVehicleData = () => {
     const schedules = getSchedules()
     
@@ -70,6 +64,12 @@ function VehicleInfo() {
     
     setVehicleData(vehicleSummary)
   }
+
+  useRealtimeKeys(['jiameng_engineering_schedules'], loadVehicleData)
+
+  useEffect(() => {
+    loadVehicleData()
+  }, [])
 
   const formatMonth = (monthKey) => {
     const [year, month] = monthKey.split('-')
