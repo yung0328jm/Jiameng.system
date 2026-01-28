@@ -7,6 +7,7 @@ import {
   hasCheckedIn,
   performCheckIn
 } from '../utils/checkInStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 import { addWalletBalance, addTransaction } from '../utils/walletStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
@@ -31,6 +32,12 @@ function CheckIn() {
   const currentMonth = today.getMonth() + 1
   const currentDay = today.getDate()
 
+  const refetchCheckIn = () => {
+    const user = getCurrentUser()
+    if (user) setRecords(getCheckInRecords(user))
+    setRewardConfigState(getRewardConfig())
+  }
+
   useEffect(() => {
     const user = getCurrentUser()
     const role = getCurrentUserRole()
@@ -41,6 +48,8 @@ function CheckIn() {
     }
     setRewardConfigState(getRewardConfig())
   }, [])
+
+  useRealtimeKeys(['jiameng_checkin_rewards', 'jiameng_checkin_records'], refetchCheckIn)
 
   const dateStr = (y, m, d) => {
     const ms = String(m).padStart(2, '0')

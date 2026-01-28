@@ -20,6 +20,12 @@ function ExchangeShop() {
   const [walletBalance, setWalletBalance] = useState(0)
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
 
+  const refetchExchangeShop = () => {
+    loadItems()
+    const user = getCurrentUser()
+    if (user) setWalletBalance(getWalletBalance(user))
+  }
+
   useEffect(() => {
     loadItems()
     const role = getCurrentUserRole()
@@ -31,6 +37,8 @@ function ExchangeShop() {
       setWalletBalance(balance)
     }
   }, [])
+
+  useRealtimeKeys(['jiameng_items', 'jiameng_wallets', 'jiameng_transactions'], refetchExchangeShop)
 
   useEffect(() => {
     if (currentUser) {

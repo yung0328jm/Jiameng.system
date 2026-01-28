@@ -16,6 +16,28 @@ function MyBackpack() {
   const [equippedEffects, setEquippedEffects] = useState({})
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
 
+  const refetchBackpack = () => {
+    const user = getCurrentUser()
+    if (user) {
+      const userInventory = getUserInventory(user)
+      const allItems = getItems()
+      const inventoryWithDetails = userInventory.map(inv => {
+        const item = allItems.find(i => i.id === inv.itemId)
+        return {
+          ...inv,
+          item: item || null,
+          name: item ? item.name : '未知道具',
+          icon: item ? item.icon : '❓',
+          description: item ? item.description : ''
+        }
+      })
+      setInventory(inventoryWithDetails)
+      setExchangeRequests(getUserExchangeRequests(user))
+      setEquippedEffects(getEquippedEffects(user))
+    }
+    setItems(getItems())
+  }
+
   useEffect(() => {
     const user = getCurrentUser()
     const role = getCurrentUserRole()
@@ -28,10 +50,11 @@ function MyBackpack() {
       loadEquippedEffects()
     }
     
-    // 載入所有道具定義
     const allItems = getItems()
     setItems(allItems)
   }, [])
+
+  useRealtimeKeys(['jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests', 'jiameng_equipped_effects'], refetchBackpack)
 
   const loadInventory = () => {
     if (!currentUser) return

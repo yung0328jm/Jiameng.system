@@ -18,6 +18,7 @@ import LeaveApplication from './LeaveApplication'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
 import { getUsers } from '../utils/storage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getUserInventory, addItemToInventory } from '../utils/inventoryStorage'
 import { getPendingExchangeRequests, approveExchangeRequest, rejectExchangeRequest, deleteExchangeRequest } from '../utils/exchangeRequestStorage'
 import { removeItemFromInventory } from '../utils/inventoryStorage'
@@ -228,6 +229,25 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     const requests = getPendingExchangeRequests()
     setPendingExchangeRequests(requests)
   }
+
+  // 即時同步：錢包、用戶、道具、兌換請求變更時重讀，不需登出再登入
+  const refetchDashboard = () => {
+    const user = getCurrentUser()
+    const role = getCurrentUserRole()
+    if (user) {
+      setWalletBalance(getWalletBalance(user))
+      updateBackpackCount(user)
+    }
+    if (role === 'admin') {
+      setAllUsers(getUsers())
+      setAvailableItems(getItems())
+      loadPendingExchangeRequests()
+    }
+  }
+  useRealtimeKeys(
+    ['jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests'],
+    refetchDashboard
+  )
 
   const handleApproveExchange = (requestId) => {
     if (!window.confirm('確定要確認此兌換請求嗎？確認後道具將從用戶背包中移除。')) {

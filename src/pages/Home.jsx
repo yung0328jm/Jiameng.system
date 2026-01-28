@@ -209,6 +209,11 @@ function Home() {
     setTodos(sorted)
   }
   useRealtimeKeys(['jiameng_todos'], loadTodos)
+  // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
+  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings'], () => {
+    loadLeaderboardItems()
+    loadManualRankings()
+  })
 
   const handleAddTodo = () => {
     if (!newTodoText.trim()) {
@@ -1893,13 +1898,12 @@ function Home() {
                       {/* 灰色背景遮罩 */}
                       <div className="absolute inset-0 bg-gray-800 bg-opacity-90"></div>
                       
-                      {/* 內容區域 - 管理員可以編輯 */}
+                      {/* 內容區域 - 神秘排行榜：一般用戶不顯示標題（不知達成條件），僅管理員可見標題與編輯 */}
                       <div className="relative p-3 sm:p-6 flex-1 min-h-0 flex flex-col">
-                        {/* 標題區域 - 僅管理員可見 */}
+                        {/* 標題區域 - 僅管理員可見（一般用戶不看到達成條件／標題） */}
                         {item && userRole === 'admin' && (
                           <div className="mb-4 pb-4 border-b border-gray-600">
                             <div className="flex items-start gap-4">
-                              {/* 左上角照片區域 */}
                               <div className="relative w-24 h-24 flex-shrink-0">
                                 {item.imageUrl ? (
                                   <img
@@ -1912,52 +1916,47 @@ function Home() {
                                     <span className="text-gray-500 text-2xl">+</span>
                                   </div>
                                 )}
-                                <>
-                                  {item.imageUrl && (
-                                    <button
-                                      onClick={() => {
-                                        updateLeaderboardItem(item.id, { imageUrl: '' })
-                                        setLeaderboardItems(prev => 
-                                          prev.map(i => i.id === item.id ? { ...i, imageUrl: '' } : i)
-                                        )
-                                      }}
-                                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-xs"
-                                      title="刪除照片"
-                                    >
-                                      ×
-                                    </button>
-                                  )}
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                      const file = e.target.files[0]
-                                      if (file) {
-                                        const reader = new FileReader()
-                                        reader.onloadend = () => {
-                                          const imageUrl = reader.result
-                                          updateLeaderboardItem(item.id, { imageUrl })
-                                          setLeaderboardItems(prev => 
-                                            prev.map(i => i.id === item.id ? { ...i, imageUrl } : i)
-                                          )
-                                        }
-                                        reader.readAsDataURL(file)
-                                      }
+                                {item.imageUrl && (
+                                  <button
+                                    onClick={() => {
+                                      updateLeaderboardItem(item.id, { imageUrl: '' })
+                                      setLeaderboardItems(prev => 
+                                        prev.map(i => i.id === item.id ? { ...i, imageUrl: '' } : i)
+                                      )
                                     }}
-                                    className="hidden"
-                                    id={`image-upload-${item.id}`}
-                                  />
-                                  <label
-                                    htmlFor={`image-upload-${item.id}`}
-                                    className="absolute inset-0 cursor-pointer"
-                                    title="點擊上傳照片"
-                                  />
-                                </>
+                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-xs"
+                                    title="刪除照片"
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files[0]
+                                    if (file) {
+                                      const reader = new FileReader()
+                                      reader.onloadend = () => {
+                                        const imageUrl = reader.result
+                                        updateLeaderboardItem(item.id, { imageUrl })
+                                        setLeaderboardItems(prev => 
+                                          prev.map(i => i.id === item.id ? { ...i, imageUrl } : i)
+                                        )
+                                      }
+                                      reader.readAsDataURL(file)
+                                    }
+                                  }}
+                                  className="hidden"
+                                  id={`image-upload-${item.id}`}
+                                />
+                                <label
+                                  htmlFor={`image-upload-${item.id}`}
+                                  className="absolute inset-0 cursor-pointer"
+                                  title="點擊上傳照片"
+                                />
                               </div>
-                              
-                              {/* 文字內容 */}
                               <div className="flex-1">
-                                {/* 上方小標題 */}
                                 <input
                                   type="text"
                                   value={item.subtitle || uiConfig.subtitle || ''}
@@ -1970,8 +1969,6 @@ function Home() {
                                   className="bg-transparent border-b border-transparent hover:border-yellow-400 focus:border-yellow-400 text-yellow-400 text-sm font-semibold focus:outline-none w-full mb-2"
                                   placeholder="業績"
                                 />
-                                
-                                {/* 主標題 */}
                                 <input
                                   type="text"
                                   value={item.title || item.name || ''}
@@ -1984,8 +1981,6 @@ function Home() {
                                   className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white text-3xl font-bold focus:outline-none w-full mb-2"
                                   placeholder="排行榜"
                                 />
-                                
-                                {/* 副標題 */}
                                 <input
                                   type="text"
                                   value={item.slogan || uiConfig.slogan1 || ''}
@@ -2003,18 +1998,10 @@ function Home() {
                           </div>
                         )}
                         
-                        {/* 大問號 - 非管理員時顯示 */}
+                        {/* 一般用戶：無排名資料時只顯示簡短提示；管理員下方有編輯表格 */}
                         {userRole !== 'admin' && (
-                          <div className="flex items-center justify-center min-h-[200px] sm:min-h-[300px] md:min-h-[400px]">
-                            <div className="text-center">
-                              <div className="text-gray-400 text-[200px] font-bold leading-none mb-4" style={{
-                                textShadow: '0 0 20px rgba(156, 163, 175, 0.5)',
-                                opacity: 0.6
-                              }}>
-                                ?
-                              </div>
-                              <p className="text-gray-600 text-sm mt-2">當有人完成工作並有實際完成數量時，排行榜才會顯示</p>
-                            </div>
+                          <div className="flex items-center justify-center py-8">
+                            <p className="text-gray-400 text-sm">尚無排名數據，當有人完成工作並有實際完成數量時會顯示</p>
                           </div>
                         )}
                         
@@ -2252,10 +2239,10 @@ function Home() {
                     </div>
                   )}
 
-                  {/* 內容區域 */}
+                  {/* 內容區域 - 神秘排行榜：一般用戶不顯示標題（僅管理員可見） */}
                   <div className="relative p-3 sm:p-6 flex-1 min-h-0 flex flex-col overflow-auto">
-                    {/* 標題區域 - 圖一風格 */}
-                    {item && (
+                    {/* 標題區域 - 僅管理員可見（一般用戶不看到達成條件／標題） */}
+                    {item && userRole === 'admin' && (
                       <div className="mb-4 pb-4 border-b border-gray-600">
                         {/* 標題區域 - 包含左上角照片和文字內容 */}
                         <div className="flex items-start gap-4">
