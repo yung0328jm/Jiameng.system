@@ -1236,20 +1236,28 @@ function Memo() {
                 </div>
               </div>
 
-              {/* 消息输入框 */}
+              {/* 消息输入框與收合按鈕（置於下方方便點擊） */}
               <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-700">
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <input
                     type="text"
                     value={messageContent}
                     onChange={(e) => setMessageContent(e.target.value)}
                     placeholder="輸入消息..."
-                    className="flex-1 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                    className="flex-1 min-w-0 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setIsChatCollapsed(true)}
+                    className="flex-shrink-0 bg-gray-600 hover:bg-gray-500 text-white font-semibold px-3 py-2 rounded transition-colors text-sm"
+                    title="收合聊天"
+                  >
+                    收合
+                  </button>
                   <button
                     type="submit"
                     disabled={!messageContent.trim()}
-                    className="bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-gray-800 font-semibold px-6 py-2 rounded transition-colors"
+                    className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-gray-800 font-semibold px-4 py-2 rounded transition-colors text-sm"
                   >
                     發送
                   </button>
