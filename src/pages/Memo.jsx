@@ -1056,30 +1056,24 @@ function Memo() {
         {/* 管理員道具分配表單 */}
 
         <div className={`grid gap-6 h-[calc(100vh-500px)] min-h-[400px] ${isChatCollapsed ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'}`}>
-        {/* 左侧：话题列表 */}
-        <div className={`bg-gray-800 rounded-lg p-2 sm:p-4 border border-gray-700 flex flex-col ${isChatCollapsed ? 'lg:col-span-1' : 'lg:col-span-1'}`}>
-          <div className="flex items-center justify-between mb-2 sm:mb-4">
+        {/* 左侧：话题列表（點擊空白處收合聊天） */}
+        <div
+          className={`bg-gray-800 rounded-lg p-2 sm:p-4 border border-gray-700 flex flex-col cursor-default ${isChatCollapsed ? 'lg:col-span-1' : 'lg:col-span-1'}`}
+          onClick={() => setIsChatCollapsed(true)}
+        >
+          <div className="flex items-center justify-between mb-2 sm:mb-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xs sm:text-sm font-semibold text-white">話題列表</h3>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setIsChatCollapsed(!isChatCollapsed)}
-                className="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
-                title={isChatCollapsed ? '展開聊天' : '收合聊天'}
-              >
-                {isChatCollapsed ? '▶' : '◀'}
-              </button>
-              <button
-                onClick={() => setShowNewTopicForm(!showNewTopicForm)}
-                className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
-              >
-                + 新增話題
-              </button>
-            </div>
+            <button
+              onClick={() => setShowNewTopicForm(!showNewTopicForm)}
+              className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
+            >
+              + 新增話題
+            </button>
           </div>
 
           {/* 新增话题表单 */}
           {showNewTopicForm && (
-            <form onSubmit={handleCreateTopic} className="mb-4 pb-4 border-b border-gray-700">
+            <form onSubmit={handleCreateTopic} className="mb-4 pb-4 border-b border-gray-700" onClick={(e) => e.stopPropagation()}>
               <input
                 type="text"
                 value={newTopicTitle}
@@ -1109,7 +1103,7 @@ function Memo() {
             </form>
           )}
 
-          {/* 话题列表 */}
+          {/* 话题列表：點擊話題進入聊天 */}
           <div className="flex-1 overflow-y-auto">
             {topics.length === 0 ? (
               <div className="text-gray-400 text-center py-8 text-[10px] sm:text-xs">
@@ -1120,7 +1114,11 @@ function Memo() {
                 {topics.map((topic) => (
                   <div
                     key={topic.id}
-                    onClick={() => setSelectedTopicId(topic.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedTopicId(topic.id)
+                      setIsChatCollapsed(false)
+                    }}
                     className={`p-1.5 sm:p-2 rounded cursor-pointer transition-colors ${
                       selectedTopicId === topic.id
                         ? 'bg-yellow-400 text-gray-800'
@@ -1160,23 +1158,12 @@ function Memo() {
           <div className="lg:col-span-2 bg-gray-800 rounded-lg border border-gray-700 flex flex-col">
             {selectedTopic ? (
               <>
-                {/* 话题标题栏 */}
-                <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{selectedTopic.title}</h3>
-                    <div className="text-sm sm:text-xs text-gray-400 mt-1">
-                      創建於 {new Date(selectedTopic.createdAt).toLocaleString('zh-TW')}
-                    </div>
+                {/* 话题标题栏（點擊左側話題列表空白處可收合） */}
+                <div className="p-4 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white">{selectedTopic.title}</h3>
+                  <div className="text-sm sm:text-xs text-gray-400 mt-1">
+                    創建於 {new Date(selectedTopic.createdAt).toLocaleString('zh-TW')}
                   </div>
-                  <button
-                    onClick={() => setIsChatCollapsed(true)}
-                    className="text-gray-400 hover:text-white transition-colors ml-2"
-                    title="收合聊天"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
                 </div>
 
               {/* 消息列表 */}
