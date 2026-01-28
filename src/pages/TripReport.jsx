@@ -83,7 +83,7 @@ function TripReport() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-yellow-400 mb-1">行程回報</h1>
-          <p className="text-gray-400">選擇案場後，點擊按鈕紀錄出發／休息／上工／收工／離場</p>
+          <p className="text-gray-400">選擇案場後，點擊按鈕紀錄出發／抵達／休息／上工／收工／離場</p>
         </div>
 
         {message && (
@@ -128,7 +128,7 @@ function TripReport() {
           )}
         </div>
 
-        {/* 五個按鈕：出發、休息、上工、收工、離場 */}
+        {/* 按鈕：出發、抵達、休息、上工、收工、離場 */}
         <div className="mb-8 grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:gap-3">
           {actionTypes.map((action) => (
             <button

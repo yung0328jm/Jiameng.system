@@ -1690,7 +1690,7 @@ function Calendar() {
                       <div className="mt-4">
                         <div className="text-blue-300 mb-2">行程回報紀錄:</div>
                         {tripReports.length === 0 ? (
-                          <div className="bg-blue-800 rounded-lg p-3 text-blue-200 text-sm">尚無行程回報，可至「行程回報」選擇此案場紀錄出發／休息／上工／收工／離場。</div>
+                          <div className="bg-blue-800 rounded-lg p-3 text-blue-200 text-sm">尚無行程回報，可至「行程回報」選擇此案場紀錄出發／抵達／休息／上工／收工／離場。</div>
                         ) : (
                           <div className="space-y-2 max-h-48 overflow-y-auto">
                             {tripReports.map((r) => {
