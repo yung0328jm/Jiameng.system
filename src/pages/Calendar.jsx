@@ -1011,7 +1011,7 @@ function Calendar() {
                      '七月', '八月', '九月', '十月', '十一月', '十二月']
 
   return (
-    <div className="bg-charcoal rounded-none sm:rounded-lg py-4 px-0 sm:px-4 md:px-6 w-full max-w-full min-w-0">
+    <div className="bg-charcoal rounded-none sm:rounded-lg py-4 px-px sm:px-4 md:px-6 w-full max-w-full min-w-0">
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-yellow-400">行事曆</h2>
