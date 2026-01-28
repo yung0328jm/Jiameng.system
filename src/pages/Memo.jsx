@@ -72,17 +72,6 @@ function Memo() {
     loadInventory()
   }, [currentUser])
   
-  // 定期更新錢包餘額
-  useEffect(() => {
-    if (currentUser) {
-      const interval = setInterval(() => {
-        const balance = getWalletBalance(currentUser)
-        setWalletBalance(balance)
-      }, 2000)
-      return () => clearInterval(interval)
-    }
-  }, [currentUser])
-  
   // 定期更新彈幕列表並清理過期彈幕
   useEffect(() => {
     const interval = setInterval(() => {
