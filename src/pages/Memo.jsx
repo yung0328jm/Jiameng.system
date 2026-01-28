@@ -9,7 +9,7 @@ import { getUsers } from '../utils/storage'
 import { getEquippedEffects } from '../utils/effectStorage'
 import { getEffectDisplayConfig, getStyleForPreset, getDecorationForPreset, getDecorationById } from '../utils/effectDisplayStorage'
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
-import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function Memo() {
   const [userRole, setUserRole] = useState(null)
@@ -84,16 +84,19 @@ function Memo() {
     scrollToBottom()
   }, [messages])
 
-  useEffect(() => {
-    const fn = (e) => {
-      const k = e.detail?.key
-      if (k === 'jiameng_memos') loadMessages()
-      if (k === 'jiameng_announcements') setAnnouncements(getAnnouncements())
-      if (k === 'jiameng_danmus') setDanmus(getActiveDanmus())
-    }
-    window.addEventListener(REALTIME_UPDATE_EVENT, fn)
-    return () => window.removeEventListener(REALTIME_UPDATE_EVENT, fn)
-  }, [])
+  // 即時同步：公佈欄、交流區、彈幕、道具、用戶、排行榜等變更時重讀
+  const refetchMemo = () => {
+    loadAnnouncements()
+    loadMessages()
+    setDanmus(getActiveDanmus())
+    checkDanmuItem()
+    loadInventory()
+    setLeaderboardItems(getLeaderboardItems())
+  }
+  useRealtimeKeys(
+    ['jiameng_memos', 'jiameng_announcements', 'jiameng_danmus', 'jiameng_items', 'jiameng_inventories', 'jiameng_users', 'jiameng_equipped_effects', 'jiameng_effect_display_config', 'jiameng_leaderboard_items'],
+    refetchMemo
+  )
 
   // 切回此頁或取得焦點時重讀排行榜項目，讓「編輯排行榜」儲存的名子／發話／勳章設定即時反映在交流區
   useEffect(() => {

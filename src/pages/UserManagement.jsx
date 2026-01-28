@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { getUsers, updateUserRole, deleteUser } from '../utils/storage'
-import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
+import { getCurrentUserRole, getCurrentUser, saveCurrentUser } from '../utils/authStorage'
 import { getUserPerformanceRecords, getUserLateRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getRegistrationPassword, setRegistrationPassword } from '../utils/registrationPasswordStorage'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, setProfileAdmin } from '../utils/authSupabase'
 
 function UserManagement() {
   const [users, setUsers] = useState([])
@@ -30,11 +31,22 @@ function UserManagement() {
     }
   }, [users, dateRange])
 
-  const loadUsers = () => {
-    const allUsers = getUsers()
-    setUsers(allUsers)
+  const loadUsers = async () => {
+    if (isAuthSupabase()) {
+      const profiles = await getAllProfiles()
+      setUsers(profiles.map((p) => ({
+        id: p.id,
+        account: p.account,
+        name: p.display_name || p.account,
+        role: p.is_admin ? 'admin' : 'user',
+        createdAt: null
+      })))
+      return
+    }
+    setUsers(getUsers())
   }
-  useRealtimeKeys(['jiameng_users'], loadUsers)
+  useRealtimeKeys(['jiameng_users'], () => { if (!isAuthSupabase()) loadUsers() })
+  useRealtimeKeys(['jiameng_registration_password'], () => setRegistrationPasswordInput(getRegistrationPassword()))
 
   const getDateRange = () => {
     const today = new Date()
@@ -153,16 +165,17 @@ function UserManagement() {
   }
 
   const handleDeleteUser = (account, name) => {
-    // 防止删除当前登录的用户
     if (account === currentUserAccount) {
       alert('無法刪除當前登錄的用戶')
       return
     }
-    
+    if (isAuthSupabase()) {
+      alert('使用 Supabase 時請至 Supabase 後台：Authentication → Users 刪除該用戶。')
+      return
+    }
     if (!window.confirm(`確定要刪除用戶「${name || account}」(${account}) 嗎？\n此操作無法復原！`)) {
       return
     }
-    
     const result = deleteUser(account)
     if (result.success) {
       loadUsers()

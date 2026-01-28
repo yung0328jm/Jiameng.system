@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { saveUser } from '../utils/storage'
 import { checkRegistrationPassword } from '../utils/registrationPasswordStorage'
+import { isSupabaseEnabled, signUpWithProfile } from '../utils/authSupabase'
 
-function Register() {
+function Register({ onLogin }) {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     name: '',
@@ -50,17 +51,30 @@ function Register() {
     setSubmitting(true)
     setMessage('')
     try {
+      if (isSupabaseEnabled()) {
+        const result = await signUpWithProfile({
+          email: `${formData.account}@jiameng.local`,
+          password: formData.password,
+          account: formData.account,
+          display_name: formData.name
+        })
+        if (result.success) {
+          setMessage('註冊成功！用戶資料已儲存，正在跳轉...')
+          onLogin?.()
+          setTimeout(() => navigate('/dashboard'), 1000)
+        } else {
+          setMessage(result.message || '註冊失敗')
+        }
+        return
+      }
       const result = await saveUser({
         name: formData.name,
         account: formData.account,
         password: formData.password
       })
-
       if (result.success) {
         setMessage('註冊成功！正在跳轉到登錄頁面...')
-        setTimeout(() => {
-          navigate('/login')
-        }, 1500)
+        setTimeout(() => navigate('/login'), 1500)
       } else {
         setMessage(result.message)
       }
@@ -85,6 +99,9 @@ function Register() {
             </h1>
             <p className="text-white text-sm">
               企業管理系統
+            </p>
+            <p className="text-gray-500 text-xs mt-1">
+              目前註冊會寫入：{isSupabaseEnabled() ? 'Supabase（會出現在 Auth 用戶列表）' : '僅本地（不會出現在 Supabase）'}
             </p>
           </div>
 

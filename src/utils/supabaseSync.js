@@ -16,7 +16,8 @@ export const APP_DATA_KEYS = [
   'jiameng_late_performance_config', 'jiameng_attendance_device_config', 'jiameng_dropdown_options',
   'jiameng_completion_rate_config', 'jiameng_personal_performance', 'jiameng_activity_filter_tags',
   'jiameng_company_activities', 'jiameng_leaderboard_test_records', 'jiameng_project_deficiencies',
-  'jiameng_project_records', 'jiameng_projects', 'jiameng_calendar_events', 'jiameng_engineering_records'
+  'jiameng_project_records', 'jiameng_projects', 'jiameng_calendar_events', 'jiameng_engineering_records',
+  'jiameng_registration_password'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */

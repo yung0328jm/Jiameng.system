@@ -210,7 +210,7 @@ function Home() {
   }
   useRealtimeKeys(['jiameng_todos'], loadTodos)
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
-  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings'], () => {
+  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items'], () => {
     loadLeaderboardItems()
     loadManualRankings()
   })

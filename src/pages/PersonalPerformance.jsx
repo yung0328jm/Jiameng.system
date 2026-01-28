@@ -8,6 +8,7 @@ import { getProjectRecords } from '../utils/projectRecordStorage'
 import { getUserLateRecords, getUserPerformanceRecords, savePerformanceRecord, deletePerformanceRecord, getPerformanceRecords, saveLateRecord, saveAttendanceRecord, getUserAttendanceRecords } from '../utils/performanceStorage'
 import { getCompletionRateRules, saveCompletionRateRules, calculateCompletionRateAdjustment } from '../utils/completionRateConfigStorage'
 import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCountAdjustment, calculateLateMinutesAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -84,7 +85,26 @@ function PersonalPerformance() {
   const [importData, setImportData] = useState('') // CSV 數據文本
   const [importPreview, setImportPreview] = useState([]) // 預覽數據
   const [importResult, setImportResult] = useState(null) // 導入結果
-  
+  const [dataRevision, setDataRevision] = useState(0)
+
+  const refetchPerformance = () => {
+    const role = getCurrentUserRole()
+    if (role === 'admin') {
+      setUsers(getUsers().filter(u => u.role !== 'admin'))
+      setCompletionRateRules(getCompletionRateRules())
+      const lateConfig = getLatePerformanceConfig()
+      setLatePerformanceConfig(lateConfig)
+      setPenaltyConfig({
+        latePenalty: (lateConfig.latePenaltyPerTime ?? -2).toString(),
+        noClockInPenalty: (lateConfig.noClockInPenaltyPerTime ?? -2).toString()
+      })
+    }
+    setDataRevision(r => r + 1)
+  }
+  useRealtimeKeys(
+    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config'],
+    refetchPerformance
+  )
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -118,7 +138,7 @@ function PersonalPerformance() {
       const viewUser = selectedViewUser || user
       calculatePerformance(viewUser)
     }
-  }, [selectedYear, selectedMonth, selectedViewUser])
+  }, [selectedYear, selectedMonth, selectedViewUser, dataRevision])
   
 
   // 取得當前查看的用戶（管理者可以選擇查看其他用戶）

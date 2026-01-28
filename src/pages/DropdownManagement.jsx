@@ -30,6 +30,12 @@ function DropdownManagement({ userRole: propUserRole }) {
     setDropdownOptions(options)
   }
 
+  const refetchDropdown = () => {
+    setUsers(getUsers())
+    loadDropdownOptions()
+  }
+  useRealtimeKeys(['jiameng_users', 'jiameng_dropdown_options'], refetchDropdown)
+
   useEffect(() => {
     loadDropdownOptions()
   }, [selectedCategory])

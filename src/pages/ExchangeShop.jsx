@@ -337,60 +337,59 @@ function ExchangeShop() {
           </div>
         )}
 
-        {/* 新增/編輯道具表單 */}
+        {/* 新增/編輯道具表單（手機可捲動、縮小以點到完成） */}
         {showItemForm && userRole === 'admin' && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-lg p-6 border border-yellow-400 w-full max-w-md">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-yellow-400">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 overflow-y-auto">
+            <div className="bg-gray-800 rounded-t-xl sm:rounded-lg border border-yellow-400 w-full max-w-md max-h-[90vh] flex flex-col shadow-xl mt-auto sm:mt-0">
+              <div className="flex justify-between items-center p-3 sm:p-4 border-b border-gray-600 shrink-0">
+                <h2 className="text-base sm:text-xl font-bold text-yellow-400">
                   {editingItem ? '編輯道具' : '新增道具'}
                 </h2>
                 <button
                   onClick={() => setShowItemForm(false)}
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white p-1"
+                  aria-label="關閉"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="overflow-y-auto flex-1 min-h-0 p-3 sm:p-6 space-y-3 sm:space-y-4">
                 <div>
-                  <label className="block text-gray-300 text-sm mb-2">道具名稱 *</label>
+                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">道具名稱 *</label>
                   <input
                     type="text"
                     value={itemForm.name}
                     onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
                     placeholder="請輸入道具名稱"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 text-sm mb-2">道具圖標 *</label>
+                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">道具圖標 *</label>
                   <input
                     type="text"
                     value={itemForm.icon}
                     onChange={(e) => setItemForm({ ...itemForm, icon: e.target.value })}
                     placeholder="🎁"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-2xl text-center"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-xl sm:text-2xl text-center"
                     required
                   />
-                  <p className="text-gray-500 text-xs mt-1 mb-2">輸入一個 emoji 圖標，或從下方選擇</p>
-                  
-                  {/* 預設圖標選擇器 */}
-                  <div className="bg-gray-700 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-2">快速選擇：</p>
-                    <div className="grid grid-cols-6 gap-2">
-                      {/* 兌換券/卡片類圖標 */}
+                  <p className="text-gray-500 text-xs mt-1 mb-1 sm:mb-2">輸入 emoji 或從下方選擇</p>
+                  {/* 預設圖標選擇器（手機縮小） */}
+                  <div className="bg-gray-700 rounded-lg p-2 sm:p-3">
+                    <p className="text-gray-400 text-xs mb-1 sm:mb-2">快速選擇：</p>
+                    <div className="grid grid-cols-6 gap-1 sm:gap-2">
                       {['🎫', '🎟️', '💳', '🃏', '🎴', '📇', '🎁', '🎀', '🏆', '⭐', '💎', '🔖', '📜', '🎪', '🎨', '🎯', '🎲', '🪙'].map((emoji) => (
                         <button
                           key={emoji}
                           type="button"
                           onClick={() => setItemForm({ ...itemForm, icon: emoji })}
-                          className={`text-3xl p-2 rounded hover:bg-gray-600 transition-colors ${
+                          className={`text-xl sm:text-3xl p-1 sm:p-2 rounded hover:bg-gray-600 transition-colors ${
                             itemForm.icon === emoji ? 'bg-yellow-400/30 border-2 border-yellow-400' : 'border border-gray-600'
                           }`}
                           title={emoji}
@@ -403,18 +402,18 @@ function ExchangeShop() {
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 text-sm mb-2">道具描述</label>
+                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">道具描述</label>
                   <textarea
                     value={itemForm.description}
                     onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
                     placeholder="請輸入道具描述"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                    rows="3"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                    rows="2"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 text-sm mb-2">兌換價格（佳盟幣） *</label>
+                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">兌換價格（佳盟幣） *</label>
                   <input
                     type="number"
                     value={itemForm.price}
@@ -422,17 +421,17 @@ function ExchangeShop() {
                     placeholder="0"
                     min="0"
                     step="1"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white focus:outline-none focus:border-yellow-400"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 text-sm mb-2">道具類型</label>
+                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">道具類型</label>
                   <select
                     value={itemForm.type}
                     onChange={(e) => setItemForm({ ...itemForm, type: e.target.value })}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
                   >
                     <option value="general">一般道具</option>
                     <option value="danmu">彈幕道具</option>
@@ -440,16 +439,16 @@ function ExchangeShop() {
                   </select>
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-2 sm:gap-3 pt-2 sm:pt-4 pb-2 sm:pb-0 shrink-0 sticky bottom-0 bg-gray-800">
                   <button
                     onClick={handleSaveItem}
-                    className="flex-1 bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold"
+                    className="flex-1 bg-yellow-400 text-gray-900 px-3 py-2 sm:px-4 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-sm sm:text-base min-h-[44px] touch-manipulation"
                   >
                     保存
                   </button>
                   <button
                     onClick={() => setShowItemForm(false)}
-                    className="flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors"
+                    className="flex-1 bg-gray-600 text-white px-3 py-2 sm:px-4 sm:py-2 rounded hover:bg-gray-700 transition-colors text-sm sm:text-base min-h-[44px] touch-manipulation"
                   >
                     取消
                   </button>

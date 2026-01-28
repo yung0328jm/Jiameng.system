@@ -4,6 +4,7 @@ import { getProjects, saveProject, updateProject, deleteProject } from '../utils
 import { getProjectRecords, saveProjectRecord, saveAllProjectRecords, updateProjectRecord, deleteProjectRecord } from '../utils/projectRecordStorage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { getCurrentUser } from '../utils/authStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function ProjectDeficiencyTracking() {
   const [projects, setProjects] = useState([])
@@ -34,6 +35,12 @@ function ProjectDeficiencyTracking() {
   const [editingField, setEditingField] = useState(null) // {recordId, field, revision}
   const [filterProjectStatus, setFilterProjectStatus] = useState('all') // all, planning, in_progress, completed, on_hold
   const [editingProjectStatusId, setEditingProjectStatusId] = useState(null) // 正在編輯狀態的專案ID
+
+  const refetchDeficiency = () => {
+    const data = getProjects()
+    setProjects(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+  }
+  useRealtimeKeys(['jiameng_projects', 'jiameng_project_records', 'jiameng_engineering_schedules', 'jiameng_project_deficiencies'], refetchDeficiency)
 
   useEffect(() => {
     loadProjects()

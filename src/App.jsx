@@ -19,20 +19,42 @@ import MyBackpack from './pages/MyBackpack'
 import CheckIn from './pages/CheckIn'
 import TripReport from './pages/TripReport'
 import LeaveApplication from './pages/LeaveApplication'
-import { getAuthStatus, saveAuthStatus, clearAuthStatus } from './utils/authStorage'
+import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole } from './utils/authStorage'
 import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
+import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange } from './utils/authSupabase'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => getAuthStatus())
   const [syncReady, setSyncReady] = useState(() => !isSupabaseEnabled())
 
   useEffect(() => {
-    // 从本地存储恢复认证状态
     setIsAuthenticated(getAuthStatus())
-    // 初始化默认管理者账户（如果不存在）
-    initializeAdminUser()
+    // 僅在「未使用 Supabase Auth」時建立預設 admin，避免兩套用戶邏輯衝突
+    if (!isAuthSupabase()) initializeAdminUser()
+  }, [])
+
+  // 帳號管理邏輯：Supabase Auth 時還原 session 並同步 profile 到本地（確保登入狀態與 is_admin 正確）
+  useEffect(() => {
+    if (!isAuthSupabase()) return
+    let mounted = true
+    const restore = async () => {
+      const session = await getSession()
+      if (session?.user && mounted) {
+        const profile = await getProfile()
+        if (profile) {
+          saveCurrentUser(profile.account, profile.is_admin ? 'admin' : 'user')
+          saveAuthStatus(true)
+          setIsAuthenticated(true)
+        }
+      }
+    }
+    restore()
+    const unsub = subscribeAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') setIsAuthenticated(false)
+    })
+    return () => { mounted = false; unsub?.() }
   }, [])
 
   useEffect(() => {
@@ -56,11 +78,22 @@ function App() {
     saveAuthStatus(true)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsAuthenticated(false)
-    clearAuthStatus()
-    // 导航到登录页面
+    if (isAuthSupabase()) {
+      const { logout } = await import('./utils/authSupabase')
+      await logout()
+    } else {
+      clearAuthStatus()
+    }
     window.location.href = '/login'
+  }
+
+  // ProtectedRoute：要 profiles.is_admin === true 才可進入
+  const ProtectedRoute = ({ children }) => {
+    const role = getCurrentUserRole()
+    if (role !== 'admin') return <Navigate to="/dashboard" replace />
+    return children
   }
 
   return (
@@ -80,7 +113,7 @@ function App() {
           element={
             isAuthenticated ? 
             <Navigate to="/dashboard" replace /> : 
-            <Register />
+            <Register onLogin={handleLogin} />
           } 
         />
         <Route 
@@ -101,8 +134,8 @@ function App() {
         <Route path="/vehicle-info" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="vehicle" />) : <Navigate to="/login" replace />} />
         <Route path="/memo" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="memo" />) : <Navigate to="/login" replace />} />
         <Route path="/company-activities" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="activities" />) : <Navigate to="/login" replace />} />
-        <Route path="/dropdown-management" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="management" />) : <Navigate to="/login" replace />} />
-        <Route path="/user-management" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="user-management" />) : <Navigate to="/login" replace />} />
+        <Route path="/dropdown-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
+        <Route path="/user-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="user-management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/project-deficiency" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="deficiency" />) : <Navigate to="/login" replace />} />
         <Route path="/personal-performance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="performance" />) : <Navigate to="/login" replace />} />
         <Route path="/exchange-shop" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange-shop" />) : <Navigate to="/login" replace />} />

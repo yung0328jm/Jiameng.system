@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getCurrentUser } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { getTripReportsByProject, addTripReport, actionTypes } from '../utils/tripReportStorage'
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function TripReport() {
   const [currentUser, setCurrentUser] = useState('')
@@ -13,6 +14,29 @@ function TripReport() {
   const [selectedSiteName, setSelectedSiteName] = useState('')
   const [records, setRecords] = useState([])
   const [message, setMessage] = useState(null)
+  const selectedSiteNameRef = useRef('')
+
+  const refetchTripReport = () => {
+    const user = getCurrentUser()
+    setCurrentUser(user || '')
+    if (user) {
+      const u = getUsers().find((x) => x.account === user)
+      setUserName(u ? u.name || user : user)
+    }
+    const list = getSchedules()
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todaySchedules = list.filter((s) => (s.date || '') === todayStr)
+    const names = [...new Set(todaySchedules.map((s) => (s.siteName || '').trim()).filter(Boolean))].sort()
+    setSiteNames(names)
+    const site = selectedSiteNameRef.current
+    if (site) setRecords(getTripReportsByProject(site))
+  }
+  useRealtimeKeys(['jiameng_users', 'jiameng_engineering_schedules', 'jiameng_trip_reports', 'jiameng_leaderboard_items'], refetchTripReport)
+
+  useEffect(() => {
+    selectedSiteNameRef.current = selectedSiteName
+  }, [selectedSiteName])
 
   useEffect(() => {
     const user = getCurrentUser()

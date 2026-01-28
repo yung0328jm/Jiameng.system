@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { getSchedules } from '../utils/scheduleStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function VehicleInfo() {
   const [vehicleData, setVehicleData] = useState({})
+
+  useRealtimeKeys(['jiameng_engineering_schedules'], loadVehicleData)
 
   useEffect(() => {
     loadVehicleData()

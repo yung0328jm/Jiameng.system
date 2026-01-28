@@ -2,24 +2,39 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { verifyUser } from '../utils/storage'
 import { saveCurrentUser } from '../utils/authStorage'
+import { isSupabaseEnabled, loginWithAccountOrEmail } from '../utils/authSupabase'
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // 验证用户
-    const result = verifyUser(username, password)
-    if (result.success) {
-      // 保存当前登录用户名和角色
-      const userRole = result.user?.role || 'user'
-      saveCurrentUser(username, userRole)
-      onLogin()
-      navigate('/dashboard')
-    } else {
-      alert(result.message || '帳號或密碼錯誤')
+    setSubmitting(true)
+    try {
+      if (isSupabaseEnabled()) {
+        const result = await loginWithAccountOrEmail(username.trim(), password)
+        if (result.success) {
+          onLogin()
+          navigate('/dashboard')
+          return
+        }
+        alert(result.message || '帳號或密碼錯誤')
+        return
+      }
+      const result = verifyUser(username, password)
+      if (result.success) {
+        const userRole = result.user?.role || 'user'
+        saveCurrentUser(username, userRole)
+        onLogin()
+        navigate('/dashboard')
+      } else {
+        alert(result.message || '帳號或密碼錯誤')
+      }
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -43,12 +58,12 @@ function Login({ onLogin }) {
           {/* 登录表单 */}
           <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">用戶名</label>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">帳號或 Email</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="請輸入用戶名"
+                placeholder="請輸入帳號或 Email"
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
                 required
               />
@@ -66,9 +81,10 @@ function Login({ onLogin }) {
             </div>
             <button
               type="submit"
-              className="w-full min-h-[48px] bg-yellow-400 text-black font-semibold py-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors shadow-lg mt-4 touch-manipulation text-base"
+              disabled={submitting}
+              className="w-full min-h-[48px] bg-yellow-400 text-black font-semibold py-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              登錄
+              {submitting ? '登入中…' : '登錄'}
             </button>
           </form>
 
