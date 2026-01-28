@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { getUsers } from '../utils/storage'
 import { getUserPerformanceRecords, getUserLateRecords, getUserAttendanceRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
@@ -70,6 +70,7 @@ function Home() {
   })
   const [typeForm, setTypeForm] = useState({ name: '', titleFirstPlace: '', titleSecondPlace: '', titleThirdPlace: '', nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '', ...emptyRankEffects() })
   const [leaderboardTypes, setLeaderboardTypes] = useState([]) // 排行榜類型列表（供載入類型用）
+  const [previewLeaderboardId, setPreviewLeaderboardId] = useState(null) // 點擊預覽時顯示的排行榜 id，再點關閉
   // 待辦事項狀態
   const [todos, setTodos] = useState([])
   const [newTodoText, setNewTodoText] = useState('')
@@ -1642,29 +1643,29 @@ function Home() {
         .decoration-spin { display: inline-block; animation: decorationSpin 2s linear infinite; margin-left: 2px; }
       `}</style>
       <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
-      {/* 眉條 - 頂部標題橫幅 */}
+      {/* 眉條 - 頂部標題橫幅（手機垂直排列、按鈕整齊不溢出） */}
       <div 
-        className="rounded-t-lg px-4 py-3 sm:px-6 sm:py-4 mb-4 sm:mb-6"
+        className="rounded-t-lg px-4 py-3 sm:px-6 sm:py-4 mb-4 sm:mb-6 overflow-hidden"
         style={{
           background: 'linear-gradient(90deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%)',
           borderBottom: '2px solid rgba(251, 191, 36, 0.3)'
         }}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-yellow-400 mb-1">首頁</h2>
-            <p className="text-gray-300 text-sm">歡迎使用佳盟事業群企業管理系統</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-shrink-0 min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-yellow-400 mb-1 truncate">首頁</h2>
+            <p className="text-gray-300 text-sm truncate">歡迎使用佳盟事業群企業管理系統</p>
           </div>
           {userRole === 'admin' && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 sm:gap-2 justify-start sm:justify-end min-w-0">
               <button
                 onClick={handleAddItem}
-                className="bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-sm flex items-center gap-2"
+                className="bg-yellow-400 text-gray-900 px-3 py-2.5 sm:px-4 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                新增排行榜面板
+                <span className="truncate">新增排行榜面板</span>
               </button>
               <button
                 onClick={() => {
@@ -1672,10 +1673,10 @@ function Home() {
                   setEffectConfigTab('name')
                   setShowEffectConfigModal(true)
                 }}
-                className="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600 transition-colors font-semibold text-sm flex items-center gap-2"
+                className="bg-indigo-500 text-white px-3 py-2.5 sm:px-4 sm:py-2 rounded hover:bg-indigo-600 transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
               >
-                <span>✨</span>
-                特效設定
+                <span className="shrink-0">✨</span>
+                <span className="truncate">特效設定</span>
               </button>
               <button
                 onClick={() => {
@@ -1684,10 +1685,10 @@ function Home() {
                   setTypeForm({ name: '', titleFirstPlace: '', titleSecondPlace: '', titleThirdPlace: '', nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '', ...emptyRankEffects() })
                   setLeaderboardTypes(getLeaderboardTypes())
                 }}
-                className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-500 transition-colors font-semibold text-sm flex items-center gap-2"
+                className="bg-amber-600 text-white px-3 py-2.5 sm:px-4 sm:py-2 rounded hover:bg-amber-500 transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
               >
-                <span>📋</span>
-                排行榜類型
+                <span className="shrink-0">📋</span>
+                <span className="truncate">排行榜類型</span>
               </button>
             </div>
           )}
@@ -1789,11 +1790,10 @@ function Home() {
         </div>
       </div>
 
-      {/* 排行榜 - 海報風格樣式 */}
-      <div className="relative rounded-lg overflow-hidden shadow-2xl" style={{
+      {/* 排行榜 - 海報風格樣式（手機降低高度、網格對齊） */}
+      <div className="relative rounded-lg overflow-hidden shadow-2xl min-h-[320px] sm:min-h-[500px] lg:min-h-[800px]" style={{
         background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)',
-        position: 'relative',
-        minHeight: '800px'
+        position: 'relative'
       }}>
         {/* 背景裝飾 - 金色光線效果 */}
         <div className="absolute inset-0" style={{
@@ -1837,8 +1837,8 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 動態面板（雙欄網格顯示，與參考圖一致） */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+          {/* 排行榜 - 動態面板（雙欄網格、對齊整齊、手機不跑版） */}
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 items-stretch w-full min-w-0">
             {leaderboardItems.length === 0 ? (
               <div className="col-span-full text-center py-12">
                 <p className="text-gray-400 mb-4">尚無排行榜項目</p>
@@ -1877,14 +1877,12 @@ function Home() {
                 }
                 
                 // 如果沒有有效排名數據，顯示灰色界面和大問號（僅限工作進度排行榜）
-                if (!hasValidRankings && !isManual) {
-                  return (
+                const greyCardEl = (!hasValidRankings && !isManual) ? (
                     <div
                       key={item.id}
-                      className="relative rounded-lg overflow-hidden shadow-2xl"
+                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
                       style={{
                         background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 50%, #2a2a2a 100%)',
-                        minHeight: '700px',
                         position: 'relative'
                       }}
                     >
@@ -1892,7 +1890,7 @@ function Home() {
                       <div className="absolute inset-0 bg-gray-800 bg-opacity-90"></div>
                       
                       {/* 內容區域 - 管理員可以編輯 */}
-                      <div className="relative p-6">
+                      <div className="relative p-3 sm:p-6 flex-1 min-h-0 flex flex-col">
                         {/* 標題區域 - 僅管理員可見 */}
                         {item && userRole === 'admin' && (
                           <div className="mb-4 pb-4 border-b border-gray-600">
@@ -2003,7 +2001,7 @@ function Home() {
                         
                         {/* 大問號 - 非管理員時顯示 */}
                         {userRole !== 'admin' && (
-                          <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
+                          <div className="flex items-center justify-center min-h-[200px] sm:min-h-[300px] md:min-h-[400px]">
                             <div className="text-center">
                               <div className="text-gray-400 text-[200px] font-bold leading-none mb-4" style={{
                                 textShadow: '0 0 20px rgba(156, 163, 175, 0.5)',
@@ -2216,16 +2214,14 @@ function Home() {
                         </div>
                       )}
                     </div>
-                  )
-                }
-              
-                return (
+                ) : null;
+
+                const fullCardEl = (
                   <div
                     key={item.id}
-                    className="relative rounded-lg overflow-hidden shadow-2xl"
+                    className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
                     style={{
                       background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 30%, #2a2a2a 60%, #1a1a1a 100%)',
-                      minHeight: '700px',
                       position: 'relative'
                     }}
                   >
@@ -2253,7 +2249,7 @@ function Home() {
                   )}
 
                   {/* 內容區域 */}
-                  <div className="relative p-6">
+                  <div className="relative p-3 sm:p-6 flex-1 min-h-0 flex flex-col overflow-auto">
                     {/* 標題區域 - 圖一風格 */}
                     {item && (
                       <div className="mb-4 pb-4 border-b border-gray-600">
@@ -2933,28 +2929,79 @@ function Home() {
                     </div>
                   </div>
                 </div>
-                )
+                );
+
+                const fullCardContentInPreview = greyCardEl ?? fullCardEl;
+                return (
+                  <Fragment key={item.id}>
+                    {previewLeaderboardId === item.id && fullCardContentInPreview && (
+                      <div
+                        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 overflow-auto"
+                        onClick={() => setPreviewLeaderboardId(null)}
+                      >
+                        <div
+                          className="relative max-h-[90vh] w-full max-w-4xl my-auto rounded-lg overflow-y-auto overflow-x-hidden"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {fullCardContentInPreview}
+                          <button
+                            type="button"
+                            onClick={() => setPreviewLeaderboardId(null)}
+                            className="absolute top-2 right-2 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg"
+                            aria-label="關閉預覽"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setPreviewLeaderboardId(item.id)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewLeaderboardId(item.id); } }}
+                      className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-yellow-400 transition-colors cursor-pointer"
+                      style={{ background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)' }}
+                    >
+                      <div className="flex items-center gap-3 p-3 flex-1">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt="" className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded flex-shrink-0" />
+                        ) : (
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-2xl">?</div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-semibold truncate">{item.title || item.name || '排行榜'}</p>
+                          <p className="text-gray-400 text-xs mt-0.5">點擊預覽</p>
+                        </div>
+                      </div>
+                      {userRole === 'admin' && (
+                        <div className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
+                          <button type="button" onClick={() => handleDeleteItem(item.id)} className="w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-xs">×</button>
+                        </div>
+                      )}
+                    </div>
+                  </Fragment>
+                );
               })
             )}
             
-            {/* 新增面板按鈕 */}
+            {/* 新增面板按鈕（與緊湊卡片同高、對齊） */}
             {userRole === 'admin' && (
-              <div className="relative rounded-lg overflow-hidden shadow-2xl border-2 border-dashed border-gray-600 hover:border-yellow-400 transition-colors cursor-pointer"
+              <div
+                className="relative rounded-lg overflow-hidden shadow-lg border-2 border-dashed border-gray-600 hover:border-yellow-400 transition-colors cursor-pointer min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px]"
                 style={{
-                  background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 30%, #2a2a2a 60%, #1a1a1a 100%)',
-                  minHeight: '700px',
+                  background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)',
                   position: 'relative'
                 }}
                 onClick={handleAddItem}
               >
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-                  <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-400 rounded-full flex items-center justify-center mb-2">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
-                  <p className="text-white text-lg font-semibold mb-2">新增排行榜面板</p>
-                  <p className="text-gray-400 text-sm text-center">點擊此處添加新的排行榜面板</p>
+                  <p className="text-white text-sm font-semibold text-center">新增排行榜面板</p>
                 </div>
               </div>
             )}
