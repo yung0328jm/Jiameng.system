@@ -441,27 +441,27 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
   return (
     <div className="min-h-screen bg-gray-800 flex flex-col">
-      {/* 上方導覽列：左＝主題篩選、中＝標題＋日期時間、右＝按鈕（參考圖結構，邏輯與樣式不變） */}
-      <div className="bg-dark-gray px-3 py-3 sm:px-6 sm:py-4 flex flex-row items-center justify-between gap-2 sm:gap-4 shrink-0">
+      {/* 上方導覽列：左＝主題篩選、中＝標題＋日期時間、右＝按鈕（手機不溢出、整齊） */}
+      <div className="bg-dark-gray px-3 py-3 sm:px-6 sm:py-4 flex flex-row items-center justify-between gap-2 sm:gap-4 shrink-0 overflow-hidden min-h-[56px] sm:min-h-0">
         {/* 左：圖示＋主題篩選 */}
-        <div className="flex items-center gap-2 shrink-0 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0 max-w-[28%] sm:max-w-none">
           <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
           </svg>
-          <span className="text-gray-400 text-sm sm:text-base whitespace-nowrap">主題篩選:</span>
+          <span className="text-gray-400 text-xs sm:text-base whitespace-nowrap truncate">主題篩選:</span>
         </div>
         {/* 中：目前分頁標題＋日期時間與箭頭 */}
-        <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-2">
-          <h1 className="text-base sm:text-xl font-bold text-yellow-400 truncate w-full text-center">
+        <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-1 sm:px-2 overflow-hidden">
+          <h1 className="text-sm sm:text-xl font-bold text-yellow-400 truncate w-full text-center">
             {getTabTitle(activeTab)}
           </h1>
-          <div className="flex items-center gap-1 text-gray-400 text-xs sm:text-sm mt-0.5">
-            <span>{dateTimeStr}</span>
-            <span className="text-gray-500">›</span>
+          <div className="flex items-center gap-1 text-gray-400 text-xs sm:text-sm mt-0.5 truncate">
+            <span className="truncate">{dateTimeStr}</span>
+            <span className="text-gray-500 shrink-0">›</span>
           </div>
         </div>
         {/* 右：佳盟幣、管理員按鈕、登出 */}
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-3 shrink-0 min-w-0">
           {/* 餘額錢包顯示 */}
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -893,8 +893,11 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         </nav>
       </div>
 
-      {/* 內容區：手機加大間距、底部留安全區域 */}
-      <div className="px-4 py-4 sm:p-6 flex-1 min-h-0 overflow-auto" style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
+      {/* 內容區：行事曆滿版時減少左右留白，其餘頁面維持間距；底部留安全區域 */}
+      <div
+        className={`flex-1 min-h-0 overflow-auto py-4 sm:py-6 ${activeTab === 'calendar' ? 'px-0 sm:px-4 md:px-6' : 'px-4 sm:px-6'}`}
+        style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}
+      >
         {renderContent()}
       </div>
     </div>
