@@ -201,7 +201,7 @@ function CheckIn() {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 sm:grid-cols-8 md:grid-cols-10 gap-3">
+        <div className="grid grid-cols-4 gap-px sm:gap-1">
           {Array.from({ length: maxDay }, (_, i) => i + 1).map((day) => {
             const ds = dateStr(yearMonth.year, yearMonth.month, day)
             const signed = currentUser ? hasCheckedIn(currentUser, ds) : false
@@ -214,7 +214,7 @@ function CheckIn() {
               <div
                 key={day}
                 className={`
-                  relative rounded-xl border-2 p-3 min-h-[88px] flex flex-col items-center justify-center
+                  relative rounded border p-0.5 sm:p-1 min-h-[80px] sm:min-h-[100px] flex flex-col items-center justify-center overflow-hidden min-w-0
                   ${signed ? 'bg-green-900/30 border-green-500' :
                     isToday ? 'bg-yellow-900/30 border-yellow-500 hover:bg-yellow-800/40' :
                       isPast ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-800 border-gray-600'}
@@ -226,11 +226,11 @@ function CheckIn() {
                 }}
                 role={(userRole === 'admin') || canClick ? 'button' : undefined}
               >
-                <div className="text-lg font-bold text-yellow-400/90">{day}</div>
-                <div className="text-xs text-gray-400 mt-1 text-center line-clamp-2">{reward.rewardDescription || ''}</div>
-                {signed && <div className="absolute top-1 right-2 text-green-400">✓</div>}
+                <div className="text-[10px] sm:text-xs font-bold text-yellow-400/90 mb-0.5">{day}</div>
+                <div className="text-[9px] sm:text-[10px] text-gray-400 text-center line-clamp-2 min-w-0 w-full px-0.5">{reward.rewardDescription || ''}</div>
+                {signed && <div className="absolute top-0.5 right-1 text-green-400 text-[10px]">✓</div>}
                 {userRole === 'admin' && (
-                  <div className="absolute bottom-1 right-2 text-gray-500 text-xs">編輯</div>
+                  <div className="absolute bottom-0.5 right-1 text-gray-500 text-[9px]">編輯</div>
                 )}
               </div>
             )

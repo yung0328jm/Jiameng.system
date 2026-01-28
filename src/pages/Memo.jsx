@@ -1056,12 +1056,12 @@ function Memo() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-500px)] min-h-[400px]">
         {/* 左侧：话题列表 */}
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">話題列表</h3>
+        <div className="bg-gray-800 rounded-lg p-2 sm:p-4 border border-gray-700 flex flex-col">
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-white">話題列表</h3>
             <button
               onClick={() => setShowNewTopicForm(!showNewTopicForm)}
-              className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1 rounded text-sm transition-colors"
+              className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-0.5 rounded text-[10px] sm:text-xs transition-colors"
             >
               + 新增話題
             </button>
@@ -1100,47 +1100,47 @@ function Memo() {
           )}
 
           {/* 话题列表 */}
-          <div className="flex-1 overflow-y-auto space-y-2">
+          <div className="flex-1 overflow-y-auto">
             {topics.length === 0 ? (
-              <div className="text-gray-400 text-center py-8 text-sm">
+              <div className="text-gray-400 text-center py-8 text-[10px] sm:text-xs">
                 尚無話題，點擊「新增話題」開始
               </div>
             ) : (
-              topics.map((topic) => (
-                <div
-                  key={topic.id}
-                  onClick={() => setSelectedTopicId(topic.id)}
-                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedTopicId === topic.id
-                      ? 'bg-yellow-400 text-gray-800'
-                      : 'bg-gray-700 text-white hover:bg-gray-600'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold truncate">{topic.title}</div>
-                      <div className={`text-sm sm:text-xs mt-1 ${
+              <div className="grid grid-cols-4 gap-1 sm:gap-2">
+                {topics.map((topic) => (
+                  <div
+                    key={topic.id}
+                    onClick={() => setSelectedTopicId(topic.id)}
+                    className={`p-1.5 sm:p-2 rounded cursor-pointer transition-colors ${
+                      selectedTopicId === topic.id
+                        ? 'bg-yellow-400 text-gray-800'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    <div className="flex flex-col items-center text-center min-h-0">
+                      <div className="font-semibold truncate w-full text-[10px] sm:text-xs mb-0.5">{topic.title}</div>
+                      <div className={`text-[9px] sm:text-[10px] ${
                         selectedTopicId === topic.id ? 'text-gray-600' : 'text-gray-400'
                       }`}>
-                        {topic.messages.length} 則消息
+                        {topic.messages.length} 則
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteTopic(topic.id)
+                        }}
+                        className={`mt-1 text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                          selectedTopicId === topic.id
+                            ? 'bg-red-500 hover:bg-red-600 text-white'
+                            : 'bg-gray-600 hover:bg-red-500 text-gray-300 hover:text-white'
+                        }`}
+                      >
+                        刪除
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteTopic(topic.id)
-                      }}
-                      className={`ml-2 text-sm sm:text-xs px-3 sm:px-2 py-1.5 sm:py-1 rounded transition-colors min-h-[32px] sm:min-h-0 ${
-                        selectedTopicId === topic.id
-                          ? 'bg-red-500 hover:bg-red-600 text-white'
-                          : 'bg-gray-600 hover:bg-red-500 text-gray-300 hover:text-white'
-                      }`}
-                    >
-                      刪除
-                    </button>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         </div>

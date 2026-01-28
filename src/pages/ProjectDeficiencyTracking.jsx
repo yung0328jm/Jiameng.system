@@ -528,24 +528,24 @@ function ProjectDeficiencyTracking() {
 
           {/* 專案網格卡片 */}
           {filteredProjects.length === 0 ? (
-            <div className="text-gray-400 text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
-              <p className="text-lg mb-2">
+            <div className="text-gray-400 text-center py-8 bg-gray-800 rounded-lg border border-gray-700">
+              <p className="text-xs sm:text-sm mb-1">
                 {projects.length === 0 
                   ? '目前尚無專案' 
                   : `目前沒有「${getProjectStatusText(filterProjectStatus)}」狀態的專案`}
               </p>
-              <p className="text-sm">
+              <p className="text-[10px] sm:text-xs">
                 {projects.length === 0 
                   ? '點擊「新增專案」開始建立' 
                   : '請選擇其他分類或新增專案'}
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-1 sm:gap-2">
               {filteredProjects.map((project) => (
                 <div
                   key={project.id}
-                  className="bg-gray-800 border-2 border-gray-700 rounded-lg p-6 hover:border-yellow-400 hover:shadow-lg transition-all group relative"
+                  className="bg-gray-800 border-2 border-gray-700 rounded-lg p-2 sm:p-3 hover:border-yellow-400 hover:shadow-lg transition-all group relative min-w-0"
                 >
                   {/* 刪除按鈕 */}
                   <button
@@ -553,10 +553,10 @@ function ProjectDeficiencyTracking() {
                       e.stopPropagation()
                       handleDeleteProject(project.id)
                     }}
-                    className="absolute top-3 right-3 text-red-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-900/20"
+                    className="absolute top-1 right-1 text-red-400 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-900/20"
                     title="刪除專案"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
@@ -565,14 +565,14 @@ function ProjectDeficiencyTracking() {
                     onClick={() => handleViewProject(project.id)}
                     className="cursor-pointer"
                   >
-                    <div className="flex items-start justify-between mb-4 pr-8">
-                      <div className="flex-1">
-                        <h4 className="text-lg font-bold text-yellow-400 group-hover:text-yellow-300 transition-colors mb-2">
+                    <div className="flex items-start justify-between mb-1.5 pr-6">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs sm:text-sm font-bold text-yellow-400 group-hover:text-yellow-300 transition-colors mb-0.5 truncate">
                           {project.name}
                         </h4>
                         {project.location && (
-                          <p className="text-gray-400 text-sm mb-1">
-                            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <p className="text-gray-400 text-[10px] sm:text-xs mb-0 truncate">
+                            <svg className="w-3 h-3 inline mr-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
@@ -580,7 +580,7 @@ function ProjectDeficiencyTracking() {
                           </p>
                         )}
                       </div>
-                      <div className="relative">
+                      <div className="relative flex-shrink-0">
                         {editingProjectStatusId === project.id ? (
                           <select
                             value={project.status}
@@ -595,7 +595,7 @@ function ProjectDeficiencyTracking() {
                             }}
                             onBlur={() => setEditingProjectStatusId(null)}
                             autoFocus
-                            className={`px-2 py-1 rounded text-xs font-semibold ${getProjectStatusColor(project.status)} text-white border-2 border-yellow-400 focus:outline-none`}
+                            className={`px-1 py-0.5 rounded text-[9px] font-semibold ${getProjectStatusColor(project.status)} text-white border border-yellow-400 focus:outline-none`}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="planning">規劃中</option>
@@ -609,7 +609,7 @@ function ProjectDeficiencyTracking() {
                               e.stopPropagation()
                               setEditingProjectStatusId(project.id)
                             }}
-                            className={`px-2 py-1 rounded text-xs font-semibold ${getProjectStatusColor(project.status)} text-white hover:opacity-80 transition-opacity cursor-pointer`}
+                            className={`px-1 py-0.5 rounded text-[9px] font-semibold ${getProjectStatusColor(project.status)} text-white hover:opacity-80 transition-opacity cursor-pointer`}
                             title="點擊編輯狀態"
                           >
                             {getProjectStatusText(project.status)}
@@ -618,25 +618,25 @@ function ProjectDeficiencyTracking() {
                       </div>
                     </div>
                     
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-0.5 text-[10px] sm:text-xs">
                       {project.startDate && (
                         <div className="flex items-center text-gray-300">
-                          <span className="text-gray-500 w-20">開始日期:</span>
-                          <span className="text-white">{formatProjectDate(project.startDate)}</span>
+                          <span className="text-gray-500 w-14 flex-shrink-0">開始:</span>
+                          <span className="text-white truncate">{formatProjectDate(project.startDate)}</span>
                         </div>
                       )}
                       {project.manager && (
                         <div className="flex items-center text-gray-300">
-                          <span className="text-gray-500 w-20">負責人:</span>
-                          <span className="text-white">{project.manager}</span>
+                          <span className="text-gray-500 w-14 flex-shrink-0">負責人:</span>
+                          <span className="text-white truncate">{project.manager}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-gray-700">
-                      <div className="flex items-center text-yellow-400 text-sm group-hover:text-yellow-300 transition-colors">
+                    <div className="mt-2 pt-2 border-t border-gray-700">
+                      <div className="flex items-center text-yellow-400 text-[10px] sm:text-xs group-hover:text-yellow-300 transition-colors">
                         <span>查看詳情</span>
-                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
@@ -1204,18 +1204,18 @@ function ProjectDetailView({
           <table className="w-full">
             <thead>
               <tr className="bg-gray-900 border-b-2 border-yellow-400">
-                <th className="px-4 py-3 text-left text-yellow-400 font-semibold">項次</th>
-                <th className="px-4 py-3 text-left text-yellow-400 font-semibold">狀態</th>
-                <th className="px-4 py-3 text-left text-yellow-400 font-semibold">內容/備註</th>
-                <th className="px-4 py-3 text-left text-yellow-400 font-semibold">填單人</th>
-                <th className="px-4 py-3 text-left text-yellow-400 font-semibold">日期</th>
-                <th className="px-4 py-3 text-center text-yellow-400 font-semibold border-l-2 border-yellow-400" colSpan="3">
+                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">項次</th>
+                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">狀態</th>
+                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">內容/備註</th>
+                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">填單人</th>
+                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">日期</th>
+                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs border-l-2 border-yellow-400" colSpan="3">
                   第一次修訂
                 </th>
-                <th className="px-4 py-3 text-center text-yellow-400 font-semibold border-l-2 border-yellow-400" colSpan="3">
+                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs border-l-2 border-yellow-400" colSpan="3">
                   第二次修訂
                 </th>
-                <th className="px-4 py-3 text-center text-yellow-400 font-semibold border-l-2 border-yellow-400" colSpan="3">
+                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs border-l-2 border-yellow-400" colSpan="3">
                   第三次修訂
                 </th>
               </tr>
@@ -1225,21 +1225,21 @@ function ProjectDetailView({
                 <th></th>
                 <th></th>
                 <th></th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold">修改人員</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold">進度</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold">日期</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold border-l border-gray-700">修改人員</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold">進度</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold">日期</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold border-l border-gray-700">修改人員</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold">進度</th>
-                <th className="px-2 py-2 text-yellow-400 text-sm font-semibold">日期</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">修改人員</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">進度</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">日期</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold border-l border-gray-700">修改人員</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">進度</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">日期</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold border-l border-gray-700">修改人員</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">進度</th>
+                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">日期</th>
               </tr>
             </thead>
             <tbody>
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan="14" className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan="14" className="px-2 py-6 text-center text-gray-400 text-xs">
                     尚無記錄，請使用快速輸入區新增記錄
                   </td>
                 </tr>
@@ -1250,14 +1250,14 @@ function ProjectDetailView({
 
                   return (
                     <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-900">
-                      <td className="px-4 py-3 text-yellow-400 font-semibold">{record.rowNumber}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full ${getStatusDotColor(record.status)}`}></div>
+                      <td className="px-2 py-1.5 text-yellow-400 font-semibold text-[10px] sm:text-xs">{record.rowNumber}</td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex items-center space-x-1">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotColor(record.status)}`}></div>
                           <select
                             value={record.status}
                             onChange={(e) => onStatusChange(record.id, e.target.value)}
-                            className="bg-gray-700 border border-gray-500 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-yellow-400"
+                            className="bg-gray-700 border border-gray-500 rounded px-1 py-0.5 text-white text-[10px] focus:outline-none focus:border-yellow-400"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="pending">待處理</option>
@@ -1266,9 +1266,9 @@ function ProjectDetailView({
                           </select>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         {isEditingContent ? (
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1">
                             <input
                               type="text"
                               defaultValue={record.content}
@@ -1284,25 +1284,25 @@ function ProjectDetailView({
                                 }
                               }}
                               autoFocus
-                              className="flex-1 bg-gray-700 border border-yellow-400 rounded px-2 py-1 text-white text-sm focus:outline-none"
+                              className="flex-1 min-w-0 bg-gray-700 border border-yellow-400 rounded px-1 py-0.5 text-white text-[10px] sm:text-xs focus:outline-none"
                             />
                           </div>
                         ) : (
-                          <div className="flex items-center space-x-2">
-                            <span className="text-white">{record.content || '—'}</span>
+                          <div className="flex items-center space-x-1">
+                            <span className="text-white text-[10px] sm:text-xs truncate max-w-[120px] sm:max-w-none">{record.content || '—'}</span>
                             <button
                               onClick={() => onEditField(record.id, 'content')}
-                              className="text-yellow-400 hover:text-yellow-500"
+                              className="text-yellow-400 hover:text-yellow-500 flex-shrink-0"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
                             </button>
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-white">{record.submitter || '—'}</td>
-                      <td className="px-4 py-3 text-white">{record.date || '—'}</td>
+                      <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.submitter || '—'}</td>
+                      <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.date || '—'}</td>
                       
                       {/* 第一次修訂 */}
                       {['first', 'second', 'third'].map((revision, idx) => {
@@ -1312,13 +1312,11 @@ function ProjectDetailView({
                         return (
                           <React.Fragment key={revision}>
                             {/* 修改人員 - 只顯示，不可編輯 */}
-                            <td className={`px-2 py-3 text-white text-sm ${idx > 0 ? 'border-l border-gray-700' : ''}`}>
-                              <span className="text-gray-300">
-                                {rev.modifier || '—'}
-                              </span>
+                            <td className={`px-1 py-1.5 text-white text-[10px] sm:text-xs ${idx > 0 ? 'border-l border-gray-700' : ''}`}>
+                              <span className="text-gray-300">{rev.modifier || '—'}</span>
                             </td>
                             {/* 進度 - 可編輯 */}
-                            <td className="px-2 py-3 text-white text-sm">
+                            <td className="px-1 py-1.5 text-white text-[10px] sm:text-xs">
                               {isEditingProgress ? (
                                 <input
                                   type="text"
@@ -1333,7 +1331,7 @@ function ProjectDetailView({
                                     }
                                   }}
                                   autoFocus
-                                  className="w-full bg-gray-700 border border-yellow-400 rounded px-2 py-1 text-white text-xs focus:outline-none"
+                                  className="w-full bg-gray-700 border border-yellow-400 rounded px-1 py-0.5 text-white text-[10px] focus:outline-none"
                                 />
                               ) : (
                                 <span 
@@ -1345,10 +1343,8 @@ function ProjectDetailView({
                               )}
                             </td>
                             {/* 日期 - 只顯示，不可編輯 */}
-                            <td className="px-2 py-3 text-white text-sm">
-                              <span className="text-gray-300">
-                                {rev.date || '—'}
-                              </span>
+                            <td className="px-1 py-1.5 text-white text-[10px] sm:text-xs">
+                              <span className="text-gray-300">{rev.date || '—'}</span>
                             </td>
                           </React.Fragment>
                         )

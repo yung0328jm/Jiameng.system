@@ -553,33 +553,33 @@ function Exchange() {
               <p className="text-sm mt-2">點擊「發布交易」開始交易</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-1 sm:gap-2">
               {trades.filter(t => t.status === 'active').map((trade) => (
                 <div
                   key={trade.id}
-                  className="p-4 rounded-lg border border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 transition-colors"
+                  className="p-2 rounded-lg border border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 transition-colors"
                 >
                   <div className="flex flex-col">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-4xl">{getItem(trade.itemId)?.icon || '📦'}</span>
-                      <div className="flex-1">
-                        <div className="text-white font-bold text-lg">
+                    <div className="flex flex-col items-center gap-1 mb-2">
+                      <span className="text-3xl">{getItem(trade.itemId)?.icon || '📦'}</span>
+                      <div className="w-full text-center">
+                        <div className="text-white font-semibold text-xs truncate">
                           {trade.itemName}
                         </div>
-                        <div className="text-yellow-400 font-semibold">x{trade.quantity}</div>
+                        <div className="text-yellow-400 font-semibold text-[10px]">x{trade.quantity}</div>
                       </div>
                     </div>
-                    <div className="text-gray-300 text-sm mb-2">
+                    <div className="text-gray-300 text-[10px] mb-1 text-center">
                       賣家: <span className="text-yellow-400">{trade.seller}</span>
                     </div>
-                    <div className="text-blue-400 font-semibold mb-2 text-lg">
-                      價格: {trade.price.toLocaleString()} 個佳盟幣
+                    <div className="text-blue-400 font-semibold mb-1 text-xs text-center">
+                      {trade.price.toLocaleString()} 幣
                     </div>
                     {trade.description && (
-                      <div className="text-gray-400 text-sm mb-2">{trade.description}</div>
+                      <div className="text-gray-400 text-[10px] mb-1 line-clamp-2 text-center">{trade.description}</div>
                     )}
-                    <div className="text-gray-500 text-xs mb-3">
-                      發布時間: {formatTradeDate(trade.createdAt)}
+                    <div className="text-gray-500 text-[9px] mb-2 text-center">
+                      {formatTradeDate(trade.createdAt)}
                     </div>
                     <div className="mt-auto">
                       {trade.seller !== currentUser ? (
@@ -606,7 +606,7 @@ function Exchange() {
                                 }
                               }}
                               disabled={isDisabled}
-                              className={`w-full px-4 py-2 rounded font-semibold transition-colors ${
+                              className={`w-full px-2 py-1 rounded font-semibold transition-colors text-xs ${
                                 canBuy
                                   ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
                                   : 'bg-gray-600 text-gray-400 cursor-not-allowed'
@@ -630,34 +630,34 @@ function Exchange() {
           
           {/* 顯示買家發起的待確認交易 */}
           {trades.filter(t => t.status === 'pending' && t.pendingBuyer === currentUser).length > 0 && (
-            <div className="mt-6 pt-6 border-t border-gray-700">
-              <h4 className="text-yellow-400 font-semibold mb-4 text-xl">我的購買請求</h4>
-              <div className="space-y-3">
+            <div className="mt-4 pt-4 border-t border-gray-700">
+              <h4 className="text-yellow-400 font-semibold mb-3 text-sm sm:text-base">我的購買請求</h4>
+              <div className="space-y-2">
                 {trades.filter(t => t.status === 'pending' && t.pendingBuyer === currentUser).map((trade) => (
                   <div
                     key={trade.id}
-                    className="p-4 rounded-lg border border-yellow-500 bg-yellow-900/20"
+                    className="p-2 rounded-lg border border-yellow-500 bg-yellow-900/20"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-white font-semibold text-lg">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <span className="text-white font-semibold text-xs">
                             {getItem(trade.itemId)?.icon || '📦'} {trade.itemName} x{trade.quantity}
                           </span>
-                          <span className="text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/30">
+                          <span className="text-yellow-400 text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/30">
                             等待賣家確認
                           </span>
                         </div>
-                        <div className="text-gray-400 text-sm">
-                          賣家: {trade.seller} · 價格: {trade.price.toLocaleString()} 個佳盟幣
+                        <div className="text-gray-400 text-[10px]">
+                          賣家: {trade.seller} · 價格: {trade.price.toLocaleString()} 幣
                         </div>
-                        <div className="text-gray-500 text-xs mt-1">
+                        <div className="text-gray-500 text-[9px] mt-0.5">
                           請求時間: {formatTradeDate(trade.requestedAt || trade.createdAt)}
                         </div>
                       </div>
                       <button
                         onClick={() => handleCancelBuyRequest(trade)}
-                        className="ml-4 bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded transition-colors"
+                        className="ml-2 bg-red-500 hover:bg-red-600 text-white font-semibold px-2 py-1 rounded transition-colors text-xs flex-shrink-0"
                       >
                         取消請求
                       </button>
