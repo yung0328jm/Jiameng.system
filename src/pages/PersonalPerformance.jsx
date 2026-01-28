@@ -1555,10 +1555,10 @@ function PersonalPerformance() {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-yellow-400">個人績效</h2>
-            <div className="mt-2 flex items-center gap-4">
-              <p className="text-gray-400">使用者: 
-                <span className="ml-2 text-white font-semibold">
+            <h2 className="text-lg sm:text-xl font-bold text-yellow-400">個人績效</h2>
+            <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+              <p className="text-gray-400 text-xs sm:text-sm">使用者: 
+                <span className="ml-1.5 text-white font-semibold text-xs sm:text-sm">
                   {selectedViewUser ? (users.find(u => u.account === selectedViewUser)?.name || selectedViewUser) : (currentUser || '—')}
                 </span>
               </p>
@@ -1569,7 +1569,7 @@ function PersonalPerformance() {
                     const selectedAccount = e.target.value
                     setSelectedViewUser(selectedAccount === currentUser ? null : selectedAccount)
                   }}
-                  className="bg-gray-700 border border-gray-500 rounded px-3 py-1 text-white text-sm focus:outline-none focus:border-yellow-400"
+                  className="bg-gray-700 border border-gray-500 rounded px-2 py-0.5 text-white text-xs focus:outline-none focus:border-yellow-400"
                 >
                   <option value={currentUser || ''}>查看我的績效</option>
                   {users.map(user => (
@@ -1581,13 +1581,13 @@ function PersonalPerformance() {
               )}
             </div>
           </div>
-          <div className="flex items-end gap-3">
+          <div className="flex items-end gap-2">
             <div>
-              <label className="block text-gray-400 text-sm mb-2">年份</label>
+              <label className="block text-gray-400 text-[10px] sm:text-xs mb-1">年份</label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
+                className="bg-gray-700 border border-gray-500 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-yellow-400"
               >
                 {Array.from({ length: Math.max(1, currentYear - 2026 + 1) }, (_, i) => {
                   const year = 2026 + i // 從2026年開始，到當前年份
@@ -1600,7 +1600,7 @@ function PersonalPerformance() {
               </select>
             </div>
             <div>
-              <label className="block text-gray-400 text-sm mb-2">月份</label>
+              <label className="block text-gray-400 text-[10px] sm:text-xs mb-1">月份</label>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
@@ -1623,19 +1623,19 @@ function PersonalPerformance() {
       {/* 績效統計卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {/* 平均完成率 */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm mb-2">平均完成率</p>
-              <p className={`text-3xl font-bold ${getCompletionColor(performanceData.averageCompletionRate)}`}>
+              <p className="text-gray-400 text-xs mb-1">平均完成率</p>
+              <p className={`text-xl sm:text-2xl font-bold ${getCompletionColor(performanceData.averageCompletionRate)}`}>
                 {performanceData.averageCompletionRate.toFixed(1)}%
               </p>
-              <p className="text-gray-500 text-xs mt-1">
+              <p className="text-gray-500 text-[10px] mt-0.5">
                 共 {performanceData.totalWorkItems} 個項目
               </p>
             </div>
-            <div className="bg-yellow-400/20 rounded-full p-3">
-              <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-yellow-400/20 rounded-full p-2">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
@@ -1643,17 +1643,17 @@ function PersonalPerformance() {
         </div>
 
         {/* 完成項目數 */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm mb-2">完成項目</p>
-              <p className="text-3xl font-bold text-green-400">{performanceData.completedItems}</p>
-              <p className="text-gray-500 text-xs mt-1">
+              <p className="text-gray-400 text-xs mb-1">完成項目</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-400">{performanceData.completedItems}</p>
+              <p className="text-gray-500 text-[10px] mt-0.5">
                 完成率 ≥ 100%
               </p>
             </div>
-            <div className="bg-green-400/20 rounded-full p-3">
-              <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-green-400/20 rounded-full p-2">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -1661,17 +1661,17 @@ function PersonalPerformance() {
         </div>
 
         {/* 部分完成項目數 */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm mb-2">部分完成</p>
-              <p className="text-3xl font-bold text-yellow-400">{performanceData.partialItems}</p>
-              <p className="text-gray-500 text-xs mt-1">
+              <p className="text-gray-400 text-xs mb-1">部分完成</p>
+              <p className="text-xl sm:text-2xl font-bold text-yellow-400">{performanceData.partialItems}</p>
+              <p className="text-gray-500 text-[10px] mt-0.5">
                 0% &lt; 完成率 &lt; 100%
               </p>
             </div>
-            <div className="bg-yellow-400/20 rounded-full p-3">
-              <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-yellow-400/20 rounded-full p-2">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -1680,7 +1680,7 @@ function PersonalPerformance() {
 
         {/* 出勤紀錄 */}
         <div 
-          className={`bg-gray-800 border border-gray-700 rounded-lg p-6 ${(performanceData.attendanceRecords && performanceData.attendanceRecords.length > 0) ? 'cursor-pointer hover:bg-gray-750 transition-colors' : ''}`}
+          className={`bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4 ${(performanceData.attendanceRecords && performanceData.attendanceRecords.length > 0) ? 'cursor-pointer hover:bg-gray-750 transition-colors' : ''}`}
           onClick={() => {
             if (performanceData.attendanceRecords && performanceData.attendanceRecords.length > 0) {
               setShowLateRecords(!showLateRecords)
@@ -1690,19 +1690,19 @@ function PersonalPerformance() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm mb-2">出勤紀錄</p>
-              <p className="text-3xl font-bold text-yellow-400">
+              <p className="text-gray-400 text-xs mb-1">出勤紀錄</p>
+              <p className="text-xl sm:text-2xl font-bold text-yellow-400">
                 {performanceData.totalLateMinutes || 0}
               </p>
-              <p className="text-gray-400 text-xs mt-1">
+              <p className="text-gray-400 text-[10px] mt-0.5">
                 總遲到分鐘數: {performanceData.totalLateMinutes || 0}
               </p>
               {performanceData.attendanceRecords && performanceData.attendanceRecords.length > 0 && (
-                <p className="text-gray-500 text-xs mt-1">點擊查看詳情</p>
+                <p className="text-gray-500 text-[10px] mt-0.5">點擊查看詳情</p>
               )}
             </div>
-            <div className="bg-yellow-400/20 rounded-full p-3">
-              <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-yellow-400/20 rounded-full p-2">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -1807,30 +1807,30 @@ function PersonalPerformance() {
           return (
           <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-yellow-400">出勤記錄詳情</h3>
+              <h3 className="text-sm sm:text-base font-bold text-yellow-400">出勤記錄詳情</h3>
               <button
                 onClick={() => setShowLateRecords(false)}
                 className="text-gray-400 hover:text-white transition-colors"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
             
             {/* 三個統計面板 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
               {/* 正常出勤次數 */}
-              <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">正常出勤次數</p>
-                    <p className="text-2xl font-bold text-green-400">
+                    <p className="text-gray-400 text-xs mb-0.5">正常出勤次數</p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-400">
                       {performanceData.normalAttendanceCount || 0}
                     </p>
                   </div>
-                  <div className="bg-green-400/20 rounded-full p-2">
-                    <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="bg-green-400/20 rounded-full p-1.5">
+                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
@@ -1838,16 +1838,16 @@ function PersonalPerformance() {
               </div>
               
               {/* 遲到次數 */}
-              <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">遲到次數</p>
-                    <p className="text-2xl font-bold text-red-400">
+                    <p className="text-gray-400 text-xs mb-0.5">遲到次數</p>
+                    <p className="text-xl sm:text-2xl font-bold text-red-400">
                       {performanceData.lateAttendanceCount || 0}
                     </p>
                   </div>
-                  <div className="bg-red-400/20 rounded-full p-2">
-                    <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="bg-red-400/20 rounded-full p-1.5">
+                    <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
@@ -1855,16 +1855,16 @@ function PersonalPerformance() {
               </div>
               
               {/* 未打卡次數 */}
-              <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">未打卡次數</p>
-                    <p className="text-2xl font-bold text-yellow-400">
+                    <p className="text-gray-400 text-xs mb-0.5">未打卡次數</p>
+                    <p className="text-xl sm:text-2xl font-bold text-yellow-400">
                       {calculatedNoClockInCount}
                     </p>
                   </div>
-                  <div className="bg-yellow-400/20 rounded-full p-2">
-                    <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="bg-yellow-400/20 rounded-full p-1.5">
+                    <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                     </svg>
                   </div>
@@ -1874,16 +1874,16 @@ function PersonalPerformance() {
             
             {/* 詳細記錄表格 */}
             {performanceData.attendanceRecords && performanceData.attendanceRecords.length > 0 && (
-              <div className="mb-6">
-                <h4 className="text-md font-semibold text-yellow-400 mb-3">詳細出勤記錄</h4>
+              <div className="mb-4">
+                <h4 className="text-xs sm:text-sm font-semibold text-yellow-400 mb-2">詳細出勤記錄</h4>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-gray-900 border-b border-gray-700">
-                        <th className="px-4 py-3 text-left text-yellow-400 font-semibold">日期</th>
-                        <th className="px-4 py-3 text-left text-yellow-400 font-semibold">打卡時間</th>
-                        <th className="px-4 py-3 text-center text-yellow-400 font-semibold">狀態</th>
-                        <th className="px-4 py-3 text-left text-yellow-400 font-semibold">備註</th>
+                        <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">日期</th>
+                        <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">打卡時間</th>
+                        <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs">狀態</th>
+                        <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">備註</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1896,7 +1896,7 @@ function PersonalPerformance() {
                         
                         return (
                         <tr key={record.id || index} className="border-b border-gray-700 hover:bg-gray-750">
-                          <td className="px-4 py-3 text-white">
+                          <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">
                             {record.date ? new Date(record.date).toLocaleDateString('zh-TW', { 
                               year: 'numeric', 
                               month: '2-digit', 
@@ -1904,19 +1904,19 @@ function PersonalPerformance() {
                               weekday: 'short'
                             }) : '—'}
                           </td>
-                          <td className="px-4 py-3 text-white">
+                          <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">
                             {record.clockInTime || '—'}
                           </td>
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-2 py-1.5 text-center">
                             {isNoClockIn ? (
-                              <span className="text-yellow-400 font-semibold">未打卡</span>
+                              <span className="text-yellow-400 font-semibold text-[10px] sm:text-xs">未打卡</span>
                             ) : record.isLate ? (
-                              <span className="text-red-400 font-semibold">遲到</span>
+                              <span className="text-red-400 font-semibold text-[10px] sm:text-xs">遲到</span>
                             ) : (
-                              <span className="text-green-400">正常</span>
+                              <span className="text-green-400 text-[10px] sm:text-xs">正常</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-gray-400 text-xs">
+                          <td className="px-2 py-1.5 text-gray-400 text-[9px] sm:text-[10px]">
                             {record.details || record.source || '—'}
                           </td>
                         </tr>
@@ -1930,22 +1930,22 @@ function PersonalPerformance() {
             
             {/* 未打卡記錄表格 */}
             {noClockInRecordsFromPreview.length > 0 ? (
-                <div className="mb-6">
-                  <h4 className="text-md font-semibold text-yellow-400 mb-3">未打卡記錄（已排除週末）</h4>
+                <div className="mb-4">
+                  <h4 className="text-xs sm:text-sm font-semibold text-yellow-400 mb-2">未打卡記錄（已排除週末）</h4>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-gray-900 border-b border-gray-700">
-                          <th className="px-4 py-3 text-left text-yellow-400 font-semibold">日期</th>
-                          <th className="px-4 py-3 text-left text-yellow-400 font-semibold">用戶</th>
-                          <th className="px-4 py-3 text-left text-yellow-400 font-semibold">狀態</th>
-                          <th className="px-4 py-3 text-left text-yellow-400 font-semibold">備註</th>
+                          <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">日期</th>
+                          <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">用戶</th>
+                          <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">狀態</th>
+                          <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">備註</th>
                         </tr>
                       </thead>
                       <tbody>
                         {noClockInRecordsFromPreview.map((record, index) => (
                           <tr key={record.id || index} className="border-b border-gray-700 hover:bg-gray-750">
-                            <td className="px-4 py-3 text-white">
+                            <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">
                               {record.date ? new Date(record.date).toLocaleDateString('zh-TW', { 
                                 year: 'numeric', 
                                 month: '2-digit', 
@@ -1953,13 +1953,13 @@ function PersonalPerformance() {
                                 weekday: 'short'
                               }) : '—'}
                             </td>
-                            <td className="px-4 py-3 text-white">
+                            <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">
                               {record.userDisplayName || record.userName || '—'}
                             </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="text-yellow-400 font-semibold">未打卡</span>
+                            <td className="px-2 py-1.5 text-center">
+                              <span className="text-yellow-400 font-semibold text-[10px] sm:text-xs">未打卡</span>
                             </td>
-                            <td className="px-4 py-3 text-gray-400 text-xs">
+                            <td className="px-2 py-1.5 text-gray-400 text-[9px] sm:text-[10px]">
                               {record.details || record.source || '—'}
                             </td>
                           </tr>
@@ -1967,7 +1967,7 @@ function PersonalPerformance() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="mt-3 text-sm text-gray-400">
+                  <div className="mt-2 text-xs text-gray-400">
                     共 {noClockInRecordsFromPreview.length} 筆未打卡記錄（已排除週六、週日）
                   </div>
                 </div>
@@ -1976,32 +1976,32 @@ function PersonalPerformance() {
             {/* 匯入記錄 */}
             {importPreview && importPreview.length > 0 && (
               <div>
-                <h4 className="text-md font-semibold text-yellow-400 mb-3">匯入記錄</h4>
+                <h4 className="text-xs sm:text-sm font-semibold text-yellow-400 mb-2">匯入記錄</h4>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-gray-900 border-b border-gray-700">
-                        <th className="px-4 py-3 text-left text-yellow-400 font-semibold">序號</th>
-                        <th className="px-4 py-3 text-left text-yellow-400 font-semibold">日期</th>
-                        <th className="px-4 py-3 text-left text-yellow-400 font-semibold">時間</th>
-                        <th className="px-4 py-3 text-left text-yellow-400 font-semibold">用戶</th>
-                        <th className="px-4 py-3 text-center text-yellow-400 font-semibold">狀態</th>
+                        <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">序號</th>
+                        <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">日期</th>
+                        <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">時間</th>
+                        <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">用戶</th>
+                        <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs">狀態</th>
                       </tr>
                     </thead>
                     <tbody>
                       {importPreview.map((item, index) => (
                         <tr key={index} className="border-b border-gray-700 hover:bg-gray-750">
-                          <td className="px-4 py-3 text-white">{item.index || index + 1}</td>
-                          <td className="px-4 py-3 text-white">{item.date || '—'}</td>
-                          <td className="px-4 py-3 text-white">{item.time || '—'}</td>
-                          <td className="px-4 py-3 text-white">{item.userDisplayName || '—'}</td>
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{item.index || index + 1}</td>
+                          <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{item.date || '—'}</td>
+                          <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{item.time || '—'}</td>
+                          <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{item.userDisplayName || '—'}</td>
+                          <td className="px-2 py-1.5 text-center">
                             {item.error ? (
-                              <span className="text-red-400 text-xs">{item.error}</span>
+                              <span className="text-red-400 text-[9px] sm:text-[10px]">{item.error}</span>
                             ) : item.late ? (
-                              <span className="text-red-400 font-semibold">遲到</span>
+                              <span className="text-red-400 font-semibold text-[10px] sm:text-xs">遲到</span>
                             ) : (
-                              <span className="text-green-400">正常</span>
+                              <span className="text-green-400 text-[10px] sm:text-xs">正常</span>
                             )}
                           </td>
                         </tr>
@@ -2009,7 +2009,7 @@ function PersonalPerformance() {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-3 text-sm text-gray-400">
+                <div className="mt-2 text-xs text-gray-400">
                   共 {importPreview.length} 筆匯入記錄
                 </div>
               </div>
@@ -2019,21 +2019,21 @@ function PersonalPerformance() {
         })()}
 
         {/* 績效評分：完成率→計算績效分數→統計至此 */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-gray-400 text-sm mb-2">績效評分</p>
-              <div className="flex items-baseline gap-2 mb-1">
-                <p className={`text-3xl font-bold ${getPerformanceScoreColor(performanceData.performanceScore)}`}>
+              <p className="text-gray-400 text-xs mb-1">績效評分</p>
+              <div className="flex items-baseline gap-1.5 mb-0.5">
+                <p className={`text-xl sm:text-2xl font-bold ${getPerformanceScoreColor(performanceData.performanceScore)}`}>
                   {performanceData.performanceScore.toFixed(0)}
                 </p>
                 {performanceData.totalAdjustment !== 0 && (
-                  <span className={`text-xl font-semibold ${performanceData.totalAdjustment >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className={`text-sm sm:text-base font-semibold ${performanceData.totalAdjustment >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {performanceData.adjustmentDisplay}
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-xs">
                 <span className="text-gray-500">初始100分</span>
                 {performanceData.totalAdjustment !== 0 && (
                   <>
@@ -2077,11 +2077,11 @@ function PersonalPerformance() {
                 )}
               </div>
               {performanceData.totalWorkItems > 0 && (
-                <p className="text-gray-500 text-xs mt-2">工作明細完成率已計入績效評分</p>
+                <p className="text-gray-500 text-[10px] mt-1">工作明細完成率已計入績效評分</p>
               )}
             </div>
-            <div className="bg-purple-400/20 rounded-full p-3">
-              <svg className="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-purple-400/20 rounded-full p-2">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
               </svg>
             </div>
@@ -2091,9 +2091,9 @@ function PersonalPerformance() {
 
       {/* 管理者評分區塊 */}
       {userRole === 'admin' && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-yellow-400">管理者評分</h3>
+        <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm sm:text-base font-bold text-yellow-400">管理者評分</h3>
             <button
               onClick={() => {
                 if (!showScoreForm) {

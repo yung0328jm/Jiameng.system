@@ -1200,9 +1200,9 @@ function ProjectDetailView({
 
             {/* 數據表格 */}
             <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-gray-900 border-b-2 border-yellow-400">
                 <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">項次</th>
                 <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">狀態</th>
@@ -1219,7 +1219,7 @@ function ProjectDetailView({
                   第三次修訂
                 </th>
               </tr>
-              <tr className="bg-gray-900 border-b border-gray-700">
+              <tr className="bg-gray-900 border-b border-gray-700 sticky top-[38px] z-10">
                 <th></th>
                 <th></th>
                 <th></th>
