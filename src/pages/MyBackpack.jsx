@@ -4,6 +4,7 @@ import { getItems, getItem, ITEM_TYPES } from '../utils/itemStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { createExchangeRequest, getUserExchangeRequests } from '../utils/exchangeRequestStorage'
 import { getEquippedEffects, equipEffect, unequipEffect } from '../utils/effectStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function MyBackpack() {
   const [currentUser, setCurrentUser] = useState('')

@@ -70,7 +70,6 @@ function Home() {
   })
   const [typeForm, setTypeForm] = useState({ name: '', titleFirstPlace: '', titleSecondPlace: '', titleThirdPlace: '', nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '', ...emptyRankEffects() })
   const [leaderboardTypes, setLeaderboardTypes] = useState([]) // 排行榜類型列表（供載入類型用）
-  const [previewLeaderboardId, setPreviewLeaderboardId] = useState(null) // 點擊預覽時顯示的排行榜 id，再點關閉
   // 待辦事項狀態
   const [todos, setTodos] = useState([])
   const [newTodoText, setNewTodoText] = useState('')
@@ -2922,55 +2921,10 @@ function Home() {
                 </div>
                 );
 
-                const fullCardContentInPreview = greyCardEl ?? fullCardEl;
+                {/* 取消點擊預覽：直接顯示排行榜內容（如有上榜／有資料即顯示完整卡片） */}
                 return (
                   <Fragment key={item.id}>
-                    {previewLeaderboardId === item.id && fullCardContentInPreview && (
-                      <div
-                        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 overflow-auto"
-                        onClick={() => setPreviewLeaderboardId(null)}
-                      >
-                        <div
-                          className="relative max-h-[90vh] w-full max-w-4xl my-auto rounded-lg overflow-y-auto overflow-x-hidden"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {fullCardContentInPreview}
-                          <button
-                            type="button"
-                            onClick={() => setPreviewLeaderboardId(null)}
-                            className="absolute top-2 right-2 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg"
-                            aria-label="關閉預覽"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setPreviewLeaderboardId(item.id)}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewLeaderboardId(item.id); } }}
-                      className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-yellow-400 transition-colors cursor-pointer"
-                      style={{ background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)' }}
-                    >
-                      <div className="flex items-center gap-2 p-2 flex-1">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt="" className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded flex-shrink-0" />
-                        ) : (
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-lg">?</div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-semibold truncate text-xs sm:text-sm">{item.title || item.name || '排行榜'}</p>
-                          <p className="text-gray-400 text-[10px] mt-0.5">點擊預覽</p>
-                        </div>
-                      </div>
-                      {userRole === 'admin' && (
-                        <div className="absolute top-1 right-1" onClick={e => e.stopPropagation()}>
-                          <button type="button" onClick={() => handleDeleteItem(item.id)} className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-[10px] leading-none">×</button>
-                        </div>
-                      )}
-                    </div>
+                    {greyCardEl ?? fullCardEl}
                   </Fragment>
                 );
               })

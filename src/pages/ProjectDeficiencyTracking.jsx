@@ -541,11 +541,11 @@ function ProjectDeficiencyTracking() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-1 sm:gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
               {filteredProjects.map((project) => (
                 <div
                   key={project.id}
-                  className="bg-gray-800 border-2 border-gray-700 rounded-lg p-2 sm:p-3 hover:border-yellow-400 hover:shadow-lg transition-all group relative min-w-0"
+                  className="bg-gray-800 border-2 border-gray-700 rounded-lg p-3 sm:p-4 hover:border-yellow-400 hover:shadow-lg transition-all group relative min-w-0"
                 >
                   {/* 刪除按鈕 */}
                   <button
@@ -567,7 +567,7 @@ function ProjectDeficiencyTracking() {
                   >
                     <div className="flex items-start justify-between mb-1.5 pr-6">
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-xs sm:text-sm font-bold text-yellow-400 group-hover:text-yellow-300 transition-colors mb-0.5 truncate">
+                        <h4 className="text-sm sm:text-base font-bold text-yellow-400 group-hover:text-yellow-300 transition-colors mb-0.5 break-words line-clamp-2">
                           {project.name}
                         </h4>
                         {project.location && (

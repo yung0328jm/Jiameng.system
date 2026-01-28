@@ -3,6 +3,7 @@ import { getItems, createItem, updateItem, deleteItem, ITEM_TYPES } from '../uti
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
+import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function ExchangeShop() {
   const [items, setItems] = useState([])
@@ -20,10 +21,21 @@ function ExchangeShop() {
   const [walletBalance, setWalletBalance] = useState(0)
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
 
+  const loadItems = () => {
+    const allItems = getItems().filter(
+      (item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT
+    )
+    setItems(allItems)
+  }
+
   const refetchExchangeShop = () => {
-    loadItems()
-    const user = getCurrentUser()
-    if (user) setWalletBalance(getWalletBalance(user))
+    try {
+      loadItems()
+      const user = getCurrentUser()
+      if (user) setWalletBalance(getWalletBalance(user))
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('refetchExchangeShop', e)
+    }
   }
 
   useEffect(() => {
@@ -49,13 +61,6 @@ function ExchangeShop() {
       return () => clearInterval(interval)
     }
   }, [currentUser])
-
-  const loadItems = () => {
-    const allItems = getItems().filter(
-      (item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT
-    )
-    setItems(allItems)
-  }
 
   const handleAddItem = () => {
     setEditingItem(null)
