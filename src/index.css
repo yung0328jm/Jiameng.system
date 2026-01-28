@@ -32,10 +32,21 @@ body {
   width: 100%;
 }
 
-/* 手機觸控友善：按鈕／可點區至少 44px */
+/* 手機觸控友善：按鈕／可點區至少 44px，建議 48px */
 .touch-target {
   min-height: 44px;
   min-width: 44px;
+}
+/* 手機：表單輸入/選單加大點擊區、字體 16px 避免 iOS 縮放 */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 48px;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    font-size: 16px;
+  }
 }
 
 /* 橫向捲動導覽（隱藏捲軸仍可滑動） */
