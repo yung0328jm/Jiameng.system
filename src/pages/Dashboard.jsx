@@ -142,7 +142,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState(initialTab || getTabFromPath(location.pathname))
-  const [userRole, setUserRole] = useState(null)
+  const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [currentUser, setCurrentUser] = useState('')
   const [walletBalance, setWalletBalance] = useState(0)
   const [showWalletModal, setShowWalletModal] = useState(false)
@@ -434,7 +434,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       case 'activities':
         return <CompanyActivities />
       case 'management':
-        if (userRole !== 'admin') return <Navigate to="/home" replace />
+        if (userRole != null && userRole !== 'admin') return <Navigate to="/home" replace />
         return <DropdownManagement userRole={userRole} />
       case 'user-management':
         return <UserManagement />
