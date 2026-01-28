@@ -70,6 +70,7 @@ function Home() {
   })
   const [typeForm, setTypeForm] = useState({ name: '', titleFirstPlace: '', titleSecondPlace: '', titleThirdPlace: '', nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '', ...emptyRankEffects() })
   const [leaderboardTypes, setLeaderboardTypes] = useState([]) // 排行榜類型列表（供載入類型用）
+  const [previewLeaderboardId, setPreviewLeaderboardId] = useState(null) // 點擊預覽時顯示的排行榜 id
   // 待辦事項狀態
   const [todos, setTodos] = useState([])
   const [newTodoText, setNewTodoText] = useState('')
@@ -1845,8 +1846,8 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 動態面板（網格大一點：少欄、大間距） */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 items-stretch w-full min-w-0">
+          {/* 排行榜 - 網格小一點一行約 3 個，點擊預覽；有人上榜時金色光環特效 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-2 items-stretch w-full min-w-0">
             {leaderboardItems.length === 0 ? (
               <div className="col-span-full text-center py-8">
                 <p className="text-[10px] sm:text-xs text-gray-400 mb-3">尚無排行榜項目</p>
@@ -1888,10 +1889,11 @@ function Home() {
                 const greyCardEl = (!hasValidRankings && !isManual) ? (
                     <div
                       key={item.id}
-                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
+                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px] ring-2 ring-yellow-400/50"
                       style={{
                         background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 50%, #2a2a2a 100%)',
-                        position: 'relative'
+                        position: 'relative',
+                        boxShadow: '0 0 24px rgba(251, 191, 36, 0.25), inset 0 0 0 1px rgba(251, 191, 36, 0.15)'
                       }}
                     >
                       {/* 灰色背景遮罩 */}
@@ -2209,10 +2211,11 @@ function Home() {
                 const fullCardEl = (
                   <div
                     key={item.id}
-                    className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
+                    className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px] ring-2 ring-yellow-400"
                     style={{
                       background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 30%, #2a2a2a 60%, #1a1a1a 100%)',
-                      position: 'relative'
+                      position: 'relative',
+                      boxShadow: '0 0 32px rgba(251, 191, 36, 0.4), 0 0 64px rgba(251, 191, 36, 0.2), inset 0 0 0 1px rgba(251, 191, 36, 0.3)'
                     }}
                   >
                   {/* 背景金色光線效果 */}
@@ -2921,10 +2924,62 @@ function Home() {
                 </div>
                 );
 
-                {/* 取消點擊預覽：直接顯示排行榜內容（如有上榜／有資料即顯示完整卡片） */}
+                const fullCardContentInPreview = greyCardEl ?? fullCardEl
+                const hasRankingEffect = hasValidRankings // 有人上榜時顯示金色光環特效
                 return (
                   <Fragment key={item.id}>
-                    {greyCardEl ?? fullCardEl}
+                    {previewLeaderboardId === item.id && fullCardContentInPreview && (
+                      <div
+                        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 overflow-auto"
+                        onClick={() => setPreviewLeaderboardId(null)}
+                      >
+                        <div
+                          className="relative max-h-[90vh] w-full max-w-4xl my-auto rounded-lg overflow-y-auto overflow-x-hidden"
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            boxShadow: '0 0 48px rgba(251, 191, 36, 0.5), 0 0 96px rgba(251, 191, 36, 0.25)'
+                          }}
+                        >
+                          {fullCardContentInPreview}
+                          <button
+                            type="button"
+                            onClick={() => setPreviewLeaderboardId(null)}
+                            className="absolute top-2 right-2 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg"
+                            aria-label="關閉預覽"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setPreviewLeaderboardId(item.id)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewLeaderboardId(item.id); } }}
+                      className={`relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[88px] sm:min-h-[100px] border border-gray-600 hover:border-yellow-400 transition-all cursor-pointer ${hasRankingEffect ? 'ring-2 ring-yellow-400' : ''}`}
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)',
+                        ...(hasRankingEffect ? { boxShadow: '0 0 16px rgba(251, 191, 36, 0.4), 0 0 32px rgba(251, 191, 36, 0.2)' } : {})
+                      }}
+                    >
+                      <div className="flex items-center gap-2 p-2 flex-1">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt="" className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded flex-shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-sm">?</div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-semibold truncate text-[10px] sm:text-xs">{item.title || item.name || '排行榜'}</p>
+                          <p className="text-gray-400 text-[9px] mt-0.5">點擊預覽</p>
+                        </div>
+                      </div>
+                      {userRole === 'admin' && (
+                        <div className="absolute top-1 right-1" onClick={e => e.stopPropagation()}>
+                          <button type="button" onClick={() => handleDeleteItem(item.id)} className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-[10px] leading-none">×</button>
+                        </div>
+                      )}
+                    </div>
                   </Fragment>
                 );
               })
