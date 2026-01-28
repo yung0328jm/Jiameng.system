@@ -2964,16 +2964,16 @@ function Home() {
 
       {/* 編輯排行榜項目彈窗 */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 border border-yellow-400 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-gray-800 rounded-lg p-4 sm:p-6 border border-yellow-400 w-full max-w-md min-w-0 max-h-[90vh] overflow-y-auto overflow-x-hidden my-auto">
             {/* 標題區域 - 圖一風格 */}
             <div className="relative mb-4 pb-4 border-b border-gray-700">
               {/* 上方小標題 */}
               <p className="text-white text-sm text-center mb-2">九月业绩</p>
               
-              {/* 主標題 - 白色、居中、裝飾性字體 */}
+              {/* 主標題 - 白色、居中、裝飾性字體，手機用小字級 */}
               <h3 
-                className="text-3xl font-bold text-center cursor-pointer select-none text-white"
+                className="text-2xl sm:text-3xl font-bold text-center cursor-pointer select-none text-white"
                 style={{
                   fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                   letterSpacing: '0.05em',
