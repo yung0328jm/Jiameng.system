@@ -4,6 +4,7 @@ import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getUserPerformanceRecords, getUserLateRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getRegistrationPassword, setRegistrationPassword } from '../utils/registrationPasswordStorage'
 
 function UserManagement() {
   const [users, setUsers] = useState([])
@@ -11,6 +12,8 @@ function UserManagement() {
   const [currentUserAccount, setCurrentUserAccount] = useState(null)
   const [userPerformanceData, setUserPerformanceData] = useState({}) // 存儲每個用戶的績效數據
   const [dateRange, setDateRange] = useState('all') // 時間範圍：week, month, year, all
+  const [registrationPassword, setRegistrationPasswordInput] = useState('')
+  const [registrationPasswordMessage, setRegistrationPasswordMessage] = useState('')
 
   useEffect(() => {
     const role = getCurrentUserRole()
@@ -18,6 +21,7 @@ function UserManagement() {
     setCurrentUserRole(role)
     setCurrentUserAccount(account)
     loadUsers()
+    setRegistrationPasswordInput(getRegistrationPassword())
   }, [dateRange])
 
   useEffect(() => {
@@ -200,24 +204,61 @@ function UserManagement() {
     return 'text-red-400'
   }
 
+  const handleSaveRegistrationPassword = () => {
+    const result = setRegistrationPassword(registrationPassword)
+    if (result.success) {
+      setRegistrationPasswordMessage('註冊密碼已儲存。未設置時任何人可註冊；設置後註冊頁須輸入此密碼才能註冊。')
+      setTimeout(() => setRegistrationPasswordMessage(''), 3000)
+    } else {
+      setRegistrationPasswordMessage(result.message || '儲存失敗')
+    }
+  }
+
   return (
     <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-bold text-yellow-400">用戶管理</h2>
-        <div>
-          <label className="block text-gray-400 text-sm mb-2">時間範圍</label>
-          <select
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
-          >
-            <option value="week">本週</option>
-            <option value="month">本月</option>
-            <option value="year">本年</option>
-            <option value="all">全部</option>
-          </select>
+        <div className="flex flex-wrap items-end gap-4">
+          {/* 註冊密碼設定（僅管理員） */}
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">註冊密碼</label>
+              <input
+                type="password"
+                value={registrationPassword}
+                onChange={(e) => { setRegistrationPasswordInput(e.target.value); setRegistrationPasswordMessage('') }}
+                placeholder="留空＝不需密碼即可註冊"
+                className="bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400 w-48"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveRegistrationPassword}
+              className="bg-yellow-500 text-gray-900 font-semibold px-3 py-2 rounded text-sm hover:bg-yellow-400"
+            >
+              儲存
+            </button>
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-2">時間範圍</label>
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
+            >
+              <option value="week">本週</option>
+              <option value="month">本月</option>
+              <option value="year">本年</option>
+              <option value="all">全部</option>
+            </select>
+          </div>
         </div>
       </div>
+      {registrationPasswordMessage && (
+        <div className={`mb-4 px-4 py-2 rounded text-sm ${registrationPasswordMessage.includes('已儲存') ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+          {registrationPasswordMessage}
+        </div>
+      )}
       
       {users.length === 0 ? (
         <div className="text-gray-400 text-center py-12">

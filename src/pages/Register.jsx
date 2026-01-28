@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { saveUser } from '../utils/storage'
+import { checkRegistrationPassword } from '../utils/registrationPasswordStorage'
 
 function Register() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     name: '',
     account: '',
+    registrationPassword: '', // 由管理員設置的註冊密碼
     password: '',
     confirmPassword: ''
   })
@@ -26,6 +28,13 @@ function Register() {
     // 验证
     if (!formData.name || !formData.account || !formData.password || !formData.confirmPassword) {
       setMessage('請填寫所有必填欄位')
+      return
+    }
+
+    // 檢查註冊密碼（若管理員已設置則必須正確）
+    const pwdCheck = checkRegistrationPassword(formData.registrationPassword || '')
+    if (!pwdCheck.success) {
+      setMessage(pwdCheck.message || '註冊密碼錯誤')
       return
     }
 
@@ -109,6 +118,17 @@ function Register() {
                 placeholder="請輸入帳號"
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
                 required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">註冊密碼</label>
+              <input
+                type="password"
+                name="registrationPassword"
+                value={formData.registrationPassword}
+                onChange={handleChange}
+                placeholder="由管理員提供，未設置則可留空"
+                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
               />
             </div>
             <div>
