@@ -1,8 +1,8 @@
-// 行程回報儲存：依案場（專案）紀錄「出發、休息、上工、收工、離場」及時間、人員
+// 行程回報儲存：依案場（專案）紀錄「出發、抵達、休息、上工、收工、離場」及時間、人員
 import { syncKeyToSupabase } from './supabaseSync'
 const TRIP_REPORT_STORAGE_KEY = 'jiameng_trip_reports'
 
-const actionTypes = ['出發', '休息', '上工', '收工', '離場']
+const actionTypes = ['出發', '抵達', '休息', '上工', '收工', '離場']
 
 function loadAll() {
   try {
