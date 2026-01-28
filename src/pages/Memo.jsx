@@ -531,8 +531,8 @@ function Memo() {
           }
         }
       `}</style>
-      <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen relative">
-      <h2 className="text-2xl font-bold text-yellow-400 mb-6">交流區</h2>
+      <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-0 flex flex-col overflow-y-auto">
+      <h2 className="text-2xl font-bold text-yellow-400 mb-6 shrink-0">交流區</h2>
       
       {/* 上區塊：公佈欄 */}
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
@@ -1055,7 +1055,7 @@ function Memo() {
         
         {/* 管理員道具分配表單 */}
 
-        <div className={`grid gap-6 h-[calc(100vh-500px)] min-h-[400px] ${isChatCollapsed ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'}`}>
+        <div className={`grid gap-6 min-h-0 flex-1 ${isChatCollapsed ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'}`} style={{ minHeight: '50vh' }}>
         {/* 左侧：话题列表（點擊空白處收合聊天） */}
         <div
           className={`bg-gray-800 rounded-lg p-2 sm:p-4 border border-gray-700 flex flex-col cursor-default ${isChatCollapsed ? 'lg:col-span-1' : 'lg:col-span-1'}`}
@@ -1155,7 +1155,7 @@ function Memo() {
 
         {/* 右侧：聊天界面 */}
         {!isChatCollapsed && (
-          <div className="lg:col-span-2 bg-gray-800 rounded-lg border border-gray-700 flex flex-col">
+          <div className="lg:col-span-2 bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0">
             {selectedTopic ? (
               <>
                 {/* 话题标题栏（點擊左側話題列表空白處可收合） */}
@@ -1166,8 +1166,8 @@ function Memo() {
                   </div>
                 </div>
 
-              {/* 消息列表 */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* 消息列表（可上下滑動瀏覽） */}
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
                 {messages.length === 0 ? (
                   <div className="text-gray-400 text-center py-12">
                     <p>尚無消息</p>
