@@ -107,3 +107,34 @@ export const updateTopicTitle = (topicId, newTitle) => {
     return { success: false, message: '更新話題失敗' }
   }
 }
+
+// 單一對話框：取得或建立全域話題，所有用戶發話都在此
+const GLOBAL_TOPIC_ID = 'global'
+
+export const getOrCreateGlobalTopic = () => {
+  const topics = getTopics()
+  let globalTopic = topics.find(t => t.id === GLOBAL_TOPIC_ID)
+  if (!globalTopic) {
+    globalTopic = {
+      id: GLOBAL_TOPIC_ID,
+      title: '對話框',
+      createdAt: new Date().toISOString(),
+      messages: []
+    }
+    topics.push(globalTopic)
+    const val = JSON.stringify(topics)
+    localStorage.setItem(MEMO_STORAGE_KEY, val)
+    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+  }
+  return globalTopic
+}
+
+export const getGlobalMessages = () => {
+  const topic = getOrCreateGlobalTopic()
+  return topic.messages || []
+}
+
+export const addGlobalMessage = (messageContent, author = '使用者') => {
+  getOrCreateGlobalTopic()
+  return addMessage(GLOBAL_TOPIC_ID, messageContent, author)
+}
