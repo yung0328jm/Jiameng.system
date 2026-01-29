@@ -244,6 +244,50 @@ function PersonalPerformance() {
     
     // 獲取出勤記錄（所有打卡記錄，包括正常和遲到）
     const attendanceRecords = getUserAttendanceRecords(userName, startDate, endDate)
+
+    // 同一天可能同時存在「缺少打卡」與「請假」等多筆資料（歷史匯入/先未打卡後補請假）
+    // 顯示/統計時以「請假 > 有時間 > 未打卡」合併成每天最多一筆，避免重複日期
+    const normalizeYMD = (d) => String(d || '').slice(0, 10)
+    const isLeaveAttendance = (r) => {
+      const s = String(r?.details || '').trim()
+      return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
+    }
+    const isNoClockInAttendance = (r) => {
+      return !r?.clockInTime ||
+        r?.details === '缺少打卡時間' ||
+        r?.details === '匯入檔案後無記錄' ||
+        r?.details === '匯入檔案後無紀錄'
+    }
+    const toMinutes = (t) => {
+      const m = String(t || '').match(/^(\d{1,2}):(\d{2})$/)
+      if (!m) return Number.POSITIVE_INFINITY
+      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+    }
+    const betterAttendance = (a, b) => {
+      const score = (x) => (isLeaveAttendance(x) ? 3 : (x?.clockInTime ? 2 : (isNoClockInAttendance(x) ? 1 : 0)))
+      const sa = score(a)
+      const sb = score(b)
+      if (sa !== sb) return sa > sb ? a : b
+      // 同等：若都有時間，取最早
+      const ta = toMinutes(a?.clockInTime)
+      const tb = toMinutes(b?.clockInTime)
+      if (ta !== tb) return ta < tb ? a : b
+      return a
+    }
+    const mergeAttendanceByDay = (list) => {
+      const map = new Map() // ymd -> record
+      ;(Array.isArray(list) ? list : []).forEach((r) => {
+        const ymd = normalizeYMD(r?.date)
+        if (!ymd) return
+        if (!map.has(ymd)) {
+          map.set(ymd, r)
+          return
+        }
+        map.set(ymd, betterAttendance(map.get(ymd), r))
+      })
+      return Array.from(map.values())
+    }
+    const mergedAttendanceRecords = mergeAttendanceByDay(attendanceRecords)
     
     // 保存遲到記錄列表（用於點擊查看詳情）
     // 按日期降序排序
@@ -254,9 +298,9 @@ function PersonalPerformance() {
     })
     
     // 保存出勤記錄列表（按日期降序排序）
-    const sortedAttendanceRecords = [...attendanceRecords].sort((a, b) => {
-      const dateA = new Date(a.date || 0)
-      const dateB = new Date(b.date || 0)
+    const sortedAttendanceRecords = [...mergedAttendanceRecords].sort((a, b) => {
+      const dateA = new Date(`${normalizeYMD(a?.date)}T00:00:00`)
+      const dateB = new Date(`${normalizeYMD(b?.date)}T00:00:00`)
       return dateB - dateA
     })
     
@@ -269,14 +313,11 @@ function PersonalPerformance() {
     // 使用當前月份的出勤記錄計算遲到和正常出勤
     sortedAttendanceRecords.forEach(record => {
       // 判斷是否為未打卡記錄
-      const isNoClockIn = !record.clockInTime || 
-                         record.details === '缺少打卡時間' || 
-                         record.details === '匯入檔案後無記錄' ||
-                         record.details === '匯入檔案後無紀錄'
+      const isNoClockIn = isNoClockInAttendance(record)
       
       if (isNoClockIn) {
         // 判斷日期是否為週六或週日
-        const recordDate = new Date(record.date)
+        const recordDate = new Date(`${normalizeYMD(record?.date)}T00:00:00`)
         const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
         
         // 只統計非週末的未打卡記錄（但這裡只統計當前月份的）
@@ -287,11 +328,11 @@ function PersonalPerformance() {
         // 解析打卡時間和上班時間
         const clockInTimeStr = record.clockInTime
         const [clockHour, clockMinute] = clockInTimeStr.split(':').map(Number)
-        const clockInDate = new Date(record.date)
+        const clockInDate = new Date(`${normalizeYMD(record?.date)}T00:00:00`)
         clockInDate.setHours(clockHour, clockMinute, 0, 0)
         
         const [startHour, startMinute] = workStartTime.split(':').map(Number)
-        const startTime = new Date(record.date)
+        const startTime = new Date(`${normalizeYMD(record?.date)}T00:00:00`)
         startTime.setHours(startHour, startMinute, 0, 0)
         
         const diffMs = clockInDate.getTime() - startTime.getTime()
@@ -310,12 +351,9 @@ function PersonalPerformance() {
     
     // 建構未打卡記錄列表（排除週末）
     const noClockInRecords = sortedAttendanceRecords.filter(record => {
-      const isNoClockIn = !record.clockInTime || 
-                         record.details === '缺少打卡時間' || 
-                         record.details === '匯入檔案後無記錄' ||
-                         record.details === '匯入檔案後無紀錄'
+      const isNoClockIn = isNoClockInAttendance(record)
       if (!isNoClockIn) return false
-      const recordDate = new Date(record.date)
+      const recordDate = new Date(`${normalizeYMD(record?.date)}T00:00:00`)
       const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
       return dayOfWeek !== 0 && dayOfWeek !== 6
     })
@@ -567,13 +605,18 @@ function PersonalPerformance() {
       )
       
       // 統計未打卡（當日）
-      const dailyNoClockInRecords = getUserAttendanceRecords(user.account, dateStr, dateStr).filter(record => {
+      const dailyAttendance = getUserAttendanceRecords(user.account, dateStr, dateStr)
+      const hasLeaveThatDay = (dailyAttendance || []).some((r) => {
+        const s = String(r?.details || '').trim()
+        return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
+      })
+      const dailyNoClockInRecords = hasLeaveThatDay ? [] : (dailyAttendance || []).filter(record => {
         const isNoClockIn = !record.clockInTime || 
                            record.details === '缺少打卡時間' || 
                            record.details === '匯入檔案後無記錄' ||
                            record.details === '匯入檔案後無紀錄'
         if (!isNoClockIn) return false
-        const recordDate = new Date(record.date)
+        const recordDate = new Date(`${String(record?.date || '').slice(0, 10)}T00:00:00`)
         const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
         return dayOfWeek !== 0 && dayOfWeek !== 6 // 排除週末
       })
