@@ -634,7 +634,7 @@ function Home() {
     }
 
     // 為每個排行榜項目計算排名（不使用時間範圍過濾）
-    leaderboardItems.forEach(leaderboardItem => {
+    for (const leaderboardItem of (Array.isArray(leaderboardItems) ? leaderboardItems : [])) {
       const userStats = {}
 
       // 初始化每個用戶的統計數據
@@ -911,7 +911,7 @@ function Home() {
       }
       
       newRankings[leaderboardItem.id] = userArray
-    })
+    }
     
     setRankings(newRankings)
     
