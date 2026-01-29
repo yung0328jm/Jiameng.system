@@ -129,6 +129,22 @@ export async function getAllProfiles() {
   return Array.isArray(data) ? data : []
 }
 
+/**
+ * 取得公開 profiles 清單（供全站功能使用）
+ * - 讓所有已登入用戶都能取得 account / display_name / is_admin
+ * - 不回傳 email，避免暴露敏感資料
+ */
+export async function getPublicProfiles() {
+  const sb = getSupabaseClient()
+  if (!sb) return []
+  const { data, error } = await sb.rpc('get_public_profiles')
+  if (error) {
+    console.warn('getPublicProfiles', error)
+    return []
+  }
+  return Array.isArray(data) ? data : []
+}
+
 /** 設定某帳號的 is_admin（僅管理員可呼叫） */
 export async function setProfileAdmin(account, isAdmin) {
   const sb = getSupabaseClient()
