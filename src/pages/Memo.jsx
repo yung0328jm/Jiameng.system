@@ -10,6 +10,7 @@ import { getEquippedEffects } from '../utils/effectStorage'
 import { getEffectDisplayConfig, getStyleForPreset, getDecorationForPreset, getDecorationById } from '../utils/effectDisplayStorage'
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 
 function Memo() {
   const [userRole, setUserRole] = useState(null)
@@ -41,6 +42,17 @@ function Memo() {
   const [inventory, setInventory] = useState([])
   // 排行榜項目（用於名子／發話／稱號特效）：切回此頁或取得焦點時重讀，確保編輯排行榜後的設定會反映
   const [leaderboardItems, setLeaderboardItems] = useState(() => getLeaderboardItems())
+
+  // 交流區顯示名稱：優先使用「下拉選單綁定帳號的姓名」，其次 users.name，最後才顯示帳號
+  const getDisplayNameForAccount = (account) => {
+    const acc = String(account || '').trim()
+    if (!acc) return '使用者'
+    const boundNames = getDisplayNamesForAccount(acc) || []
+    const preferred = boundNames.find((n) => n && n !== acc)
+    if (preferred) return preferred
+    const u = (getUsers() || []).find((x) => x?.account === acc)
+    return (u?.name || acc)
+  }
 
 
 
@@ -764,7 +776,7 @@ function Memo() {
                     boxShadow: '0 2px 8px rgba(212, 175, 55, 0.2)'
                   }}
                 >
-                  {danmu.author}
+                  {getDisplayNameForAccount(danmu.author)}
                   {(() => {
                     const danmuAuthorTitle = getUserTitle(danmu.author)
                     return danmuAuthorTitle ? (
@@ -1030,7 +1042,7 @@ function Memo() {
                         className="font-semibold text-sm"
                         style={nameEffectStyle || { color: '#FFFFFF' }}
                       >
-                        {message.author}
+                        {getDisplayNameForAccount(message.author)}
                       </span>
                       {nameDeco && <span className={nameDeco.className}>{nameDeco.emoji}</span>}
                       {userTitle && (
@@ -1062,7 +1074,7 @@ function Memo() {
                 className="font-semibold"
                 style={getNameEffectStyle(author) || { color: '#FFFFFF' }}
               >
-                {(getUsers().find((x) => x.account === author)?.name) || author}
+                {getDisplayNameForAccount(author)}
               </span>
               {(() => {
                 const authorDeco = getDecorationForNameEffect(author)
