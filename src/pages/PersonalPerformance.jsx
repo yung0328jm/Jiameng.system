@@ -981,6 +981,14 @@ function PersonalPerformance() {
       return leaveKeywords.some((k) => v.includes(k))
     }
 
+    const isWeekendDate = (dateStr) => {
+      if (!dateStr) return false
+      const d = new Date(dateStr)
+      if (Number.isNaN(d.getTime())) return false
+      const day = d.getDay()
+      return day === 0 || day === 6
+    }
+
     const preview = parsed.map((row, index) => {
       // 處理用戶名：如果當前行有用戶名，更新；否則使用上一行的用戶名
       const rowUserName = row[userField]?.trim()
@@ -1136,8 +1144,53 @@ function PersonalPerformance() {
         raw: row
       }
     })
-    
-    setImportPreview(preview)
+
+    // 1) 週末且「沒有打卡時間」：不顯示/不計入（避免週六週日出現未打卡）
+    const filtered = preview.filter((r) => {
+      if (!r?.date) return true
+      if (!isWeekendDate(r.date)) return true
+      // 週末有時間 / 有請假：保留（有可能週末加班或週末請假紀錄）
+      if (r.leave) return true
+      if (!r.error && r.time) return true
+      // 週末且缺少打卡時間：忽略
+      if (r.error === '缺少打卡時間') return false
+      return true
+    })
+
+    // 2) 同一天重複：合併（保留「請假」>「有時間」>「缺少打卡時間」；有多筆時間取最早）
+    const toMinutes = (t) => {
+      const m = String(t || '').match(/^(\d{1,2}):(\d{2})$/)
+      if (!m) return Number.POSITIVE_INFINITY
+      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+    }
+    const better = (a, b) => {
+      const rank = (x) => (x?.leave ? 3 : (!x?.error && x?.time ? 2 : (x?.error ? 0 : 1)))
+      const ra = rank(a)
+      const rb = rank(b)
+      if (ra !== rb) return ra > rb ? a : b
+      // 同等：若都有時間，取最早
+      const ta = toMinutes(a?.time)
+      const tb = toMinutes(b?.time)
+      if (ta !== tb) return ta < tb ? a : b
+      // 其他：保留先出現的（較小 index）
+      return (a?.index ?? 0) <= (b?.index ?? 0) ? a : b
+    }
+    const map = new Map()
+    const order = []
+    filtered.forEach((r) => {
+      const key = (r?.date && r?.userName) ? `${r.userName}__${r.date}` : `idx__${r.index}`
+      if (!map.has(key)) {
+        map.set(key, { ...r, _firstIndex: r.index, duplicateCount: 1 })
+        order.push(key)
+        return
+      }
+      const cur = map.get(key)
+      const keep = better(cur, r)
+      map.set(key, { ...keep, _firstIndex: cur._firstIndex, duplicateCount: (cur.duplicateCount || 1) + 1 })
+    })
+    const deduped = order.map((k) => map.get(k)).sort((a, b) => (a?._firstIndex ?? 0) - (b?._firstIndex ?? 0)).map((r, i) => ({ ...r, index: i + 1 }))
+
+    setImportPreview(deduped)
     } catch (error) {
       console.error('預覽數據時發生錯誤:', error)
       alert('預覽數據時發生錯誤: ' + (error.message || '未知錯誤'))
