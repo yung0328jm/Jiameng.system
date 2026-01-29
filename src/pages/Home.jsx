@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react'
 import { getUsers } from '../utils/storage'
-import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
+import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getUserPerformanceRecords, getUserLateRecords, getUserAttendanceRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking } from '../utils/leaderboardStorage'
@@ -132,8 +132,20 @@ function Home() {
   }, []) // 移除依賴項，避免無限循環
   
   // 自動同步「整月無遲到」排行榜
-  const syncNoLateLeaderboard = () => {
-    const users = getUsers().filter(u => u.role !== 'admin')
+  const syncNoLateLeaderboard = async () => {
+    let users = getUsers().filter(u => u.role !== 'admin')
+    if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+      try {
+        const profiles = await getPublicProfiles()
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          users = profiles
+            .filter(p => !p?.is_admin)
+            .map(p => ({ account: p.account, name: p.display_name || p.account, role: p.is_admin ? 'admin' : 'user' }))
+        }
+      } catch (e) {
+        console.warn('syncNoLateLeaderboard: 取得 profiles 失敗', e)
+      }
+    }
     const now = new Date()
     const year = now.getFullYear()
     const month = now.getMonth()
@@ -611,7 +623,20 @@ function Home() {
   const calculateAllRankings = async () => {
     if (leaderboardItems.length === 0) return
 
-    const users = getUsers().filter(u => u.role !== 'admin') // 排除管理者
+    // Supabase 模式：用公開 profiles 清單（所有登入者都可取得），避免只靠本機 jiameng_users 造成分發失敗
+    let users = getUsers().filter(u => u.role !== 'admin') // 排除管理者
+    if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+      try {
+        const profiles = await getPublicProfiles()
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          users = profiles
+            .filter(p => !p?.is_admin)
+            .map(p => ({ account: p.account, name: p.display_name || p.account, role: p.is_admin ? 'admin' : 'user' }))
+        }
+      } catch (e) {
+        console.warn('calculateAllRankings: 取得 profiles 失敗', e)
+      }
+    }
     const schedules = getSchedules() // 排行榜駕駛次數從此排程資訊抓取（出發駕駛、回程駕駛）
     const newRankings = {}
 
@@ -841,15 +866,15 @@ function Home() {
           let allUsers = []
           if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
             try {
-              const profiles = await getAllProfiles()
-              allUsers = (profiles || []).map(p => ({ account: p.account }))
+              const profiles = await getPublicProfiles()
+              allUsers = (profiles || []).filter(p => !p?.is_admin).map(p => ({ account: p.account }))
             } catch (e) {
               console.warn('團體目標派發：取得 profiles 失敗', e)
             }
           }
           if (allUsers.length === 0) {
             const local = getUsers()
-            allUsers = Array.isArray(local) ? local : []
+            allUsers = (Array.isArray(local) ? local : []).filter(u => u.role !== 'admin')
           }
           if (rewardType === 'item' && leaderboardItem.rewardItemId) {
             allUsers.forEach(user => {
@@ -939,7 +964,7 @@ function Home() {
     let allUsersForRemove = []
     if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
       try {
-        const profiles = await getAllProfiles()
+        const profiles = await getPublicProfiles()
         const list = Array.isArray(profiles) ? profiles : []
         list.forEach(p => {
           if (p.account) {
@@ -948,7 +973,7 @@ function Home() {
             if (name) nameToAccountMap[name] = p.account
           }
         })
-        allUsersForRemove = list.map(p => ({ account: p.account }))
+        allUsersForRemove = list.map(p => ({ account: p.account, is_admin: !!p.is_admin }))
       } catch (e) {
         console.warn('distributeTitlesAndEffects: 取得 profiles 失敗', e)
       }
@@ -1118,7 +1143,8 @@ function Home() {
           
           // 只移除「屬於此排行榜」的稱號與名子／發話特效：非前三名收回此榜全部；前三名在下面只做「此榜其他名次」的移除與發放
           const localUsers = getUsers()
-          const allUsers = allUsersForRemove.length > 0 ? allUsersForRemove : (Array.isArray(localUsers) ? localUsers : [])
+          const allUsersRaw = allUsersForRemove.length > 0 ? allUsersForRemove : (Array.isArray(localUsers) ? localUsers : [])
+          const allUsers = allUsersRaw.filter(u => !u?.is_admin && u?.role !== 'admin')
           allUsers.forEach(user => {
             const userAccount = user.account
             const isInTopThree = topThree.some(t => t.userName === userAccount)
