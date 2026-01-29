@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import { getUsers, updateUserRole, deleteUser } from '../utils/storage'
 import { getCurrentUserRole, getCurrentUser, saveCurrentUser } from '../utils/authStorage'
-import { getUserPerformanceRecords, getUserLateRecords } from '../utils/performanceStorage'
+import { getUserAttendanceRecords, getUserPerformanceRecords, getUserLateRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getRegistrationPassword, setRegistrationPassword } from '../utils/registrationPasswordStorage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, setProfileAdmin } from '../utils/authSupabase'
+import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
+import { calculateCompletionRateAdjustment } from '../utils/completionRateConfigStorage'
+import { getLatePerformanceConfig, calculateLateCountAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
 
 function UserManagement() {
   const [users, setUsers] = useState([])
@@ -50,24 +53,26 @@ function UserManagement() {
 
   const getDateRange = () => {
     const today = new Date()
-    const endDate = today.toISOString().split('T')[0]
+    const pad2 = (n) => String(n).padStart(2, '0')
+    const formatLocalYMD = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+    const endDate = formatLocalYMD(today)
     let startDate
 
     switch (dateRange) {
       case 'week':
         const weekAgo = new Date(today)
         weekAgo.setDate(weekAgo.getDate() - 7)
-        startDate = weekAgo.toISOString().split('T')[0]
+        startDate = formatLocalYMD(weekAgo)
         break
       case 'month':
         const monthAgo = new Date(today)
         monthAgo.setMonth(monthAgo.getMonth() - 1)
-        startDate = monthAgo.toISOString().split('T')[0]
+        startDate = formatLocalYMD(monthAgo)
         break
       case 'year':
         const yearAgo = new Date(today)
         yearAgo.setFullYear(yearAgo.getFullYear() - 1)
-        startDate = yearAgo.toISOString().split('T')[0]
+        startDate = formatLocalYMD(yearAgo)
         break
       default:
         startDate = null
@@ -78,9 +83,19 @@ function UserManagement() {
   const calculateAllUsersPerformance = () => {
     const { startDate, endDate } = getDateRange()
     const performanceData = {}
+    const lateConfig = getLatePerformanceConfig()
+    const normalizeYMD = (d) => String(d || '').slice(0, 10)
+    const isWeekendYMD = (ymd) => {
+      if (!ymd) return false
+      const dd = new Date(`${ymd}T00:00:00`)
+      if (Number.isNaN(dd.getTime())) return false
+      const day = dd.getDay()
+      return day === 0 || day === 6
+    }
 
     users.forEach(user => {
       const userName = user.account
+      const displayNames = getDisplayNamesForAccount(userName || '')
       
       // 計算績效評分
       const performanceRecords = getUserPerformanceRecords(userName, startDate, endDate)
@@ -90,7 +105,6 @@ function UserManagement() {
           totalAdjustment += parseFloat(record.adjustment) || 0
         }
       })
-      const performanceScore = 100 + totalAdjustment
 
       // 計算工作完成情況
       const schedules = getSchedules()
@@ -104,30 +118,22 @@ function UserManagement() {
         if (startDate && schedule.date && schedule.date < startDate) return
         if (endDate && schedule.date && schedule.date > endDate) return
 
-        if (schedule.participants) {
-          const participants = schedule.participants.split(',').map(p => p.trim())
-          if (participants.includes(userName)) {
-            if (schedule.workItems && schedule.workItems.length > 0) {
-              schedule.workItems.forEach(item => {
-                if (item.responsiblePerson === userName) {
-                  const target = parseFloat(item.targetQuantity) || 0
-                  const actual = parseFloat(item.actualQuantity) || 0
-                  const completionRate = target > 0 ? (actual / target * 100) : 0
-                  
-                  totalItems++
-                  totalCompletionRate += completionRate
-                  itemsWithRate++
+        if (!schedule.workItems || schedule.workItems.length === 0) return
+        schedule.workItems.forEach(item => {
+          const resp = (item.responsiblePerson || '').trim()
+          if (!resp) return
+          if (!displayNames.includes(resp)) return
 
-                  if (completionRate >= 100) {
-                    completedItems++
-                  } else if (completionRate > 0) {
-                    partialItems++
-                  }
-                }
-              })
-            }
-          }
-        }
+          const target = parseFloat(item.targetQuantity) || 0
+          const actual = parseFloat(item.actualQuantity) || 0
+          const completionRate = target > 0 ? (actual / target * 100) : 0
+          totalItems++
+          totalCompletionRate += completionRate
+          itemsWithRate++
+
+          if (completionRate >= 100) completedItems++
+          else if (completionRate > 0) partialItems++
+        })
       })
 
       const averageCompletionRate = itemsWithRate > 0 ? (totalCompletionRate / itemsWithRate) : 0
@@ -136,6 +142,35 @@ function UserManagement() {
       const lateRecords = getUserLateRecords(userName, startDate, endDate)
       const lateCount = lateRecords.length
 
+      // 計算未打卡次數（排除週末；同日若為請假則不算未打卡）
+      const attendanceRecords = getUserAttendanceRecords(userName, startDate, endDate)
+      const leaveDates = new Set()
+      ;(attendanceRecords || []).forEach((r) => {
+        const d = normalizeYMD(r?.date)
+        const s = String(r?.details || '').trim()
+        const isLeave = r?.type === 'leave' || s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
+        if (d && isLeave) leaveDates.add(d)
+      })
+      let noClockInCount = 0
+      ;(attendanceRecords || []).forEach((r) => {
+        const d = normalizeYMD(r?.date)
+        if (!d) return
+        if (isWeekendYMD(d)) return
+        if (leaveDates.has(d)) return
+        const isNoClockIn = r?.type === 'no-clockin' ||
+          !r?.clockInTime ||
+          r?.details === '缺少打卡時間' ||
+          r?.details === '匯入檔案後無記錄' ||
+          r?.details === '匯入檔案後無紀錄'
+        if (isNoClockIn) noClockInCount++
+      })
+
+      // 將達成率/出勤扣分計入「實際績效」
+      const completionRateAdjustment = averageCompletionRate > 0 ? calculateCompletionRateAdjustment(averageCompletionRate) : 0
+      const lateAdjustment = lateConfig?.enabled ? calculateLateCountAdjustment(lateCount) : 0
+      const noClockInAdjustment = lateConfig?.enabled ? calculateNoClockInAdjustment(noClockInCount) : 0
+      const performanceScore = 100 + totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment
+
       performanceData[userName] = {
         performanceScore,
         totalAdjustment,
@@ -143,7 +178,11 @@ function UserManagement() {
         totalWorkItems: totalItems,
         completedItems,
         partialItems,
-        lateCount
+        lateCount,
+        noClockInCount,
+        completionRateAdjustment,
+        lateAdjustment,
+        noClockInAdjustment
       }
     })
 
@@ -337,8 +376,8 @@ function UserManagement() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2">
-                          <span className={`font-bold ${getPerformanceScoreColor(perfData.performanceScore || 100)}`}>
-                            {perfData.performanceScore ? perfData.performanceScore.toFixed(0) : 100}
+                          <span className={`font-bold ${getPerformanceScoreColor(typeof perfData.performanceScore === 'number' ? perfData.performanceScore : 100)}`}>
+                            {typeof perfData.performanceScore === 'number' ? perfData.performanceScore.toFixed(0) : 100}
                           </span>
                           {perfData.totalAdjustment !== undefined && perfData.totalAdjustment !== 0 && (
                             <span className={`text-xs ${perfData.totalAdjustment >= 0 ? 'text-green-400' : 'text-red-400'}`}>
