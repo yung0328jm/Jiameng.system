@@ -70,7 +70,6 @@ function Home() {
   })
   const [typeForm, setTypeForm] = useState({ name: '', titleFirstPlace: '', titleSecondPlace: '', titleThirdPlace: '', nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '', ...emptyRankEffects() })
   const [leaderboardTypes, setLeaderboardTypes] = useState([]) // 排行榜類型列表（供載入類型用）
-  const [previewLeaderboardId, setPreviewLeaderboardId] = useState(null) // 點擊預覽時顯示的排行榜 id
   // 待辦事項狀態
   const [todos, setTodos] = useState([])
   const [newTodoText, setNewTodoText] = useState('')
@@ -1846,7 +1845,7 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 網格小一點一行約 3 個，點擊預覽；有人上榜時金色光環特效 */}
+          {/* 排行榜 - 網格小一點一行約 3 個；有資料時直接顯示卡片，無資料時顯示 ? 卡 */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-2 items-stretch w-full min-w-0">
             {leaderboardItems.length === 0 ? (
               <div className="col-span-full text-center py-8">
@@ -2923,75 +2922,25 @@ function Home() {
                 </div>
                 );
 
-                const fullCardContentInPreview = greyCardEl ?? fullCardEl
-                const hasRankingEffect = hasValidRankings // 有資料卡：封面顯排名第一並發光
-                const firstPlace = manualRanks.length > 0 ? manualRanks[0] : (rankings[item.id] && rankings[item.id][0]) ? { name: rankings[item.id][0].name || rankings[item.id][0].userName } : null
-                const firstPlaceName = firstPlace ? (firstPlace.name || '') : ''
+                const hasRankingEffect = hasValidRankings // 有資料卡：直接顯示完整卡片
+                // 有資料時直接顯示完整卡片；無資料時顯示小 ? 卡
+                if (hasValidRankings) {
+                  return <Fragment key={item.id}>{fullCardEl}</Fragment>;
+                }
                 return (
                   <Fragment key={item.id}>
-                    {previewLeaderboardId === item.id && fullCardContentInPreview && (
-                      <div
-                        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 overflow-auto"
-                        onClick={() => setPreviewLeaderboardId(null)}
-                      >
-                        <div
-                          className="relative max-h-[90vh] w-full max-w-4xl my-auto rounded-lg overflow-y-auto overflow-x-hidden"
-                          onClick={e => e.stopPropagation()}
-                          style={{
-                            boxShadow: '0 0 48px rgba(251, 191, 36, 0.5), 0 0 96px rgba(251, 191, 36, 0.25)'
-                          }}
-                        >
-                          {fullCardContentInPreview}
-                          <button
-                            type="button"
-                            onClick={() => setPreviewLeaderboardId(null)}
-                            className="absolute top-2 right-2 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg"
-                            aria-label="關閉預覽"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setPreviewLeaderboardId(item.id)}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewLeaderboardId(item.id); } }}
-                      className={`relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[88px] sm:min-h-[100px] border border-gray-600 hover:border-yellow-400 transition-all cursor-pointer ${hasRankingEffect ? 'ring-2 ring-yellow-400' : ''}`}
-                      style={{
-                        background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)',
-                        ...(hasRankingEffect ? { boxShadow: '0 0 16px rgba(251, 191, 36, 0.4), 0 0 32px rgba(251, 191, 36, 0.2)' } : {})
-                      }}
+                      className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[88px] sm:min-h-[100px] border border-gray-600"
+                      style={{ background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)' }}
                     >
                       <div className="flex items-center gap-2 p-2 flex-1">
-                        {!hasRankingEffect ? (
-                          /* 灰色問號卡無資料：封面只顯示 ?，不顯示項目名稱 */
-                          <div className="w-full h-full min-h-[60px] sm:min-h-[72px] flex items-center justify-center">
-                            <span className="text-gray-400 text-4xl sm:text-5xl font-bold opacity-60">?</span>
-                          </div>
-                        ) : (
-                          <>
-                            {item.imageUrl ? (
-                              <img src={item.imageUrl} alt="" className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded flex-shrink-0" />
-                            ) : (
-                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-500 text-sm">?</div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white font-semibold truncate text-[10px] sm:text-xs">{item.title || item.name || '排行榜'}</p>
-                              {firstPlaceName ? (
-                                <p className="text-yellow-400 font-semibold truncate text-[10px] sm:text-xs mt-0.5" style={{ textShadow: '0 0 8px rgba(251, 191, 36, 0.9), 0 0 16px rgba(251, 191, 36, 0.6)' }}>
-                                  第一名：{firstPlaceName}
-                                </p>
-                              ) : (
-                                <p className="text-gray-400 text-[9px] mt-0.5">點擊預覽</p>
-                              )}
-                            </div>
-                          </>
-                        )}
+                        {/* 灰色問號卡無資料：封面只顯示 ?，不顯示項目名稱 */}
+                        <div className="w-full h-full min-h-[60px] sm:min-h-[72px] flex items-center justify-center">
+                          <span className="text-gray-400 text-4xl sm:text-5xl font-bold opacity-60">?</span>
+                        </div>
                       </div>
                       {userRole === 'admin' && (
-                        <div className="absolute top-1 right-1" onClick={e => e.stopPropagation()}>
+                        <div className="absolute top-1 right-1">
                           <button type="button" onClick={() => handleDeleteItem(item.id)} className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-[10px] leading-none">×</button>
                         </div>
                       )}
