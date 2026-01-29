@@ -10,6 +10,7 @@ import { getCompletionRateRules, saveCompletionRateRules, calculateCompletionRat
 import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCountAdjustment, calculateLateMinutesAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
+import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -716,6 +717,55 @@ function PersonalPerformance() {
     if (isNaN(date.getTime())) return null
     return date
   }
+
+  const pad2 = (n) => String(n).padStart(2, '0')
+  const formatLocalYMD = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  const parseLocalYMD = (ymd) => {
+    const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!m) return null
+    const y = parseInt(m[1], 10)
+    const mo = parseInt(m[2], 10)
+    const da = parseInt(m[3], 10)
+    return new Date(y, mo - 1, da)
+  }
+  const isWeekendYMD = (ymd) => {
+    const d = parseLocalYMD(ymd)
+    if (!d || Number.isNaN(d.getTime())) return false
+    const day = d.getDay()
+    return day === 0 || day === 6
+  }
+
+  const buildLeaveDateSetByUser = (applications, userDirectory = []) => {
+    const map = new Map() // account -> Set<YYYY-MM-DD>
+    const dir = Array.isArray(userDirectory) ? userDirectory : []
+    const resolveUser = (nameOrAccount) => {
+      if (!nameOrAccount) return null
+      const id = String(nameOrAccount).trim()
+      const u = findUserByAccountOrName(id, dir) || findUserByAccountOrName(id, getUsers())
+      return u?.account || id
+    }
+    const list = Array.isArray(applications) ? applications : []
+    list.forEach((r) => {
+      const status = r?.status || 'pending'
+      const isApproved = status === 'approved' || !!r?.approvedAt || !!r?.approvedBy
+      if (!isApproved) return
+      const userAcc = resolveUser(r?.userId || r?.userName)
+      if (!userAcc) return
+      const start = String(r?.startDate || '').slice(0, 10)
+      const end = String(r?.endDate || '').slice(0, 10)
+      const startD = parseLocalYMD(start)
+      const endD = parseLocalYMD(end)
+      if (!startD || !endD || Number.isNaN(startD.getTime()) || Number.isNaN(endD.getTime())) return
+      if (!map.has(userAcc)) map.set(userAcc, new Set())
+      const s = map.get(userAcc)
+      const cur = new Date(startD)
+      while (cur <= endD) {
+        s.add(formatLocalYMD(cur))
+        cur.setDate(cur.getDate() + 1)
+      }
+    })
+    return map
+  }
   
   const findUserByAccountOrName = (identifier, directory = null) => {
     if (!identifier) return null
@@ -971,6 +1021,9 @@ function PersonalPerformance() {
       }
     }
 
+    // 請假表（已核准）→ 視為正常不扣分
+    const leaveSetByUser = buildLeaveDateSetByUser(getLeaveApplications(), userDirectory)
+
     // 處理SOYA格式：日期和時間分開，且用戶名可能只在第一行
     let currentUserName = null
     
@@ -979,14 +1032,6 @@ function PersonalPerformance() {
       const v = String(s || '').trim()
       if (!v) return false
       return leaveKeywords.some((k) => v.includes(k))
-    }
-
-    const isWeekendDate = (dateStr) => {
-      if (!dateStr) return false
-      const d = new Date(dateStr)
-      if (Number.isNaN(d.getTime())) return false
-      const day = d.getDay()
-      return day === 0 || day === 6
     }
 
     const preview = parsed.map((row, index) => {
@@ -1055,6 +1100,20 @@ function PersonalPerformance() {
           
           // 查找用戶（用於顯示用戶名稱）
           const user = findUserByAccountOrName(userIdentifier, userDirectory)
+          const userAcc = user?.account || userIdentifier
+          // 若請假表中有該日（已核准），視為請假：正常不扣分
+          if (inferredDate && userAcc && leaveSetByUser.get(userAcc)?.has(inferredDate)) {
+            return {
+              index: index + 1,
+              raw: row,
+              date: inferredDate,
+              time: '請假',
+              leave: true,
+              late: false,
+              userName: userAcc,
+              userDisplayName: user ? (user.name || user.account) : userIdentifier
+            }
+          }
           
           return {
             index: index + 1,
@@ -1118,8 +1177,8 @@ function PersonalPerformance() {
         }
       }
       
-      // 使用解析後的日期，但直接使用原始時間字符串（避免時區問題）
-      const dateStr = dateTime.toISOString().split('T')[0]
+      // 使用本地日期（避免 toISOString 造成跨日/週末判斷錯位）
+      const dateStr = formatLocalYMD(dateTime)
       // 直接使用原始時間字符串，確保顯示正確
       // 如果rawTimeStr存在，直接使用；否則從dateTime提取
       let timeStr = rawTimeStr
@@ -1148,7 +1207,7 @@ function PersonalPerformance() {
     // 1) 週末且「沒有打卡時間」：不顯示/不計入（避免週六週日出現未打卡）
     const filtered = preview.filter((r) => {
       if (!r?.date) return true
-      if (!isWeekendDate(r.date)) return true
+      if (!isWeekendYMD(r.date)) return true
       // 週末有時間 / 有請假：保留（有可能週末加班或週末請假紀錄）
       if (r.leave) return true
       if (!r.error && r.time) return true
@@ -1282,6 +1341,9 @@ function PersonalPerformance() {
       }
     })
     
+    // 請假表（已核准）：不產生未打卡扣分
+    const leaveSetByUser = buildLeaveDateSetByUser(getLeaveApplications(), getUsers())
+
     // 處理未打卡記錄：將"缺少打卡時間"視為未打卡，並檢查沒有記錄的日期（排除週末）
     let noClockInSuccessCount = 0
     let noClockInDuplicateCount = 0
@@ -1290,13 +1352,14 @@ function PersonalPerformance() {
     const missingTimeRecords = importPreview.filter(p => p.error === '缺少打卡時間')
     missingTimeRecords.forEach(item => {
       if (item.date && item.userName) {
-        // 判斷日期是否為週六或週日
-        const recordDate = new Date(item.date)
-        const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
+        // 請假：不算未打卡
+        if (leaveSetByUser.get(item.userName)?.has(item.date)) return
+        const recordDate = parseLocalYMD(item.date)
+        const dayOfWeek = recordDate ? recordDate.getDay() : -1 // 0 = 週日, 6 = 週六
         
         // 只處理非週末的未打卡記錄
         if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-          const dateStr = item.date.split('T')[0] || item.date
+          const dateStr = item.date
           // 檢查是否已存在未打卡記錄
           const existingNoClockIn = getUserAttendanceRecords(item.userName, dateStr, dateStr)
             .filter(r => r.details === '缺少打卡時間' || r.details === '匯入檔案後無記錄')
@@ -1326,15 +1389,17 @@ function PersonalPerformance() {
     
     // 2. 檢查沒有記錄的日期（排除週末）
     // 按用戶分組處理，因為導入數據可能包含多個用戶
-    const userDateMap = new Map() // Map<userName, Set<dateStr>>
+    const userDateMap = new Map() // Map<userName, Set<dateStr>>（當月「有效打卡」）
+    const userAnyDateMap = new Map() // Map<userName, Set<dateStr>>（含缺少打卡/請假，避免同日重複產生「匯入後無記錄」）
     
-    // 收集每個用戶的有效記錄日期
+    // 收集每個用戶的日期
     importPreview.forEach(item => {
-      if (item.date && !item.error && item.userName) {
-        const dateStr = item.date.split('T')[0] || item.date
-        if (!userDateMap.has(item.userName)) {
-          userDateMap.set(item.userName, new Set())
-        }
+      if (!item?.date || !item?.userName) return
+      const dateStr = item.date
+      if (!userAnyDateMap.has(item.userName)) userAnyDateMap.set(item.userName, new Set())
+      userAnyDateMap.get(item.userName).add(dateStr)
+      if (!item.error) {
+        if (!userDateMap.has(item.userName)) userDateMap.set(item.userName, new Set())
         userDateMap.get(item.userName).add(dateStr)
       }
     })
@@ -1345,8 +1410,7 @@ function PersonalPerformance() {
       const allDates = []
       importPreview.forEach(item => {
         if (item.date && item.userName === userName) {
-          const dateStr = item.date.split('T')[0] || item.date
-          const date = new Date(dateStr)
+          const date = parseLocalYMD(item.date)
           if (!isNaN(date.getTime())) {
             allDates.push(date)
           }
@@ -1377,7 +1441,18 @@ function PersonalPerformance() {
             
             // 只處理非週末的日期
             if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-              const dateStr = currentDate.toISOString().split('T')[0]
+              const dateStr = formatLocalYMD(currentDate)
+
+              // 請假：視為正常，不產生未打卡
+              if (leaveSetByUser.get(userName)?.has(dateStr)) {
+                currentDate.setDate(currentDate.getDate() + 1)
+                continue
+              }
+              // CSV 內已有該日任何列（包含缺少打卡/請假）：不再產生「匯入檔案後無記錄」
+              if (userAnyDateMap.get(userName)?.has(dateStr)) {
+                currentDate.setDate(currentDate.getDate() + 1)
+                continue
+              }
               
               // 檢查該天是否有有效打卡記錄
               if (!datesWithValidRecords.has(dateStr)) {
