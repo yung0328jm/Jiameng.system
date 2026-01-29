@@ -2091,7 +2091,7 @@ function Home() {
                               <div className="flex-1">
                                 <input
                                   type="text"
-                                  value={item.subtitle || uiConfig.subtitle || ''}
+                                  value={(item.subtitle ?? uiConfig.subtitle) ?? ''}
                                   onChange={(e) => {
                                     updateLeaderboardItem(item.id, { subtitle: e.target.value })
                                     setLeaderboardItems(prev => 
@@ -2103,7 +2103,7 @@ function Home() {
                                 />
                                 <input
                                   type="text"
-                                  value={item.title || item.name || ''}
+                                  value={(item.title ?? item.name) ?? ''}
                                   onChange={(e) => {
                                     updateLeaderboardItem(item.id, { title: e.target.value })
                                     setLeaderboardItems(prev => 
@@ -2115,7 +2115,7 @@ function Home() {
                                 />
                                 <input
                                   type="text"
-                                  value={item.slogan || uiConfig.slogan1 || ''}
+                                  value={(item.slogan ?? uiConfig.slogan1) ?? ''}
                                   onChange={(e) => {
                                     updateLeaderboardItem(item.id, { slogan: e.target.value })
                                     setLeaderboardItems(prev => 
@@ -3254,8 +3254,11 @@ function Home() {
                             <input
                               type="number"
                               min="1"
-                              value={editForm.groupGoal || ''}
-                              onChange={(e) => setEditForm({ ...editForm, groupGoal: parseFloat(e.target.value) || 0 })}
+                              value={editForm.groupGoal ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value
+                                setEditForm({ ...editForm, groupGoal: v === '' ? '' : (parseFloat(v) || 0) })
+                              }}
                               className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                               placeholder="例如：1000"
                             />
@@ -3300,8 +3303,11 @@ function Home() {
                               <input
                                 type="number"
                                 min="1"
-                                value={editForm.rewardAmount || ''}
-                                onChange={(e) => setEditForm({ ...editForm, rewardAmount: parseFloat(e.target.value) || 0 })}
+                                value={editForm.rewardAmount ?? ''}
+                                onChange={(e) => {
+                                  const v = e.target.value
+                                  setEditForm({ ...editForm, rewardAmount: v === '' ? '' : (parseFloat(v) || 0) })
+                                }}
                                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                                 placeholder="例如：1000"
                               />

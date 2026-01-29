@@ -98,13 +98,15 @@ function ExchangeShop() {
       alert('請填寫道具名稱和圖標')
       return
     }
-    if (itemForm.price < 0) {
+    const priceNum = itemForm.price === '' ? 0 : (typeof itemForm.price === 'number' ? itemForm.price : (parseFloat(itemForm.price) || 0))
+    const normalizedForm = { ...itemForm, price: priceNum }
+    if (priceNum < 0) {
       alert('價格不能為負數')
       return
     }
 
     if (editingItem) {
-      const result = updateItem(editingItem.id, itemForm)
+      const result = updateItem(editingItem.id, normalizedForm)
       if (result.success) {
         alert('道具更新成功')
         loadItems()
@@ -113,7 +115,7 @@ function ExchangeShop() {
         alert(result.message || '更新失敗')
       }
     } else {
-      const result = createItem(itemForm)
+      const result = createItem(normalizedForm)
       if (result.success) {
         alert('道具創建成功')
         loadItems()
@@ -513,7 +515,10 @@ function ExchangeShop() {
                   <input
                     type="number"
                     value={itemForm.price}
-                    onChange={(e) => setItemForm({ ...itemForm, price: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setItemForm({ ...itemForm, price: v === '' ? '' : (parseFloat(v) || 0) })
+                    }}
                     placeholder="0"
                     min="0"
                     step="1"
