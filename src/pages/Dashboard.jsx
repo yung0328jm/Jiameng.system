@@ -24,6 +24,7 @@ import { getUserInventory, addItemToInventory } from '../utils/inventoryStorage'
 import { getPendingExchangeRequests, approveExchangeRequest, rejectExchangeRequest, deleteExchangeRequest } from '../utils/exchangeRequestStorage'
 import { removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
+import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 
 // 图标组件
 function HomeIcon() {
@@ -167,6 +168,44 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const topMenuButtonRef = useRef(null)
   const [topMenuPosition, setTopMenuPosition] = useState({ top: 0, right: 0 })
 
+  const loadAllUsersForAdmin = async () => {
+    try {
+      // Supabase 模式：用公開 profiles 清單（避免只剩舊 local users 的系統帳號）
+      if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+        const profiles = await getPublicProfiles()
+        const list = (Array.isArray(profiles) ? profiles : [])
+          .filter((p) => {
+            const acc = String(p?.account || '').trim()
+            if (!acc) return false
+            if (acc === 'admin') return false
+            if (acc === 'jiameng.system') return false
+            if (p?.is_admin) return false
+            return true
+          })
+          .map((p) => ({
+            account: p.account,
+            name: p.display_name || p.account,
+            role: p.is_admin ? 'admin' : 'user'
+          }))
+        setAllUsers(list)
+        return
+      }
+    } catch (e) {
+      console.warn('loadAllUsersForAdmin: getPublicProfiles failed', e)
+    }
+
+    // 非 Supabase：沿用 local users，但排除系統帳號/管理者
+    const users = (getUsers() || []).filter((u) => {
+      const acc = String(u?.account || '').trim()
+      if (!acc) return false
+      if (acc === 'admin') return false
+      if (acc === 'jiameng.system') return false
+      if (u?.role === 'admin') return false
+      return true
+    })
+    setAllUsers(users)
+  }
+
   useEffect(() => {
     const role = getCurrentUserRole()
     const user = getCurrentUser()
@@ -177,8 +216,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       setWalletBalance(balance)
     }
     if (role === 'admin') {
-      const users = getUsers()
-      setAllUsers(users)
+      loadAllUsersForAdmin()
       // 載入所有可用道具
       const items = getItems()
       setAvailableItems(items)
@@ -243,7 +281,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       updateBackpackCount(user)
     }
     if (role === 'admin') {
-      setAllUsers(getUsers())
+      loadAllUsersForAdmin()
       setAvailableItems(getItems())
       loadPendingExchangeRequests()
     }
