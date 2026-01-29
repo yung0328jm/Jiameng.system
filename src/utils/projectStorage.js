@@ -2,11 +2,18 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const PROJECT_STORAGE_KEY = 'jiameng_projects'
 
+const persist = (projects) => {
+  const val = JSON.stringify(projects)
+  localStorage.setItem(PROJECT_STORAGE_KEY, val)
+  syncKeyToSupabase(PROJECT_STORAGE_KEY, val)
+}
+
 // 获取所有專案
 export const getProjects = () => {
   try {
     const projects = localStorage.getItem(PROJECT_STORAGE_KEY)
-    return projects ? JSON.parse(projects) : []
+    const parsed = projects ? JSON.parse(projects) : []
+    return Array.isArray(parsed) ? parsed : []
   } catch (error) {
     console.error('Error getting projects:', error)
     return []
@@ -29,7 +36,8 @@ export const saveProject = (project) => {
     } else {
       projects.push(newProject)
     }
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects))
+    // 新增/更新都要同步到 Supabase（否則跨裝置會看不到最新專案）
+    persist(projects)
     return { success: true, project: newProject }
   } catch (error) {
     console.error('Error saving project:', error)
@@ -50,9 +58,7 @@ export const updateProject = (id, updates) => {
       ...updates,
       updatedAt: new Date().toISOString()
     }
-    const val = JSON.stringify(projects)
-    localStorage.setItem(PROJECT_STORAGE_KEY, val)
-    syncKeyToSupabase(PROJECT_STORAGE_KEY, val)
+    persist(projects)
     return { success: true }
   } catch (error) {
     console.error('Error updating project:', error)
@@ -65,9 +71,7 @@ export const deleteProject = (id) => {
   try {
     const projects = getProjects()
     const filtered = projects.filter(p => p.id !== id)
-    const val = JSON.stringify(filtered)
-    localStorage.setItem(PROJECT_STORAGE_KEY, val)
-    syncKeyToSupabase(PROJECT_STORAGE_KEY, val)
+    persist(filtered)
     return { success: true }
   } catch (error) {
     console.error('Error deleting project:', error)
