@@ -206,7 +206,7 @@ function DropdownManagement({ userRole: propUserRole }) {
                 <option value="">不綁定</option>
                 {(Array.isArray(users) ? users : []).map(user => (
                   <option key={user.account} value={user.account}>
-                    {user.account} {user.name ? `(${user.name})` : ''}
+                    {user.name || user.account}
                   </option>
                 ))}
               </select>
@@ -261,7 +261,7 @@ function DropdownManagement({ userRole: propUserRole }) {
                           <option value="">不綁定</option>
                           {(Array.isArray(users) ? users : []).map(user => (
                             <option key={user.account} value={user.account}>
-                              {user.account} {user.name ? `(${user.name})` : ''}
+                              {user.name || user.account}
                             </option>
                           ))}
                         </select>
@@ -271,10 +271,13 @@ function DropdownManagement({ userRole: propUserRole }) {
                 ) : (
                   <>
                     <div className="text-white flex-1">
-                      <div>{option.value}</div>
+                      <div>{(selectedCategory === 'participants' || selectedCategory === 'responsible_persons') && option.boundAccount
+                        ? (users.find(u => u.account === option.boundAccount)?.name) || option.value
+                        : option.value}
+                      </div>
                       {(selectedCategory === 'participants' || selectedCategory === 'responsible_persons') && option.boundAccount && (
                         <div className="text-gray-400 text-xs mt-1">
-                          已綁定帳號: {option.boundAccount}
+                          已綁定: {(users.find(u => u.account === option.boundAccount)?.name) || option.boundAccount}
                         </div>
                       )}
                     </div>
