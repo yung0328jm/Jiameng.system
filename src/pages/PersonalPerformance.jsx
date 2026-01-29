@@ -298,7 +298,20 @@ function PersonalPerformance() {
     })
     
     // 保存出勤記錄列表（按日期降序排序）
-    const sortedAttendanceRecords = [...mergedAttendanceRecords].sort((a, b) => {
+    // 週末未打卡（通常是舊版 toISOString 時區錯位留下的資料）不顯示
+    const visibleAttendanceRecords = mergedAttendanceRecords.filter((r) => {
+      const ymd = normalizeYMD(r?.date)
+      if (!ymd) return true
+      const d = new Date(`${ymd}T00:00:00`)
+      if (Number.isNaN(d.getTime())) return true
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6
+      if (!isWeekend) return true
+      // 週末只有「未打卡」才隱藏；若真的週末有刷卡/請假仍顯示
+      if (isNoClockInAttendance(r) && !isLeaveAttendance(r) && !r?.clockInTime) return false
+      return true
+    })
+
+    const sortedAttendanceRecords = [...visibleAttendanceRecords].sort((a, b) => {
       const dateA = new Date(`${normalizeYMD(a?.date)}T00:00:00`)
       const dateB = new Date(`${normalizeYMD(b?.date)}T00:00:00`)
       return dateB - dateA
@@ -2145,6 +2158,10 @@ function PersonalPerformance() {
                                           record.details === '缺少打卡時間' || 
                                           record.details === '匯入檔案後無記錄' ||
                                           record.details === '匯入檔案後無紀錄'
+                        const isLeave = (() => {
+                          const s = String(record?.details || '').trim()
+                          return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
+                        })()
                         
                         return (
                         <tr key={record.id || index} className="border-b border-gray-700 hover:bg-gray-750">
@@ -2160,7 +2177,9 @@ function PersonalPerformance() {
                             {record.clockInTime || '—'}
                           </td>
                           <td className="px-2 py-1.5 text-center">
-                            {isNoClockIn ? (
+                            {isLeave ? (
+                              <span className="text-green-400 font-semibold text-[10px] sm:text-xs">請假</span>
+                            ) : isNoClockIn ? (
                               <span className="text-yellow-400 font-semibold text-[10px] sm:text-xs">未打卡</span>
                             ) : record.isLate ? (
                               <span className="text-red-400 font-semibold text-[10px] sm:text-xs">遲到</span>
