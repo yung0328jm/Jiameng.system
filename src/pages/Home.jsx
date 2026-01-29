@@ -1901,8 +1901,8 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 手機加大卡片間距，一行約 2～3 個 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2 items-stretch w-full min-w-0">
+          {/* 排行榜：自動依可用寬度排欄位；面板數量少時會拉寬填滿左右 */}
+          <div className="grid gap-3 sm:gap-4 items-stretch w-full min-w-0 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
             {leaderboardItems.length === 0 ? (
               <div className="col-span-full text-center py-8">
                 <p className="text-[10px] sm:text-xs text-gray-400 mb-3">尚無排行榜項目</p>
