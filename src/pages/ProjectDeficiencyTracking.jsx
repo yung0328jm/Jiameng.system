@@ -945,6 +945,7 @@ function ProjectDetailView({
           .project-print-area .sticky { position: static !important; top: auto !important; }
           .project-print-area .hover\\:bg-gray-900:hover { background: transparent !important; }
           .project-print-only { display: block !important; }
+          .project-deficiency-body { display: block !important; }
         }
         .project-print-only { display: none; }
       `}</style>
@@ -1110,11 +1111,11 @@ function ProjectDetailView({
       </div>
 
       {/* 案場缺失紀錄 - 可展開/折疊 */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 mb-6 overflow-hidden project-no-print">
+      <div className="bg-gray-800 rounded-lg border border-gray-700 mb-6 overflow-hidden">
         {/* 標題行 - 可點擊展開/折疊 */}
         <div
           onClick={() => setShowDeficiencyRecord(!showDeficiencyRecord)}
-          className="p-4 cursor-pointer hover:bg-gray-750 transition-colors flex items-center justify-between"
+          className="p-4 cursor-pointer hover:bg-gray-750 transition-colors flex items-center justify-between project-no-print"
         >
           <div className="flex items-center space-x-3">
             <svg
@@ -1133,8 +1134,7 @@ function ProjectDetailView({
         </div>
 
         {/* 展開內容 */}
-        {showDeficiencyRecord && (
-          <div className="border-t border-gray-700 p-6">
+        <div className={`border-t border-gray-700 p-6 project-deficiency-body ${showDeficiencyRecord ? '' : 'hidden'}`}>
             {/* 快速輸入區 */}
       <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-yellow-400">
         <h3 className="text-lg font-bold text-yellow-400 mb-4">
@@ -1413,7 +1413,6 @@ function ProjectDetailView({
         </div>
       </div>
           </div>
-        )}
       </div>
     </div>
   )
