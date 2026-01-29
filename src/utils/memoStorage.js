@@ -1,12 +1,39 @@
 // 交流區存储工具
 import { syncKeyToSupabase } from './supabaseSync'
 const MEMO_STORAGE_KEY = 'jiameng_memos'
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
+
+const persist = (topics) => {
+  const val = JSON.stringify(topics)
+  localStorage.setItem(MEMO_STORAGE_KEY, val)
+  syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+}
+
+const pruneTopicMessages = (topics) => {
+  const now = Date.now()
+  const cutoff = now - ONE_DAY_MS
+  let changed = false
+  const next = (Array.isArray(topics) ? topics : []).map((t) => {
+    const msgs = Array.isArray(t?.messages) ? t.messages : []
+    const filtered = msgs.filter((m) => {
+      // 沒有 createdAt 的舊資料：先保留，避免誤刪
+      if (!m?.createdAt) return true
+      const ts = Date.parse(m.createdAt)
+      if (Number.isNaN(ts)) return true
+      return ts >= cutoff
+    })
+    if (filtered.length !== msgs.length) changed = true
+    return { ...t, messages: filtered }
+  })
+  return { next, changed }
+}
 
 // 获取所有话题
 export const getTopics = () => {
   try {
     const data = localStorage.getItem(MEMO_STORAGE_KEY)
-    return data ? JSON.parse(data) : []
+    const parsed = data ? JSON.parse(data) : []
+    return Array.isArray(parsed) ? parsed : []
   } catch (error) {
     console.error('Error getting topics:', error)
     return []
@@ -24,9 +51,7 @@ export const createTopic = (topicTitle) => {
       messages: []
     }
     topics.push(newTopic)
-    const val = JSON.stringify(topics)
-    localStorage.setItem(MEMO_STORAGE_KEY, val)
-    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+    persist(topics)
     return { success: true, topic: newTopic }
   } catch (error) {
     console.error('Error creating topic:', error)
@@ -49,7 +74,10 @@ export const getTopicMessages = (topicId) => {
 // 添加消息到话题
 export const addMessage = (topicId, messageContent, author = '使用者') => {
   try {
-    const topics = getTopics()
+    // 先清理超過 24 小時的訊息，避免資料持續膨脹
+    const topicsRaw = getTopics()
+    const { next: topicsPruned, changed } = pruneTopicMessages(topicsRaw)
+    const topics = topicsPruned
     const topicIndex = topics.findIndex(t => t.id === topicId)
     if (topicIndex === -1) {
       return { success: false, message: '話題不存在' }
@@ -63,9 +91,8 @@ export const addMessage = (topicId, messageContent, author = '使用者') => {
     }
     
     topics[topicIndex].messages.push(newMessage)
-    const val = JSON.stringify(topics)
-    localStorage.setItem(MEMO_STORAGE_KEY, val)
-    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+    // 若 prune 有變更，或新增了訊息，都需要寫回
+    persist(topics)
     return { success: true, message: newMessage }
   } catch (error) {
     console.error('Error adding message:', error)
@@ -78,9 +105,7 @@ export const deleteTopic = (topicId) => {
   try {
     const topics = getTopics()
     const filtered = topics.filter(t => t.id !== topicId)
-    const val = JSON.stringify(filtered)
-    localStorage.setItem(MEMO_STORAGE_KEY, val)
-    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+    persist(filtered)
     return { success: true }
   } catch (error) {
     console.error('Error deleting topic:', error)
@@ -98,9 +123,7 @@ export const updateTopicTitle = (topicId, newTitle) => {
     }
     
     topics[topicIndex].title = newTitle
-    const val = JSON.stringify(topics)
-    localStorage.setItem(MEMO_STORAGE_KEY, val)
-    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+    persist(topics)
     return { success: true }
   } catch (error) {
     console.error('Error updating topic title:', error)
@@ -122,19 +145,35 @@ export const getOrCreateGlobalTopic = () => {
       messages: []
     }
     topics.push(globalTopic)
-    const val = JSON.stringify(topics)
-    localStorage.setItem(MEMO_STORAGE_KEY, val)
-    syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+    persist(topics)
   }
   return globalTopic
 }
 
+// 清理超過 24 小時的交流區訊息（所有 topics 皆適用；主要針對 global 對話框）
+export const cleanExpiredMessages = () => {
+  try {
+    const topics = getTopics()
+    const { next, changed } = pruneTopicMessages(topics)
+    if (changed) persist(next)
+    return { success: true, changed }
+  } catch (e) {
+    console.error('cleanExpiredMessages error:', e)
+    return { success: false, changed: false }
+  }
+}
+
 export const getGlobalMessages = () => {
+  // 讀取前先清理一天以前的訊息
+  cleanExpiredMessages()
   const topic = getOrCreateGlobalTopic()
-  return topic.messages || []
+  const msgs = Array.isArray(topic.messages) ? topic.messages : []
+  return msgs
 }
 
 export const addGlobalMessage = (messageContent, author = '使用者') => {
   getOrCreateGlobalTopic()
+  // 新增前先清理一天以前的訊息
+  cleanExpiredMessages()
   return addMessage(GLOBAL_TOPIC_ID, messageContent, author)
 }
