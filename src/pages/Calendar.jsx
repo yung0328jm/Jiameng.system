@@ -7,6 +7,7 @@ import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualR
 import { getTripReportsByProject } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
 import { getUsers } from '../utils/storage'
+import { getProjects } from '../utils/projectStorage'
 
 function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -47,11 +48,14 @@ function Calendar() {
   const [participantOptions, setParticipantOptions] = useState([])
   const [vehicleOptions, setVehicleOptions] = useState([])
   const [responsiblePersonOptions, setResponsiblePersonOptions] = useState([])
+  const [projectSiteOptions, setProjectSiteOptions] = useState([]) // 專案管理案場（用於「活動」下拉）
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false)
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false)
+  const [showSiteDropdown, setShowSiteDropdown] = useState(false)
   const [showResponsiblePersonDropdown, setShowResponsiblePersonDropdown] = useState({}) // 每个工作项目的下拉選單状态
   const participantDropdownRef = useRef(null)
   const vehicleDropdownRef = useRef(null)
+  const siteDropdownRef = useRef(null)
   const responsiblePersonDropdownRefs = useRef({})
   const [scheduleFormData, setScheduleFormData] = useState({
     siteName: '',
@@ -153,13 +157,21 @@ function Calendar() {
     setParticipantOptions(participants.map(opt => opt.value))
     setVehicleOptions(vehicles.map(opt => opt.value))
     setResponsiblePersonOptions(responsiblePersons.map(opt => opt.value))
+
+    // 專案管理案場 → 活動下拉
+    const projects = getProjects()
+    const sites = (Array.isArray(projects) ? projects : [])
+      .map((p) => (p?.name || '').trim())
+      .filter(Boolean)
+    // 去重 + 排序
+    setProjectSiteOptions(Array.from(new Set(sites)).sort((a, b) => a.localeCompare(b, 'zh-Hant')))
   }
 
   const refetchForRealtime = () => {
     setSchedules(getSchedules())
     loadDropdownOptions()
   }
-  useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options'], refetchForRealtime)
+  useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
 
   // 点击外部关闭下拉選單
   useEffect(() => {
@@ -169,6 +181,9 @@ function Calendar() {
       }
       if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(event.target)) {
         setShowVehicleDropdown(false)
+      }
+      if (siteDropdownRef.current && !siteDropdownRef.current.contains(event.target)) {
+        setShowSiteDropdown(false)
       }
       // 检查所有負責人下拉選單
       Object.keys(responsiblePersonDropdownRefs.current).forEach(itemId => {
@@ -213,6 +228,16 @@ function Calendar() {
   const handleVehicleInput = (e) => {
     const value = e.target.value
     setScheduleFormData(prev => ({ ...prev, vehicle: value }))
+  }
+
+  // 处理活動（案場）输入/选择
+  const handleSiteInput = (e) => {
+    const value = e.target.value
+    setScheduleFormData(prev => ({ ...prev, siteName: value }))
+  }
+  const handleSiteSelect = (value) => {
+    setScheduleFormData(prev => ({ ...prev, siteName: value }))
+    setShowSiteDropdown(false)
   }
 
   // 添加新的參與人員到下拉選單
@@ -1910,20 +1935,43 @@ function Calendar() {
 
             <form onSubmit={handleScheduleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 活動 */}
-                <div>
+                {/* 活動（套用專案管理案場下拉） */}
+                <div className="relative" ref={siteDropdownRef}>
                   <label className="block text-gray-300 text-sm mb-2">
                     活動 <span className="text-red-400">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="siteName"
-                    value={scheduleFormData.siteName}
-                    onChange={handleScheduleChange}
-                    placeholder="請輸入活動"
-                    className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="siteName"
+                      value={scheduleFormData.siteName}
+                      onChange={handleSiteInput}
+                      onFocus={() => setShowSiteDropdown(true)}
+                      placeholder="請選擇案場（可輸入搜尋）"
+                      className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                      required
+                    />
+                    {showSiteDropdown && projectSiteOptions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {projectSiteOptions
+                          .filter((n) => {
+                            const q = (scheduleFormData.siteName || '').trim()
+                            if (!q) return true
+                            return n.includes(q)
+                          })
+                          .slice(0, 200)
+                          .map((option, index) => (
+                            <div
+                              key={`${option}-${index}`}
+                              onClick={() => handleSiteSelect(option)}
+                              className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm"
+                            >
+                              {option}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* 日期 */}
