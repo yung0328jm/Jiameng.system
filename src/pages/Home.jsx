@@ -9,7 +9,7 @@ import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getTodos, addTodo, updateTodo, deleteTodo, toggleTodo } from '../utils/todoStorage'
 import { getItems, getItem, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory, hasItem, removeItemFromInventory, getUserInventory } from '../utils/inventoryStorage'
-import { getAllEquippedEffects, unequipEffect } from '../utils/effectStorage'
+import { getAllEquippedEffects, unequipEffect, equipEffect } from '../utils/effectStorage'
 import { addWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getDanmus } from '../utils/danmuStorage'
 import { getTitleConfig } from '../utils/titleStorage'
@@ -1195,6 +1195,19 @@ function Home() {
               removeItemFromInventory(userName, item.id, invEntry.quantity)
             })
           }
+
+          // 掉出前三名：若裝備的是「此榜」的稱號/特效，則自動卸下，避免 UI 還顯示舊特效
+          const unequipBoardIfEquipped = (userName) => {
+            try {
+              const effects = getEquippedEffects(userName)
+              const t = effects?.title ? freshItems.find(i => i.id === effects.title) : null
+              const n = effects?.nameEffect ? freshItems.find(i => i.id === effects.nameEffect) : null
+              const m = effects?.messageEffect ? freshItems.find(i => i.id === effects.messageEffect) : null
+              if (t && (t.leaderboardId || '') === leaderboardId) unequipEffect(userName, 'title')
+              if (n && (n.leaderboardId || '') === leaderboardId) unequipEffect(userName, 'name')
+              if (m && (m.leaderboardId || '') === leaderboardId) unequipEffect(userName, 'message')
+            } catch (_) {}
+          }
           
           // 非手動榜時，僅對「該榜數值 > 0」的前三名發放獎勵，避免新帳號（value 0）被誤發稱號與特效
           const shouldGiveRank = (index) => manualRanks.length > 0 || (parseFloat(topThree[index]?.value) || 0) > 0
@@ -1206,6 +1219,13 @@ function Home() {
             tryGive(firstUserName, titleByRank(1), firstTitleItemCreated)
             tryGive(firstUserName, nameEffectByRank(1), false)
             tryGive(firstUserName, msgEffectByRank(1), false)
+            // 自動裝備：第一名（稱號 + 名子 + 發話）
+            const t = titleByRank(1)
+            const n = nameEffectByRank(1)
+            const m = msgEffectByRank(1)
+            if (t?.id) equipEffect(firstUserName, t.id, 'title')
+            if (n?.id) equipEffect(firstUserName, n.id, 'name')
+            if (m?.id) equipEffect(firstUserName, m.id, 'message')
           }
 
           // 第二名：只發稱號與發話特效，不發名子特效；並收回此榜名子特效
@@ -1215,6 +1235,12 @@ function Home() {
             removeNameEffectForBoard(secondUserName)
             tryGive(secondUserName, titleByRank(2), secondTitleItemCreated)
             tryGive(secondUserName, msgEffectByRank(2), false)
+            // 自動裝備：第二名（稱號 + 發話；卸下名子）
+            const t = titleByRank(2)
+            const m = msgEffectByRank(2)
+            if (t?.id) equipEffect(secondUserName, t.id, 'title')
+            if (m?.id) equipEffect(secondUserName, m.id, 'message')
+            unequipEffect(secondUserName, 'name')
           }
 
           // 第三名：只發稱號與發話特效，不發名子特效；並收回此榜名子特效
@@ -1224,6 +1250,12 @@ function Home() {
             removeNameEffectForBoard(thirdUserName)
             tryGive(thirdUserName, titleByRank(3), thirdTitleItemCreated)
             tryGive(thirdUserName, msgEffectByRank(3), false)
+            // 自動裝備：第三名（稱號 + 發話；卸下名子）
+            const t = titleByRank(3)
+            const m = msgEffectByRank(3)
+            if (t?.id) equipEffect(thirdUserName, t.id, 'title')
+            if (m?.id) equipEffect(thirdUserName, m.id, 'message')
+            unequipEffect(thirdUserName, 'name')
           }
 
           // 上榜道具：前三名依排行榜設定的獎勵類型發放道具或佳盟幣（與團體目標分開，此為「上榜」獎勵）
@@ -1253,6 +1285,7 @@ function Home() {
           ;[0, 1, 2].forEach((idx) => {
             if (!topThree[idx] || shouldGiveRank(idx)) return
             removeThisBoardOtherRank(topThree[idx].userName, 0)
+            unequipBoardIfEquipped(topThree[idx].userName)
           })
         }
       })
