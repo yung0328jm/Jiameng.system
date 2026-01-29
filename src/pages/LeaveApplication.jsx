@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import {
   addLeaveApplication,
   getLeaveApplications,
@@ -66,6 +67,7 @@ function LeaveApplication() {
   const [message, setMessage] = useState(null)
   const [applications, setApplications] = useState([])
   const [pendingList, setPendingList] = useState([])
+  const [quotaUsers, setQuotaUsers] = useState([]) // 特休設定用：Supabase 時從 profiles 載入
 
   const loadApplications = () => {
     setApplications(getLeaveApplications())
@@ -85,6 +87,29 @@ function LeaveApplication() {
     }
     loadApplications()
   }, [])
+
+  // 管理員特休設定：Supabase 時從 profiles 載入所有用戶，否則從 storage
+  useEffect(() => {
+    if (userRole !== 'admin') {
+      setQuotaUsers([])
+      return
+    }
+    let cancelled = false
+    if (isAuthSupabase()) {
+      getAllProfiles().then((profiles) => {
+        if (!cancelled && Array.isArray(profiles)) {
+          setQuotaUsers(profiles.map((p) => ({
+            account: p.account,
+            name: p.display_name || p.account,
+            role: p.is_admin ? 'admin' : 'user'
+          })))
+        }
+      }).catch(() => { if (!cancelled) setQuotaUsers([]) })
+    } else {
+      setQuotaUsers(getUsers() || [])
+    }
+    return () => { cancelled = true }
+  }, [userRole])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -313,7 +338,7 @@ function LeaveApplication() {
             <h2 className="text-lg sm:text-xl font-bold text-yellow-400 mb-2 sm:mb-3">特休天數設定</h2>
             <p className="text-gray-400 text-xs sm:text-sm mb-2 sm:mb-3">為各使用者設定特休可休天數；事由填「特休」之核准請假會自動從可休天數中扣除。</p>
             <div className="space-y-2 max-h-48 overflow-y-auto overflow-x-hidden">
-              {getUsers()
+              {quotaUsers
                 .filter((u) => u.role !== 'admin')
                 .map((u) => (
                   <SpecialLeaveQuotaRow
@@ -328,7 +353,7 @@ function LeaveApplication() {
                     }}
                   />
                 ))}
-              {getUsers().filter((u) => u.role !== 'admin').length === 0 && (
+              {quotaUsers.filter((u) => u.role !== 'admin').length === 0 && (
                 <p className="text-gray-500 text-sm">目前無一般使用者。</p>
               )}
             </div>
