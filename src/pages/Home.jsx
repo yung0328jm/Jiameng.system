@@ -1823,15 +1823,15 @@ function Home() {
           backgroundSize: '40px 40px'
         }}></div>
         
-        {/* 內容區域：手機縮小 padding，網格更寬 */}
-        <div className="relative p-2 sm:p-4 lg:p-6">
-          {/* 控制選項 */}
+        {/* 內容區域：手機加大間距、排行榜卡片不擠在一起 */}
+        <div className="relative p-3 sm:p-4 lg:p-6">
+          {/* 控制選項：手機加大按鈕間距 */}
           {userRole === 'admin' && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 mb-3 sm:mb-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-4">
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="bg-yellow-400 text-gray-900 px-2.5 py-2 sm:px-3 rounded hover:bg-yellow-500 active:bg-yellow-500 transition-colors font-semibold min-h-[40px] touch-manipulation text-xs sm:text-sm"
+                className="bg-yellow-400 text-gray-900 px-3 py-2.5 sm:px-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm"
               >
                 新增項目
               </button>
@@ -1839,7 +1839,7 @@ function Home() {
                 <button
                   type="button"
                   onClick={handleClearAll}
-                  className="bg-red-500 text-white px-2.5 py-2 sm:px-3 rounded hover:bg-red-600 active:bg-red-600 transition-colors font-semibold min-h-[40px] touch-manipulation text-xs sm:text-sm"
+                  className="bg-red-500 text-white px-3 py-2.5 sm:px-3 rounded-lg hover:bg-red-600 active:bg-red-600 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm"
                 >
                   清空所有版面
                 </button>
@@ -1847,8 +1847,8 @@ function Home() {
             </div>
           )}
 
-          {/* 排行榜 - 網格小一點一行約 3 個；有資料時直接顯示卡片，無資料時顯示 ? 卡 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-2 items-stretch w-full min-w-0">
+          {/* 排行榜 - 手機加大卡片間距，一行約 2～3 個 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2 items-stretch w-full min-w-0">
             {leaderboardItems.length === 0 ? (
               <div className="col-span-full text-center py-8">
                 <p className="text-[10px] sm:text-xs text-gray-400 mb-3">尚無排行榜項目</p>
@@ -1891,7 +1891,7 @@ function Home() {
                 const greyCardEl = (!hasValidRankings && !isManual) ? (
                     <div
                       key={item.id}
-                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
+                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[240px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
                       style={{
                         background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 50%, #2a2a2a 100%)',
                         position: 'relative'
@@ -1900,13 +1900,13 @@ function Home() {
                       {/* 灰色背景遮罩 */}
                       <div className="absolute inset-0 bg-gray-800 bg-opacity-90"></div>
                       
-                      {/* 內容區域 - 神秘排行榜：一般用戶不顯示標題（不知達成條件），僅管理員可見標題與編輯 */}
-                      <div className="relative p-3 sm:p-6 flex-1 min-h-0 flex flex-col">
-                        {/* 標題區域 - 僅管理員可見（一般用戶不看到達成條件／標題） */}
+                      {/* 內容區域 - 手機縮小 padding、圖片與字級，避免擠在一起 */}
+                      <div className="relative p-2 sm:p-6 flex-1 min-h-0 flex flex-col overflow-auto">
+                        {/* 標題區域 - 僅管理員可見；手機縮小圖片與間距 */}
                         {item && userRole === 'admin' && (
-                          <div className="mb-4 pb-4 border-b border-gray-600">
-                            <div className="flex items-start gap-4">
-                              <div className="relative w-24 h-24 flex-shrink-0">
+                          <div className="mb-2 sm:mb-4 pb-2 sm:pb-4 border-b border-gray-600">
+                            <div className="flex items-start gap-2 sm:gap-4">
+                              <div className="relative w-14 h-14 sm:w-24 sm:h-24 flex-shrink-0">
                                 {item.imageUrl ? (
                                   <img
                                     src={item.imageUrl}
@@ -1975,7 +1975,7 @@ function Home() {
                                       prev.map(i => i.id === item.id ? { ...i, subtitle: e.target.value } : i)
                                     )
                                   }}
-                                  className="bg-transparent border-b border-transparent hover:border-yellow-400 focus:border-yellow-400 text-yellow-400 text-sm font-semibold focus:outline-none w-full mb-2"
+                                  className="bg-transparent border-b border-transparent hover:border-yellow-400 focus:border-yellow-400 text-yellow-400 text-xs sm:text-sm font-semibold focus:outline-none w-full mb-1 sm:mb-2"
                                   placeholder="業績"
                                 />
                                 <input
@@ -1987,7 +1987,7 @@ function Home() {
                                       prev.map(i => i.id === item.id ? { ...i, title: e.target.value } : i)
                                     )
                                   }}
-                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white text-3xl font-bold focus:outline-none w-full mb-2"
+                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white text-lg sm:text-3xl font-bold focus:outline-none w-full mb-1 sm:mb-2"
                                   placeholder="排行榜"
                                 />
                                 <input
@@ -1999,7 +1999,7 @@ function Home() {
                                       prev.map(i => i.id === item.id ? { ...i, slogan: e.target.value } : i)
                                     )
                                   }}
-                                  className="bg-transparent border-b border-transparent hover:border-yellow-400 focus:border-yellow-400 text-yellow-400 text-sm focus:outline-none w-full"
+                                  className="bg-transparent border-b border-transparent hover:border-yellow-400 focus:border-yellow-400 text-yellow-400 text-xs sm:text-sm focus:outline-none w-full"
                                   placeholder="乘風破浪 披荊斬棘"
                                 />
                               </div>
@@ -2014,21 +2014,19 @@ function Home() {
                           </div>
                         )}
                         
-                        {/* 管理員編輯區域 - 排行榜表格 */}
+                        {/* 管理員編輯區域 - 排行榜表格；手機縮小間距與字級 */}
                         {userRole === 'admin' && (
-                          <div className="relative" style={{
-                            background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)',
-                            borderRadius: '8px',
-                            padding: '16px'
+                          <div className="relative rounded-lg sm:rounded-lg px-2 py-2 sm:px-4 sm:py-4" style={{
+                            background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)'
                           }}>
-                            {/* 表頭 */}
-                            <div className="grid grid-cols-12 gap-2 pb-3 mb-3 border-b border-gray-600">
+                            {/* 表頭：手機字小、間距小 */}
+                            <div className="grid grid-cols-12 gap-1 sm:gap-2 pb-2 sm:pb-3 mb-2 sm:mb-3 border-b border-gray-600">
                               <div className="col-span-2 flex items-center justify-center">
                                 <input
                                   type="text"
                                   value={uiConfig.columnRank}
                                   onChange={(e) => handleEditUIElement('columnRank', e.target.value)}
-                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-sm text-center"
+                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm text-center"
                                 />
                               </div>
                               <div className="col-span-3 flex items-center">
@@ -2036,7 +2034,7 @@ function Home() {
                                   type="text"
                                   value={uiConfig.columnName}
                                   onChange={(e) => handleEditUIElement('columnName', e.target.value)}
-                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-sm"
+                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm"
                                 />
                               </div>
                               <div className="col-span-3 flex items-center justify-center">
@@ -2044,7 +2042,7 @@ function Home() {
                                   type="text"
                                   value={uiConfig.columnTime || '時間'}
                                   onChange={(e) => handleEditUIElement('columnTime', e.target.value)}
-                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-sm text-center"
+                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm text-center"
                                 />
                               </div>
                               <div className="col-span-4 flex items-center justify-end">
@@ -2052,13 +2050,13 @@ function Home() {
                                   type="text"
                                   value={uiConfig.columnPerformance}
                                   onChange={(e) => handleEditUIElement('columnPerformance', e.target.value)}
-                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold text-right focus:outline-none w-full text-sm"
+                                  className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold text-right focus:outline-none w-full text-[10px] sm:text-sm"
                                 />
                               </div>
                             </div>
 
-                            {/* 排名列表：無手動數據時顯示從排程抓取的計算結果（如駕駛次數） */}
-                            <div className="max-h-96 overflow-y-auto">
+                            {/* 排名列表：手機縮短可捲高度 */}
+                            <div className="max-h-48 sm:max-h-96 overflow-y-auto">
                               {(() => {
                                 const calculatedList = (rankings[item.id] || []).map((user, idx) => ({
                                   id: `auto-${user.userName}`,
@@ -2089,7 +2087,7 @@ function Home() {
                                       return (
                                         <div
                                           key={ranking.id}
-                                          className="grid grid-cols-12 gap-2 py-3 items-center group"
+                                          className="grid grid-cols-12 gap-1 sm:gap-2 py-2 sm:py-3 items-center group"
                                           style={{
                                             borderBottom: '1px solid rgba(75, 85, 99, 0.3)'
                                           }}
@@ -2097,27 +2095,27 @@ function Home() {
                                           {/* 排名 */}
                                           <div className="col-span-2 flex items-center justify-center">
                                             {isTopThree ? (
-                                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                                              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg ${
                                                 rank === 1 ? 'bg-yellow-500' : rank === 2 ? 'bg-gray-400' : 'bg-orange-600'
                                               }`}>
                                                 {rank}
                                               </div>
                                             ) : (
-                                              <span className="text-gray-400 text-sm">{rank}</span>
+                                              <span className="text-gray-400 text-xs sm:text-sm">{rank}</span>
                                             )}
                                           </div>
                                           
                                           {/* 姓名 */}
                                           <div className="col-span-3">
                                             {isAutoRow ? (
-                                              <span className="text-white text-sm px-3 py-2">{ranking.name || ''}</span>
+                                              <span className="text-white text-xs sm:text-sm px-1 sm:px-3 py-1 sm:py-2 truncate block">{ranking.name || ''}</span>
                                             ) : (
                                               <input
                                                 type="text"
                                                 value={ranking.name || ''}
                                                 onChange={(e) => handleUpdateRanking(item.id, ranking.id, 'name', e.target.value)}
-                                                placeholder="輸入姓名"
-                                                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                                placeholder="姓名"
+                                                className="w-full bg-gray-700 border border-gray-600 rounded px-2 sm:px-3 py-1.5 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-xs sm:text-sm"
                                               />
                                             )}
                                           </div>
@@ -2125,22 +2123,22 @@ function Home() {
                                           {/* 時間 */}
                                           <div className="col-span-3 flex items-center justify-center">
                                             {isAutoRow ? (
-                                              <span className="text-gray-400 text-sm">{ranking.time || ''}</span>
+                                              <span className="text-gray-400 text-xs sm:text-sm">{ranking.time || ''}</span>
                                             ) : (
                                               <input
                                                 type="text"
                                                 value={ranking.time || ''}
                                                 onChange={(e) => handleUpdateRanking(item.id, ranking.id, 'time', e.target.value)}
                                                 placeholder="時間"
-                                                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm text-center"
+                                                className="w-full bg-gray-700 border border-gray-600 rounded px-2 sm:px-3 py-1.5 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-xs sm:text-sm text-center"
                                               />
                                             )}
                                           </div>
                                           
                                           {/* 數量 */}
-                                          <div className="col-span-3 flex flex-col items-end justify-center pr-4">
+                                          <div className="col-span-3 flex flex-col items-end justify-center pr-1 sm:pr-4">
                                             {isAutoRow ? (
-                                              <span className="text-white text-sm">{ranking.quantity || ''}</span>
+                                              <span className="text-white text-xs sm:text-sm">{ranking.quantity || ''}</span>
                                             ) : (
                                               <>
                                                 <input
@@ -2148,12 +2146,12 @@ function Home() {
                                                   value={ranking.quantity || ''}
                                                   onChange={(e) => handleUpdateRanking(item.id, ranking.id, 'quantity', e.target.value)}
                                                   placeholder="數量"
-                                                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm text-right"
+                                                  className="w-full bg-gray-700 border border-gray-600 rounded px-2 sm:px-3 py-1.5 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-xs sm:text-sm text-right"
                                                   min="0"
                                                   step="0.01"
                                                 />
                                                 {item.lastResetAt && (
-                                                  <div className="text-xs text-gray-400 mt-1 pr-2">
+                                                  <div className="text-[10px] sm:text-xs text-gray-400 mt-0.5 sm:mt-1 pr-1 sm:pr-2">
                                                     本輪: {Math.round(parseFloat(ranking.weekQuantity) || 0)}
                                                   </div>
                                                 )}
@@ -2166,7 +2164,7 @@ function Home() {
                                             {!isAutoRow && (
                                               <button
                                                 onClick={() => handleDeleteRanking(item.id, ranking.id)}
-                                                className="text-red-400 hover:text-red-500 px-2 py-1 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                                className="text-red-400 hover:text-red-500 px-1 sm:px-2 py-1 text-xs sm:text-sm opacity-0 group-hover:opacity-100 transition-opacity touch-manipulation"
                                                 title="刪除"
                                               >
                                                 刪除
@@ -2186,11 +2184,11 @@ function Home() {
                               })()}
                             </div>
                             
-                            {/* 新增排名項目按鈕 */}
-                            <div className="mt-4">
+                            {/* 新增排名項目按鈕：手機加大可點區域 */}
+                            <div className="mt-3 sm:mt-4">
                               <button
                                 onClick={() => handleAddRanking(item.id)}
-                                className="w-full bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold"
+                                className="w-full bg-yellow-400 text-gray-900 px-3 py-2.5 sm:py-2 rounded-lg hover:bg-yellow-500 transition-colors font-semibold text-sm min-h-[44px] touch-manipulation"
                               >
                                 + 新增排名項目
                               </button>
@@ -2219,7 +2217,7 @@ function Home() {
                 const fullCardEl = (
                   <div
                     key={item.id}
-                    className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[280px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px] ring-2 ring-yellow-400"
+                    className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[240px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px] ring-2 ring-yellow-400"
                     style={{
                       background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 30%, #2a2a2a 60%, #1a1a1a 100%)',
                       position: 'relative',
@@ -2234,36 +2232,36 @@ function Home() {
                     `
                   }}></div>
                   
-                  {/* 刪除按鈕 */}
+                  {/* 刪除按鈕：手機略小 */}
                   {userRole === 'admin' && (
-                    <div className="absolute top-3 right-3 z-20">
+                    <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20">
                       <button
                         onClick={() => handleDeleteItem(item.id)}
-                        className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                        className="w-7 h-7 sm:w-8 sm:h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg touch-manipulation"
                         title="刪除面板"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     </div>
                   )}
 
-                  {/* 內容區域 - 神秘排行榜：一般用戶不顯示標題（僅管理員可見） */}
-                  <div className="relative p-3 sm:p-6 flex-1 min-h-0 flex flex-col overflow-auto">
-                    {/* 標題區域 - 僅管理員可見（一般用戶不看到達成條件／標題） */}
+                  {/* 內容區域 - 手機縮小 padding 與圖片，避免擠在一起 */}
+                  <div className="relative p-2 sm:p-6 flex-1 min-h-0 flex flex-col overflow-auto">
+                    {/* 標題區域 - 僅管理員可見；手機縮小圖片與間距 */}
                     {item && userRole === 'admin' && (
-                      <div className="mb-4 pb-4 border-b border-gray-600">
+                      <div className="mb-2 sm:mb-4 pb-2 sm:pb-4 border-b border-gray-600">
                         {/* 標題區域 - 包含左上角照片和文字內容 */}
-                        <div className="flex items-start gap-4">
-                          {/* 左上角照片區塊 */}
+                        <div className="flex items-start gap-2 sm:gap-4">
+                          {/* 左上角照片區塊：手機縮小 */}
                           <div className="flex-shrink-0">
                             {item.imageUrl ? (
                               <div className="relative group">
                                 <img 
                                   src={item.imageUrl} 
                                   alt="排行榜照片"
-                                  className="w-24 h-24 object-cover rounded-lg border-2 border-gray-600 shadow-lg"
+                                  className="w-14 h-14 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-gray-600 shadow-lg"
                                 />
                                 {userRole === 'admin' && (
                                   <>
@@ -2317,7 +2315,7 @@ function Home() {
                               </div>
                             ) : (
                               userRole === 'admin' && (
-                                <label className="w-24 h-24 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center cursor-pointer hover:border-yellow-400 hover:bg-gray-800/50 transition-colors group" onClick={(e) => e.stopPropagation()}>
+                                <label className="w-14 h-14 sm:w-24 sm:h-24 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center cursor-pointer hover:border-yellow-400 hover:bg-gray-800/50 transition-colors group touch-manipulation" onClick={(e) => e.stopPropagation()}>
                                   <input
                                     type="file"
                                     accept="image/*"
@@ -2672,24 +2670,22 @@ function Home() {
                       </div>
                     )}
                     
-                    {/* 排行榜表格 - 深色背景 */}
-                    <div className="relative" style={{
-                      background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)',
-                      borderRadius: '8px',
-                      padding: '16px'
+                    {/* 排行榜表格 - 深色背景；手機縮小間距與字級 */}
+                    <div className="relative rounded-lg px-2 py-2 sm:px-4 sm:py-4" style={{
+                      background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)'
                     }}>
-                      {/* 表頭 */}
-                      <div className="grid grid-cols-12 gap-2 pb-3 mb-3 border-b border-gray-600">
+                      {/* 表頭：手機字小、間距小 */}
+                      <div className="grid grid-cols-12 gap-1 sm:gap-2 pb-2 sm:pb-3 mb-2 sm:mb-3 border-b border-gray-600">
                         <div className="col-span-2 flex items-center justify-center">
                           {userRole === 'admin' ? (
                             <input
                               type="text"
                               value={uiConfig.columnRank}
                               onChange={(e) => handleEditUIElement('columnRank', e.target.value)}
-                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-sm text-center"
+                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm text-center"
                             />
                           ) : (
-                            <span className="text-white font-bold text-sm text-center w-full">{uiConfig.columnRank}</span>
+                            <span className="text-white font-bold text-[10px] sm:text-sm text-center w-full">{uiConfig.columnRank}</span>
                           )}
                         </div>
                         <div className="col-span-3 flex items-center">
@@ -2698,10 +2694,10 @@ function Home() {
                               type="text"
                               value={uiConfig.columnName}
                               onChange={(e) => handleEditUIElement('columnName', e.target.value)}
-                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-sm"
+                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm"
                             />
                           ) : (
-                            <span className="text-white font-bold text-sm">{uiConfig.columnName}</span>
+                            <span className="text-white font-bold text-[10px] sm:text-sm">{uiConfig.columnName}</span>
                           )}
                         </div>
                         <div className="col-span-3 flex items-center justify-center">
@@ -2710,10 +2706,10 @@ function Home() {
                               type="text"
                               value={uiConfig.columnTime || '時間'}
                               onChange={(e) => handleEditUIElement('columnTime', e.target.value)}
-                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-sm text-center"
+                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm text-center"
                             />
                           ) : (
-                            <span className="text-white font-bold text-sm text-center w-full">{uiConfig.columnTime || '時間'}</span>
+                            <span className="text-white font-bold text-[10px] sm:text-sm text-center w-full">{uiConfig.columnTime || '時間'}</span>
                           )}
                         </div>
                         <div className="col-span-4 flex items-center justify-end">
@@ -2722,16 +2718,16 @@ function Home() {
                               type="text"
                               value={uiConfig.columnPerformance}
                               onChange={(e) => handleEditUIElement('columnPerformance', e.target.value)}
-                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold text-right focus:outline-none w-full text-sm"
+                              className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold text-right focus:outline-none w-full text-[10px] sm:text-sm"
                             />
                           ) : (
-                            <span className="text-white font-bold text-sm text-right w-full">{uiConfig.columnPerformance}</span>
+                            <span className="text-white font-bold text-[10px] sm:text-sm text-right w-full">{uiConfig.columnPerformance}</span>
                           )}
                         </div>
                       </div>
 
-                      {/* 排名列表 */}
-                      <div className="max-h-96 overflow-y-auto">
+                      {/* 排名列表：手機縮短可捲高度 */}
+                      <div className="max-h-48 sm:max-h-96 overflow-y-auto">
                         {(() => {
                           // 優先顯示手動編輯的排名，如果沒有則顯示自動計算的排名
                           const manualRanks = manualRankings[item.id] || []
@@ -2764,71 +2760,71 @@ function Home() {
                                 return (
                                   <div
                                     key={ranking.id}
-                                    className="grid grid-cols-12 gap-2 py-3 items-center group"
+                                    className="grid grid-cols-12 gap-1 sm:gap-2 py-2 sm:py-3 items-center group"
                                     style={{
                                       borderBottom: rankingIndex < displayRankings.length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
                                     }}
                                   >
-                                    {/* 排名列 */}
+                                    {/* 排名列：手機縮小徽章 */}
                                     <div className="col-span-2">
                                       {rank === 1 && (
                                         <div className="flex items-center justify-center">
-                                          <div className="relative w-12 h-12" style={{
+                                          <div className="relative w-8 h-8 sm:w-12 sm:h-12" style={{
                                             filter: 'drop-shadow(0 4px 8px rgba(251, 191, 36, 0.6))'
                                           }}>
                                             <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-full" style={{
                                               boxShadow: 'inset 0 2px 10px rgba(255, 255, 255, 0.3), inset 0 -2px 10px rgba(0, 0, 0, 0.2), 0 4px 15px rgba(251, 191, 36, 0.5)'
                                             }}></div>
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                              <svg className="w-7 h-7 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
+                                              <svg className="w-4 h-4 sm:w-7 sm:h-7 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                                               </svg>
                                             </div>
-                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-gray-900 font-bold text-xs">1</div>
+                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-gray-900 font-bold text-[8px] sm:text-xs">1</div>
                                           </div>
                                         </div>
                                       )}
                                       {rank === 2 && (
                                         <div className="flex items-center justify-center">
-                                          <div className="relative w-12 h-12" style={{
+                                          <div className="relative w-8 h-8 sm:w-12 sm:h-12" style={{
                                             filter: 'drop-shadow(0 4px 8px rgba(156, 163, 175, 0.6))'
                                           }}>
                                             <div className="absolute inset-0 bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 rounded-full" style={{
                                               boxShadow: 'inset 0 2px 10px rgba(255, 255, 255, 0.3), inset 0 -2px 10px rgba(0, 0, 0, 0.2), 0 4px 15px rgba(156, 163, 175, 0.5)'
                                             }}></div>
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                              <svg className="w-7 h-7 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
+                                              <svg className="w-4 h-4 sm:w-7 sm:h-7 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                                               </svg>
                                             </div>
-                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-gray-900 font-bold text-xs">2</div>
+                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-gray-900 font-bold text-[8px] sm:text-xs">2</div>
                                           </div>
                                         </div>
                                       )}
                                       {rank === 3 && (
                                         <div className="flex items-center justify-center">
-                                          <div className="relative w-12 h-12" style={{
+                                          <div className="relative w-8 h-8 sm:w-12 sm:h-12" style={{
                                             filter: 'drop-shadow(0 4px 8px rgba(251, 146, 60, 0.6))'
                                           }}>
                                             <div className="absolute inset-0 bg-gradient-to-br from-orange-400 via-orange-500 to-orange-600 rounded-full" style={{
                                               boxShadow: 'inset 0 2px 10px rgba(255, 255, 255, 0.3), inset 0 -2px 10px rgba(0, 0, 0, 0.2), 0 4px 15px rgba(251, 146, 60, 0.5)'
                                             }}></div>
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                              <svg className="w-7 h-7 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
+                                              <svg className="w-4 h-4 sm:w-7 sm:h-7 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                                               </svg>
                                             </div>
-                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-gray-900 font-bold text-xs">3</div>
+                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-gray-900 font-bold text-[8px] sm:text-xs">3</div>
                                           </div>
                                         </div>
                                       )}
                                       {rank > 3 && (
-                                        <span className="text-white font-bold text-xl">{rank}</span>
+                                        <span className="text-white font-bold text-sm sm:text-xl">{rank}</span>
                                       )}
                                     </div>
                                     
-                                    {/* 姓名列 */}
-                                    <div className="col-span-3 text-white text-sm flex items-center">
+                                    {/* 姓名列：手機字小 */}
+                                    <div className="col-span-3 text-white text-xs sm:text-sm flex items-center truncate min-w-0">
                                       {isManual && userRole === 'admin' ? (
                                         <input
                                           type="text"
@@ -2916,18 +2912,18 @@ function Home() {
                                 )
                               })}
                               
-                              {/* 操作按鈕區域 */}
+                              {/* 操作按鈕區域：手機加大間距與可點區域 */}
                               {userRole === 'admin' && (
-                                <div className="mt-4 pt-3 border-t border-gray-600 space-y-2">
+                                <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-gray-600 space-y-2">
                                   <button
                                     onClick={() => handleAddRanking(item.id)}
-                                    className="w-full bg-gray-700 hover:bg-gray-600 text-white text-sm py-2 rounded transition-colors"
+                                    className="w-full bg-gray-700 hover:bg-gray-600 text-white text-sm py-2.5 sm:py-2 rounded-lg transition-colors min-h-[44px] touch-manipulation"
                                   >
                                     + 新增排名項目
                                   </button>
                                   <button
                                     onClick={() => handleSaveTestRecord(item.id)}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 rounded transition-colors font-semibold"
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm py-2.5 sm:py-2 rounded-lg transition-colors font-semibold min-h-[44px] touch-manipulation"
                                   >
                                     💾 保存測試記錄
                                   </button>
