@@ -2131,8 +2131,8 @@ function Calendar() {
                     className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
                   >
                     <option value="">請選擇</option>
-                    {getUsers().map((u) => (
-                      <option key={u.account} value={u.name || u.account}>{u.name || u.account}</option>
+                    {responsiblePersonOptions.map((name) => (
+                      <option key={name} value={name}>{name}</option>
                     ))}
                   </select>
                 </div>
@@ -2147,8 +2147,8 @@ function Calendar() {
                     className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
                   >
                     <option value="">請選擇</option>
-                    {getUsers().map((u) => (
-                      <option key={u.account} value={u.name || u.account}>{u.name || u.account}</option>
+                    {responsiblePersonOptions.map((name) => (
+                      <option key={name} value={name}>{name}</option>
                     ))}
                   </select>
                 </div>
