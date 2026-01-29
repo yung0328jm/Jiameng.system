@@ -1854,8 +1854,8 @@ function Home() {
         </div>
       </div>
 
-      {/* 排行榜 - 海報風格樣式；主體寬度與首頁一致，網格加寬 */}
-      <div className="relative rounded-lg overflow-hidden shadow-2xl min-h-[320px] sm:min-h-[500px] lg:min-h-[800px] w-full max-w-6xl mx-auto" style={{
+      {/* 排行榜 - 海報風格樣式；寬度跟首頁主體一致（不做置中變窄） */}
+      <div className="relative rounded-lg overflow-hidden shadow-2xl min-h-[320px] sm:min-h-[500px] lg:min-h-[800px] w-full" style={{
         background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)',
         position: 'relative'
       }}>
