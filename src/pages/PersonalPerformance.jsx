@@ -9,6 +9,7 @@ import { getUserLateRecords, getUserPerformanceRecords, savePerformanceRecord, d
 import { getCompletionRateRules, saveCompletionRateRules, calculateCompletionRateAdjustment } from '../utils/completionRateConfigStorage'
 import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCountAdjustment, calculateLateMinutesAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -716,9 +717,10 @@ function PersonalPerformance() {
     return date
   }
   
-  const findUserByAccountOrName = (identifier) => {
+  const findUserByAccountOrName = (identifier, directory = null) => {
     if (!identifier) return null
-    const allUsers = getUsers()
+    const allUsersRaw = Array.isArray(directory) ? directory : getUsers()
+    const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : []
     // 先嘗試匹配帳號
     let user = allUsers.find(u => u.account === identifier || u.account.toLowerCase() === identifier.toLowerCase())
     if (user) return user
@@ -751,7 +753,7 @@ function PersonalPerformance() {
     return Math.floor(diffMs / (1000 * 60)) // 轉換為分鐘
   }
   
-  const handlePreviewImport = () => {
+  const handlePreviewImport = async () => {
     try {
       if (!importData.trim()) {
         alert('請輸入或上傳CSV數據')
@@ -953,6 +955,22 @@ function PersonalPerformance() {
       return
     }
     
+    // Supabase 模式：用公開 profiles 清單來做用戶對照（避免 getUsers() 為空導致「找不到用戶」）
+    let userDirectory = getUsers()
+    if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+      try {
+        const profiles = await getPublicProfiles()
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          userDirectory = profiles.map((p) => ({
+            account: p.account,
+            name: p.display_name || p.account
+          }))
+        }
+      } catch (e) {
+        console.warn('handlePreviewImport: getPublicProfiles failed', e)
+      }
+    }
+
     // 處理SOYA格式：日期和時間分開，且用戶名可能只在第一行
     let currentUserName = null
     
@@ -1001,7 +1019,7 @@ function PersonalPerformance() {
           }
           
           // 查找用戶（用於顯示用戶名稱）
-          const user = findUserByAccountOrName(userIdentifier)
+          const user = findUserByAccountOrName(userIdentifier, userDirectory)
           
           return {
             index: index + 1,
@@ -1010,7 +1028,7 @@ function PersonalPerformance() {
             date: inferredDate,
             dateTimeField: dateTimeField || (dateField && timeField ? `${dateField}+${timeField}` : null),
             userField,
-            userName: userIdentifier,
+            userName: user?.account || userIdentifier,
             userDisplayName: user ? (user.name || user.account) : userIdentifier
           }
         }
@@ -1048,7 +1066,7 @@ function PersonalPerformance() {
       }
       
       const dateTime = parseDateTime(dateTimeStr)
-      const user = findUserByAccountOrName(userIdentifier)
+      const user = findUserByAccountOrName(userIdentifier, userDirectory)
       
       if (!dateTime) {
         return {
