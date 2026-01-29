@@ -162,6 +162,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     quantity: 1
   })
   const [availableItems, setAvailableItems] = useState([])
+  const [showTopMenu, setShowTopMenu] = useState(false) // 手機版「更多」選單
 
   useEffect(() => {
     const role = getCurrentUserRole()
@@ -461,83 +462,137 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
   return (
     <div className="min-h-screen bg-gray-800 flex flex-col">
-      {/* 上方導覽列：左＝主題篩選、中＝標題＋日期時間、右＝按鈕（網格縮小以一次顯示全部） */}
-      <div className="bg-dark-gray px-2 py-2 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-1 sm:gap-2 shrink-0 overflow-hidden min-h-[44px] sm:min-h-0">
-        {/* 左：圖示＋主題篩選 */}
-        <div className="flex items-center gap-1 shrink-0 min-w-0 max-w-[24%] sm:max-w-none">
-          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* 上方導覽列：手機版精簡（左縮、中標題、右：佳盟幣＋更多／登出），桌面版維持原樣 */}
+      <div className="bg-dark-gray px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 overflow-hidden min-h-[48px] sm:min-h-[44px]">
+        {/* 左：僅圖示（手機隱藏「主題篩選」文字以留空間） */}
+        <div className="flex items-center shrink-0 min-w-0 w-8 sm:w-auto sm:max-w-none">
+          <svg className="w-5 h-5 sm:w-5 sm:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
           </svg>
-          <span className="text-gray-400 text-xs whitespace-nowrap truncate">主題篩選:</span>
+          <span className="text-gray-400 text-xs whitespace-nowrap truncate hidden sm:inline ml-1">主題篩選</span>
         </div>
-        {/* 中：目前分頁標題＋日期時間與箭頭 */}
-        <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-0.5 sm:px-1 overflow-hidden">
-          <h1 className="text-xs sm:text-lg font-bold text-yellow-400 truncate w-full text-center">
+        {/* 中：目前分頁標題＋日期時間 */}
+        <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-1 sm:px-2 overflow-hidden">
+          <h1 className="text-sm sm:text-lg font-bold text-yellow-400 truncate w-full text-center">
             {getTabTitle(activeTab)}
           </h1>
-          <div className="flex items-center gap-0.5 text-gray-400 text-xs mt-0 truncate">
+          <div className="flex items-center gap-0.5 text-gray-400 text-[10px] sm:text-xs mt-0.5 truncate">
             <span className="truncate">{dateTimeStr}</span>
-            <span className="text-gray-500 shrink-0">›</span>
           </div>
         </div>
-        {/* 右：佳盟幣、管理員按鈕、登出 */}
-        <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-1.5 shrink-0 min-w-0">
-          {/* 餘額錢包顯示 */}
-          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-            <button
-              onClick={() => setShowWalletModal(!showWalletModal)}
-              className="bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-500 text-gray-800 font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-0 sm:min-w-0 touch-manipulation text-xs sm:text-sm"
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="whitespace-nowrap">佳盟幣: {walletBalance.toLocaleString()}</span>
-            </button>
-            {userRole === 'admin' && (
-              <>
-                <button
-                  onClick={() => setShowDistributionModal(!showDistributionModal)}
-                  className="bg-green-500 hover:bg-green-600 active:bg-green-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span className="hidden sm:inline">分配佳盟幣</span>
-                </button>
-                <button
-                  onClick={() => setShowItemDistributionModal(!showItemDistributionModal)}
-                  className="bg-blue-500 hover:bg-blue-600 active:bg-blue-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                  <span className="hidden sm:inline">分配道具</span>
-                </button>
-                <button
-                  onClick={() => setShowExchangeRequestModal(!showExchangeRequestModal)}
-                  className="bg-purple-500 hover:bg-purple-600 active:bg-purple-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 relative min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="hidden sm:inline">兌換請求</span>
-                  {pendingExchangeRequests.length > 0 && (
-                    <span className="absolute top-0 right-0 sm:-top-0.5 sm:-right-0.5 bg-yellow-400 text-gray-800 rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold">
-                      {pendingExchangeRequests.length}
-                    </span>
-                  )}
-                </button>
-              </>
-            )}
-          </div>
+        {/* 右：佳盟幣、手機版「更多」選單＋登出；桌面版全部按鈕並排 */}
+        <div className="flex items-center justify-end gap-2 sm:gap-1.5 shrink-0 min-w-0">
+          {/* 佳盟幣：手機只顯示圖示＋數字，桌面顯示「佳盟幣: 數字」 */}
+          <button
+            onClick={() => { setShowWalletModal(!showWalletModal); setShowTopMenu(false) }}
+            className="bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-500 text-gray-800 font-semibold px-2.5 py-2 sm:px-3 sm:py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 min-h-[40px] min-w-[40px] sm:min-h-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm flex-shrink-0"
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="hidden sm:inline whitespace-nowrap">佳盟幣: </span>
+            <span className="whitespace-nowrap">{walletBalance.toLocaleString()}</span>
+          </button>
+
+          {/* 手機版：管理員功能收合到「更多」選單 */}
+          {userRole === 'admin' && (
+            <div className="relative sm:hidden flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowTopMenu(!showTopMenu)}
+                className="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-2.5 py-2 rounded-lg transition-colors flex items-center justify-center min-h-[40px] min-w-[40px] touch-manipulation"
+                aria-expanded={showTopMenu}
+                aria-haspopup="true"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              {showTopMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowTopMenu(false)} aria-hidden />
+                  <div className="absolute right-0 top-full mt-1 z-50 py-1.5 min-w-[160px] bg-gray-800 border border-gray-600 rounded-lg shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => { setShowDistributionModal(true); setShowTopMenu(false) }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-none first:rounded-t-lg"
+                    >
+                      <span className="bg-green-500 w-6 h-6 rounded flex items-center justify-center text-white text-xs">+</span>
+                      分配佳盟幣
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowItemDistributionModal(true); setShowTopMenu(false) }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      <span className="bg-blue-500 w-6 h-6 rounded flex items-center justify-center text-white text-xs flex-shrink-0">盒</span>
+                      分配道具
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowExchangeRequestModal(true); setShowTopMenu(false) }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-none last:rounded-b-lg relative"
+                    >
+                      <span className="bg-purple-500 w-6 h-6 rounded flex items-center justify-center text-white text-xs">檔</span>
+                      兌換請求
+                      {pendingExchangeRequests.length > 0 && (
+                        <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">
+                          {pendingExchangeRequests.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 桌面版：管理員按鈕並排顯示 */}
+          {userRole === 'admin' && (
+            <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setShowDistributionModal(!showDistributionModal)}
+                className="bg-green-500 hover:bg-green-600 active:bg-green-600 text-white font-semibold px-3 py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] touch-manipulation text-sm"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>分配佳盟幣</span>
+              </button>
+              <button
+                onClick={() => setShowItemDistributionModal(!showItemDistributionModal)}
+                className="bg-blue-500 hover:bg-blue-600 active:bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] touch-manipulation text-sm"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <span>分配道具</span>
+              </button>
+              <button
+                onClick={() => setShowExchangeRequestModal(!showExchangeRequestModal)}
+                className="bg-purple-500 hover:bg-purple-600 active:bg-purple-600 text-white font-semibold px-3 py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 relative min-h-[36px] touch-manipulation text-sm"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>兌換請求</span>
+                {pendingExchangeRequests.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-yellow-400 text-gray-800 rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold">
+                    {pendingExchangeRequests.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
           <button
             onClick={onLogout}
-            className="bg-red-500 hover:bg-red-600 active:bg-red-600 text-white font-semibold px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm"
+            className="bg-red-500 hover:bg-red-600 active:bg-red-600 text-white font-semibold px-2.5 py-2 sm:px-3 sm:py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 min-h-[40px] min-w-[40px] sm:min-h-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm flex-shrink-0"
           >
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            <span>登出</span>
+            <span className="hidden sm:inline">登出</span>
           </button>
         </div>
       </div>
