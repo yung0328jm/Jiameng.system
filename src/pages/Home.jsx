@@ -2019,7 +2019,7 @@ function Home() {
                           <div className="relative rounded-lg sm:rounded-lg px-2 py-2 sm:px-4 sm:py-4" style={{
                             background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)'
                           }}>
-                            {/* 表頭：手機字小、間距小 */}
+                            {/* 表頭：手機加大姓名欄、姓名可完整顯示 */}
                             <div className="grid grid-cols-12 gap-1 sm:gap-2 pb-2 sm:pb-3 mb-2 sm:mb-3 border-b border-gray-600">
                               <div className="col-span-2 flex items-center justify-center">
                                 <input
@@ -2029,7 +2029,7 @@ function Home() {
                                   className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm text-center"
                                 />
                               </div>
-                              <div className="col-span-3 flex items-center">
+                              <div className="col-span-4 sm:col-span-3 flex items-center min-w-0">
                                 <input
                                   type="text"
                                   value={uiConfig.columnName}
@@ -2037,7 +2037,7 @@ function Home() {
                                   className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm"
                                 />
                               </div>
-                              <div className="col-span-3 flex items-center justify-center">
+                              <div className="col-span-2 sm:col-span-3 flex items-center justify-center">
                                 <input
                                   type="text"
                                   value={uiConfig.columnTime || '時間'}
@@ -2045,7 +2045,7 @@ function Home() {
                                   className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white font-bold focus:outline-none w-full text-[10px] sm:text-sm text-center"
                                 />
                               </div>
-                              <div className="col-span-4 flex items-center justify-end">
+                              <div className="col-span-4 sm:col-span-4 flex items-center justify-end">
                                 <input
                                   type="text"
                                   value={uiConfig.columnPerformance}
@@ -2105,10 +2105,10 @@ function Home() {
                                             )}
                                           </div>
                                           
-                                          {/* 姓名 */}
-                                          <div className="col-span-3">
+                                          {/* 姓名：手機加大欄寬、可換行顯示完整名稱 */}
+                                          <div className="col-span-4 sm:col-span-3 min-w-0">
                                             {isAutoRow ? (
-                                              <span className="text-white text-xs sm:text-sm px-1 sm:px-3 py-1 sm:py-2 truncate block">{ranking.name || ''}</span>
+                                              <span className="text-white text-xs sm:text-sm px-1 sm:px-3 py-1 sm:py-2 block break-words line-clamp-2">{ranking.name || ''}</span>
                                             ) : (
                                               <input
                                                 type="text"
@@ -2121,7 +2121,7 @@ function Home() {
                                           </div>
                                           
                                           {/* 時間 */}
-                                          <div className="col-span-3 flex items-center justify-center">
+                                          <div className="col-span-2 sm:col-span-3 flex items-center justify-center">
                                             {isAutoRow ? (
                                               <span className="text-gray-400 text-xs sm:text-sm">{ranking.time || ''}</span>
                                             ) : (
@@ -2136,7 +2136,7 @@ function Home() {
                                           </div>
                                           
                                           {/* 數量 */}
-                                          <div className="col-span-3 flex flex-col items-end justify-center pr-1 sm:pr-4">
+                                          <div className="col-span-4 sm:col-span-3 flex flex-col items-end justify-center pr-1 sm:pr-4">
                                             {isAutoRow ? (
                                               <span className="text-white text-xs sm:text-sm">{ranking.quantity || ''}</span>
                                             ) : (
@@ -2674,7 +2674,7 @@ function Home() {
                     <div className="relative rounded-lg px-2 py-2 sm:px-4 sm:py-4" style={{
                       background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)'
                     }}>
-                      {/* 表頭：手機字小、間距小 */}
+                      {/* 表頭：手機加大姓名欄、姓名可完整顯示 */}
                       <div className="grid grid-cols-12 gap-1 sm:gap-2 pb-2 sm:pb-3 mb-2 sm:mb-3 border-b border-gray-600">
                         <div className="col-span-2 flex items-center justify-center">
                           {userRole === 'admin' ? (
@@ -2688,7 +2688,7 @@ function Home() {
                             <span className="text-white font-bold text-[10px] sm:text-sm text-center w-full">{uiConfig.columnRank}</span>
                           )}
                         </div>
-                        <div className="col-span-3 flex items-center">
+                        <div className="col-span-4 sm:col-span-3 flex items-center min-w-0">
                           {userRole === 'admin' ? (
                             <input
                               type="text"
@@ -2700,7 +2700,7 @@ function Home() {
                             <span className="text-white font-bold text-[10px] sm:text-sm">{uiConfig.columnName}</span>
                           )}
                         </div>
-                        <div className="col-span-3 flex items-center justify-center">
+                        <div className="col-span-2 sm:col-span-3 flex items-center justify-center">
                           {userRole === 'admin' ? (
                             <input
                               type="text"
@@ -2823,23 +2823,23 @@ function Home() {
                                       )}
                                     </div>
                                     
-                                    {/* 姓名列：手機字小 */}
-                                    <div className="col-span-3 text-white text-xs sm:text-sm flex items-center truncate min-w-0">
+                                    {/* 姓名列：手機加大欄寬、可換行顯示完整名稱 */}
+                                    <div className="col-span-4 sm:col-span-3 text-white text-xs sm:text-sm flex items-center min-w-0">
                                       {isManual && userRole === 'admin' ? (
                                         <input
                                           type="text"
                                           value={ranking.name || ''}
                                           onChange={(e) => handleUpdateRanking(item.id, ranking.id, 'name', e.target.value)}
-                                          className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white text-sm focus:outline-none w-full"
+                                          className="bg-transparent border-b border-transparent hover:border-white focus:border-white text-white text-xs sm:text-sm focus:outline-none w-full"
                                           placeholder="輸入姓名"
                                         />
                                       ) : (
-                                        <span className="truncate">{ranking.name || ''}</span>
+                                        <span className="break-words line-clamp-2">{ranking.name || ''}</span>
                                       )}
                                     </div>
                                     
                                     {/* 時間列 */}
-                                    <div className="col-span-3 text-white text-sm flex items-center justify-center">
+                                    <div className="col-span-2 sm:col-span-3 text-white text-xs sm:text-sm flex items-center justify-center">
                                       {isManual && userRole === 'admin' ? (
                                         <input
                                           type="text"
@@ -2854,7 +2854,7 @@ function Home() {
                                     </div>
                                     
                                     {/* 業績列 */}
-                                    <div className={`col-span-4 text-sm font-bold flex items-center justify-end pr-4 ${
+                                    <div className={`col-span-4 text-xs sm:text-sm font-bold flex items-center justify-end pr-1 sm:pr-4 ${
                                       isTopThree 
                                         ? (rank === 1 ? 'text-yellow-300' : rank === 2 ? 'text-gray-300' : 'text-orange-300')
                                         : 'text-white'
