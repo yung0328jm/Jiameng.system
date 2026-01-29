@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react'
 import { getUsers } from '../utils/storage'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import { getUserPerformanceRecords, getUserLateRecords, getUserAttendanceRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking } from '../utils/leaderboardStorage'
@@ -607,7 +608,7 @@ function Home() {
     return { startDate, endDate }
   }
 
-  const calculateAllRankings = () => {
+  const calculateAllRankings = async () => {
     if (leaderboardItems.length === 0) return
 
     const users = getUsers().filter(u => u.role !== 'admin') // 排除管理者
@@ -834,15 +835,23 @@ function Home() {
           isNewAchievement = true // 首次達成
         }
         
-        // 如果是新達成，派發獎勵
+        // 如果是新達成，派發全體達成獎勵（支援 Supabase 用戶列表）
         if (isNewAchievement) {
           const rewardType = leaderboardItem.rewardType || 'text'
-          
-          // 獲取所有用戶
-          const allUsers = getUsers()
-          
+          let allUsers = []
+          if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+            try {
+              const profiles = await getAllProfiles()
+              allUsers = (profiles || []).map(p => ({ account: p.account }))
+            } catch (e) {
+              console.warn('團體目標派發：取得 profiles 失敗', e)
+            }
+          }
+          if (allUsers.length === 0) {
+            const local = getUsers()
+            allUsers = Array.isArray(local) ? local : []
+          }
           if (rewardType === 'item' && leaderboardItem.rewardItemId) {
-            // 派發道具到所有用戶背包
             allUsers.forEach(user => {
               if (user.account) {
                 addItemToInventory(user.account, leaderboardItem.rewardItemId, 1)
@@ -850,11 +859,9 @@ function Home() {
             })
             console.log(`團體目標達成：已為所有用戶派發道具 ${leaderboardItem.rewardItemId}`)
           } else if (rewardType === 'jiameng_coin' && leaderboardItem.rewardAmount > 0) {
-            // 派發佳盟幣到所有用戶錢包
             allUsers.forEach(user => {
               if (user.account) {
                 addWalletBalance(user.account, leaderboardItem.rewardAmount)
-                // 記錄交易
                 addTransaction({
                   type: 'reward',
                   from: 'system',
@@ -908,25 +915,55 @@ function Home() {
     
     setRankings(newRankings)
     
-    // 在排名計算完成後，立即分配稱號道具（延遲執行以避免狀態更新衝突）
-    setTimeout(() => {
-      console.log('calculateAllRankings 完成，開始分配稱號和特效')
-      distributeTitlesAndEffects(newRankings)
+    // 在排名計算完成後，立即分配稱號與上榜／團體達成道具（延遲執行以避免狀態更新衝突）
+    setTimeout(async () => {
+      console.log('calculateAllRankings 完成，開始分配稱號、特效與上榜道具')
+      await distributeTitlesAndEffects(newRankings)
     }, 500)
   }
 
-  // 分配稱號和特效道具的獨立函數
-  const distributeTitlesAndEffects = (currentRankings) => {
+  // 分配稱號、特效與上榜道具的獨立函數（支援 Supabase 用戶列表）
+  const distributeTitlesAndEffects = async (currentRankings) => {
     if (!currentRankings || Object.keys(currentRankings).length === 0) {
       console.log('distributeTitlesAndEffects: 沒有排行榜數據')
       return
     }
     
     console.log('開始分配特效道具和稱號，排行榜數量:', Object.keys(currentRankings).length)
-    // 名子／發話特效與稱號皆「依排行榜 + 名次」建立／發放／回收，根據現在排名只保留對應道具
     const rawItems = getLeaderboardItems()
     const currentLeaderboardItems = Array.isArray(rawItems) ? rawItems : []
     const titleConfigData = getTitleConfig()
+    
+    // 名稱→帳號對應：Supabase 啟用時用 profiles，否則用 getUsers()
+    let nameToAccountMap = {}
+    let allUsersForRemove = []
+    if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+      try {
+        const profiles = await getAllProfiles()
+        const list = Array.isArray(profiles) ? profiles : []
+        list.forEach(p => {
+          if (p.account) {
+            nameToAccountMap[p.account] = p.account
+            const name = p.display_name || p.account
+            if (name) nameToAccountMap[name] = p.account
+          }
+        })
+        allUsersForRemove = list.map(p => ({ account: p.account }))
+      } catch (e) {
+        console.warn('distributeTitlesAndEffects: 取得 profiles 失敗', e)
+      }
+    }
+    if (Object.keys(nameToAccountMap).length === 0) {
+      const local = getUsers()
+      const list = Array.isArray(local) ? local : []
+      list.forEach(u => {
+        nameToAccountMap[u.account] = u.account
+        if (u.name) nameToAccountMap[u.name] = u.account
+      })
+      allUsersForRemove = list
+    }
+    
+    const resolveToAccount = (nameOrAccount) => nameToAccountMap[nameOrAccount] || nameOrAccount
     
     Object.keys(currentRankings).forEach(leaderboardId => {
         const leaderboardItem = currentLeaderboardItems.find(item => item && item.id === leaderboardId)
@@ -945,14 +982,8 @@ function Home() {
         const lbSecond = (leaderboardItem.titleSecondPlace ?? titleConfigData.secondPlace ?? '').trim() || titleConfigData.secondPlace
         const lbThird = (leaderboardItem.titleThirdPlace ?? titleConfigData.thirdPlace ?? '').trim() || titleConfigData.thirdPlace
         
-        // 有手動排名的排行榜：與畫面一致，依「手動排名依數量排序」取前三，並用名稱→帳號對應發放，避免謝宏彬等第三名拿到第一名獎勵
+        // 有手動排名的排行榜：與畫面一致，依「手動排名依數量排序」取前三，並用名稱→帳號對應發放
         const manualRanks = getManualRankings(leaderboardId) || []
-        const nameToAccountMap = {}
-        getUsers().forEach(u => {
-          nameToAccountMap[u.account] = u.account
-          if (u.name) nameToAccountMap[u.name] = u.account
-        })
-        const resolveToAccount = (nameOrAccount) => nameToAccountMap[nameOrAccount] || nameOrAccount
         
         let topThree
         if (manualRanks.length > 0) {
@@ -1086,8 +1117,8 @@ function Home() {
           allItems = getItems()
           
           // 只移除「屬於此排行榜」的稱號與名子／發話特效：非前三名收回此榜全部；前三名在下面只做「此榜其他名次」的移除與發放
-          const allUsersRaw = getUsers()
-          const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : []
+          const localUsers = getUsers()
+          const allUsers = allUsersForRemove.length > 0 ? allUsersForRemove : (Array.isArray(localUsers) ? localUsers : [])
           allUsers.forEach(user => {
             const userAccount = user.account
             const isInTopThree = topThree.some(t => t.userName === userAccount)
@@ -1168,6 +1199,29 @@ function Home() {
             tryGive(thirdUserName, titleByRank(3), thirdTitleItemCreated)
             tryGive(thirdUserName, msgEffectByRank(3), false)
           }
+
+          // 上榜道具：前三名依排行榜設定的獎勵類型發放道具或佳盟幣（與團體目標分開，此為「上榜」獎勵）
+          const rewardType = leaderboardItem.rewardType || 'text'
+          const rewardAmount = parseInt(leaderboardItem.rewardAmount, 10) || 0
+          const rewardItemId = leaderboardItem.rewardItemId || ''
+          ;[0, 1, 2].forEach(idx => {
+            if (!topThree[idx] || !shouldGiveRank(idx)) return
+            const account = topThree[idx].userName
+            if (!account) return
+            if (rewardType === 'item' && rewardItemId) {
+              const qty = Math.max(1, rewardAmount)
+              addItemToInventory(account, rewardItemId, qty)
+            } else if (rewardType === 'jiameng_coin' && rewardAmount > 0) {
+              addWalletBalance(account, rewardAmount)
+              addTransaction({
+                type: 'reward',
+                from: 'system',
+                to: account,
+                amount: rewardAmount,
+                description: `排行榜「${leaderboardItem.name || leaderboardId}」上榜獎勵`
+              })
+            }
+          })
 
           // 在非手動榜下，前三名中數值為 0 的用戶不發獎勵，並收回此榜全部稱號／特效（rank 0 表示全部移除），避免新帳號或無貢獻者保留舊獎勵
           ;[0, 1, 2].forEach((idx) => {
@@ -1800,8 +1854,8 @@ function Home() {
         </div>
       </div>
 
-      {/* 排行榜 - 海報風格樣式（手機降低高度、網格對齊） */}
-      <div className="relative rounded-lg overflow-hidden shadow-2xl min-h-[320px] sm:min-h-[500px] lg:min-h-[800px]" style={{
+      {/* 排行榜 - 海報風格樣式；主體寬度與首頁一致，網格加寬 */}
+      <div className="relative rounded-lg overflow-hidden shadow-2xl min-h-[320px] sm:min-h-[500px] lg:min-h-[800px] w-full max-w-6xl mx-auto" style={{
         background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)',
         position: 'relative'
       }}>
@@ -1891,7 +1945,7 @@ function Home() {
                 const greyCardEl = (!hasValidRankings && !isManual) ? (
                     <div
                       key={item.id}
-                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[240px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px]"
+                      className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col h-[380px] sm:h-[420px] lg:h-[460px]"
                       style={{
                         background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 50%, #2a2a2a 100%)',
                         position: 'relative'
@@ -2217,7 +2271,7 @@ function Home() {
                 const fullCardEl = (
                   <div
                     key={item.id}
-                    className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col min-h-[240px] sm:min-h-[360px] md:min-h-[500px] lg:min-h-[700px] ring-2 ring-yellow-400"
+                    className="relative rounded-lg overflow-hidden shadow-2xl min-w-0 flex flex-col h-[380px] sm:h-[420px] lg:h-[460px] ring-2 ring-yellow-400"
                     style={{
                       background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 30%, #2a2a2a 60%, #1a1a1a 100%)',
                       position: 'relative',
