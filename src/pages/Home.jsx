@@ -17,6 +17,7 @@ import { getEffectDisplayConfig, saveEffectDisplayConfig, getStyleForPreset, get
 import { getLeaderboardTypes, addLeaderboardType, updateLeaderboardType, deleteLeaderboardType, getPresetIdByRank } from '../utils/leaderboardTypeStorage'
 import { getEquippedEffects } from '../utils/effectStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { syncKeyToSupabase } from '../utils/supabaseSync'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -1186,15 +1187,7 @@ function Home() {
           const titleByRank = (r) => freshItems.find(i => i.type === ITEM_TYPES.TITLE && (i.leaderboardId || '') === leaderboardId && i.rank === r)
           const nameEffectByRank = (r) => freshItems.find(i => i.type === ITEM_TYPES.NAME_EFFECT && (i.leaderboardId || '') === leaderboardId && i.rank === r)
           const msgEffectByRank = (r) => freshItems.find(i => i.type === ITEM_TYPES.MESSAGE_EFFECT && (i.leaderboardId || '') === leaderboardId && i.rank === r)
-          // 只有第一名會有名子特效：第二、三名收回此榜的名子特效道具
-          const removeNameEffectForBoard = (userName) => {
-            const inv = getUserInventory(userName)
-            inv.forEach(invEntry => {
-              const item = freshItems.find(i => i.id === invEntry.itemId)
-              if (!item || item.type !== ITEM_TYPES.NAME_EFFECT || (item.leaderboardId || '') !== leaderboardId) return
-              removeItemFromInventory(userName, item.id, invEntry.quantity)
-            })
-          }
+          // 規則：第一/二/三名各自擁有對應的名子特效、發話特效、稱號（依名次）
 
           // 掉出前三名：若裝備的是「此榜」的稱號/特效，則自動卸下，避免 UI 還顯示舊特效
           const unequipBoardIfEquipped = (userName) => {
@@ -1228,34 +1221,36 @@ function Home() {
             if (m?.id) equipEffect(firstUserName, m.id, 'message')
           }
 
-          // 第二名：只發稱號與發話特效，不發名子特效；並收回此榜名子特效
+          // 第二名：發放此榜第二名的稱號、名子特效、發話特效
           if (topThree[1] && shouldGiveRank(1)) {
             const secondUserName = topThree[1].userName
             removeThisBoardOtherRank(secondUserName, 2)
-            removeNameEffectForBoard(secondUserName)
             tryGive(secondUserName, titleByRank(2), secondTitleItemCreated)
+            tryGive(secondUserName, nameEffectByRank(2), false)
             tryGive(secondUserName, msgEffectByRank(2), false)
-            // 自動裝備：第二名（稱號 + 發話；卸下名子）
+            // 自動裝備：第二名（稱號 + 名子 + 發話）
             const t = titleByRank(2)
+            const n = nameEffectByRank(2)
             const m = msgEffectByRank(2)
             if (t?.id) equipEffect(secondUserName, t.id, 'title')
+            if (n?.id) equipEffect(secondUserName, n.id, 'name')
             if (m?.id) equipEffect(secondUserName, m.id, 'message')
-            unequipEffect(secondUserName, 'name')
           }
 
-          // 第三名：只發稱號與發話特效，不發名子特效；並收回此榜名子特效
+          // 第三名：發放此榜第三名的稱號、名子特效、發話特效
           if (topThree[2] && shouldGiveRank(2)) {
             const thirdUserName = topThree[2].userName
             removeThisBoardOtherRank(thirdUserName, 3)
-            removeNameEffectForBoard(thirdUserName)
             tryGive(thirdUserName, titleByRank(3), thirdTitleItemCreated)
+            tryGive(thirdUserName, nameEffectByRank(3), false)
             tryGive(thirdUserName, msgEffectByRank(3), false)
-            // 自動裝備：第三名（稱號 + 發話；卸下名子）
+            // 自動裝備：第三名（稱號 + 名子 + 發話）
             const t = titleByRank(3)
+            const n = nameEffectByRank(3)
             const m = msgEffectByRank(3)
             if (t?.id) equipEffect(thirdUserName, t.id, 'title')
+            if (n?.id) equipEffect(thirdUserName, n.id, 'name')
             if (m?.id) equipEffect(thirdUserName, m.id, 'message')
-            unequipEffect(thirdUserName, 'name')
           }
 
           // 上榜道具：前三名依排行榜設定的獎勵類型發放道具或佳盟幣（與團體目標分開，此為「上榜」獎勵）
@@ -1501,12 +1496,27 @@ function Home() {
             if (e.messageEffect && specialIds.has(e.messageEffect)) unequipEffect(username, 'message')
             if (e.title && specialIds.has(e.title)) unequipEffect(username, 'title')
           })
-          getUsers().forEach((user) => {
-            const inv = getUserInventory(user.account)
-            inv.forEach((invEntry) => {
-              if (specialIds.has(invEntry.itemId)) removeItemFromInventory(user.account, invEntry.itemId, invEntry.quantity)
+          // 從所有人的背包中移除（Supabase 模式下不能只靠 getUsers，直接掃 inventories map）
+          try {
+            const rawInv = localStorage.getItem('jiameng_inventories')
+            const inventories = rawInv ? JSON.parse(rawInv) : {}
+            let changed = false
+            Object.keys(inventories || {}).forEach((username) => {
+              const arr = Array.isArray(inventories[username]) ? inventories[username] : []
+              const filtered = arr.filter((invEntry) => !specialIds.has(invEntry.itemId))
+              if (filtered.length !== arr.length) {
+                inventories[username] = filtered
+                changed = true
+              }
             })
-          })
+            if (changed) {
+              const val = JSON.stringify(inventories)
+              localStorage.setItem('jiameng_inventories', val)
+              syncKeyToSupabase('jiameng_inventories', val)
+            }
+          } catch (e) {
+            console.warn('Error cleaning inventories for deleted leaderboard:', e)
+          }
           specialItems.forEach((item) => deleteItem(item.id))
         }
       } catch (error) {
