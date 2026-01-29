@@ -89,10 +89,35 @@ function PersonalPerformance() {
   const [importResult, setImportResult] = useState(null) // 導入結果
   const [dataRevision, setDataRevision] = useState(0)
 
+  const loadUsersForAdmin = useCallback(async () => {
+    try {
+      // 管理員用戶清單：只顯示非管理員（員工）
+      if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+        const profiles = await getPublicProfiles()
+        const list = (Array.isArray(profiles) ? profiles : [])
+          .filter((p) => !p?.is_admin)
+          .map((p) => ({
+            account: p.account,
+            name: p.display_name || p.account,
+            role: p.is_admin ? 'admin' : 'user'
+          }))
+        setUsers(list)
+        return
+      }
+      const allUsers = getUsers()
+      setUsers((allUsers || []).filter(u => u.role !== 'admin'))
+    } catch (e) {
+      console.warn('loadUsersForAdmin failed', e)
+      const allUsers = getUsers()
+      setUsers((allUsers || []).filter(u => u.role !== 'admin'))
+    }
+  }, [])
+
   const refetchPerformance = () => {
     const role = getCurrentUserRole()
     if (role === 'admin') {
-      setUsers(getUsers().filter(u => u.role !== 'admin'))
+      // Supabase 模式也要能取得員工清單，避免「評分/查看用戶」下拉只看到自己
+      loadUsersForAdmin()
       setCompletionRateRules(getCompletionRateRules())
       const lateConfig = getLatePerformanceConfig()
       setLatePerformanceConfig(lateConfig)
@@ -116,8 +141,7 @@ function PersonalPerformance() {
     
     // 如果是管理者，載入用戶列表和達成率規則
     if (role === 'admin') {
-      const allUsers = getUsers()
-      setUsers(allUsers.filter(u => u.role !== 'admin')) // 只顯示非管理者用戶
+      loadUsersForAdmin()
       // 載入達成率調整規則
       const rules = getCompletionRateRules()
       setCompletionRateRules(rules)
@@ -140,7 +164,7 @@ function PersonalPerformance() {
       const viewUser = selectedViewUser || user
       calculatePerformance(viewUser)
     }
-  }, [selectedYear, selectedMonth, selectedViewUser, dataRevision])
+  }, [selectedYear, selectedMonth, selectedViewUser, dataRevision, loadUsersForAdmin])
   
 
   // 取得當前查看的用戶（管理者可以選擇查看其他用戶）
