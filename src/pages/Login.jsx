@@ -28,11 +28,10 @@ function Login({ onLogin }) {
     setSubmitting(true)
     try {
       // 記住帳號（只存帳號/Email，不存密碼）
+      // - 不勾選：立即清掉
+      // - 勾選：僅在「登入成功」後才寫入，避免誤把註冊/錯誤帳號存進去
       try {
-        if (rememberAccount) {
-          localStorage.setItem(REMEMBER_ACCOUNT_KEY, '1')
-          localStorage.setItem(REMEMBERED_USERNAME_KEY, username.trim())
-        } else {
+        if (!rememberAccount) {
           localStorage.removeItem(REMEMBER_ACCOUNT_KEY)
           localStorage.removeItem(REMEMBERED_USERNAME_KEY)
         }
@@ -41,6 +40,12 @@ function Login({ onLogin }) {
       if (isSupabaseEnabled()) {
         const result = await loginWithAccountOrEmail(username.trim(), password)
         if (result.success) {
+          try {
+            if (rememberAccount) {
+              localStorage.setItem(REMEMBER_ACCOUNT_KEY, '1')
+              localStorage.setItem(REMEMBERED_USERNAME_KEY, username.trim())
+            }
+          } catch (_) {}
           onLogin()
           navigate('/dashboard')
           return
@@ -50,6 +55,12 @@ function Login({ onLogin }) {
       }
       const result = verifyUser(username, password)
       if (result.success) {
+        try {
+          if (rememberAccount) {
+            localStorage.setItem(REMEMBER_ACCOUNT_KEY, '1')
+            localStorage.setItem(REMEMBERED_USERNAME_KEY, username.trim())
+          }
+        } catch (_) {}
         const userRole = result.user?.role || 'user'
         saveCurrentUser(username, userRole)
         onLogin()

@@ -117,7 +117,10 @@ function Register({ onLogin }) {
           )}
 
           {/* 注册表单 */}
-          <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5 sm:space-y-6">
+            {/* 防止瀏覽器把登入帳密自動帶入註冊欄位（特別是 Chrome） */}
+            <input type="text" name="fake_username" autoComplete="username" style={{ display: 'none' }} />
+            <input type="password" name="fake_password" autoComplete="new-password" style={{ display: 'none' }} />
             <div>
               <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">姓名 *</label>
               <input
@@ -126,6 +129,7 @@ function Register({ onLogin }) {
                 value={formData.name}
                 onChange={handleChange}
                 placeholder="請輸入姓名"
+                autoComplete="off"
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
                 required
               />
@@ -139,6 +143,10 @@ function Register({ onLogin }) {
                 value={formData.account}
                 onChange={handleChange}
                 placeholder="請輸入帳號"
+                autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
                 required
               />
@@ -151,6 +159,7 @@ function Register({ onLogin }) {
                 value={formData.registrationPassword}
                 onChange={handleChange}
                 placeholder="由管理員提供，未設置則可留空"
+                autoComplete="off"
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
               />
             </div>
@@ -162,6 +171,7 @@ function Register({ onLogin }) {
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="請輸入密碼 (至少3個字符)"
+                autoComplete="new-password"
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
                 required
                 minLength={3}
@@ -175,6 +185,7 @@ function Register({ onLogin }) {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 placeholder="請再次輸入密碼"
+                autoComplete="new-password"
                 className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
                 required
               />
