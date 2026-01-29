@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import Home from './Home'
 import Calendar from './Calendar'
@@ -163,6 +164,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   })
   const [availableItems, setAvailableItems] = useState([])
   const [showTopMenu, setShowTopMenu] = useState(false) // 手機版「更多」選單
+  const topMenuButtonRef = useRef(null)
+  const [topMenuPosition, setTopMenuPosition] = useState({ top: 0, right: 0 })
 
   useEffect(() => {
     const role = getCurrentUserRole()
@@ -462,8 +465,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
   return (
     <div className="min-h-screen bg-gray-800 flex flex-col">
-      {/* 上方導覽列：手機版精簡（左縮、中標題、右：佳盟幣＋更多／登出），桌面版維持原樣 */}
-      <div className="bg-dark-gray px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 overflow-hidden min-h-[48px] sm:min-h-[44px]">
+      {/* 上方導覽列：手機版精簡；選單開啟時 overflow-visible + z-[100] 讓「更多」選單不被裁切且浮在主題／內容之上可點 */}
+      <div className={`bg-dark-gray px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 min-h-[48px] sm:min-h-[44px] relative ${showTopMenu ? 'z-[100] overflow-visible' : 'overflow-hidden'}`}>
         {/* 左：僅圖示（手機隱藏「主題篩選」文字以留空間） */}
         <div className="flex items-center shrink-0 min-w-0 w-8 sm:w-auto sm:max-w-none">
           <svg className="w-5 h-5 sm:w-5 sm:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -494,12 +497,20 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             <span className="whitespace-nowrap">{walletBalance.toLocaleString()}</span>
           </button>
 
-          {/* 手機版：管理員功能收合到「更多」選單 */}
+          {/* 手機版：管理員功能收合到「更多」選單（用 Portal 渲染到 body，避免被主題／頂列裁切或擋住） */}
           {userRole === 'admin' && (
             <div className="relative sm:hidden flex-shrink-0">
               <button
+                ref={topMenuButtonRef}
                 type="button"
-                onClick={() => setShowTopMenu(!showTopMenu)}
+                onClick={() => {
+                  const open = !showTopMenu
+                  if (open && topMenuButtonRef.current) {
+                    const rect = topMenuButtonRef.current.getBoundingClientRect()
+                    setTopMenuPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                  }
+                  setShowTopMenu(open)
+                }}
                 className="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-2.5 py-2 rounded-lg transition-colors flex items-center justify-center min-h-[40px] min-w-[40px] touch-manipulation"
                 aria-expanded={showTopMenu}
                 aria-haspopup="true"
@@ -508,32 +519,35 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              {showTopMenu && (
+              {showTopMenu && typeof document !== 'undefined' && createPortal(
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowTopMenu(false)} aria-hidden />
-                  <div className="absolute right-0 top-full mt-1 z-50 py-1.5 min-w-[160px] bg-gray-800 border border-gray-600 rounded-lg shadow-xl">
+                  <div className="fixed inset-0 z-[9998]" onClick={() => setShowTopMenu(false)} aria-hidden style={{ touchAction: 'none' }} />
+                  <div
+                    className="fixed z-[9999] py-1 min-w-[180px] bg-gray-800 border border-gray-600 rounded-lg shadow-xl"
+                    style={{ top: topMenuPosition.top, right: topMenuPosition.right, touchAction: 'manipulation' }}
+                  >
                     <button
                       type="button"
-                      onClick={() => { setShowDistributionModal(true); setShowTopMenu(false) }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-none first:rounded-t-lg"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDistributionModal(true); setShowTopMenu(false); }}
+                      className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation"
                     >
-                      <span className="bg-green-500 w-6 h-6 rounded flex items-center justify-center text-white text-xs">+</span>
+                      <span className="bg-green-500 w-7 h-7 rounded flex items-center justify-center text-white text-xs flex-shrink-0">+</span>
                       分配佳盟幣
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setShowItemDistributionModal(true); setShowTopMenu(false) }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-gray-700 flex items-center gap-2"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowItemDistributionModal(true); setShowTopMenu(false); }}
+                      className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 cursor-pointer touch-manipulation"
                     >
-                      <span className="bg-blue-500 w-6 h-6 rounded flex items-center justify-center text-white text-xs flex-shrink-0">盒</span>
+                      <span className="bg-blue-500 w-7 h-7 rounded flex items-center justify-center text-white text-xs flex-shrink-0">盒</span>
                       分配道具
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setShowExchangeRequestModal(true); setShowTopMenu(false) }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-none last:rounded-b-lg relative"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowExchangeRequestModal(true); setShowTopMenu(false); }}
+                      className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 rounded-b-lg relative cursor-pointer touch-manipulation"
                     >
-                      <span className="bg-purple-500 w-6 h-6 rounded flex items-center justify-center text-white text-xs">檔</span>
+                      <span className="bg-purple-500 w-7 h-7 rounded flex items-center justify-center text-white text-xs flex-shrink-0">檔</span>
                       兌換請求
                       {pendingExchangeRequests.length > 0 && (
                         <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">
@@ -542,7 +556,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                       )}
                     </button>
                   </div>
-                </>
+                </>,
+                document.body
               )}
             </div>
           )}
