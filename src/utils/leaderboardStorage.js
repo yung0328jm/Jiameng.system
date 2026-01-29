@@ -3,11 +3,12 @@ import { syncKeyToSupabase } from './supabaseSync'
 const LEADERBOARD_STORAGE_KEY = 'jiameng_leaderboard_items'
 const LEADERBOARD_UI_STORAGE_KEY = 'jiameng_leaderboard_ui'
 
-// 獲取所有排行榜項目
+// 獲取所有排行榜項目（保證回傳陣列，避免 .map is not a function）
 export const getLeaderboardItems = () => {
   try {
     const items = localStorage.getItem(LEADERBOARD_STORAGE_KEY)
-    return items ? JSON.parse(items) : []
+    const parsed = items ? JSON.parse(items) : []
+    return Array.isArray(parsed) ? parsed : []
   } catch (error) {
     console.error('Error getting leaderboard items:', error)
     return []

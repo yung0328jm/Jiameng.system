@@ -2,12 +2,13 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const INVENTORY_STORAGE_KEY = 'jiameng_inventories'
 
-// 獲取用戶背包
+// 獲取用戶背包（保證回傳陣列）
 export const getUserInventory = (username) => {
   try {
     const data = localStorage.getItem(INVENTORY_STORAGE_KEY)
     const inventories = data ? JSON.parse(data) : {}
-    return inventories[username] || []
+    const arr = inventories[username] || []
+    return Array.isArray(arr) ? arr : []
   } catch (error) {
     console.error('Error getting user inventory:', error)
     return []

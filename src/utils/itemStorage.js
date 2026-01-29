@@ -10,12 +10,13 @@ export const ITEM_TYPES = {
   TITLE: 'title' // 稱號道具
 }
 
-// 獲取所有道具定義
+// 獲取所有道具定義（保證回傳陣列）
 export const getItems = () => {
   try {
     const data = localStorage.getItem(ITEM_STORAGE_KEY)
     if (data) {
-      return JSON.parse(data)
+      const parsed = JSON.parse(data)
+      return Array.isArray(parsed) ? parsed : []
     }
     // 初始化默認道具
     const defaultItems = [

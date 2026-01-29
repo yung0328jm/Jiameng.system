@@ -12,7 +12,8 @@ const setUsersAndSync = (users) => {
 export const getUsers = () => {
   try {
     const users = localStorage.getItem(STORAGE_KEY)
-    return users ? JSON.parse(users) : []
+    const parsed = users ? JSON.parse(users) : []
+    return Array.isArray(parsed) ? parsed : []
   } catch (error) {
     console.error('Error getting users:', error)
     return []
