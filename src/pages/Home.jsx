@@ -576,7 +576,7 @@ function Home() {
 
   const loadLeaderboardItems = () => {
     const items = getLeaderboardItems()
-    setLeaderboardItems(items)
+    setLeaderboardItems(Array.isArray(items) ? items : [])
     // 不自動選取第一個排行榜，由使用者自行選擇
   }
 
@@ -924,11 +924,12 @@ function Home() {
     
     console.log('開始分配特效道具和稱號，排行榜數量:', Object.keys(currentRankings).length)
     // 名子／發話特效與稱號皆「依排行榜 + 名次」建立／發放／回收，根據現在排名只保留對應道具
-    const currentLeaderboardItems = getLeaderboardItems()
+    const rawItems = getLeaderboardItems()
+    const currentLeaderboardItems = Array.isArray(rawItems) ? rawItems : []
     const titleConfigData = getTitleConfig()
     
     Object.keys(currentRankings).forEach(leaderboardId => {
-        const leaderboardItem = currentLeaderboardItems.find(item => item.id === leaderboardId)
+        const leaderboardItem = currentLeaderboardItems.find(item => item && item.id === leaderboardId)
         if (!leaderboardItem) return
         
         const isNoLateLeaderboard = leaderboardItem.title === '整月無遲到' || 
@@ -1085,7 +1086,8 @@ function Home() {
           allItems = getItems()
           
           // 只移除「屬於此排行榜」的稱號與名子／發話特效：非前三名收回此榜全部；前三名在下面只做「此榜其他名次」的移除與發放
-          const allUsers = getUsers()
+          const allUsersRaw = getUsers()
+          const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : []
           allUsers.forEach(user => {
             const userAccount = user.account
             const isInTopThree = topThree.some(t => t.userName === userAccount)
@@ -1860,7 +1862,7 @@ function Home() {
                 )}
               </div>
             ) : (
-              leaderboardItems.map((item, index) => {
+              (Array.isArray(leaderboardItems) ? leaderboardItems : []).map((item, index) => {
                 if (!item || !item.id) return null
                 const itemRankings = (rankings[item.id] || []).slice(0, 6)
                 const manualRanks = manualRankings[item.id] || []
