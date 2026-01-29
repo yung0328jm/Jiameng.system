@@ -160,11 +160,28 @@ function Calendar() {
 
     // 專案管理案場 → 活動下拉
     const projects = getProjects()
-    const sites = (Array.isArray(projects) ? projects : [])
-      .map((p) => (p?.name || '').trim())
-      .filter(Boolean)
-    // 去重 + 排序
-    setProjectSiteOptions(Array.from(new Set(sites)).sort((a, b) => a.localeCompare(b, 'zh-Hant')))
+    const getWeight = (status) => {
+      // 需求：進行中最上、規劃中往下、已完成最底（避免誤選）
+      switch (status) {
+        case 'in_progress': return 0
+        case 'planning': return 1
+        case 'on_hold': return 2
+        case 'completed': return 3
+        default: return 1
+      }
+    }
+    // 同名案場可能有多筆：保留「狀態優先」的那個排序權重（進行中優先）
+    const bestByName = new Map() // name -> weight
+    ;(Array.isArray(projects) ? projects : []).forEach((p) => {
+      const name = String(p?.name || '').trim()
+      if (!name) return
+      const w = getWeight(p?.status)
+      if (!bestByName.has(name) || w < bestByName.get(name)) bestByName.set(name, w)
+    })
+    const sorted = Array.from(bestByName.entries())
+      .sort((a, b) => (a[1] - b[1]) || a[0].localeCompare(b[0], 'zh-Hant'))
+      .map(([name]) => name)
+    setProjectSiteOptions(sorted)
   }
 
   const refetchForRealtime = () => {
