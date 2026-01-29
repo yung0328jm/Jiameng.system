@@ -2670,6 +2670,18 @@ function Home() {
                       </div>
                     )}
                     
+                    {/* 排行榜名稱：一般用戶也要能看到這是什麼榜（管理員已在標題區編輯） */}
+                    {userRole !== 'admin' && item && (
+                      <div className="mb-2 sm:mb-3 pt-1">
+                        <h2 className="text-yellow-400 font-bold text-base sm:text-xl text-center break-words px-1">
+                          {item.title || item.name || '排行榜'}
+                        </h2>
+                        {item.subtitle && (
+                          <p className="text-gray-400 text-xs sm:text-sm text-center mt-0.5 break-words px-1">{item.subtitle}</p>
+                        )}
+                      </div>
+                    )}
+                    
                     {/* 排行榜表格 - 深色背景；手機縮小間距與字級 */}
                     <div className="relative rounded-lg px-2 py-2 sm:px-4 sm:py-4" style={{
                       background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)'
@@ -2939,10 +2951,11 @@ function Home() {
                 );
 
                 const hasRankingEffect = hasValidRankings // 有資料卡：直接顯示完整卡片
-                // 有資料時直接顯示完整卡片；無資料時顯示小 ? 卡
+                // 有資料時：所有人看見完整卡片（一般用戶可見排行榜名稱）
                 if (hasValidRankings) {
                   return <Fragment key={item.id}>{fullCardEl}</Fragment>;
                 }
+                // 無資料時：所有人看見灰色 ? 卡（讓一般用戶知道有榜尚未有人上榜，但不顯示條件／榜名）；管理員另有刪除鈕
                 return (
                   <Fragment key={item.id}>
                     <div
@@ -2950,7 +2963,7 @@ function Home() {
                       style={{ background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%)' }}
                     >
                       <div className="flex items-center gap-2 p-2 flex-1">
-                        {/* 灰色問號卡無資料：封面只顯示 ?，不顯示項目名稱 */}
+                        {/* 灰色 ? 卡：不顯示榜名與條件，僅表示「此榜尚無人上榜」 */}
                         <div className="w-full h-full min-h-[60px] sm:min-h-[72px] flex items-center justify-center">
                           <span className="text-gray-400 text-4xl sm:text-5xl font-bold opacity-60">?</span>
                         </div>
