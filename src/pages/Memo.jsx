@@ -30,6 +30,7 @@ function Memo() {
   const [messages, setMessages] = useState([])
   const [messageContent, setMessageContent] = useState('')
   const [author, setAuthor] = useState('')
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false)
   const messagesEndRef = useRef(null)
   
   // 彈幕狀態
@@ -1017,12 +1018,26 @@ function Memo() {
         
         {/* 對話框：所有用戶直接發話，不需開設話題；僅發話內容區可上下滑動 */}
         <div className="bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0 flex-1 max-h-[70vh]" style={{ minHeight: '50vh' }}>
-          <div className="p-4 border-b border-gray-700 shrink-0">
-            <h3 className="text-lg font-semibold text-white">對話框</h3>
-            <p className="text-sm sm:text-xs text-gray-400 mt-0.5">所有用戶在此發話，無需新增話題</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsChatCollapsed((v) => !v)}
+            className="p-4 border-b border-gray-700 shrink-0 text-left hover:bg-gray-750 transition-colors cursor-pointer select-none"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-white">對話框</h3>
+                <p className="text-sm sm:text-xs text-gray-400 mt-0.5">
+                  {isChatCollapsed ? '點擊展開對話框' : '所有用戶在此發話，無需新增話題（點擊可收合）'}
+                </p>
+              </div>
+              <div className="text-gray-300 text-lg leading-none mt-1">
+                {isChatCollapsed ? '＋' : '－'}
+              </div>
+            </div>
+          </button>
 
           {/* 發話內容區：僅此區可上下滑動，標題與輸入列固定 */}
+          {!isChatCollapsed && (
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-auto p-4 space-y-4">
             {messages.length === 0 ? (
               <div className="text-gray-400 text-center py-12">
@@ -1066,8 +1081,10 @@ function Memo() {
             )}
             <div ref={messagesEndRef} />
           </div>
+          )}
 
           {/* 發送者名稱顯示 */}
+          {!isChatCollapsed && (
           <div className="px-4 py-2 border-t border-gray-700 bg-gray-900 shrink-0">
             <div className="text-gray-400 text-sm flex items-center flex-wrap gap-1">
               發送者: <span
@@ -1090,8 +1107,10 @@ function Memo() {
               })()}
             </div>
           </div>
+          )}
 
           {/* 消息輸入框 */}
+          {!isChatCollapsed && (
           <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-700 shrink-0">
             <div className="flex gap-2 items-center">
               <input
@@ -1110,6 +1129,7 @@ function Memo() {
               </button>
             </div>
           </form>
+          )}
         </div>
       </div>
       </div>
