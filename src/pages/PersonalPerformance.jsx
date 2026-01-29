@@ -974,6 +974,13 @@ function PersonalPerformance() {
     // 處理SOYA格式：日期和時間分開，且用戶名可能只在第一行
     let currentUserName = null
     
+    const leaveKeywords = ['請假', '特休', '補休', '公假', '病假', '事假', '喪假', '婚假', '產假', '育嬰', '出差']
+    const isLeaveMark = (s) => {
+      const v = String(s || '').trim()
+      if (!v) return false
+      return leaveKeywords.some((k) => v.includes(k))
+    }
+
     const preview = parsed.map((row, index) => {
       // 處理用戶名：如果當前行有用戶名，更新；否則使用上一行的用戶名
       const rowUserName = row[userField]?.trim()
@@ -1000,6 +1007,29 @@ function PersonalPerformance() {
         // SOYA格式：組合日期和時間
         rawDateStr = row[dateField]?.trim() || ''
         rawTimeStr = row[timeField]?.trim() || ''
+
+        // 文字型態（如：請假/特休）視為正常，不算未打卡、不扣分
+        if (rawDateStr && isLeaveMark(rawTimeStr)) {
+          const user = findUserByAccountOrName(userIdentifier, userDirectory)
+          const dateMatch = rawDateStr.match(/(\d{1,2})\/(\d{1,2})/)
+          const month = dateMatch ? parseInt(dateMatch[1], 10) : null
+          const day = dateMatch ? parseInt(dateMatch[2], 10) : null
+          const inferredDate = (month && day)
+            ? `${selectedYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            : null
+          return {
+            index: index + 1,
+            raw: row,
+            date: inferredDate,
+            time: rawTimeStr || '請假',
+            leave: true,
+            late: false,
+            userName: user?.account || userIdentifier,
+            userDisplayName: user ? (user.name || user.account) : userIdentifier,
+            dateTimeField: dateTimeField || (dateField && timeField ? `${dateField}+${timeField}` : null),
+            userField
+          }
+        }
         
         // 如果時間為空，嘗試推斷日期（用於未打卡計算）
         if (!rawTimeStr) {
@@ -1010,11 +1040,8 @@ function PersonalPerformance() {
             if (dateMatch) {
               const month = parseInt(dateMatch[1])
               const day = parseInt(dateMatch[2])
-              const today = new Date()
-              const currentYear = today.getFullYear()
-              const currentMonth = today.getMonth() + 1
-              const finalMonth = month || currentMonth
-              inferredDate = `${currentYear}-${String(finalMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+              const finalMonth = month || selectedMonth
+              inferredDate = `${selectedYear}-${String(finalMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             }
           }
           
@@ -1035,19 +1062,14 @@ function PersonalPerformance() {
         
         if (rawDateStr) {
           // 處理日期格式 "01/01 (四)" 或 "01/01(四)" -> 轉換為完整日期
-          // 自動使用當前年份和月份（當月上傳）
+          // 使用頁面選擇的年份（避免跨月/跨年匯入造成錯年）
           const dateMatch = rawDateStr.match(/(\d{1,2})\/(\d{1,2})/)
           if (dateMatch) {
             const month = parseInt(dateMatch[1])
             const day = parseInt(dateMatch[2])
-            // 使用當前年份和月份（當月上傳）
-            const today = new Date()
-            const currentYear = today.getFullYear()
-            const currentMonth = today.getMonth() + 1 // 1-12
-            // 使用當前年份，月份使用日期中的月份（因為都是當月數據）
-            const finalMonth = month || currentMonth
+            const finalMonth = month || selectedMonth
             // 組合為完整日期時間字符串
-            dateTimeStr = `${currentYear}-${String(finalMonth).padStart(2, '0')}-${String(day).padStart(2, '0')} ${rawTimeStr}`
+            dateTimeStr = `${selectedYear}-${String(finalMonth).padStart(2, '0')}-${String(day).padStart(2, '0')} ${rawTimeStr}`
           } else {
             // 如果日期格式不匹配，嘗試直接組合
             dateTimeStr = `${rawDateStr} ${rawTimeStr}`
@@ -1128,7 +1150,7 @@ function PersonalPerformance() {
       return
     }
     
-    // 獲取所有有效記錄（包括正常和遲到）
+    // 獲取所有有效記錄（包括正常/遲到/請假）
     const validRecords = importPreview.filter(p => !p.error)
     if (validRecords.length === 0) {
       alert('沒有有效的打卡記錄')
@@ -1142,6 +1164,27 @@ function PersonalPerformance() {
     let errorCount = 0
     
     validRecords.forEach(record => {
+      // 請假：視為正常，不扣分（保存一筆出勤記錄作為「當日有紀錄」的憑證）
+      if (record.leave) {
+        const existing = getUserAttendanceRecords(record.userName, record.date, record.date)
+          .filter(r => r.type === 'leave' || r.details === '請假')
+        if (existing.length === 0) {
+          const r = saveAttendanceRecord({
+            userName: record.userName,
+            date: record.date,
+            clockInTime: null,
+            isLate: false,
+            details: record.time || '請假',
+            source: 'SOYA刷卡機',
+            type: 'leave'
+          })
+          if (r.success) attendanceSuccessCount++
+          else errorCount++
+        } else {
+          attendanceDuplicateCount++
+        }
+        return
+      }
       // 先保存所有出勤記錄（包括正常和遲到）
       const existingAttendance = getUserAttendanceRecords(record.userName, record.date, record.date)
       if (existingAttendance.length === 0) {
