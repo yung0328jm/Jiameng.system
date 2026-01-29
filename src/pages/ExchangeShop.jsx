@@ -4,6 +4,8 @@ import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getAllEquippedEffects, unequipEffect } from '../utils/effectStorage'
+import { syncKeyToSupabase } from '../utils/supabaseSync'
 
 function ExchangeShop() {
   const [items, setItems] = useState([])
@@ -118,7 +120,62 @@ function ExchangeShop() {
   }
 
   const handleDeleteItem = (itemId) => {
-    if (!window.confirm('確定要刪除此道具嗎？')) return
+    const item = getItems().find((i) => i.id === itemId)
+    const itemName = item?.name || '此道具'
+    if (!window.confirm(`確定要刪除「${itemName}」嗎？\n\n注意：會同步從所有人的背包/已裝備中移除，避免出現「未知道具」。`)) return
+
+    // 1) 卸下所有人已裝備的該道具（若是特效/稱號）
+    try {
+      const allEquipped = getAllEquippedEffects()
+      Object.keys(allEquipped || {}).forEach((username) => {
+        const e = allEquipped?.[username] || {}
+        if (e?.nameEffect === itemId) unequipEffect(username, 'name')
+        if (e?.messageEffect === itemId) unequipEffect(username, 'message')
+        if (e?.title === itemId) unequipEffect(username, 'title')
+      })
+    } catch (e) {
+      console.warn('Delete item: unequip failed', e)
+    }
+
+    // 2) 從所有人的背包中移除該道具（直接掃 inventories map，Supabase 模式也可靠）
+    try {
+      const rawInv = localStorage.getItem('jiameng_inventories')
+      const inventories = rawInv ? JSON.parse(rawInv) : {}
+      let changed = false
+      Object.keys(inventories || {}).forEach((username) => {
+        const arr = Array.isArray(inventories[username]) ? inventories[username] : []
+        const filtered = arr.filter((invEntry) => invEntry?.itemId !== itemId)
+        if (filtered.length !== arr.length) {
+          inventories[username] = filtered
+          changed = true
+        }
+      })
+      if (changed) {
+        const val = JSON.stringify(inventories)
+        localStorage.setItem('jiameng_inventories', val)
+        syncKeyToSupabase('jiameng_inventories', val)
+      }
+    } catch (e) {
+      console.warn('Delete item: clean inventories failed', e)
+    }
+
+    // 3) 移除所有兌換請求中引用此道具的紀錄（避免列表出現未知道具）
+    try {
+      const raw = localStorage.getItem('jiameng_exchange_requests')
+      const reqs = raw ? JSON.parse(raw) : []
+      if (Array.isArray(reqs) && reqs.length > 0) {
+        const filtered = reqs.filter((r) => r?.itemId !== itemId)
+        if (filtered.length !== reqs.length) {
+          const val = JSON.stringify(filtered)
+          localStorage.setItem('jiameng_exchange_requests', val)
+          syncKeyToSupabase('jiameng_exchange_requests', val)
+        }
+      }
+    } catch (e) {
+      console.warn('Delete item: clean exchange requests failed', e)
+    }
+
+    // 4) 最後刪除道具定義
     const result = deleteItem(itemId)
     if (result.success) {
       alert('道具刪除成功')
