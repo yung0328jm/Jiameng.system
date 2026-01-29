@@ -1861,7 +1861,8 @@ function Home() {
               </div>
             ) : (
               leaderboardItems.map((item, index) => {
-                const itemRankings = item ? (rankings[item.id] || []).slice(0, 6) : []
+                if (!item || !item.id) return null
+                const itemRankings = (rankings[item.id] || []).slice(0, 6)
                 const manualRanks = manualRankings[item.id] || []
                 
                 // 檢查排行榜是否被觸發
@@ -1933,18 +1934,24 @@ function Home() {
                                   type="file"
                                   accept="image/*"
                                   onChange={(e) => {
-                                    const file = e.target.files[0]
-                                    if (file) {
-                                      const reader = new FileReader()
-                                      reader.onloadend = () => {
+                                    const file = e?.target?.files?.[0]
+                                    if (!file || !item?.id) return
+                                    const reader = new FileReader()
+                                    const itemId = item.id
+                                    reader.onloadend = () => {
+                                      try {
                                         const imageUrl = reader.result
-                                        updateLeaderboardItem(item.id, { imageUrl })
+                                        if (!imageUrl || typeof imageUrl !== 'string') return
+                                        updateLeaderboardItem(itemId, { imageUrl })
                                         setLeaderboardItems(prev => 
-                                          prev.map(i => i.id === item.id ? { ...i, imageUrl } : i)
+                                          prev.map(i => i.id === itemId ? { ...i, imageUrl } : i)
                                         )
+                                      } catch (err) {
+                                        console.error('Leaderboard image update error', err)
                                       }
-                                      reader.readAsDataURL(file)
                                     }
+                                    reader.onerror = () => { try { console.error('FileReader error') } catch (_) {} }
+                                    reader.readAsDataURL(file)
                                   }}
                                   className="hidden"
                                   id={`image-upload-${item.id}`}
@@ -1953,6 +1960,7 @@ function Home() {
                                   htmlFor={`image-upload-${item.id}`}
                                   className="absolute inset-0 cursor-pointer"
                                   title="點擊上傳照片"
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                               </div>
                               <div className="flex-1">
@@ -2272,25 +2280,30 @@ function Home() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                       </svg>
                                     </button>
-                                    <label className="absolute inset-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-lg flex items-center justify-center">
+                                    <label className="absolute inset-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-lg flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                                       <input
                                         type="file"
                                         accept="image/*"
                                         className="hidden"
                                         onChange={(e) => {
-                                          const file = e.target.files[0]
-                                          if (file) {
-                                            const reader = new FileReader()
-                                            reader.onload = (event) => {
-                                              const imageUrl = event.target.result
-                                              const updatedItem = { ...item, imageUrl }
-                                              updateLeaderboardItem(item.id, { imageUrl })
+                                          const file = e?.target?.files?.[0]
+                                          if (!file || !item?.id) return
+                                          const reader = new FileReader()
+                                          const itemId = item.id
+                                          reader.onload = () => {
+                                            try {
+                                              const imageUrl = reader.result
+                                              if (!imageUrl || typeof imageUrl !== 'string') return
+                                              updateLeaderboardItem(itemId, { imageUrl })
                                               setLeaderboardItems(prev => 
-                                                prev.map(i => i.id === item.id ? updatedItem : i)
+                                                prev.map(i => i.id === itemId ? { ...i, imageUrl } : i)
                                               )
+                                            } catch (err) {
+                                              console.error('Leaderboard image update error', err)
                                             }
-                                            reader.readAsDataURL(file)
                                           }
+                                          reader.onerror = () => { try { console.error('FileReader error') } catch (_) {} }
+                                          reader.readAsDataURL(file)
                                         }}
                                       />
                                       <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2302,25 +2315,30 @@ function Home() {
                               </div>
                             ) : (
                               userRole === 'admin' && (
-                                <label className="w-24 h-24 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center cursor-pointer hover:border-yellow-400 hover:bg-gray-800/50 transition-colors group">
+                                <label className="w-24 h-24 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center cursor-pointer hover:border-yellow-400 hover:bg-gray-800/50 transition-colors group" onClick={(e) => e.stopPropagation()}>
                                   <input
                                     type="file"
                                     accept="image/*"
                                     className="hidden"
                                     onChange={(e) => {
-                                      const file = e.target.files[0]
-                                      if (file) {
-                                        const reader = new FileReader()
-                                        reader.onload = (event) => {
-                                          const imageUrl = event.target.result
-                                          const updatedItem = { ...item, imageUrl }
-                                          updateLeaderboardItem(item.id, { imageUrl })
+                                      const file = e?.target?.files?.[0]
+                                      if (!file || !item?.id) return
+                                      const reader = new FileReader()
+                                      const itemId = item.id
+                                      reader.onload = () => {
+                                        try {
+                                          const imageUrl = reader.result
+                                          if (!imageUrl || typeof imageUrl !== 'string') return
+                                          updateLeaderboardItem(itemId, { imageUrl })
                                           setLeaderboardItems(prev => 
-                                            prev.map(i => i.id === item.id ? updatedItem : i)
+                                            prev.map(i => i.id === itemId ? { ...i, imageUrl } : i)
                                           )
+                                        } catch (err) {
+                                          console.error('Leaderboard image update error', err)
                                         }
-                                        reader.readAsDataURL(file)
                                       }
+                                      reader.onerror = () => { try { console.error('FileReader error') } catch (_) {} }
+                                      reader.readAsDataURL(file)
                                     }}
                                   />
                                   <svg className="w-8 h-8 text-gray-500 group-hover:text-yellow-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
