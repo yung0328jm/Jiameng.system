@@ -16,7 +16,8 @@ function ExchangeShop() {
     description: '',
     icon: '🎁',
     price: 0,
-    type: 'general'
+    type: 'general',
+    isHidden: false // 管理員可隱藏：一般用戶在商城看不見，但背包仍可正常使用
   })
   const [userRole, setUserRole] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
@@ -24,10 +25,12 @@ function ExchangeShop() {
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
 
   const loadItems = () => {
+    const role = getCurrentUserRole()
     const allItems = getItems().filter(
       (item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT
     )
-    setItems(allItems)
+    const visibleItems = role === 'admin' ? allItems : allItems.filter((i) => !i?.isHidden)
+    setItems(visibleItems)
   }
 
   const refetchExchangeShop = () => {
@@ -71,7 +74,8 @@ function ExchangeShop() {
       description: '',
       icon: '🎁',
       price: 0,
-      type: 'general'
+      type: 'general',
+      isHidden: false
     })
     setShowItemForm(true)
   }
@@ -83,7 +87,8 @@ function ExchangeShop() {
       description: item.description || '',
       icon: item.icon || '🎁',
       price: item.price || 0,
-      type: item.type || 'general'
+      type: item.type || 'general',
+      isHidden: !!item.isHidden
     })
     setShowItemForm(true)
   }
@@ -296,6 +301,21 @@ function ExchangeShop() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
+                          const nextHidden = !item?.isHidden
+                          const r = updateItem(item.id, { isHidden: nextHidden })
+                          if (!r?.success) alert(r?.message || '更新失敗')
+                          loadItems()
+                        }}
+                        className={`flex-1 px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px] ${
+                          item?.isHidden ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                        }`}
+                        title={item?.isHidden ? '顯示此道具（一般用戶將可看見）' : '隱藏此道具（一般用戶將看不見）'}
+                      >
+                        {item?.isHidden ? '顯示' : '隱藏'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
                           handleEditItem(item)
                         }}
                         className="flex-1 bg-blue-600 text-white px-4 py-3 sm:py-2 rounded hover:bg-blue-700 transition-colors text-base sm:text-sm min-h-[44px]"
@@ -358,6 +378,11 @@ function ExchangeShop() {
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewItemId(item.id); } }}
                   className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-yellow-400 transition-colors cursor-pointer bg-gray-800"
                 >
+                  {userRole === 'admin' && item?.isHidden && (
+                    <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[10px] text-gray-200">
+                      已隱藏
+                    </div>
+                  )}
                   <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
                     <div className="text-4xl sm:text-5xl">{item.icon}</div>
                     <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{item.name}</p>
@@ -366,6 +391,20 @@ function ExchangeShop() {
                   </div>
                   {userRole === 'admin' && (
                     <div className="absolute top-1 right-1" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const nextHidden = !item?.isHidden
+                          const r = updateItem(item.id, { isHidden: nextHidden })
+                          if (!r?.success) alert(r?.message || '更新失敗')
+                          loadItems()
+                        }}
+                        className="w-5 h-5 bg-gray-700 text-white rounded-full flex items-center justify-center hover:bg-gray-600 text-[10px] leading-none mr-1"
+                        title={item?.isHidden ? '顯示' : '隱藏'}
+                      >
+                        {item?.isHidden ? '👁' : '🙈'}
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -494,6 +533,24 @@ function ExchangeShop() {
                     <option value="danmu">彈幕道具</option>
                     <option value="special">特殊道具</option>
                   </select>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 bg-gray-900/40 border border-gray-700 rounded-lg p-3">
+                  <div className="min-w-0">
+                    <p className="text-white text-sm font-semibold">商城顯示</p>
+                    <p className="text-gray-400 text-xs mt-0.5 break-words">
+                      隱藏後一般用戶在兌換商城看不見，但若背包已擁有仍可正常使用。
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={!itemForm.isHidden}
+                      onChange={(e) => setItemForm({ ...itemForm, isHidden: !e.target.checked })}
+                      className="w-5 h-5 text-yellow-400 bg-gray-700 border-gray-600 rounded focus:ring-yellow-400 focus:ring-2"
+                    />
+                    <span className="text-sm text-gray-200">{itemForm.isHidden ? '隱藏' : '顯示'}</span>
+                  </label>
                 </div>
 
                 <div className="flex gap-2 sm:gap-3 pt-2 sm:pt-4 pb-2 sm:pb-0 shrink-0 sticky bottom-0 bg-gray-800">
