@@ -847,6 +847,14 @@ function ProjectDetailView({
     totalMileage: ''
   })
 
+  const handlePrint = () => {
+    try {
+      window.print()
+    } catch (e) {
+      console.warn('print failed', e)
+    }
+  }
+
   useEffect(() => {
     if (project) {
       setProjectInfoForm({
@@ -921,24 +929,57 @@ function ProjectDetailView({
 
   return (
     <div>
+      {/* 列印專用樣式：只印表格（含目前篩選結果），取消捲動與 sticky 表頭 */}
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          html, body { background: white !important; color: black !important; }
+          .project-no-print { display: none !important; }
+          body * { visibility: hidden; }
+          .project-print-area, .project-print-area * { visibility: visible; }
+          .project-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+          .project-print-area .print-table-wrap { overflow: visible !important; max-height: none !important; }
+          .project-print-area table { width: 100% !important; border-collapse: collapse !important; }
+          .project-print-area th, .project-print-area td { border: 1px solid #333 !important; color: #000 !important; background: #fff !important; }
+          .project-print-area thead { position: static !important; }
+          .project-print-area .sticky { position: static !important; top: auto !important; }
+          .project-print-area .hover\\:bg-gray-900:hover { background: transparent !important; }
+          .project-print-only { display: block !important; }
+        }
+        .project-print-only { display: none; }
+      `}</style>
+
       {/* 標題和返回按鈕 */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 project-no-print">
         <h2 className="text-2xl font-bold text-yellow-400">
           專案內容: {project?.name || ''}
         </h2>
-        <button
-          onClick={onBack}
-          className="bg-gray-700 hover:bg-gray-600 text-yellow-400 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          <span>返回專案列表</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+            title="列印整份表格（含目前篩選結果）"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" />
+            </svg>
+            <span>列印表格</span>
+          </button>
+          <button
+            onClick={onBack}
+            className="bg-gray-700 hover:bg-gray-600 text-yellow-400 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>返回專案列表</span>
+          </button>
+        </div>
       </div>
 
       {/* 專案基本資訊 */}
-      <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700">
+      <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700 project-no-print">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-yellow-400">專案資訊</h3>
           {!isEditingProjectInfo ? (
@@ -1069,7 +1110,7 @@ function ProjectDetailView({
       </div>
 
       {/* 案場缺失紀錄 - 可展開/折疊 */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 mb-6 overflow-hidden">
+      <div className="bg-gray-800 rounded-lg border border-gray-700 mb-6 overflow-hidden project-no-print">
         {/* 標題行 - 可點擊展開/折疊 */}
         <div
           onClick={() => setShowDeficiencyRecord(!showDeficiencyRecord)}
@@ -1154,7 +1195,7 @@ function ProjectDetailView({
       </div>
 
             {/* 搜索與篩選 */}
-            <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
+            <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700 project-no-print">
         <h3 className="text-lg font-bold text-yellow-400 mb-4">搜索與篩選</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -1205,9 +1246,16 @@ function ProjectDetailView({
         </div>
       </div>
 
-            {/* 數據表格 */}
-            <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-        <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+            {/* 數據表格（列印時只顯示這塊） */}
+            <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 project-print-area">
+        <div className="project-print-only mb-3">
+          <div className="text-lg font-bold">專案管理表格：{project?.name || ''}</div>
+          <div className="text-sm mt-1">
+            篩選：狀態 {filterRecordStatus || 'all'} ／ 關鍵字 {searchKeyword || '—'} ／ 人員 {filterSubmitter || '—'}
+          </div>
+          <div className="text-xs mt-1">列印時間：{new Date().toLocaleString('zh-TW')}</div>
+        </div>
+        <div className="print-table-wrap overflow-x-auto max-h-[60vh] overflow-y-auto">
           <table className="w-full">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-900 border-b-2 border-yellow-400">
