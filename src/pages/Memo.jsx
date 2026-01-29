@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic } from '../utils/memoStorage'
+import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages } from '../utils/memoStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement } from '../utils/announcementStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
@@ -52,6 +52,8 @@ function Memo() {
 
   const loadMessages = () => {
     getOrCreateGlobalTopic()
+    // 交流區：只保留一天內容
+    cleanExpiredMessages()
     setMessages(getGlobalMessages())
   }
 
@@ -78,6 +80,16 @@ function Memo() {
       loadDanmus()
     }, 2000) // 每2秒更新一次
     return () => clearInterval(interval)
+  }, [])
+
+  // 交流區：定期清理超過 24 小時訊息（即使沒人發話也會自動刪除）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const r = cleanExpiredMessages()
+      if (r?.changed) loadMessages()
+    }, 60 * 1000) // 每分鐘檢查一次
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
