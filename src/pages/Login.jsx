@@ -1,19 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { verifyUser } from '../utils/storage'
 import { saveCurrentUser } from '../utils/authStorage'
 import { isSupabaseEnabled, loginWithAccountOrEmail } from '../utils/authSupabase'
 
+const REMEMBER_ACCOUNT_KEY = 'jiameng_remember_account'
+const REMEMBERED_USERNAME_KEY = 'jiameng_remembered_username'
+
 function Login({ onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberAccount, setRememberAccount] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    try {
+      const remember = localStorage.getItem(REMEMBER_ACCOUNT_KEY) === '1'
+      const saved = localStorage.getItem(REMEMBERED_USERNAME_KEY) || ''
+      setRememberAccount(remember)
+      if (remember && saved) setUsername(saved)
+    } catch (_) {}
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitting(true)
     try {
+      // 記住帳號（只存帳號/Email，不存密碼）
+      try {
+        if (rememberAccount) {
+          localStorage.setItem(REMEMBER_ACCOUNT_KEY, '1')
+          localStorage.setItem(REMEMBERED_USERNAME_KEY, username.trim())
+        } else {
+          localStorage.removeItem(REMEMBER_ACCOUNT_KEY)
+          localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+        }
+      } catch (_) {}
+
       if (isSupabaseEnabled()) {
         const result = await loginWithAccountOrEmail(username.trim(), password)
         if (result.success) {
@@ -79,6 +103,15 @@ function Login({ onLogin }) {
                 required
               />
             </div>
+            <label className="flex items-center gap-2 text-gray-300 text-sm select-none cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberAccount}
+                onChange={(e) => setRememberAccount(e.target.checked)}
+                className="w-4 h-4 accent-yellow-400"
+              />
+              記住帳號
+            </label>
             <button
               type="submit"
               disabled={submitting}
