@@ -53,6 +53,19 @@ as $$
 $$;
 grant execute on function public.get_all_profiles() to authenticated;
 
+-- 供全站功能（排行榜分發/團體獎勵）使用：所有已登入用戶都可取得公開 profiles 清單
+-- 只回傳 account / display_name / is_admin，不回傳 email，避免暴露敏感資料
+create or replace function public.get_public_profiles()
+returns table (account text, display_name text, is_admin boolean)
+language sql
+security definer
+set search_path = public
+as $$
+  select p.account, p.display_name, p.is_admin
+  from public.profiles p;
+$$;
+grant execute on function public.get_public_profiles() to authenticated;
+
 -- 僅管理員可設定某帳號的 is_admin
 create or replace function public.set_profile_admin(acc text, new_is_admin boolean)
 returns void
