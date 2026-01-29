@@ -3091,6 +3091,14 @@ function Home() {
                           <span className="text-gray-400 text-4xl sm:text-5xl font-bold opacity-60">?</span>
                         </div>
                       </div>
+                      {/* 管理員：可在灰色小卡上看見榜名（一般用戶仍不顯示） */}
+                      {userRole === 'admin' && (
+                        <div className="absolute bottom-1 left-1 right-7 px-1">
+                          <div className="text-[10px] sm:text-xs text-gray-200/90 truncate">
+                            {item?.title || item?.name || '排行榜'}
+                          </div>
+                        </div>
+                      )}
                       {userRole === 'admin' && (
                         <div className="absolute top-1 right-1">
                           <button type="button" onClick={() => handleDeleteItem(item.id)} className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-[10px] leading-none">×</button>
