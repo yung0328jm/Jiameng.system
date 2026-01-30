@@ -10,6 +10,10 @@ function VehicleInfo() {
     
     // 按车辆分组汇总数据
     const vehicleSummary = {}
+
+    // B 方案：同一天同一台車只輸入一次里程，平均分攤到當天所有案場
+    // vehicle -> ymd -> { mileage, activities:Set<string> }
+    const dayByVehicle = {}
     
     schedules.forEach(schedule => {
       if (!schedule.vehicle) return
@@ -22,30 +26,29 @@ function VehicleInfo() {
           monthlyFuelCosts: {} // 按月分组的加油金额
         }
       }
-      
-      // 按活动统计里程
-      if (schedule.siteName) {
-        const activity = schedule.siteName
-        if (!vehicleSummary[vehicle].activities[activity]) {
-          vehicleSummary[vehicle].activities[activity] = {
-            activity: activity,
-            totalMileage: 0,
-            tripCount: 0
-          }
-        }
-        
-        // 计算里程（回程里程 - 出发里程）
-        const departure = parseFloat(schedule.departureMileage) || 0
-        const returnMile = parseFloat(schedule.returnMileage) || 0
-        if (returnMile > departure) {
-          vehicleSummary[vehicle].activities[activity].totalMileage += (returnMile - departure)
-          vehicleSummary[vehicle].activities[activity].tripCount += 1
-        }
+
+      const ymd = String(schedule.date || '').slice(0, 10)
+      if (!ymd) return
+
+      if (!dayByVehicle[vehicle]) dayByVehicle[vehicle] = {}
+      if (!dayByVehicle[vehicle][ymd]) {
+        dayByVehicle[vehicle][ymd] = { mileage: 0, activities: new Set() }
       }
+
+      // 記錄當天跑過哪些案場（活動）
+      const activity = String(schedule.siteName || '').trim()
+      if (activity) {
+        dayByVehicle[vehicle][ymd].activities.add(activity)
+      }
+      
+      // 收集「當天這台車」的里程（取最大，避免同一天被填兩次不同數值）
+      const departure = parseFloat(schedule.departureMileage) || 0
+      const returnMile = parseFloat(schedule.returnMileage) || 0
+      const delta = returnMile > departure ? (returnMile - departure) : 0
+      if (delta > dayByVehicle[vehicle][ymd].mileage) dayByVehicle[vehicle][ymd].mileage = delta
       
       // 按月统计加油金额
       if (schedule.needRefuel && schedule.fuelCost) {
-        const ymd = String(schedule.date || '').slice(0, 10) // YYYY-MM-DD
         const date = ymd ? new Date(`${ymd}T00:00:00`) : new Date('invalid')
         if (Number.isNaN(date.getTime())) return
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -73,6 +76,31 @@ function VehicleInfo() {
           bucket.totalCost += (fuelCost - prev)
         }
       }
+    })
+
+    // 依 vehicle/day 產生活動統計：里程平均分攤到當天所有活動
+    Object.keys(dayByVehicle).forEach((vehicle) => {
+      const days = dayByVehicle[vehicle]
+      Object.keys(days).forEach((ymd) => {
+        const d = days[ymd]
+        const activities = Array.from(d.activities || [])
+
+        if (!(d.mileage > 0) || activities.length === 0) return
+
+        const share = d.mileage / activities.length
+        activities.forEach((activity) => {
+          if (!vehicleSummary[vehicle].activities[activity]) {
+            vehicleSummary[vehicle].activities[activity] = {
+              activity,
+              totalMileage: 0,
+              tripCount: 0
+            }
+          }
+          vehicleSummary[vehicle].activities[activity].totalMileage += share
+          // 出車次數：以「同車同日曾到此案場」計 1 次
+          vehicleSummary[vehicle].activities[activity].tripCount += 1
+        })
+      })
     })
 
     // 清掉內部欄位，避免存進 state 後影響 UI/序列化
@@ -136,11 +164,13 @@ function VehicleInfo() {
                         <div key={actIndex} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-b-0">
                           <div className="flex-1">
                             <div className="text-white font-medium">{activity.activity}</div>
-                            <div className="text-gray-400 text-sm">出車次數: {activity.tripCount} 次</div>
+                            <div className="text-gray-400 text-sm">
+                              出車次數: {activity.tripCount} 次
+                            </div>
                           </div>
                           <div className="text-right">
                             <div className="text-yellow-400 font-semibold text-lg">
-                              {activity.totalMileage.toLocaleString()} km
+                              {`${Number(activity.totalMileage || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`}
                             </div>
                           </div>
                         </div>

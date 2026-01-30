@@ -65,6 +65,25 @@ function ProjectDeficiencyTracking() {
     let totalWorkers = 0
     let totalMileage = 0
     const processedWorkerDates = new Map() // 記錄每天已計算的人員，避免重複
+    const processedMileageKeys = new Set() // 同一天同一台車：此專案只加一次分攤里程
+
+    // B 方案：先建立同車同日的「總里程」與「當天案場數量」，用於平均分攤
+    // key = ymd__vehicle
+    const vehicleDay = new Map() // key -> { mileage:number, sites:Set<string> }
+    ;(Array.isArray(schedules) ? schedules : []).forEach((s) => {
+      const ymd = String(s?.date || '').slice(0, 10)
+      const vehicle = String(s?.vehicle || '').trim()
+      const site = String(s?.siteName || '').trim()
+      if (!ymd || !vehicle) return
+      const key = `${ymd}__${vehicle}`
+      if (!vehicleDay.has(key)) vehicleDay.set(key, { mileage: 0, sites: new Set() })
+      const bucket = vehicleDay.get(key)
+      if (site) bucket.sites.add(site)
+      const dep = parseFloat(s?.departureMileage) || 0
+      const ret = parseFloat(s?.returnMileage) || 0
+      const delta = ret > dep ? (ret - dep) : 0
+      if (delta > bucket.mileage) bucket.mileage = delta
+    })
 
     // 遍歷所有排程，找出與專案案場地址相關的排程
     schedules.forEach(schedule => {
@@ -98,11 +117,24 @@ function ProjectDeficiencyTracking() {
 
         // 累加里程（如果有）
         if (schedule.departureMileage && schedule.returnMileage) {
+          const ymd = String(schedule.date || '').slice(0, 10)
+          const vehicle = String(schedule.vehicle || '').trim()
+          if (ymd && vehicle) {
+            const key = `${ymd}__${vehicle}`
+            if (processedMileageKeys.has(key)) return
+            const bucket = vehicleDay.get(key)
+            const cnt = bucket ? bucket.sites.size : 0
+            if (bucket && bucket.mileage > 0 && cnt > 0) {
+              totalMileage += (bucket.mileage / cnt)
+              processedMileageKeys.add(key)
+              return
+            }
+          }
+
+          // fallback：沒車牌/日期等資料就維持舊算法（直接加）
           const departure = parseFloat(schedule.departureMileage) || 0
           const returnMileage = parseFloat(schedule.returnMileage) || 0
-          if (returnMileage > departure) {
-            totalMileage += (returnMileage - departure)
-          }
+          if (returnMileage > departure) totalMileage += (returnMileage - departure)
         }
       }
     })
