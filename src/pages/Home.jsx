@@ -60,6 +60,8 @@ function Home() {
   const [manualRankings, setManualRankings] = useState({}) // 每個排行榜項目的手動排名數據
   const [editingRankingId, setEditingRankingId] = useState(null) // 正在編輯的排名項目ID
   const [editingPanelId, setEditingPanelId] = useState(null) // 正在編輯的面板ID
+  // 卡片標題編輯草稿：避免每次輸入就寫入 localStorage/supabase 造成 IME(拼音/注音)亂跳
+  const [panelTitleDrafts, setPanelTitleDrafts] = useState({}) // { [panelId]: { subtitle, title, slogan } }
   const [leaderboardTitleClickEffect, setLeaderboardTitleClickEffect] = useState(false) // 排行榜標題點擊效果
   const [testRecords, setTestRecords] = useState({}) // 測試記錄數據
   const [availableItems, setAvailableItems] = useState([]) // 可用道具列表（用於獎勵選擇）
@@ -111,6 +113,47 @@ function Home() {
     setUIConfig(config)
     setUIConfigForm(config)
   }, [])
+
+  const initPanelDraftIfNeeded = (item) => {
+    if (!item?.id) return
+    setPanelTitleDrafts((prev) => {
+      if (prev[item.id]) return prev
+      return {
+        ...prev,
+        [item.id]: {
+          subtitle: item.subtitle ?? '',
+          title: item.title ?? (item.name ?? ''),
+          slogan: item.slogan ?? ''
+        }
+      }
+    })
+  }
+
+  const updatePanelDraft = (panelId, field, value) => {
+    setPanelTitleDrafts((prev) => ({
+      ...prev,
+      [panelId]: {
+        ...(prev[panelId] || {}),
+        [field]: value
+      }
+    }))
+  }
+
+  const commitPanelDraft = (item) => {
+    if (!item?.id) return
+    const draft = panelTitleDrafts[item.id] || {}
+    const payload = {
+      subtitle: draft.subtitle ?? '',
+      title: draft.title ?? '',
+      slogan: draft.slogan ?? ''
+    }
+    try {
+      updateLeaderboardItem(item.id, payload)
+      setLeaderboardItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, ...payload } : i)))
+    } catch (e) {
+      console.warn('commitPanelDraft failed', e)
+    }
+  }
 
   useEffect(() => {
     if (leaderboardItems.length > 0) {
@@ -2592,7 +2635,12 @@ function Home() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation()
-                              setEditingPanelId((prev) => (prev === item.id ? null : item.id))
+                              setEditingPanelId((prev) => {
+                                const next = prev === item.id ? null : item.id
+                                if (next) initPanelDraftIfNeeded(item)
+                                if (!next) commitPanelDraft(item)
+                                return next
+                              })
                             }}
                             className="text-[10px] sm:text-xs px-2 py-1 rounded border border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-300 transition-colors"
                             title="編輯此卡片的標題三行文字"
@@ -2605,14 +2653,12 @@ function Home() {
                         {editingPanelId === item.id ? (
                           <input
                             type="text"
-                            value={item.subtitle || ''}
+                            value={(panelTitleDrafts[item.id]?.subtitle ?? '')}
                             onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              const updatedItem = { ...item, subtitle: e.target.value }
-                              updateLeaderboardItem(item.id, { subtitle: e.target.value })
-                              setLeaderboardItems(prev =>
-                                prev.map(i => i.id === item.id ? updatedItem : i)
-                              )
+                            onChange={(e) => updatePanelDraft(item.id, 'subtitle', e.target.value)}
+                            onBlur={(e) => {
+                              try { e.target.style.borderBottomColor = 'transparent' } catch (_) {}
+                              commitPanelDraft(item)
                             }}
                             className="bg-transparent border-b border-transparent hover:border-white/60 focus:border-white/60 text-white text-sm text-center focus:outline-none w-full mb-2"
                             placeholder={uiConfig.subtitle || '例如：115年度'}
@@ -2623,7 +2669,6 @@ function Home() {
                               letterSpacing: '0.03em'
                             }}
                             onFocus={(e) => { e.target.style.borderBottomColor = 'rgba(255, 255, 255, 0.6)' }}
-                            onBlur={(e) => { e.target.style.borderBottomColor = 'transparent' }}
                           />
                         ) : (
                           <p
@@ -2643,15 +2688,10 @@ function Home() {
                         {editingPanelId === item.id ? (
                           <input
                             type="text"
-                            value={item.title || item.name || ''}
+                            value={(panelTitleDrafts[item.id]?.title ?? '')}
                             onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              const updatedItem = { ...item, title: e.target.value }
-                              updateLeaderboardItem(item.id, { title: e.target.value })
-                              setLeaderboardItems(prev => 
-                                prev.map(i => i.id === item.id ? updatedItem : i)
-                              )
-                            }}
+                            onChange={(e) => updatePanelDraft(item.id, 'title', e.target.value)}
+                            onBlur={() => commitPanelDraft(item)}
                             className="bg-transparent border-b-2 border-transparent hover:border-white/60 focus:border-white/60 text-white text-3xl font-bold text-center focus:outline-none w-full pb-2"
                             placeholder="排行榜"
                             style={{
@@ -2687,15 +2727,10 @@ function Home() {
                         {editingPanelId === item.id ? (
                           <input
                             type="text"
-                            value={item.slogan || ''}
+                            value={(panelTitleDrafts[item.id]?.slogan ?? '')}
                             onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              const updatedItem = { ...item, slogan: e.target.value }
-                              updateLeaderboardItem(item.id, { slogan: e.target.value })
-                              setLeaderboardItems(prev => 
-                                prev.map(i => i.id === item.id ? updatedItem : i)
-                              )
-                            }}
+                            onChange={(e) => updatePanelDraft(item.id, 'slogan', e.target.value)}
+                            onBlur={() => commitPanelDraft(item)}
                             className="bg-transparent border-b border-transparent hover:border-white/60 focus:border-white/60 text-white text-sm text-center focus:outline-none w-full mt-2"
                             placeholder={uiConfig.slogan1 || '例如：乘風破浪'}
                             style={{
