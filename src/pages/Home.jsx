@@ -711,6 +711,10 @@ function Home() {
         Object.keys(danmuCountByAccount || {}).forEach((a) => ensureUser(a, a))
       } catch (_) {}
 
+        // 駕駛次數去重：同一天若有多個案場，出發/回程駕駛可能重複出現多筆
+        // 規則：同一天同一位駕駛同一方向只算 1 次（避免重複累加）
+        const seenDriverDaily = new Set() // key: `${date}|${account}|dep|ret`
+
         // 排行榜累加邏輯：不計算今天以前的排程（只計 schedule.date >= 今日）
         const today = new Date().toISOString().split('T')[0]
         schedules.forEach(schedule => {
@@ -719,12 +723,35 @@ function Home() {
         if (schedule.departureDriver) {
           const acc = getNameToAccount(String(schedule.departureDriver).trim())
           const s = ensureUser(acc, acc)
-          if (s) s.departureDriverCount = (s.departureDriverCount || 0) + 1
+          if (s) {
+            const d = String(schedule.date || '').trim()
+            if (!d) {
+              // 無日期：退回舊行為（無法做同日去重）
+              s.departureDriverCount = (s.departureDriverCount || 0) + 1
+            } else {
+              const k = `${d}|${acc}|dep`
+              if (!seenDriverDaily.has(k)) {
+                seenDriverDaily.add(k)
+                s.departureDriverCount = (s.departureDriverCount || 0) + 1
+              }
+            }
+          }
         }
         if (schedule.returnDriver) {
           const acc = getNameToAccount(String(schedule.returnDriver).trim())
           const s = ensureUser(acc, acc)
-          if (s) s.returnDriverCount = (s.returnDriverCount || 0) + 1
+          if (s) {
+            const d = String(schedule.date || '').trim()
+            if (!d) {
+              s.returnDriverCount = (s.returnDriverCount || 0) + 1
+            } else {
+              const k = `${d}|${acc}|ret`
+              if (!seenDriverDaily.has(k)) {
+                seenDriverDaily.add(k)
+                s.returnDriverCount = (s.returnDriverCount || 0) + 1
+              }
+            }
+          }
         }
         // 計算工作天數（用於時間類型）
         if (schedule.date && schedule.participants) {
