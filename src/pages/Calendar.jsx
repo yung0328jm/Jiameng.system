@@ -2848,40 +2848,42 @@ function Calendar() {
                                   <div className="text-gray-300 text-xs">尚未選擇協作負責人</div>
                                 ) : (
                                   getWorkItemCollaborators(item).map((c) => (
-                                    <div key={c.name} className="flex items-center gap-2">
-                                      <div className="text-gray-200 text-xs w-24 truncate" title={c.name}>{c.name}</div>
-                                      <input
-                                        type="number"
-                                        value={c.targetQuantity ?? ''}
-                                        onChange={(e) => {
-                                          const prev = getWorkItemCollaborators(item)
-                                          const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
-                                            ? { ...x, targetQuantity: e.target.value }
-                                            : x
-                                          ))
-                                          handleWorkItemChange(index, 'collaborators', next)
-                                        }}
-                                        placeholder="目標"
-                                        className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                        min="0"
-                                        step="0.01"
-                                      />
-                                      <input
-                                        type="number"
-                                        value={c.actualQuantity ?? ''}
-                                        onChange={(e) => {
-                                          const prev = getWorkItemCollaborators(item)
-                                          const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
-                                            ? { ...x, actualQuantity: e.target.value }
-                                            : x
-                                          ))
-                                          handleWorkItemChange(index, 'collaborators', next)
-                                        }}
-                                        placeholder="實際"
-                                        className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                        min="0"
-                                        step="0.01"
-                                      />
+                                    <div key={c.name} className="w-full min-w-0">
+                                      <div className="text-gray-200 text-xs truncate mb-1" title={c.name}>{c.name}</div>
+                                      <div className="grid grid-cols-2 gap-2 w-full min-w-0">
+                                        <input
+                                          type="number"
+                                          value={c.targetQuantity ?? ''}
+                                          onChange={(e) => {
+                                            const prev = getWorkItemCollaborators(item)
+                                            const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
+                                              ? { ...x, targetQuantity: e.target.value }
+                                              : x
+                                            ))
+                                            handleWorkItemChange(index, 'collaborators', next)
+                                          }}
+                                          placeholder="目標"
+                                          className="w-full min-w-0 bg-gray-600 border border-gray-500 rounded px-2 py-1.5 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-[12px]"
+                                          min="0"
+                                          step="0.01"
+                                        />
+                                        <input
+                                          type="number"
+                                          value={c.actualQuantity ?? ''}
+                                          onChange={(e) => {
+                                            const prev = getWorkItemCollaborators(item)
+                                            const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
+                                              ? { ...x, actualQuantity: e.target.value }
+                                              : x
+                                            ))
+                                            handleWorkItemChange(index, 'collaborators', next)
+                                          }}
+                                          placeholder="實際"
+                                          className="w-full min-w-0 bg-gray-600 border border-gray-500 rounded px-2 py-1.5 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-[12px]"
+                                          min="0"
+                                          step="0.01"
+                                        />
+                                      </div>
                                     </div>
                                   ))
                                 )}
