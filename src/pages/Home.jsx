@@ -10,7 +10,7 @@ import { getTodos, addTodo, updateTodo, deleteTodo, toggleTodo } from '../utils/
 import { getItems, getItem, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory, hasItem, removeItemFromInventory, getUserInventory } from '../utils/inventoryStorage'
 import { getAllEquippedEffects, unequipEffect, equipEffect } from '../utils/effectStorage'
-import { addWalletBalance, addTransaction } from '../utils/walletStorage'
+import { addWalletBalance, addTransaction, clearAllWallets } from '../utils/walletStorage'
 import { getDanmus } from '../utils/danmuStorage'
 import { getTitleConfig } from '../utils/titleStorage'
 import { getEffectDisplayConfig, saveEffectDisplayConfig, getStyleForPreset, getDecorationById, getDecorationForPreset, NAME_EFFECT_PRESETS, MESSAGE_EFFECT_PRESETS, TITLE_BADGE_PRESETS, DECORATION_PRESETS } from '../utils/effectDisplayStorage'
@@ -19,6 +19,8 @@ import { getEquippedEffects } from '../utils/effectStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getDisplayNameForAccount } from '../utils/displayName'
+import { clearAllInventories } from '../utils/inventoryStorage'
+import { clearAllEquippedEffects } from '../utils/effectStorage'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -1738,6 +1740,28 @@ function Home() {
     }
   }
 
+  const handleReclaimAllUserAssets = () => {
+    if (!window.confirm('確定要回收「所有人」背包道具與佳盟幣嗎？\n\n這會：\n- 清空所有人背包\n- 佳盟幣歸零\n- 卸下所有人已裝備特效\n\n此操作無法復原！')) return
+    try {
+      const r1 = clearAllInventories()
+      const r2 = clearAllWallets()
+      const r3 = clearAllEquippedEffects()
+      if (r1.success && r2.success && r3.success) {
+        alert('已回收所有人背包道具與佳盟幣（並卸下已裝備特效）。')
+        // 重新載入道具清單（避免 UI 顯示舊數量）
+        try {
+          const items = getItems()
+          setAvailableItems(items)
+        } catch (_) {}
+      } else {
+        alert(r1.message || r2.message || r3.message || '回收失敗')
+      }
+    } catch (e) {
+      console.warn('handleReclaimAllUserAssets failed', e)
+      alert('回收失敗')
+    }
+  }
+
   const handleEditUIElement = (field, value) => {
     const updatedConfig = { ...uiConfig, [field]: value }
     setUIConfig(updatedConfig)
@@ -2162,6 +2186,14 @@ function Home() {
                 title="清理已刪除排行榜殘留的特效/稱號道具"
               >
                 清理失效特效
+              </button>
+              <button
+                type="button"
+                onClick={handleReclaimAllUserAssets}
+                className="bg-fuchsia-600 text-white px-3 py-2.5 sm:px-3 rounded-lg hover:bg-fuchsia-700 active:bg-fuchsia-700 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm"
+                title="回收所有人背包道具與佳盟幣"
+              >
+                回收全體資產
               </button>
               {leaderboardItems.length > 0 && (
                 <button
