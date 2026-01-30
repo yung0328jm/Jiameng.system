@@ -6,6 +6,7 @@ const LEAVE_KEY = 'jiameng_leave_applications'
 const QUOTA_KEY = 'jiameng_special_leave_quota'
 const DANMU_KEY = 'jiameng_danmus'
 const TRIP_REPORT_KEY = 'jiameng_trip_reports'
+const MESSAGE_KEY = 'jiameng_messages'
 
 const evt = 'supabase-realtime-update'
 
@@ -83,6 +84,60 @@ export function subscribeRealtime(onUpdate) {
     return merged.slice(-5000)
   }
 
+  // 站內信合併去重（避免多裝置/多人同時寫入覆蓋導致「訊息消失」或「要重登才看得到」）
+  let lastMsgHealAt = 0
+  let lastMsgHealSig = ''
+  function msgUpdatedAt(m) {
+    const t0 = Date.parse(m?.createdAt || '') || 0
+    const t1 = Date.parse(m?.readAt || '') || 0
+    const t2 = Date.parse(m?.resolvedAt || '') || 0
+    const replies = Array.isArray(m?.replies) ? m.replies : []
+    const t3 = replies.reduce((mx, r) => Math.max(mx, Date.parse(r?.createdAt || '') || 0), 0)
+    return Math.max(t0, t1, t2, t3)
+  }
+  function mergeReplies(a, b) {
+    const ra = Array.isArray(a) ? a : []
+    const rb = Array.isArray(b) ? b : []
+    const byId = new Map()
+    ;[...ra, ...rb].forEach((r) => {
+      const id = String(r?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) {
+        byId.set(id, r)
+        return
+      }
+      const ta = Date.parse(prev?.createdAt || '') || 0
+      const tb = Date.parse(r?.createdAt || '') || 0
+      byId.set(id, tb >= ta ? r : prev)
+    })
+    return Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
+  }
+  function mergeMessages(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byId = new Map()
+    ;[...a, ...b].forEach((m) => {
+      const id = String(m?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) {
+        byId.set(id, m)
+        return
+      }
+      const ta = msgUpdatedAt(prev)
+      const tb = msgUpdatedAt(m)
+      const base = tb >= ta ? m : prev
+      const other = tb >= ta ? prev : m
+      const replies = mergeReplies(base?.replies, other?.replies)
+      byId.set(id, { ...other, ...base, replies })
+    })
+    // 依 createdAt 排序，避免順序亂跳；防爆最多保留 5000 筆
+    return Array.from(byId.values())
+      .sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
+      .slice(-5000)
+  }
+
   // app_data：payload.new / payload.old 含 key, data
   const appDataCh = sb
     .channel('app_data_changes')
@@ -158,9 +213,40 @@ export function subscribeRealtime(onUpdate) {
               notifyKey(TRIP_REPORT_KEY)
             }
           } else {
-            const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
-            localStorage.setItem(key, val)
-            notifyKey(key)
+            if (key === MESSAGE_KEY) {
+              try {
+                const incoming = Array.isArray(payload.new.data)
+                  ? payload.new.data
+                  : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+                const existing = (() => {
+                  try { return JSON.parse(localStorage.getItem(MESSAGE_KEY) || '[]') } catch (_) { return [] }
+                })()
+                const merged = mergeMessages(existing, incoming)
+                const val = JSON.stringify(merged)
+                localStorage.setItem(MESSAGE_KEY, val)
+                notifyKey(MESSAGE_KEY)
+
+                // 若 incoming 少於本機合併後（可能是覆蓋丟失），且含近期變更，嘗試回寫一次修復雲端
+                const now = Date.now()
+                const sig = `${merged.length}|${merged.slice(-5).map((d) => d?.id).join('|')}`
+                if (merged.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastMsgHealAt > 8000 && sig !== lastMsgHealSig) {
+                  const hasRecent = merged.slice(-20).some((m) => (now - msgUpdatedAt(m)) < 2 * 60 * 60 * 1000) // 2h 內有變更
+                  if (hasRecent) {
+                    lastMsgHealAt = now
+                    lastMsgHealSig = sig
+                    sb.from('app_data').upsert({ key: MESSAGE_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  }
+                }
+              } catch (_) {
+                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                localStorage.setItem(MESSAGE_KEY, val)
+                notifyKey(MESSAGE_KEY)
+              }
+            } else {
+              const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
+              localStorage.setItem(key, val)
+              notifyKey(key)
+            }
           }
         } else if (payload.old && payload.old.key != null) {
           localStorage.removeItem(payload.old.key)
