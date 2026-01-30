@@ -26,6 +26,7 @@ function ExchangeShop() {
   const [walletBalance, setWalletBalance] = useState(0)
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
   const [cloudItemsInfo, setCloudItemsInfo] = useState({ loading: false, count: null, sourceKey: 'jiameng_items', error: '' })
+  const [missingIdsInfo, setMissingIdsInfo] = useState({ count: 0, ids: [] })
 
   const loadItems = useCallback(() => {
     const role = getCurrentUserRole()
@@ -35,6 +36,31 @@ function ExchangeShop() {
     const visibleItems = role === 'admin' ? shopEligible : shopEligible.filter((i) => !i?.isHidden)
     setItems(visibleItems)
     setItemsMeta({ total: all.length, shopEligible: shopEligible.length, hiddenInShop, nonShop: Math.max(0, all.length - shopEligible.length) })
+  }, [])
+
+  const computeMissingItemIds = useCallback(() => {
+    try {
+      const items = Array.isArray(getItems()) ? getItems() : []
+      const defined = new Set(items.map((i) => String(i?.id || '').trim()).filter(Boolean))
+      const rawInv = localStorage.getItem('jiameng_inventories')
+      const inventories = rawInv ? JSON.parse(rawInv) : {}
+      const missing = new Set()
+      Object.keys(inventories || {}).forEach((u) => {
+        const arr = Array.isArray(inventories[u]) ? inventories[u] : []
+        arr.forEach((e) => {
+          const id = String(e?.itemId || '').trim()
+          if (!id) return
+          if (!defined.has(id)) missing.add(id)
+        })
+      })
+      const ids = Array.from(missing)
+      setMissingIdsInfo({ count: ids.length, ids })
+      return ids
+    } catch (e) {
+      console.warn('computeMissingItemIds failed', e)
+      setMissingIdsInfo({ count: 0, ids: [] })
+      return []
+    }
   }, [])
 
   const fetchCloudItemsCount = useCallback(async (sourceKey = 'jiameng_items') => {
@@ -102,6 +128,7 @@ function ExchangeShop() {
   const refetchExchangeShop = () => {
     try {
       loadItems()
+      computeMissingItemIds()
       const user = getCurrentUser()
       if (user) setWalletBalance(getWalletBalance(user))
     } catch (e) {
@@ -111,6 +138,7 @@ function ExchangeShop() {
 
   useEffect(() => {
     loadItems()
+    computeMissingItemIds()
     const role = getCurrentUserRole()
     const user = getCurrentUser()
     setUserRole(role)
@@ -432,6 +460,56 @@ function ExchangeShop() {
                 <div className="text-sm text-yellow-300">
                   目前商城道具數量偏少，可能是被隱藏或同步被覆蓋。若另一台還有完整道具，請在那台按「重新同步道具到雲端」。
                 </div>
+              )}
+              {missingIdsInfo.count > 0 && (
+                <div className="text-sm text-red-300">
+                  目前有 <span className="font-semibold">{missingIdsInfo.count}</span> 種「未知道具」（背包有，但道具定義不存在）。
+                </div>
+              )}
+              {missingIdsInfo.count > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm(`確定要清理所有人的「未知道具」嗎？\n\n將會從全員背包移除缺失道具，並嘗試卸下已裝備特效（避免黑頻/顯示異常）。\n\n缺失道具：\n${missingIdsInfo.ids.slice(0, 20).join('\n')}${missingIdsInfo.ids.length > 20 ? '\n...（更多省略）' : ''}`)) return
+                    try {
+                      const ids = new Set(missingIdsInfo.ids || [])
+                      // 1) 卸下所有人已裝備的缺失道具（name/message/title）
+                      const allEquipped = getAllEquippedEffects()
+                      Object.keys(allEquipped || {}).forEach((username) => {
+                        const e = allEquipped?.[username] || {}
+                        if (ids.has(e?.nameEffect)) unequipEffect(username, 'name')
+                        if (ids.has(e?.messageEffect)) unequipEffect(username, 'message')
+                        if (ids.has(e?.title)) unequipEffect(username, 'title')
+                      })
+                      // 2) 從 inventories 全員移除缺失道具
+                      const rawInv = localStorage.getItem('jiameng_inventories')
+                      const inventories = rawInv ? JSON.parse(rawInv) : {}
+                      let changed = false
+                      Object.keys(inventories || {}).forEach((username) => {
+                        const arr = Array.isArray(inventories[username]) ? inventories[username] : []
+                        const filtered = arr.filter((x) => !ids.has(String(x?.itemId || '').trim()))
+                        if (filtered.length !== arr.length) {
+                          inventories[username] = filtered
+                          changed = true
+                        }
+                      })
+                      if (changed) {
+                        const val = JSON.stringify(inventories)
+                        localStorage.setItem('jiameng_inventories', val)
+                        syncKeyToSupabase('jiameng_inventories', val)
+                      }
+                      computeMissingItemIds()
+                      alert('已清理未知道具（全員背包）')
+                    } catch (e) {
+                      console.warn('cleanup unknown items failed', e)
+                      alert('清理失敗')
+                    }
+                  }}
+                  className="bg-red-700 hover:bg-red-600 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                  title="把所有人背包內找不到定義的道具移除，避免顯示未知道具"
+                >
+                  清理未知道具
+                </button>
               )}
               <div className="text-xs text-gray-400">
                 本機：總道具 {itemsMeta.total}｜商城可售 {itemsMeta.shopEligible}｜已隱藏 {itemsMeta.hiddenInShop}｜不在商城販售（稱號/特效）{itemsMeta.nonShop}
