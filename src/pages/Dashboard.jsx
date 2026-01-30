@@ -169,6 +169,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [topMenuPosition, setTopMenuPosition] = useState({ top: 0, right: 0 })
 
   const loadAllUsersForAdmin = async () => {
+    const me = String(getCurrentUser() || '').trim()
     try {
       // Supabase 模式：用公開 profiles 清單（避免只剩舊 local users 的系統帳號）
       if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
@@ -177,9 +178,11 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           .filter((p) => {
             const acc = String(p?.account || '').trim()
             if (!acc) return false
-            if (acc === 'admin') return false
+            // 仍排除系統帳號；但允許「管理員自己」出現在下拉選單，方便發給自己
+            if (acc === 'admin' && acc !== me) return false
             if (acc === 'jiameng.system') return false
-            if (p?.is_admin) return false
+            // 仍排除其他管理員，避免誤發；但允許自己
+            if (p?.is_admin && acc !== me) return false
             return true
           })
           .map((p) => ({
@@ -198,9 +201,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     const users = (getUsers() || []).filter((u) => {
       const acc = String(u?.account || '').trim()
       if (!acc) return false
-      if (acc === 'admin') return false
+      if (acc === 'admin' && acc !== me) return false
       if (acc === 'jiameng.system') return false
-      if (u?.role === 'admin') return false
+      if (u?.role === 'admin' && acc !== me) return false
       return true
     })
     setAllUsers(users)
