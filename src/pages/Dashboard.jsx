@@ -957,12 +957,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             onClick={() => handleTabClick('calendar', '/calendar')}
           />
           <NavItem
-            icon={<MailIcon />}
-            label="站內信"
-            isActive={activeTab === 'messages'}
-            onClick={() => handleTabClick('messages', '/messages')}
-          />
-          <NavItem
             icon={<TripReportIcon />}
             label="行程回報"
             isActive={activeTab === 'trip-report'}
@@ -1026,16 +1020,22 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             badge={backpackItemCount > 0 ? backpackItemCount : null}
           />
           <NavItem
-            icon={<CheckInIcon />}
-            label="每日簽到"
-            isActive={activeTab === 'check-in'}
-            onClick={() => handleTabClick('check-in', '/check-in')}
+            icon={<MailIcon />}
+            label="站內信"
+            isActive={activeTab === 'messages'}
+            onClick={() => handleTabClick('messages', '/messages')}
           />
           <NavItem
             icon={<LeaveIcon />}
             label="請假申請"
             isActive={activeTab === 'leave-application'}
             onClick={() => handleTabClick('leave-application', '/leave-application')}
+          />
+          <NavItem
+            icon={<CheckInIcon />}
+            label="每日簽到"
+            isActive={activeTab === 'check-in'}
+            onClick={() => handleTabClick('check-in', '/check-in')}
           />
           {userRole === 'admin' && (
             <NavItem
