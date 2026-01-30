@@ -94,3 +94,33 @@ export const getAllEquippedEffects = () => {
     return {}
   }
 }
+
+// 清理所有用戶已裝備特效：若裝備的 itemId 在清單內，直接卸下（用於刪除排行榜連動）
+// itemIds: string[] | Set<string>
+export const cleanupEquippedEffectsByItemIds = (itemIds) => {
+  try {
+    const ids = itemIds instanceof Set ? itemIds : new Set(Array.isArray(itemIds) ? itemIds : [])
+    if (ids.size === 0) return { success: true, cleanedUsers: 0 }
+    const all = getAllEquippedEffects()
+    let cleanedUsers = 0
+    let changed = false
+    Object.keys(all || {}).forEach((username) => {
+      const e = all[username] || {}
+      const next = { ...e }
+      let touched = false
+      if (next.nameEffect && ids.has(next.nameEffect)) { next.nameEffect = null; touched = true }
+      if (next.messageEffect && ids.has(next.messageEffect)) { next.messageEffect = null; touched = true }
+      if (next.title && ids.has(next.title)) { next.title = null; touched = true }
+      if (touched) {
+        all[username] = next
+        cleanedUsers += 1
+        changed = true
+      }
+    })
+    if (changed) persist(all)
+    return { success: true, cleanedUsers }
+  } catch (error) {
+    console.error('cleanupEquippedEffectsByItemIds failed', error)
+    return { success: false, message: '清理裝備特效失敗' }
+  }
+}

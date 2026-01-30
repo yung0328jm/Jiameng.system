@@ -2,6 +2,12 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const INVENTORY_STORAGE_KEY = 'jiameng_inventories'
 
+const persistAll = (inventories) => {
+  const val = JSON.stringify(inventories || {})
+  localStorage.setItem(INVENTORY_STORAGE_KEY, val)
+  syncKeyToSupabase(INVENTORY_STORAGE_KEY, val)
+}
+
 // 獲取用戶背包（保證回傳陣列）
 export const getUserInventory = (username) => {
   try {
@@ -123,6 +129,32 @@ export const getAllInventories = () => {
   } catch (error) {
     console.error('Error getting all inventories:', error)
     return {}
+  }
+}
+
+// 從「所有用戶」背包移除指定道具 id（管理員/清理用）
+// itemIds: string[] | Set<string>
+export const removeItemIdsFromAllInventories = (itemIds) => {
+  try {
+    const ids = itemIds instanceof Set ? itemIds : new Set(Array.isArray(itemIds) ? itemIds : [])
+    if (ids.size === 0) return { success: true, removedUsers: 0 }
+    const inventories = getAllInventories()
+    let removedUsers = 0
+    let changed = false
+    Object.keys(inventories || {}).forEach((username) => {
+      const arr = Array.isArray(inventories[username]) ? inventories[username] : []
+      const filtered = arr.filter((inv) => !ids.has(inv?.itemId))
+      if (filtered.length !== arr.length) {
+        inventories[username] = filtered
+        removedUsers += 1
+        changed = true
+      }
+    })
+    if (changed) persistAll(inventories)
+    return { success: true, removedUsers }
+  } catch (error) {
+    console.error('removeItemIdsFromAllInventories failed', error)
+    return { success: false, message: '清理背包失敗' }
   }
 }
 

@@ -1,7 +1,48 @@
 // 排行榜項目存儲工具
 import { syncKeyToSupabase } from './supabaseSync'
+import { getItems, deleteItem, ITEM_TYPES } from './itemStorage'
+import { removeItemIdsFromAllInventories } from './inventoryStorage'
+import { cleanupEquippedEffectsByItemIds } from './effectStorage'
 const LEADERBOARD_STORAGE_KEY = 'jiameng_leaderboard_items'
 const LEADERBOARD_UI_STORAGE_KEY = 'jiameng_leaderboard_ui'
+const MANUAL_RANKINGS_STORAGE_KEY = 'jiameng_manual_rankings'
+
+const persistManualRankings = (data) => {
+  const val = JSON.stringify(data || {})
+  localStorage.setItem(MANUAL_RANKINGS_STORAGE_KEY, val)
+  syncKeyToSupabase(MANUAL_RANKINGS_STORAGE_KEY, val)
+}
+
+const deleteManualRankingsForLeaderboard = (leaderboardItemId) => {
+  try {
+    const allRankings = localStorage.getItem(MANUAL_RANKINGS_STORAGE_KEY)
+    const data = allRankings ? JSON.parse(allRankings) : {}
+    if (data && Object.prototype.hasOwnProperty.call(data, leaderboardItemId)) {
+      delete data[leaderboardItemId]
+      persistManualRankings(data)
+    }
+  } catch (e) {
+    console.warn('deleteManualRankingsForLeaderboard failed', e)
+  }
+}
+
+const cleanupLeaderboardRewardItems = (leaderboardIds) => {
+  const idSet = new Set((Array.isArray(leaderboardIds) ? leaderboardIds : []).map((x) => String(x)))
+  if (idSet.size === 0) return { success: true, removedItems: 0 }
+  const items = getItems()
+  const specialItems = items.filter(
+    (i) => idSet.has(String(i?.leaderboardId || '')) &&
+      (i?.type === ITEM_TYPES.TITLE || i?.type === ITEM_TYPES.NAME_EFFECT || i?.type === ITEM_TYPES.MESSAGE_EFFECT)
+  )
+  const specialIds = new Set(specialItems.map((i) => String(i.id)))
+  if (specialIds.size === 0) return { success: true, removedItems: 0 }
+
+  // 先卸下所有人裝備，再移除背包，再刪除道具定義
+  cleanupEquippedEffectsByItemIds(specialIds)
+  removeItemIdsFromAllInventories(specialIds)
+  specialItems.forEach((it) => { try { deleteItem(it.id) } catch (_) {} })
+  return { success: true, removedItems: specialIds.size }
+}
 
 // 獲取所有排行榜項目（保證回傳陣列，避免 .map is not a function）
 export const getLeaderboardItems = () => {
@@ -64,11 +105,16 @@ export const updateLeaderboardItem = (id, updates) => {
 }
 
 // 刪除排行榜項目
-export const deleteLeaderboardItem = (id) => {
+export const deleteLeaderboardItem = (id, options = {}) => {
   try {
+    const cleanupRewards = options?.cleanupRewards !== false
     const items = getLeaderboardItems()
     const filtered = items.filter(item => item.id !== id)
     saveLeaderboardItems(filtered)
+    // 同時刪除該項目的手動排名數據
+    deleteManualRankingsForLeaderboard(String(id))
+    // 同時清理此榜的稱號/特效道具（避免刪榜後背包還留著）
+    if (cleanupRewards) cleanupLeaderboardRewardItems([String(id)])
     return { success: true }
   } catch (error) {
     console.error('Error deleting leaderboard item:', error)
@@ -173,7 +219,6 @@ export const initializeDefaultLeaderboardItems = () => {
 }
 
 // 手動編輯的排名數據存儲
-const MANUAL_RANKINGS_STORAGE_KEY = 'jiameng_manual_rankings'
 
 // 獲取指定排行榜項目的手動排名數據
 export const getManualRankings = (leaderboardItemId) => {
@@ -288,5 +333,24 @@ export const deleteManualRanking = (leaderboardItemId, rankingId) => {
   } catch (error) {
     console.error('Error deleting manual ranking:', error)
     return { success: false, message: '刪除失敗' }
+  }
+}
+
+// 清空所有排行榜（並可選擇清理所有排行榜獎勵道具）
+export const clearAllLeaderboards = (options = {}) => {
+  try {
+    const cleanupRewards = options?.cleanupRewards !== false
+    const items = getLeaderboardItems()
+    const ids = (Array.isArray(items) ? items : []).map((i) => String(i?.id || '')).filter(Boolean)
+    if (cleanupRewards && ids.length > 0) cleanupLeaderboardRewardItems(ids)
+
+    localStorage.removeItem(LEADERBOARD_STORAGE_KEY)
+    localStorage.removeItem(MANUAL_RANKINGS_STORAGE_KEY)
+    syncKeyToSupabase(LEADERBOARD_STORAGE_KEY, JSON.stringify([]))
+    syncKeyToSupabase(MANUAL_RANKINGS_STORAGE_KEY, JSON.stringify({}))
+    return { success: true }
+  } catch (error) {
+    console.error('clearAllLeaderboards failed', error)
+    return { success: false, message: '清空失敗' }
   }
 }
