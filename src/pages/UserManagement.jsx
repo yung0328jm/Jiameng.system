@@ -10,6 +10,9 @@ import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { calculateCompletionRateAdjustment } from '../utils/completionRateConfigStorage'
 import { getLatePerformanceConfig, calculateLateCountAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance } from '../utils/workItemCollaboration'
+import { getWalletBalance } from '../utils/walletStorage'
+import { getUserInventory } from '../utils/inventoryStorage'
+import { getItems } from '../utils/itemStorage'
 
 function UserManagement() {
   const [users, setUsers] = useState([])
@@ -20,6 +23,10 @@ function UserManagement() {
   const [registrationPassword, setRegistrationPasswordInput] = useState('')
   const [registrationPasswordMessage, setRegistrationPasswordMessage] = useState('')
   const [perfRevision, setPerfRevision] = useState(0)
+  const [assetsRevision, setAssetsRevision] = useState(0)
+  const [showUserAssets, setShowUserAssets] = useState(false)
+  const [selectedAssetsUser, setSelectedAssetsUser] = useState(null) // { account, name }
+  const [selectedAssetsData, setSelectedAssetsData] = useState({ balance: 0, inventory: [] })
 
   useEffect(() => {
     const role = getCurrentUserRole()
@@ -57,6 +64,40 @@ function UserManagement() {
     ['jiameng_engineering_schedules', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_dropdown_options'],
     () => setPerfRevision((v) => v + 1)
   )
+  // 背包/佳盟幣：跟隨資料變動即時更新
+  useRealtimeKeys(['jiameng_wallets', 'jiameng_inventories', 'jiameng_items'], () => setAssetsRevision((v) => v + 1))
+
+  const buildUserAssetsData = (account) => {
+    const balance = getWalletBalance(account || '')
+    const inv = getUserInventory(account || '')
+    const items = getItems()
+    const inventory = (Array.isArray(inv) ? inv : []).map((row) => {
+      const item = items.find((i) => i.id === row.itemId) || null
+      return {
+        itemId: row.itemId,
+        quantity: row.quantity || 0,
+        obtainedAt: row.obtainedAt || null,
+        name: item?.name || '未知道具',
+        icon: item?.icon || '❓',
+        description: item?.description || ''
+      }
+    }).sort((a, b) => (String(a.name).localeCompare(String(b.name), 'zh-Hant')))
+    return { balance, inventory }
+  }
+
+  const openUserAssets = (user) => {
+    const account = user?.account || ''
+    setSelectedAssetsUser({ account, name: user?.name || account })
+    setSelectedAssetsData(buildUserAssetsData(account))
+    setShowUserAssets(true)
+  }
+
+  useEffect(() => {
+    if (!showUserAssets) return
+    const account = selectedAssetsUser?.account
+    if (!account) return
+    setSelectedAssetsData(buildUserAssetsData(account))
+  }, [assetsRevision, showUserAssets, selectedAssetsUser?.account])
 
   const getDateRange = () => {
     const today = new Date()
@@ -459,24 +500,114 @@ function UserManagement() {
                         </select>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => handleDeleteUser(user.account, user.name)}
-                          disabled={user.account === currentUserAccount}
-                          className={`px-4 py-2 rounded transition-colors text-sm ${
-                            user.account === currentUserAccount
-                              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                              : 'bg-red-500 hover:bg-red-600 text-white'
-                          }`}
-                          title={user.account === currentUserAccount ? '無法刪除當前登錄的用戶' : '刪除用戶'}
-                        >
-                          刪除
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openUserAssets(user)}
+                            className="px-3 py-2 rounded transition-colors text-sm bg-indigo-600 hover:bg-indigo-700 text-white"
+                            title="查看背包與佳盟幣"
+                          >
+                            背包/佳盟幣
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(user.account, user.name)}
+                            disabled={user.account === currentUserAccount}
+                            className={`px-4 py-2 rounded transition-colors text-sm ${
+                              user.account === currentUserAccount
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : 'bg-red-500 hover:bg-red-600 text-white'
+                            }`}
+                            title={user.account === currentUserAccount ? '無法刪除當前登錄的用戶' : '刪除用戶'}
+                          >
+                            刪除
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* 背包/佳盟幣 彈窗 */}
+      {showUserAssets && selectedAssetsUser && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-gray-900 border border-gray-700 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <div>
+                <div className="text-white font-semibold">背包 / 佳盟幣</div>
+                <div className="text-gray-400 text-xs">
+                  {selectedAssetsUser.name}（{selectedAssetsUser.account}）
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowUserAssets(false); setSelectedAssetsUser(null) }}
+                className="text-gray-400 hover:text-white"
+                aria-label="關閉"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                  <div className="text-gray-400 text-xs mb-1">佳盟幣</div>
+                  <div className="text-yellow-400 text-2xl font-bold">
+                    {Number(selectedAssetsData.balance || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                  <div className="text-gray-400 text-xs mb-1">道具種類</div>
+                  <div className="text-purple-400 text-2xl font-bold">
+                    {Array.isArray(selectedAssetsData.inventory) ? selectedAssetsData.inventory.length : 0}
+                  </div>
+                </div>
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                  <div className="text-gray-400 text-xs mb-1">道具總數</div>
+                  <div className="text-purple-400 text-2xl font-bold">
+                    {(Array.isArray(selectedAssetsData.inventory) ? selectedAssetsData.inventory : [])
+                      .reduce((sum, x) => sum + (Number(x.quantity) || 0), 0)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+                <div className="px-4 py-2 border-b border-gray-700 text-gray-200 text-sm font-semibold">
+                  道具清單
+                </div>
+                {(Array.isArray(selectedAssetsData.inventory) ? selectedAssetsData.inventory : []).length === 0 ? (
+                  <div className="p-4 text-gray-400 text-sm">此用戶背包為空</div>
+                ) : (
+                  <div className="max-h-[55vh] overflow-auto divide-y divide-gray-700">
+                    {(Array.isArray(selectedAssetsData.inventory) ? selectedAssetsData.inventory : []).map((it) => (
+                      <div key={it.itemId} className="px-4 py-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{it.icon}</span>
+                            <div className="min-w-0">
+                              <div className="text-white font-semibold truncate">{it.name}</div>
+                              {it.description ? (
+                                <div className="text-gray-400 text-xs truncate">{it.description}</div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-purple-300 font-bold">{Number(it.quantity || 0)}</div>
+                          <div className="text-gray-500 text-[11px]">{it.itemId}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
