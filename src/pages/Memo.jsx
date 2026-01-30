@@ -76,7 +76,20 @@ function Memo() {
     getOrCreateGlobalTopic()
     // 交流區：只保留一天內容
     cleanExpiredMessages()
-    setMessages(getGlobalMessages())
+    const next = getGlobalMessages()
+    // 避免資料沒變卻重設 state，導致使用者滑動時一直被觸發「自動捲到底」
+    setMessages((prev) => {
+      const a = Array.isArray(prev) ? prev : []
+      const b = Array.isArray(next) ? next : []
+      if (a.length === b.length) {
+        const a0 = a[0]?.id
+        const b0 = b[0]?.id
+        const aLast = a[a.length - 1]?.id
+        const bLast = b[b.length - 1]?.id
+        if (a0 === b0 && aLast === bLast) return prev
+      }
+      return b
+    })
   }
 
   useEffect(() => {
@@ -118,12 +131,18 @@ function Memo() {
     // 只有在「本來就在底部附近」或「剛發送訊息」才自動捲到底，
     // 避免使用者往上看舊訊息時被拉回最下方。
     if (isChatCollapsed) return
-    if (forceScrollNextRef.current || stickToBottom) {
+
+    const el = chatScrollRef.current
+    const threshold = 120
+    const dist = el ? (el.scrollHeight - el.scrollTop - el.clientHeight) : 0
+    const nearBottom = !el ? true : dist <= threshold
+
+    // 以「當下真實捲動位置」為準，避免 stickToBottom state 因重渲染/高度變化而誤判
+    if (forceScrollNextRef.current || nearBottom) {
       forceScrollNextRef.current = false
-      // 使用 auto 避免造成「回彈感」
       messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
     }
-  }, [messages])
+  }, [messages, isChatCollapsed])
 
   // 即時同步：公佈欄、交流區、彈幕、道具、用戶、排行榜等變更時重讀
   const refetchMemo = () => {
@@ -224,7 +243,8 @@ function Memo() {
   }
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // 用 auto 避免「回彈感」；且只在必要時呼叫（發送訊息時）
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
   }
 
   const handleSendMessage = (e) => {
@@ -235,7 +255,8 @@ function Memo() {
     if (result.success) {
       setMessageContent('')
       loadMessages()
-      setTimeout(scrollToBottom, 100)
+      // 發送者自己：確保捲到底一次（避免等待 effect）
+      setTimeout(scrollToBottom, 50)
     } else {
       alert(result.message || '發送消息失敗')
     }
