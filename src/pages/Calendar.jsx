@@ -2639,13 +2639,6 @@ function Calendar() {
                   <label className="block text-gray-300 text-sm font-semibold">
                     工作項目
                   </label>
-                  <button
-                    type="button"
-                    onClick={handleAddWorkItem}
-                    className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded transition-colors"
-                  >
-                    + 新增工作項目
-                  </button>
                 </div>
 
                 <div className="space-y-3 pb-24">
