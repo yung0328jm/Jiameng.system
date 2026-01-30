@@ -4,6 +4,7 @@ import { getSupabaseClient } from './supabaseClient'
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'
 const QUOTA_KEY = 'jiameng_special_leave_quota'
+const DANMU_KEY = 'jiameng_danmus'
 
 const evt = 'supabase-realtime-update'
 
@@ -34,6 +35,29 @@ export function subscribeRealtime(onUpdate) {
     }
   }
 
+  // 彈幕合併去重（避免多人同時發送時 jiameng_danmus 被最後寫入者覆蓋，導致別人的彈幕「被刷掉」）
+  let lastDanmuHealAt = 0
+  let lastDanmuHealSig = ''
+  function mergeDanmus(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byId = new Map()
+    ;[...a, ...b].forEach((d) => {
+      const id = String(d?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) {
+        byId.set(id, d)
+        return
+      }
+      const ta = Date.parse(prev?.createdAt || '') || 0
+      const tb = Date.parse(d?.createdAt || '') || 0
+      byId.set(id, tb >= ta ? d : prev)
+    })
+    const merged = Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
+    return merged.slice(-500)
+  }
+
   // app_data：payload.new / payload.old 含 key, data
   const appDataCh = sb
     .channel('app_data_changes')
@@ -42,9 +66,41 @@ export function subscribeRealtime(onUpdate) {
       { event: '*', schema: 'public', table: 'app_data' },
       (payload) => {
         if (payload.new && payload.new.key != null) {
-          const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
-          localStorage.setItem(payload.new.key, val)
-          notifyKey(payload.new.key)
+          const key = payload.new.key
+          // 彈幕：收到雲端更新時做合併去重，降低覆蓋丟失
+          if (key === DANMU_KEY) {
+            try {
+              const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+              const existing = (() => {
+                try { return JSON.parse(localStorage.getItem(DANMU_KEY) || '[]') } catch (_) { return [] }
+              })()
+              const merged = mergeDanmus(existing, incoming)
+              const val = JSON.stringify(merged)
+              localStorage.setItem(DANMU_KEY, val)
+              notifyKey(DANMU_KEY)
+
+              // 若偵測到 incoming 少於本機（可能是覆蓋丟失），且缺的多為近期資料，嘗試回寫一次修復雲端
+              const now = Date.now()
+              const sig = `${merged.length}|${merged.slice(-5).map((d) => d?.id).join('|')}`
+              if (merged.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastDanmuHealAt > 5000 && sig !== lastDanmuHealSig) {
+                const hasRecent = merged.slice(-10).some((d) => (now - (Date.parse(d?.createdAt || '') || 0)) < 2 * 60 * 1000)
+                if (hasRecent) {
+                  lastDanmuHealAt = now
+                  lastDanmuHealSig = sig
+                  sb.from('app_data').upsert({ key: DANMU_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                }
+              }
+            } catch (_) {
+              // fallback：直接覆蓋
+              const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
+              localStorage.setItem(DANMU_KEY, val)
+              notifyKey(DANMU_KEY)
+            }
+          } else {
+            const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
+            localStorage.setItem(key, val)
+            notifyKey(key)
+          }
         } else if (payload.old && payload.old.key != null) {
           localStorage.removeItem(payload.old.key)
           notifyKey(payload.old.key)
