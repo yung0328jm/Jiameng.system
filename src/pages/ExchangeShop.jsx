@@ -511,6 +511,72 @@ function ExchangeShop() {
                   清理未知道具
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm('確定要「清理全員失效裝備」嗎？\n\n會把所有人已裝備的稱號/名子特效/發話特效中：\n- 道具已刪除\n- 背包已回收（沒有該道具）\n- 所屬排行榜已移除\n\n以上情況一律自動卸下，並同步到雲端。')) return
+                  try {
+                    const items = Array.isArray(getItems()) ? getItems() : []
+                    const itemById = new Map(items.map((it) => [String(it?.id || ''), it]))
+
+                    // 排行榜是否仍存在（leaderboardId 不存在則視為失效）
+                    let leaderboardIdSet = new Set()
+                    try {
+                      const raw = localStorage.getItem('jiameng_leaderboard_items')
+                      const lbs = raw ? JSON.parse(raw) : []
+                      leaderboardIdSet = new Set((Array.isArray(lbs) ? lbs : []).map((l) => String(l?.id || '').trim()).filter(Boolean))
+                    } catch (_) {}
+
+                    // inventories：用來判斷是否仍持有該道具
+                    const rawInv = localStorage.getItem('jiameng_inventories')
+                    const inventories = rawInv ? JSON.parse(rawInv) : {}
+                    const hasItemInInv = (username, itemId) => {
+                      const arr = Array.isArray(inventories?.[username]) ? inventories[username] : []
+                      return arr.some((x) => String(x?.itemId || '').trim() === itemId && (Number(x?.quantity) || 0) > 0)
+                    }
+
+                    const rawEq = localStorage.getItem('jiameng_equipped_effects')
+                    const equipped = rawEq ? JSON.parse(rawEq) : {}
+                    let changed = false
+                    let clearedCount = 0
+
+                    Object.keys(equipped || {}).forEach((username) => {
+                      const e = equipped?.[username] || {}
+                      const checkSlot = (slotKey, expectedType, slotName) => {
+                        const id = String(e?.[slotKey] || '').trim()
+                        if (!id) return
+                        const it = itemById.get(id)
+                        const isTypeOk = it && (!expectedType || it.type === expectedType)
+                        const isLeaderboardOk = !it?.leaderboardId || leaderboardIdSet.has(String(it.leaderboardId).trim())
+                        const isOwned = hasItemInInv(username, id)
+                        if (!it || !isTypeOk || !isOwned || !isLeaderboardOk) {
+                          e[slotKey] = null
+                          changed = true
+                          clearedCount++
+                        }
+                      }
+                      checkSlot('nameEffect', ITEM_TYPES.NAME_EFFECT, 'name')
+                      checkSlot('messageEffect', ITEM_TYPES.MESSAGE_EFFECT, 'message')
+                      checkSlot('title', ITEM_TYPES.TITLE, 'title')
+                      equipped[username] = e
+                    })
+
+                    if (changed) {
+                      const val = JSON.stringify(equipped)
+                      localStorage.setItem('jiameng_equipped_effects', val)
+                      syncKeyToSupabase('jiameng_equipped_effects', val)
+                    }
+                    alert(changed ? `已清理全員失效裝備（清除 ${clearedCount} 個裝備欄位）` : '沒有偵測到失效裝備')
+                  } catch (e) {
+                    console.warn('cleanup invalid equipped effects failed', e)
+                    alert('清理失敗')
+                  }
+                }}
+                className="bg-purple-700 hover:bg-purple-600 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                title="把全員已裝備但已失效（道具被刪除/被回收/所屬排行榜已移除）的特效卸下"
+              >
+                清理全員失效裝備
+              </button>
               <div className="text-xs text-gray-400">
                 本機：總道具 {itemsMeta.total}｜商城可售 {itemsMeta.shopEligible}｜已隱藏 {itemsMeta.hiddenInShop}｜不在商城販售（稱號/特效）{itemsMeta.nonShop}
                 {cloudItemsInfo.loading ? '｜雲端：讀取中…' : (
