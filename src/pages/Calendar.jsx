@@ -1574,18 +1574,37 @@ function Calendar() {
                                           const it = normalizeWorkItem(item)
                                           const collabs = getWorkItemCollaborators(it)
                                           const isCollab = !!it?.isCollaborative
-                                          const names = isCollab ? collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ') : String(it?.responsiblePerson || '').trim()
-                                          const t = isCollab
-                                            ? (collabs.reduce((s, c) => s + (parseFloat(c?.targetQuantity) || 0), 0) || (parseFloat(it?.targetQuantity) || 0))
-                                            : (parseFloat(it?.targetQuantity) || 0)
-                                          const a = isCollab
-                                            ? (collabs.reduce((s, c) => s + (parseFloat(c?.actualQuantity) || 0), 0) || (parseFloat(it?.actualQuantity) || 0))
-                                            : (parseFloat(it?.actualQuantity) || 0)
+                                          const name = String(it?.responsiblePerson || '').trim()
+                                          const t = parseFloat(it?.targetQuantity) || 0
+                                          const a = parseFloat(it?.actualQuantity) || 0
+                                          if (!isCollab) {
+                                            return (
+                                              <>
+                                                {name ? ` (${name})` : ''}
+                                                {t > 0 ? ` - 目標: ${t}` : ''}
+                                                {a > 0 ? `, 實際: ${a}` : ''}
+                                              </>
+                                            )
+                                          }
+                                          const names = collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ')
                                           return (
                                             <>
                                               {names ? ` (${names})` : ''}
-                                              {t > 0 ? ` - 目標: ${t}` : ''}
-                                              {a > 0 ? `, 實際: ${a}` : ''}
+                                              {collabs.length > 0 && (
+                                                <div className="mt-1 space-y-1">
+                                                  {collabs.map((c) => {
+                                                    const cn = String(c?.name || '').trim()
+                                                    const ct = parseFloat(c?.targetQuantity) || 0
+                                                    const ca = parseFloat(c?.actualQuantity) || 0
+                                                    const cr = ct > 0 ? ((ca / ct) * 100).toFixed(1) : ''
+                                                    return (
+                                                      <div key={cn} className="text-blue-200 text-xs">
+                                                        - {cn || '—'}：目標 {ct || 'N/A'} / 實際 {ca || 'N/A'}{cr ? `（${cr}%）` : ''}
+                                                      </div>
+                                                    )
+                                                  })}
+                                                </div>
+                                              )}
                                             </>
                                           )
                                         })()}
@@ -1733,23 +1752,39 @@ function Calendar() {
                               const it = normalizeWorkItem(item)
                               const collabs = getWorkItemCollaborators(it)
                               const isCollab = !!it?.isCollaborative
-                              const names = isCollab ? collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ') : String(it?.responsiblePerson || '').trim()
-                              const t = isCollab
-                                ? (collabs.reduce((s, c) => s + (parseFloat(c?.targetQuantity) || 0), 0) || (parseFloat(it?.targetQuantity) || 0))
-                                : (parseFloat(it?.targetQuantity) || 0)
-                              const a = isCollab
-                                ? (collabs.reduce((s, c) => s + (parseFloat(c?.actualQuantity) || 0), 0) || (parseFloat(it?.actualQuantity) || 0))
-                                : (parseFloat(it?.actualQuantity) || 0)
+                              const name = String(it?.responsiblePerson || '').trim()
+                              const t = parseFloat(it?.targetQuantity) || 0
+                              const a = parseFloat(it?.actualQuantity) || 0
                               return (
                                 <>
-                                  {names && (
+                                  {!isCollab && name && (
                                     <div className="text-blue-200 text-sm mt-1">
-                                      負責人: {names}
+                                      負責人: {name}
                                     </div>
                                   )}
-                                  {(t > 0 || a > 0) && (
+                                  {!isCollab && (t > 0 || a > 0) && (
                                     <div className="text-blue-200 text-sm mt-1">
                                       目標: {t > 0 ? t : 'N/A'} / 實際: {a > 0 ? a : 'N/A'}
+                                    </div>
+                                  )}
+                                  {isCollab && (
+                                    <div className="text-blue-200 text-sm mt-1">
+                                      負責人: {collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ') || '—'}
+                                    </div>
+                                  )}
+                                  {isCollab && collabs.length > 0 && (
+                                    <div className="mt-2 space-y-1">
+                                      {collabs.map((c) => {
+                                        const cn = String(c?.name || '').trim()
+                                        const ct = parseFloat(c?.targetQuantity) || 0
+                                        const ca = parseFloat(c?.actualQuantity) || 0
+                                        const cr = ct > 0 ? ((ca / ct) * 100).toFixed(1) : ''
+                                        return (
+                                          <div key={cn} className="text-blue-200 text-sm">
+                                            - {cn || '—'}：目標 {ct || 'N/A'} / 實際 {ca || 'N/A'}{cr ? `（${cr}%）` : ''}
+                                          </div>
+                                        )
+                                      })}
                                     </div>
                                   )}
                                 </>
