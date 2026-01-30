@@ -1581,6 +1581,7 @@ function Calendar() {
                                           const it = normalizeWorkItem(item)
                                           const collabs = getWorkItemCollaborators(it)
                                           const isCollab = !!it?.isCollaborative
+                                          const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
                                           const name = String(it?.responsiblePerson || '').trim()
                                           const t = parseFloat(it?.targetQuantity) || 0
                                           const a = parseFloat(it?.actualQuantity) || 0
@@ -1594,10 +1595,17 @@ function Calendar() {
                                             )
                                           }
                                           const names = collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ')
+                                          const sharedT = t
+                                          const sharedA = getWorkItemSharedActual(it)
                                           return (
                                             <>
                                               {names ? ` (${names})` : ''}
-                                              {collabs.length > 0 && (
+                                              {mode === 'shared' && (
+                                                <div className="text-blue-200 text-xs mt-1">
+                                                  共同：目標 {sharedT > 0 ? sharedT : 'N/A'} / 實際 {sharedA > 0 ? sharedA : 'N/A'}
+                                                </div>
+                                              )}
+                                              {mode === 'separate' && collabs.length > 0 && (
                                                 <div className="mt-1 space-y-1">
                                                   {collabs.map((c) => {
                                                     const cn = String(c?.name || '').trim()
@@ -1759,9 +1767,12 @@ function Calendar() {
                               const it = normalizeWorkItem(item)
                               const collabs = getWorkItemCollaborators(it)
                               const isCollab = !!it?.isCollaborative
+                              const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
                               const name = String(it?.responsiblePerson || '').trim()
                               const t = parseFloat(it?.targetQuantity) || 0
                               const a = parseFloat(it?.actualQuantity) || 0
+                              const sharedT = t
+                              const sharedA = getWorkItemSharedActual(it)
                               return (
                                 <>
                                   {!isCollab && name && (
@@ -1779,7 +1790,12 @@ function Calendar() {
                                       負責人: {collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ') || '—'}
                                     </div>
                                   )}
-                                  {isCollab && collabs.length > 0 && (
+                                  {isCollab && mode === 'shared' && (
+                                    <div className="text-blue-200 text-sm mt-1">
+                                      共同：目標 {sharedT > 0 ? sharedT : 'N/A'} / 實際 {sharedA > 0 ? sharedA : 'N/A'}
+                                    </div>
+                                  )}
+                                  {isCollab && mode === 'separate' && collabs.length > 0 && (
                                     <div className="mt-2 space-y-1">
                                       {collabs.map((c) => {
                                         const cn = String(c?.name || '').trim()
