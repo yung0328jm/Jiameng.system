@@ -31,6 +31,9 @@ function Memo() {
   const [messageContent, setMessageContent] = useState('')
   const [author, setAuthor] = useState('')
   const [isChatCollapsed, setIsChatCollapsed] = useState(false)
+  const chatScrollRef = useRef(null)
+  const [stickToBottom, setStickToBottom] = useState(true)
+  const forceScrollNextRef = useRef(false) // 發送訊息後強制捲到底一次
   const messagesEndRef = useRef(null)
   
   // 彈幕狀態
@@ -106,7 +109,14 @@ function Memo() {
   }, [])
 
   useEffect(() => {
-    scrollToBottom()
+    // 只有在「本來就在底部附近」或「剛發送訊息」才自動捲到底，
+    // 避免使用者往上看舊訊息時被拉回最下方。
+    if (isChatCollapsed) return
+    if (forceScrollNextRef.current || stickToBottom) {
+      forceScrollNextRef.current = false
+      // 使用 auto 避免造成「回彈感」
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+    }
   }, [messages])
 
   // 即時同步：公佈欄、交流區、彈幕、道具、用戶、排行榜等變更時重讀
@@ -214,6 +224,7 @@ function Memo() {
   const handleSendMessage = (e) => {
     e.preventDefault()
     if (!messageContent.trim()) return
+    forceScrollNextRef.current = true
     const result = addGlobalMessage(messageContent.trim(), author)
     if (result.success) {
       setMessageContent('')
@@ -1038,7 +1049,18 @@ function Memo() {
 
           {/* 發話內容區：僅此區可上下滑動，標題與輸入列固定 */}
           {!isChatCollapsed && (
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-auto p-4 space-y-4">
+          <div
+            ref={chatScrollRef}
+            onScroll={() => {
+              const el = chatScrollRef.current
+              if (!el) return
+              // 距離底部小於 threshold 視為「在底部」
+              const threshold = 120
+              const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+              setStickToBottom(dist <= threshold)
+            }}
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-auto p-4 space-y-4"
+          >
             {messages.length === 0 ? (
               <div className="text-gray-400 text-center py-12">
                 <p>尚無消息</p>
