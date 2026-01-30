@@ -59,7 +59,7 @@ function Calendar() {
   const [participantOptions, setParticipantOptions] = useState([])
   const [vehicleOptions, setVehicleOptions] = useState([])
   const [responsiblePersonOptions, setResponsiblePersonOptions] = useState([])
-  const [projectSiteOptions, setProjectSiteOptions] = useState([]) // 專案管理案場（用於「活動」下拉）
+  const [projectSiteOptions, setProjectSiteOptions] = useState([]) // 專案管理案場（用於「活動」下拉；含狀態標籤）
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false)
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false)
   const [showSiteDropdown, setShowSiteDropdown] = useState(false)
@@ -181,17 +181,33 @@ function Calendar() {
         default: return 1
       }
     }
+    const getStatusLabel = (status) => {
+      switch (status) {
+        case 'in_progress': return '進行中'
+        case 'planning': return '規劃中'
+        case 'completed': return '已完成'
+        case 'on_hold': return '暫停'
+        default: return '未分類'
+      }
+    }
     // 同名案場可能有多筆：保留「狀態優先」的那個排序權重（進行中優先）
-    const bestByName = new Map() // name -> weight
+    const bestByName = new Map() // name -> { weight, status }
     ;(Array.isArray(projects) ? projects : []).forEach((p) => {
       const name = String(p?.name || '').trim()
       if (!name) return
-      const w = getWeight(p?.status)
-      if (!bestByName.has(name) || w < bestByName.get(name)) bestByName.set(name, w)
+      const status = String(p?.status || '').trim()
+      const w = getWeight(status)
+      const prev = bestByName.get(name)
+      if (!prev || w < prev.weight) bestByName.set(name, { weight: w, status })
     })
     const sorted = Array.from(bestByName.entries())
-      .sort((a, b) => (a[1] - b[1]) || a[0].localeCompare(b[0], 'zh-Hant'))
-      .map(([name]) => name)
+      .sort((a, b) => (a[1].weight - b[1].weight) || a[0].localeCompare(b[0], 'zh-Hant'))
+      .map(([name, meta]) => ({
+        name,
+        status: meta?.status || '',
+        label: getStatusLabel(meta?.status),
+        weight: meta?.weight ?? 9
+      }))
     setProjectSiteOptions(sorted)
   }
 
@@ -2076,19 +2092,35 @@ function Calendar() {
                     {showSiteDropdown && projectSiteOptions.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                         {projectSiteOptions
-                          .filter((n) => {
+                          .filter((opt) => {
                             const q = (scheduleFormData.siteName || '').trim()
                             if (!q) return true
-                            return n.includes(q)
+                            const name = String(opt?.name || '')
+                            const label = String(opt?.label || '')
+                            const status = String(opt?.status || '')
+                            return name.includes(q) || label.includes(q) || status.includes(q)
                           })
                           .slice(0, 200)
-                          .map((option, index) => (
+                          .map((option) => (
                             <div
-                              key={`${option}-${index}`}
-                              onClick={() => handleSiteSelect(option)}
-                              className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm"
+                              key={option?.name}
+                              onClick={() => handleSiteSelect(option?.name)}
+                              className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm flex items-center justify-between gap-2"
                             >
-                              {option}
+                              <span className="truncate">{option?.name}</span>
+                              <span
+                                className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full border ${
+                                  option?.label === '進行中'
+                                    ? 'bg-green-600/20 border-green-500/40 text-green-200'
+                                    : option?.label === '規劃中'
+                                      ? 'bg-blue-600/20 border-blue-500/40 text-blue-200'
+                                      : option?.label === '已完成'
+                                        ? 'bg-gray-600/20 border-gray-500/40 text-gray-200'
+                                        : 'bg-yellow-600/20 border-yellow-500/40 text-yellow-200'
+                                }`}
+                              >
+                                {option?.label}
+                              </span>
                             </div>
                           ))}
                       </div>
