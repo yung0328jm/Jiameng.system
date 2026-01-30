@@ -3,7 +3,7 @@ import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getUserPerformanceRecords, getUserLateRecords, getUserAttendanceRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
-import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking } from '../utils/leaderboardStorage'
+import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking, clearAllLeaderboards } from '../utils/leaderboardStorage'
 import { addTestRecord, getTestRecords, deleteTestRecord } from '../utils/testRecordStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getTodos, addTodo, updateTodo, deleteTodo, toggleTodo } from '../utils/todoStorage'
@@ -1705,11 +1705,8 @@ function Home() {
     if (!window.confirm('確定要清空所有排行榜面板嗎？此操作無法復原，將刪除所有面板和排名數據。')) return
     
     try {
-      // 清空所有排行榜項目
-      localStorage.removeItem('jiameng_leaderboard_items')
-      
-      // 清空所有手動排名數據
-      localStorage.removeItem('jiameng_manual_rankings')
+      // 清空所有排行榜項目 + 手動排名 + 連動清理此類榜的稱號／名子／發話特效道具
+      clearAllLeaderboards({ cleanupRewards: true })
       
       // 重新初始化
       setLeaderboardItems([])
