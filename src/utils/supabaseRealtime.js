@@ -5,6 +5,7 @@ const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'
 const QUOTA_KEY = 'jiameng_special_leave_quota'
 const DANMU_KEY = 'jiameng_danmus'
+const TRIP_REPORT_KEY = 'jiameng_trip_reports'
 
 const evt = 'supabase-realtime-update'
 
@@ -58,6 +59,30 @@ export function subscribeRealtime(onUpdate) {
     return merged.slice(-500)
   }
 
+  // 行程回報合併去重（避免多人/多裝置寫入造成被覆蓋而「狀態回復」）
+  let lastTripHealAt = 0
+  let lastTripHealSig = ''
+  function mergeTripReports(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byId = new Map()
+    ;[...a, ...b].forEach((r) => {
+      const id = String(r?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) {
+        byId.set(id, r)
+        return
+      }
+      const ta = Date.parse(prev?.createdAt || '') || 0
+      const tb = Date.parse(r?.createdAt || '') || 0
+      byId.set(id, tb >= ta ? r : prev)
+    })
+    const merged = Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
+    // 防爆：最多保留 5000 筆
+    return merged.slice(-5000)
+  }
+
   // app_data：payload.new / payload.old 含 key, data
   const appDataCh = sb
     .channel('app_data_changes')
@@ -95,6 +120,36 @@ export function subscribeRealtime(onUpdate) {
               const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
               localStorage.setItem(DANMU_KEY, val)
               notifyKey(DANMU_KEY)
+            }
+          } else if (key === TRIP_REPORT_KEY) {
+            try {
+              const incoming = Array.isArray(payload.new.data)
+                ? payload.new.data
+                : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+              const existing = (() => {
+                try { return JSON.parse(localStorage.getItem(TRIP_REPORT_KEY) || '[]') } catch (_) { return [] }
+              })()
+              const merged = mergeTripReports(existing, incoming)
+              const val = JSON.stringify(merged)
+              localStorage.setItem(TRIP_REPORT_KEY, val)
+              notifyKey(TRIP_REPORT_KEY)
+
+              // 若偵測到 incoming 少於本機（可能是覆蓋丟失），嘗試回寫一次修復雲端
+              const now = Date.now()
+              const sig = `${merged.length}|${merged.slice(-5).map((d) => d?.id).join('|')}`
+              if (merged.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastTripHealAt > 8000 && sig !== lastTripHealSig) {
+                // 最近 24h 內有資料才回寫，避免把舊資料硬推上去
+                const hasRecent = merged.slice(-20).some((d) => (now - (Date.parse(d?.createdAt || '') || 0)) < 24 * 60 * 60 * 1000)
+                if (hasRecent) {
+                  lastTripHealAt = now
+                  lastTripHealSig = sig
+                  sb.from('app_data').upsert({ key: TRIP_REPORT_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                }
+              }
+            } catch (_) {
+              const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+              localStorage.setItem(TRIP_REPORT_KEY, val)
+              notifyKey(TRIP_REPORT_KEY)
             }
           } else {
             const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
