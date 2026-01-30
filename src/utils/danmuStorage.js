@@ -12,7 +12,8 @@ const persist = (data) => {
 export const getDanmus = () => {
   try {
     const data = localStorage.getItem(DANMU_STORAGE_KEY)
-    return data ? JSON.parse(data) : []
+    const parsed = data ? JSON.parse(data) : []
+    return Array.isArray(parsed) ? parsed : []
   } catch (error) {
     console.error('Error getting danmus:', error)
     return []
@@ -58,7 +59,8 @@ export const deleteDanmu = (danmuId) => {
 // 清除所有彈幕（管理員功能）
 export const clearAllDanmus = () => {
   try {
-    localStorage.setItem(DANMU_STORAGE_KEY, JSON.stringify([]))
+    // 需同步雲端，否則其他裝置/分頁看起來像「按鈕無效」
+    persist([])
     return { success: true }
   } catch (error) {
     console.error('Error clearing danmus:', error)
