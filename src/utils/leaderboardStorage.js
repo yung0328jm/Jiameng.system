@@ -44,6 +44,60 @@ const cleanupLeaderboardRewardItems = (leaderboardIds) => {
   return { success: true, removedItems: specialIds.size }
 }
 
+// 清理「已失效排行榜」的稱號/名子特效/發話特效（排行榜已刪除，但道具仍殘留）
+// - 會卸下所有人裝備
+// - 會從所有人背包移除
+// - 會刪除道具定義
+// - 可選擇也清理 manual_rankings 中已不存在的 key
+export const cleanupOrphanedLeaderboardRewards = (options = {}) => {
+  try {
+    const cleanupManualRankings = options?.cleanupManualRankings !== false
+    const leaderboards = getLeaderboardItems()
+    const activeIds = new Set((Array.isArray(leaderboards) ? leaderboards : []).map((l) => String(l?.id || '')).filter(Boolean))
+
+    const items = getItems()
+    const orphanRewards = items.filter((i) => {
+      const lbid = String(i?.leaderboardId || '').trim()
+      if (!lbid) return false
+      const isSpecial = i?.type === ITEM_TYPES.TITLE || i?.type === ITEM_TYPES.NAME_EFFECT || i?.type === ITEM_TYPES.MESSAGE_EFFECT
+      if (!isSpecial) return false
+      return !activeIds.has(lbid)
+    })
+
+    const orphanIds = new Set(orphanRewards.map((i) => String(i.id)))
+    if (orphanIds.size > 0) {
+      cleanupEquippedEffectsByItemIds(orphanIds)
+      removeItemIdsFromAllInventories(orphanIds)
+      orphanRewards.forEach((it) => { try { deleteItem(it.id) } catch (_) {} })
+    }
+
+    let removedManualKeys = 0
+    if (cleanupManualRankings) {
+      try {
+        const raw = localStorage.getItem(MANUAL_RANKINGS_STORAGE_KEY)
+        const data = raw ? JSON.parse(raw) : {}
+        let changed = false
+        Object.keys(data || {}).forEach((k) => {
+          const key = String(k || '')
+          if (!activeIds.has(key)) {
+            delete data[key]
+            removedManualKeys += 1
+            changed = true
+          }
+        })
+        if (changed) persistManualRankings(data)
+      } catch (e) {
+        console.warn('cleanupOrphanedLeaderboardRewards: manual_rankings cleanup failed', e)
+      }
+    }
+
+    return { success: true, removedItems: orphanIds.size, removedManualKeys }
+  } catch (error) {
+    console.error('cleanupOrphanedLeaderboardRewards failed', error)
+    return { success: false, message: '清理失效排行榜道具失敗' }
+  }
+}
+
 // 獲取所有排行榜項目（保證回傳陣列，避免 .map is not a function）
 export const getLeaderboardItems = () => {
   try {
