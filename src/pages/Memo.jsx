@@ -316,14 +316,30 @@ function Memo() {
 
     const now = Date.now()
     // 全局防刷：短時間連發 / 每日總上限
-    if (!canClaimGlobalKeywordReward(acc, now)) return
+    if (!canClaimGlobalKeywordReward(acc, now)) {
+      // 只有在「確實命中任一條規則」時才提示，避免一般聊天也跳提示
+      const hitAny = rules.some((r) => r?.enabled && matchKeywordReward(text, r))
+      if (hitAny) showKeywordNotice('關鍵字獎勵：發送太快或今日領取已達上限（請稍後再試）')
+      return
+    }
 
     // 防刷：同一則訊息最多觸發 1 條規則（避免同時命中多個關鍵字狂刷）
     let awardedText = ''
+    let blockedReason = ''
     for (const r of rules) {
       if (!r?.enabled) continue
       if (!matchKeywordReward(text, r)) continue
-      if (!canClaimKeywordReward(acc, r, now)) continue
+      if (!canClaimKeywordReward(acc, r, now)) {
+        // 只記錄第一個命中的擋下原因（避免連續提示）
+        if (!blockedReason) {
+          const cd = Math.max(0, Math.floor(Number(r?.cooldownSec) || 0))
+          const lim = Math.max(0, Math.floor(Number(r?.dailyLimit) || 0))
+          blockedReason = cd > 0
+            ? `關鍵字獎勵：「${r.keyword || ''}」冷卻中（${cd}s）`
+            : (lim > 0 ? `關鍵字獎勵：「${r.keyword || ''}」今日領取已達上限（${lim} 次）` : '關鍵字獎勵：目前不可領取（防刷限制）')
+        }
+        continue
+      }
 
       if (r.rewardType === 'coin') {
         const amt = Math.max(1, Math.floor(Number(r.coinAmount) || 1))
@@ -356,6 +372,9 @@ function Memo() {
       // 背包顯示更新
       loadInventory()
       checkDanmuItem()
+    } else if (blockedReason) {
+      // 命中了關鍵字，但被冷卻/上限擋下
+      showKeywordNotice(blockedReason)
     }
   }
 
