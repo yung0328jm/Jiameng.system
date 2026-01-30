@@ -9,6 +9,13 @@ import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleB
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
+import {
+  normalizeWorkItem,
+  getWorkItemCollaborators,
+  getWorkItemTotalActual,
+  parseCollaboratorsCsv,
+  toCollaboratorsCsv
+} from '../utils/workItemCollaboration'
 
 function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -574,7 +581,9 @@ function Calendar() {
           workContent: '',
           responsiblePerson: '',
           targetQuantity: '',
-          actualQuantity: ''
+          actualQuantity: '',
+          isCollaborative: false,
+          collaborators: []
         }
       ]
     }))
@@ -619,17 +628,18 @@ function Calendar() {
       // 今天當天的排程（在24:00前）或之後的排程，都會執行累加邏輯
       // 只有當天或之後的排程才會執行累加邏輯
       // 遍歷所有工作項目
-      scheduleFormData.workItems.forEach(workItem => {
-        if (!workItem.workContent || !workItem.responsiblePerson) return
-        
-        // 檢查該工作項目是否已經在排程日期當天或之後累加過
-        const lastAccumulatedAt = workItem.lastAccumulatedAt ? new Date(workItem.lastAccumulatedAt) : null
-        const lastAccumulatedDateStr = lastAccumulatedAt ? lastAccumulatedAt.toISOString().split('T')[0] : null
-        
-        // 如果已經在排程日期當天或之後累加過，跳過（避免重複累加）
-        if (lastAccumulatedDateStr && lastAccumulatedDateStr >= scheduleDateStr) {
-          return // 已經累加過，不重複計算
-        }
+      scheduleFormData.workItems.forEach(rawItem => {
+        const workItem = normalizeWorkItem(rawItem)
+        if (!workItem.workContent) return
+
+        const contributors = workItem.isCollaborative
+          ? getWorkItemCollaborators(workItem)
+          : [{
+            name: String(workItem.responsiblePerson || '').trim(),
+            actualQuantity: workItem.actualQuantity ?? ''
+          }].filter((c) => !!c.name)
+
+        if (contributors.length === 0) return
         
         // 查找匹配的排行榜項目
         const matchedLeaderboard = leaderboardItems.find(lb => {
@@ -654,55 +664,57 @@ function Calendar() {
         if (matchedLeaderboard) {
           // 獲取該排行榜的現有排名數據
           const rankings = getManualRankings(matchedLeaderboard.id)
-          
-          // 只使用實際完成數量，且必須有數值才會上榜
-          const quantity = parseFloat(workItem.actualQuantity) || 0
-          
-          if (quantity > 0) {
-            // 查找是否已有該負責人的排名記錄
-            const existingRanking = rankings.find(r => r.name === workItem.responsiblePerson)
-            
-            // 檢查是否有重置記錄（如果有重置，需要同時更新總數和本周累計）
-            const hasReset = matchedLeaderboard.lastResetAt ? true : false
-            
+          const hasReset = matchedLeaderboard.lastResetAt ? true : false
+          const lastBy = (rawItem.lastAccumulatedBy && typeof rawItem.lastAccumulatedBy === 'object')
+            ? { ...rawItem.lastAccumulatedBy }
+            : {}
+
+          let anyChanged = false
+          contributors.forEach((c) => {
+            const name = String(c?.name || '').trim()
+            if (!name) return
+            const quantity = parseFloat(c?.actualQuantity) || 0
+            if (!(quantity > 0)) return
+
+            const lastAccumulatedAt = lastBy?.[name] ? new Date(lastBy[name]) : null
+            const lastAccumulatedDateStr = lastAccumulatedAt ? lastAccumulatedAt.toISOString().split('T')[0] : null
+            if (lastAccumulatedDateStr && lastAccumulatedDateStr >= scheduleDateStr) return
+
+            const existingRanking = rankings.find(r => r.name === name)
             if (existingRanking) {
-              // 累積數量（總數和本周累計）
               const newQuantity = (parseFloat(existingRanking.quantity) || 0) + quantity
               const currentWeekQuantity = parseFloat(existingRanking.weekQuantity) || 0
               const newWeekQuantity = hasReset ? (currentWeekQuantity + quantity) : currentWeekQuantity
-              
               updateManualRanking(matchedLeaderboard.id, existingRanking.id, {
                 quantity: newQuantity.toString(),
                 weekQuantity: hasReset ? newWeekQuantity.toString() : (existingRanking.weekQuantity || '0')
               })
             } else {
-              // 新增排名記錄
               addManualRanking(matchedLeaderboard.id, {
-                name: workItem.responsiblePerson,
+                name,
                 quantity: quantity.toString(),
                 weekQuantity: hasReset ? quantity.toString() : '0',
                 time: '',
                 department: ''
               })
             }
-            
-            // 重新排序（數量多的排前面）
+
+            lastBy[name] = scheduleDate.toISOString()
+            anyChanged = true
+          })
+
+          if (anyChanged) {
             const updatedRankings = getManualRankings(matchedLeaderboard.id)
             updatedRankings.sort((a, b) => {
               const qtyA = parseFloat(a.quantity) || 0
               const qtyB = parseFloat(b.quantity) || 0
-              return qtyB - qtyA // 降序排列
+              return qtyB - qtyA
             })
-            
-            // 重新分配排名
-            updatedRankings.forEach((r, index) => {
-              r.rank = index + 1
-            })
-            
+            updatedRankings.forEach((r, index) => { r.rank = index + 1 })
             saveManualRankings(matchedLeaderboard.id, updatedRankings)
-            
-            // 標記該工作項目已經累加過（使用排程日期）
-            workItem.lastAccumulatedAt = scheduleDate.toISOString()
+
+            rawItem.lastAccumulatedBy = lastBy
+            rawItem.lastAccumulatedAt = scheduleDate.toISOString()
           }
         }
       })
@@ -1553,9 +1565,25 @@ function Calendar() {
                                     {schedule.workItems.map((item, idx) => (
                                       <div key={idx} className="text-blue-100">
                                         • {item.workContent || item.content || '未命名工作項目'}
-                                        {item.responsiblePerson && ` (${item.responsiblePerson})`}
-                                        {item.targetQuantity && ` - 目標: ${item.targetQuantity}`}
-                                        {item.actualQuantity && `, 實際: ${item.actualQuantity}`}
+                                        {(() => {
+                                          const it = normalizeWorkItem(item)
+                                          const collabs = getWorkItemCollaborators(it)
+                                          const isCollab = !!it?.isCollaborative
+                                          const names = isCollab ? collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ') : String(it?.responsiblePerson || '').trim()
+                                          const t = isCollab
+                                            ? (collabs.reduce((s, c) => s + (parseFloat(c?.targetQuantity) || 0), 0) || (parseFloat(it?.targetQuantity) || 0))
+                                            : (parseFloat(it?.targetQuantity) || 0)
+                                          const a = isCollab
+                                            ? (collabs.reduce((s, c) => s + (parseFloat(c?.actualQuantity) || 0), 0) || (parseFloat(it?.actualQuantity) || 0))
+                                            : (parseFloat(it?.actualQuantity) || 0)
+                                          return (
+                                            <>
+                                              {names ? ` (${names})` : ''}
+                                              {t > 0 ? ` - 目標: ${t}` : ''}
+                                              {a > 0 ? `, 實際: ${a}` : ''}
+                                            </>
+                                          )
+                                        })()}
                                       </div>
                                     ))}
                                   </div>
@@ -1696,16 +1724,32 @@ function Calendar() {
                             <div className="text-white">
                               {item.workContent || item.content || `工作項目 ${idx + 1}`}
                             </div>
-                            {item.responsiblePerson && (
-                              <div className="text-blue-200 text-sm mt-1">
-                                負責人: {item.responsiblePerson}
-                              </div>
-                            )}
-                            {(item.targetQuantity || item.actualQuantity) && (
-                              <div className="text-blue-200 text-sm mt-1">
-                                目標: {item.targetQuantity || 'N/A'} / 實際: {item.actualQuantity || 'N/A'}
-                              </div>
-                            )}
+                            {(() => {
+                              const it = normalizeWorkItem(item)
+                              const collabs = getWorkItemCollaborators(it)
+                              const isCollab = !!it?.isCollaborative
+                              const names = isCollab ? collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ') : String(it?.responsiblePerson || '').trim()
+                              const t = isCollab
+                                ? (collabs.reduce((s, c) => s + (parseFloat(c?.targetQuantity) || 0), 0) || (parseFloat(it?.targetQuantity) || 0))
+                                : (parseFloat(it?.targetQuantity) || 0)
+                              const a = isCollab
+                                ? (collabs.reduce((s, c) => s + (parseFloat(c?.actualQuantity) || 0), 0) || (parseFloat(it?.actualQuantity) || 0))
+                                : (parseFloat(it?.actualQuantity) || 0)
+                              return (
+                                <>
+                                  {names && (
+                                    <div className="text-blue-200 text-sm mt-1">
+                                      負責人: {names}
+                                    </div>
+                                  )}
+                                  {(t > 0 || a > 0) && (
+                                    <div className="text-blue-200 text-sm mt-1">
+                                      目標: {t > 0 ? t : 'N/A'} / 實際: {a > 0 ? a : 'N/A'}
+                                    </div>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </div>
                         ))}
                       </div>
@@ -2346,18 +2390,101 @@ function Calendar() {
                             }
                           }}
                         >
-                          <label className="block text-gray-300 text-xs mb-1">負責人 *</label>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <label className="block text-gray-300 text-xs">負責人 *</label>
+                            <label className="flex items-center gap-1 text-xs text-gray-300 select-none">
+                              <input
+                                type="checkbox"
+                                checked={!!item.isCollaborative}
+                                onChange={(e) => {
+                                  const on = e.target.checked
+                                  if (!on) {
+                                    const it = normalizeWorkItem(item)
+                                    const first = (getWorkItemCollaborators(it)[0]?.name) || ''
+                                    const firstTarget = getWorkItemCollaborators(it)[0]?.targetQuantity ?? ''
+                                    const firstActual = getWorkItemCollaborators(it)[0]?.actualQuantity ?? ''
+                                    handleWorkItemChange(index, 'isCollaborative', false)
+                                    handleWorkItemChange(index, 'responsiblePerson', first)
+                                    handleWorkItemChange(index, 'targetQuantity', firstTarget)
+                                    handleWorkItemChange(index, 'actualQuantity', firstActual)
+                                    handleWorkItemChange(index, 'collaborators', [])
+                                  } else {
+                                    const rp = String(item.responsiblePerson || '').trim()
+                                    const tq = item.targetQuantity ?? ''
+                                    const aq = item.actualQuantity ?? ''
+                                    handleWorkItemChange(index, 'isCollaborative', true)
+                                    handleWorkItemChange(index, 'collaborators', rp ? [{ name: rp, targetQuantity: tq, actualQuantity: aq }] : [])
+                                  }
+                                }}
+                                className="w-4 h-4 accent-yellow-400"
+                              />
+                              <span>協作</span>
+                            </label>
+                          </div>
                           <div className="relative">
-                            <input
-                              type="text"
-                              value={item.responsiblePerson || ''}
-                              onChange={(e) => handleResponsiblePersonInput(item.id, e.target.value)}
-                              onFocus={() => setShowResponsiblePersonDropdown(prev => ({ ...prev, [item.id]: true }))}
-                              placeholder="請輸入負責人"
-                              className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                              required
-                            />
-                            {showResponsiblePersonDropdown[item.id] && responsiblePersonOptions.length > 0 && (
+                            {item.isCollaborative ? (
+                              <>
+                                <input
+                                  type="text"
+                                  value={toCollaboratorsCsv(item)}
+                                  onChange={(e) => {
+                                    const next = parseCollaboratorsCsv(e.target.value)
+                                    const prev = getWorkItemCollaborators(item)
+                                    const prevTarget = new Map(prev.map((c) => [String(c.name).trim(), c.targetQuantity]))
+                                    const prevActual = new Map(prev.map((c) => [String(c.name).trim(), c.actualQuantity]))
+                                    const merged = next.map((c) => ({
+                                      ...c,
+                                      targetQuantity: prevTarget.get(String(c.name).trim()) ?? '',
+                                      actualQuantity: prevActual.get(String(c.name).trim()) ?? ''
+                                    }))
+                                    handleWorkItemChange(index, 'collaborators', merged)
+                                  }}
+                                  placeholder="輸入協作負責人（可逗號分隔/可手打）"
+                                  className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                  required
+                                />
+                                {responsiblePersonOptions.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-2 max-h-24 overflow-y-auto">
+                                    {responsiblePersonOptions.map((opt) => {
+                                      const selected = (getWorkItemCollaborators(item) || []).some((c) => String(c?.name || '').trim() === String(opt || '').trim())
+                                      return (
+                                        <button
+                                          key={opt}
+                                          type="button"
+                                          onClick={() => {
+                                            const prev = getWorkItemCollaborators(item)
+                                            const name = String(opt || '').trim()
+                                            if (!name) return
+                                            const next = selected
+                                              ? prev.filter((c) => String(c?.name || '').trim() !== name)
+                                              : [...prev, { name, targetQuantity: '', actualQuantity: '' }]
+                                            handleWorkItemChange(index, 'collaborators', next)
+                                          }}
+                                          className={`text-xs px-2 py-1 rounded border transition-colors ${
+                                            selected
+                                              ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200'
+                                              : 'bg-gray-700 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200'
+                                          }`}
+                                        >
+                                          {opt}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <input
+                                type="text"
+                                value={item.responsiblePerson || ''}
+                                onChange={(e) => handleResponsiblePersonInput(item.id, e.target.value)}
+                                onFocus={() => setShowResponsiblePersonDropdown(prev => ({ ...prev, [item.id]: true }))}
+                                placeholder="請輸入負責人"
+                                className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                required
+                              />
+                            )}
+                            {!item.isCollaborative && showResponsiblePersonDropdown[item.id] && responsiblePersonOptions.length > 0 && (
                               <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                                 {responsiblePersonOptions.map((option, optIndex) => (
                                   <div
@@ -2371,7 +2498,7 @@ function Calendar() {
                               </div>
                             )}
                           </div>
-                          {item.responsiblePerson && (
+                          {!item.isCollaborative && item.responsiblePerson && (
                             <button
                               type="button"
                               onClick={() => handleAddResponsiblePerson(item.id)}
@@ -2383,27 +2510,79 @@ function Calendar() {
                         </div>
                         <div>
                           <label className="block text-gray-300 text-xs mb-1">目標數量</label>
-                          <input
-                            type="number"
-                            value={item.targetQuantity}
-                            onChange={(e) => handleWorkItemChange(index, 'targetQuantity', e.target.value)}
-                            placeholder="請輸入目標數量"
-                            className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                            min="0"
-                            step="0.01"
-                          />
+                          {item.isCollaborative ? (
+                            <div className="text-gray-300 text-xs leading-relaxed">
+                              協作模式：請在下方為每位負責人填寫自己的目標。
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              value={item.targetQuantity}
+                              onChange={(e) => handleWorkItemChange(index, 'targetQuantity', e.target.value)}
+                              placeholder="請輸入目標數量"
+                              className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                              min="0"
+                              step="0.01"
+                            />
+                          )}
                         </div>
                         <div>
                           <label className="block text-gray-300 text-xs mb-1">實際達成數量</label>
-                          <input
-                            type="number"
-                            value={item.actualQuantity}
-                            onChange={(e) => handleWorkItemChange(index, 'actualQuantity', e.target.value)}
-                            placeholder="請輸入實際達成數量"
-                            className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                            min="0"
-                            step="0.01"
-                          />
+                          {item.isCollaborative ? (
+                            <div className="space-y-2">
+                              {(getWorkItemCollaborators(item) || []).length === 0 ? (
+                                <div className="text-gray-300 text-xs">尚未選擇協作負責人</div>
+                              ) : (
+                                getWorkItemCollaborators(item).map((c) => (
+                                  <div key={c.name} className="flex items-center gap-2">
+                                    <div className="text-gray-200 text-xs w-24 truncate" title={c.name}>{c.name}</div>
+                                    <input
+                                      type="number"
+                                      value={c.targetQuantity ?? ''}
+                                      onChange={(e) => {
+                                        const prev = getWorkItemCollaborators(item)
+                                        const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
+                                          ? { ...x, targetQuantity: e.target.value }
+                                          : x
+                                        ))
+                                        handleWorkItemChange(index, 'collaborators', next)
+                                      }}
+                                      placeholder="目標"
+                                      className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                      min="0"
+                                      step="0.01"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={c.actualQuantity ?? ''}
+                                      onChange={(e) => {
+                                        const prev = getWorkItemCollaborators(item)
+                                        const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
+                                          ? { ...x, actualQuantity: e.target.value }
+                                          : x
+                                        ))
+                                        handleWorkItemChange(index, 'collaborators', next)
+                                      }}
+                                      placeholder="實際"
+                                      className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                      min="0"
+                                      step="0.01"
+                                    />
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              value={item.actualQuantity}
+                              onChange={(e) => handleWorkItemChange(index, 'actualQuantity', e.target.value)}
+                              placeholder="請輸入實際達成數量"
+                              className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                              min="0"
+                              step="0.01"
+                            />
+                          )}
                         </div>
                       </div>
                     </div>

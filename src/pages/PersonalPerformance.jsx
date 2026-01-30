@@ -11,6 +11,7 @@ import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCount
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForName } from '../utils/workItemCollaboration'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -210,54 +211,64 @@ function PersonalPerformance() {
       if (!schedule.workItems || schedule.workItems.length === 0) return
 
       schedule.workItems.forEach(item => {
-        const resp = (item.responsiblePerson || '').trim()
-        const isResponsible = resp && displayNames.includes(resp)
-        if (!isResponsible) return
+        const it = normalizeWorkItem(item)
+        const collabs = it.isCollaborative
+          ? getWorkItemCollaborators(it)
+          : [{
+            name: String(it.responsiblePerson || '').trim(),
+            actualQuantity: it.actualQuantity ?? ''
+          }].filter((c) => !!c.name)
 
-        const target = parseFloat(item.targetQuantity) || 0
-        const actual = parseFloat(item.actualQuantity) || 0
-        const completionRate = target > 0 ? (actual / target * 100) : 0
+        collabs.forEach((c) => {
+          const resp = String(c?.name || '').trim()
+          const isResponsible = resp && displayNames.includes(resp)
+          if (!isResponsible) return
 
-        workDays.add(schedule.date)
-        totalItems++
-        totalCompletionRate += completionRate
-        itemsWithRate++
+          const target = getWorkItemTargetForName(it, resp)
+          const actual = parseFloat(c?.actualQuantity) || 0
+          const completionRate = target > 0 ? (actual / target * 100) : 0
 
-        if (completionRate >= 100) {
-          completedItems++
-        } else if (completionRate > 0) {
-          partialItems++
-        } else {
-          uncompletedItems++
-        }
+          workDays.add(schedule.date)
+          totalItems++
+          totalCompletionRate += completionRate
+          itemsWithRate++
 
-        const workType = item.workContent || '未分類'
-        if (!workItemStats[workType]) {
-          workItemStats[workType] = {
-            count: 0,
-            completed: 0,
-            partial: 0,
-            uncompleted: 0,
-            totalCompletionRate: 0
+          if (completionRate >= 100) {
+            completedItems++
+          } else if (completionRate > 0) {
+            partialItems++
+          } else {
+            uncompletedItems++
           }
-        }
-        workItemStats[workType].count++
-        workItemStats[workType].totalCompletionRate += completionRate
-        if (completionRate >= 100) {
-          workItemStats[workType].completed++
-        } else if (completionRate > 0) {
-          workItemStats[workType].partial++
-        } else {
-          workItemStats[workType].uncompleted++
-        }
 
-        workDetails.push({
-          date: schedule.date,
-          siteName: schedule.siteName,
-          workContent: item.workContent || '未填寫',
-          targetQuantity: target,
-          actualQuantity: actual,
-          completionRate: completionRate.toFixed(1)
+          const workType = it.workContent || '未分類'
+          if (!workItemStats[workType]) {
+            workItemStats[workType] = {
+              count: 0,
+              completed: 0,
+              partial: 0,
+              uncompleted: 0,
+              totalCompletionRate: 0
+            }
+          }
+          workItemStats[workType].count++
+          workItemStats[workType].totalCompletionRate += completionRate
+          if (completionRate >= 100) {
+            workItemStats[workType].completed++
+          } else if (completionRate > 0) {
+            workItemStats[workType].partial++
+          } else {
+            workItemStats[workType].uncompleted++
+          }
+
+          workDetails.push({
+            date: schedule.date,
+            siteName: schedule.siteName,
+            workContent: it.workContent || '未填寫',
+            targetQuantity: target,
+            actualQuantity: actual,
+            completionRate: completionRate.toFixed(1)
+          })
         })
       })
     })
@@ -592,22 +603,32 @@ function PersonalPerformance() {
         if (!schedule.workItems || schedule.workItems.length === 0) return
         
         schedule.workItems.forEach(item => {
-          const resp = (item.responsiblePerson || '').trim()
-          if (!resp || !displayNames.includes(resp)) return
-          
-          const target = parseFloat(item.targetQuantity) || 0
-          const actual = parseFloat(item.actualQuantity) || 0
-          const completionRate = target > 0 ? (actual / target * 100) : 0
-          
-          dailyWorkItems++
-          dailyTotalCompletion += completionRate
-          dailyItemsWithRate++
-          
-          if (completionRate >= 100) {
-            dailyCompleted++
-          } else if (completionRate > 0) {
-            dailyPartial++
-          }
+          const it = normalizeWorkItem(item)
+          const collabs = it.isCollaborative
+            ? getWorkItemCollaborators(it)
+            : [{
+              name: String(it.responsiblePerson || '').trim(),
+              actualQuantity: it.actualQuantity ?? ''
+            }].filter((c) => !!c.name)
+
+          collabs.forEach((c) => {
+            const resp = String(c?.name || '').trim()
+            if (!resp || !displayNames.includes(resp)) return
+
+            const target = getWorkItemTargetForName(it, resp)
+            const actual = parseFloat(c?.actualQuantity) || 0
+            const completionRate = target > 0 ? (actual / target * 100) : 0
+
+            dailyWorkItems++
+            dailyTotalCompletion += completionRate
+            dailyItemsWithRate++
+
+            if (completionRate >= 100) {
+              dailyCompleted++
+            } else if (completionRate > 0) {
+              dailyPartial++
+            }
+          })
         })
       })
       
