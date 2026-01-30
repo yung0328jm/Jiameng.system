@@ -566,9 +566,14 @@ function Calendar() {
   }
 
   const handleWorkItemChange = (index, field, value) => {
-    const newWorkItems = [...scheduleFormData.workItems]
-    newWorkItems[index] = { ...newWorkItems[index], [field]: value }
-    setScheduleFormData(prev => ({ ...prev, workItems: newWorkItems }))
+    // 使用 functional update，避免同一事件內多次更新互相覆蓋
+    setScheduleFormData((prev) => {
+      const list = Array.isArray(prev.workItems) ? prev.workItems : []
+      const newWorkItems = [...list]
+      if (index < 0 || index >= newWorkItems.length) return prev
+      newWorkItems[index] = { ...newWorkItems[index], [field]: value }
+      return { ...prev, workItems: newWorkItems }
+    })
   }
 
   const handleAddWorkItem = () => {
