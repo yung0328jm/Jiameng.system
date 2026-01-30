@@ -2648,7 +2648,7 @@ function Calendar() {
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 pb-24">
                   {scheduleFormData.workItems.map((item, index) => (
                     <div key={item.id} className="bg-gray-700 rounded-lg p-4 border border-gray-600">
                       <div className="flex items-center justify-between mb-3">
@@ -2942,6 +2942,17 @@ function Calendar() {
                       尚未添加工作項目，點擊「新增工作項目」開始添加
                     </div>
                   )}
+                </div>
+
+                {/* 手機友善：底部固定新增按鈕，避免每次都要捲回上方再點 */}
+                <div className="sticky bottom-0 pt-3 bg-charcoal border-t border-gray-700">
+                  <button
+                    type="button"
+                    onClick={handleAddWorkItem}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white text-sm py-2 rounded transition-colors"
+                  >
+                    + 新增工作項目
+                  </button>
                 </div>
               </div>
 
