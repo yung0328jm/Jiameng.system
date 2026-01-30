@@ -177,3 +177,29 @@ export const addGlobalMessage = (messageContent, author = '使用者') => {
   cleanExpiredMessages()
   return addMessage(GLOBAL_TOPIC_ID, messageContent, author)
 }
+
+// 管理員操作：清空全域對話框（交流區）
+export const clearGlobalMessages = () => {
+  try {
+    const topics = getTopics()
+    const idx = topics.findIndex((t) => t?.id === GLOBAL_TOPIC_ID)
+    if (idx === -1) {
+      // 沒有 global 就建立一個空的
+      const globalTopic = {
+        id: GLOBAL_TOPIC_ID,
+        title: '對話框',
+        createdAt: new Date().toISOString(),
+        messages: []
+      }
+      topics.push(globalTopic)
+      persist(topics)
+      return { success: true }
+    }
+    topics[idx] = { ...topics[idx], messages: [] }
+    persist(topics)
+    return { success: true }
+  } catch (e) {
+    console.error('clearGlobalMessages error:', e)
+    return { success: false, message: '清除失敗' }
+  }
+}
