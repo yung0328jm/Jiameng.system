@@ -710,13 +710,18 @@ function EngineeringSchedule() {
                                 <div key={item.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                                   <div className="flex items-center justify-between mb-3">
                                     <span className="text-yellow-400 font-semibold">項目 {itemIndex + 1}</span>
-                                    {targetQty > 0 && (
+                                    {!isCollab && targetQty > 0 && (
                                       <span className={`text-sm px-2 py-1 rounded ${
                                         actualQty >= targetQty ? 'bg-green-500 text-white' :
                                         actualQty > 0 ? 'bg-yellow-500 text-black' :
                                         'bg-gray-600 text-gray-300'
                                       }`}>
                                         達成率: {completionRate}%
+                                      </span>
+                                    )}
+                                    {isCollab && (
+                                      <span className="text-sm px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40">
+                                        協作（個別計算）
                                       </span>
                                     )}
                                   </div>
