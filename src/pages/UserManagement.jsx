@@ -18,6 +18,7 @@ function UserManagement() {
   const [dateRange, setDateRange] = useState('all') // 時間範圍：week, month, year, all
   const [registrationPassword, setRegistrationPasswordInput] = useState('')
   const [registrationPasswordMessage, setRegistrationPasswordMessage] = useState('')
+  const [perfRevision, setPerfRevision] = useState(0)
 
   useEffect(() => {
     const role = getCurrentUserRole()
@@ -32,7 +33,7 @@ function UserManagement() {
     if (users.length > 0) {
       calculateAllUsersPerformance()
     }
-  }, [users, dateRange])
+  }, [users, dateRange, perfRevision])
 
   const loadUsers = async () => {
     if (isAuthSupabase()) {
@@ -50,6 +51,11 @@ function UserManagement() {
   }
   useRealtimeKeys(['jiameng_users'], () => { if (!isAuthSupabase()) loadUsers() })
   useRealtimeKeys(['jiameng_registration_password'], () => setRegistrationPasswordInput(getRegistrationPassword()))
+  // 用戶管理的績效需要跟隨資料變動即時重算（否則可能顯示舊分數 100）
+  useRealtimeKeys(
+    ['jiameng_engineering_schedules', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_dropdown_options'],
+    () => setPerfRevision((v) => v + 1)
+  )
 
   const getDateRange = () => {
     const today = new Date()
@@ -80,7 +86,9 @@ function UserManagement() {
         endDate = `${today.getFullYear()}-12-31`
         break
       default:
+        // 全部：不限制起訖（避免「全部」其實只到今天，導致與個人績效不同步）
         startDate = null
+        endDate = null
     }
     return { startDate, endDate }
   }
@@ -403,7 +411,7 @@ function UserManagement() {
                             {scoreRounded}
                           </span>
                           {deltaRounded !== 0 && (
-                            <span className={`text-xs ${perfData.totalAdjustment >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            <span className={`text-xs ${deltaRounded >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                               ({deltaRounded >= 0 ? '+' : ''}{deltaRounded.toFixed(1)})
                             </span>
                           )}
