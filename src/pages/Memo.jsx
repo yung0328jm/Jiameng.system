@@ -751,6 +751,16 @@ function Memo() {
     if (window.confirm('確定要清除所有彈幕嗎？此操作無法復原！')) {
       const result = clearAllDanmus()
       if (result.success) {
+        // 立即清空畫面上的彈幕（不等動畫/計時器自然結束），避免看起來像「沒清除」
+        try {
+          Object.values(danmuTimersRef.current || {}).forEach((t) => { try { clearTimeout(t) } catch (_) {} })
+          danmuTimersRef.current = {}
+        } catch (_) {}
+        try { danmuQueueRef.current = [] } catch (_) {}
+        try { danmuSeenRef.current = new Set() } catch (_) {}
+        setScreenDanmus([])
+        setDanmus([])
+
         loadDanmus()
         alert('已清除所有彈幕')
       } else {
