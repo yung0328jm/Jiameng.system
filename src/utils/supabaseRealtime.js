@@ -96,6 +96,12 @@ export function subscribeRealtime(onUpdate) {
           if (key === DANMU_KEY) {
             try {
               const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+              // 清除彈幕：雲端寫入空陣列時，必須「覆蓋」而不是合併，否則會把舊彈幕又合併回來
+              if (Array.isArray(incoming) && incoming.length === 0) {
+                localStorage.setItem(DANMU_KEY, '[]')
+                notifyKey(DANMU_KEY)
+                return
+              }
               const existing = (() => {
                 try { return JSON.parse(localStorage.getItem(DANMU_KEY) || '[]') } catch (_) { return [] }
               })()
