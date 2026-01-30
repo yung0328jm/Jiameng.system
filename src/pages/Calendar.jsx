@@ -2726,13 +2726,14 @@ function Calendar() {
                                   required
                                 />
                                 {responsiblePersonOptions.length > 0 && (
-                                  <div className="mt-2 flex flex-wrap gap-2 max-h-24 overflow-y-auto">
+                                  <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-24 overflow-y-auto w-full max-w-full min-w-0 overflow-x-hidden pr-1">
                                     {responsiblePersonOptions.map((opt) => {
                                       const selected = (getWorkItemCollaborators(item) || []).some((c) => String(c?.name || '').trim() === String(opt || '').trim())
                                       return (
                                         <button
                                           key={opt}
                                           type="button"
+                                          title={opt}
                                           onClick={() => {
                                             const prev = getWorkItemCollaborators(item)
                                             const name = String(opt || '').trim()
@@ -2742,7 +2743,7 @@ function Calendar() {
                                               : [...prev, { name, targetQuantity: '', actualQuantity: '' }]
                                             handleWorkItemChange(index, 'collaborators', next)
                                           }}
-                                          className={`text-xs px-2 py-1 rounded border transition-colors ${
+                                          className={`w-full text-[11px] leading-tight px-2 py-1 rounded border transition-colors truncate ${
                                             selected
                                               ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200'
                                               : 'bg-gray-700 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200'
