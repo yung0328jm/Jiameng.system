@@ -141,28 +141,24 @@ export const getWorkItemActualForName = (item, name) => {
 // - separate 模式：回到各自實際
 export const getWorkItemActualForNameForPerformance = (item, name) => {
   const it = normalizeWorkItem(item)
-  const nName = trim(name)
   if (!it?.isCollaborative) return toNum(it?.actualQuantity)
 
   const mode = getWorkItemCollabMode(it)
-  if (mode === 'separate') return getWorkItemActualForName(it, nName)
+  if (mode === 'separate') return getWorkItemActualForName(it, name)
 
-  const sharedActual = getWorkItemSharedActual(it)
-  if (!(sharedActual > 0)) return 0
+  // shared：共同實際，每位協作者同分同扣
+  return getWorkItemSharedActual(it)
+}
 
-  const collabs = getWorkItemCollaborators(it)
-  const cnt = collabs.length
-  if (cnt <= 0) return 0
-
-  const perPersonTargetSum = collabs.reduce((sum, c) => sum + toNum(c?.targetQuantity), 0)
-  if (perPersonTargetSum > 0) {
-    const mineTarget = toNum(collabs.find((c) => trim(c?.name) === nName)?.targetQuantity)
-    if (!(mineTarget > 0)) return 0
-    return sharedActual * (mineTarget / perPersonTargetSum)
-  }
-
-  // 沒有 per-person target：使用舊版平均分攤（維持總和 = sharedActual）
-  return sharedActual / cnt
+// 績效用目標：
+// - shared：使用「總目標」（item.targetQuantity），每位協作者同分同扣
+// - separate：使用每人目標（向下相容仍可平均分攤）
+export const getWorkItemTargetForNameForPerformance = (item, name) => {
+  const it = normalizeWorkItem(item)
+  if (!it?.isCollaborative) return toNum(it?.targetQuantity)
+  const mode = getWorkItemCollabMode(it)
+  if (mode === 'shared') return toNum(it?.targetQuantity)
+  return getWorkItemTargetForName(it, name)
 }
 
 // 取得「總實際」：提供 UI 顯示用
