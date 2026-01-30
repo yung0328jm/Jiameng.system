@@ -2586,52 +2586,65 @@ function Home() {
                           
                           {/* 文字內容區域 */}
                           <div className="flex-1">
-                        {/* 上方小標題 - 可編輯 - 高端動畫 */}
-                        {userRole === 'admin' ? (
+                        {/* 編輯提示／切換：避免使用者不知道可直接打字 */}
+                        <div className="flex justify-end mb-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingPanelId((prev) => (prev === item.id ? null : item.id))
+                            }}
+                            className="text-[10px] sm:text-xs px-2 py-1 rounded border border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-300 transition-colors"
+                            title="編輯此卡片的標題三行文字"
+                          >
+                            {editingPanelId === item.id ? '完成' : '編輯標題'}
+                          </button>
+                        </div>
+
+                        {/* 上方小標題 */}
+                        {editingPanelId === item.id ? (
                           <input
                             type="text"
-                            value={item.subtitle || '九月业绩'}
+                            value={item.subtitle || ''}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const updatedItem = { ...item, subtitle: e.target.value }
                               updateLeaderboardItem(item.id, { subtitle: e.target.value })
-                              setLeaderboardItems(prev => 
+                              setLeaderboardItems(prev =>
                                 prev.map(i => i.id === item.id ? updatedItem : i)
                               )
                             }}
                             className="bg-transparent border-b border-transparent hover:border-white/60 focus:border-white/60 text-white text-sm text-center focus:outline-none w-full mb-2"
-                            placeholder="九月业绩"
+                            placeholder={uiConfig.subtitle || '例如：115年度'}
                             style={{
                               fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                               animation: 'premiumGlow 4s ease-in-out infinite, subtlePulse 6s ease-in-out infinite',
                               fontWeight: '500',
                               letterSpacing: '0.03em'
                             }}
-                            onFocus={(e) => {
-                              e.target.style.borderBottomColor = 'rgba(255, 255, 255, 0.6)'
-                            }}
-                            onBlur={(e) => {
-                              e.target.style.borderBottomColor = 'transparent'
-                            }}
+                            onFocus={(e) => { e.target.style.borderBottomColor = 'rgba(255, 255, 255, 0.6)' }}
+                            onBlur={(e) => { e.target.style.borderBottomColor = 'transparent' }}
                           />
                         ) : (
-                          <p 
-                            className="text-white text-sm text-center mb-2" 
-                            style={{ 
+                          <p
+                            className="text-white text-sm text-center mb-2"
+                            style={{
                               fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                               animation: 'premiumGlow 4s ease-in-out infinite, subtlePulse 6s ease-in-out infinite',
                               fontWeight: '500',
                               letterSpacing: '0.03em'
                             }}
                           >
-                            {item.subtitle || '九月业绩'}
+                            {item.subtitle || uiConfig.subtitle || '九月业绩'}
                           </p>
                         )}
                         
                         {/* 主標題 - 白色、居中、可編輯 - 高端專業動畫 */}
-                        {userRole === 'admin' ? (
+                        {editingPanelId === item.id ? (
                           <input
                             type="text"
                             value={item.title || item.name || ''}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const updatedItem = { ...item, title: e.target.value }
                               updateLeaderboardItem(item.id, { title: e.target.value })
@@ -2671,10 +2684,11 @@ function Home() {
                         )}
                         
                         {/* 副標題 - 可編輯 - 高端動畫 */}
-                        {userRole === 'admin' ? (
+                        {editingPanelId === item.id ? (
                           <input
                             type="text"
-                            value={item.slogan || '乘风破浪 披荆斩棘'}
+                            value={item.slogan || ''}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const updatedItem = { ...item, slogan: e.target.value }
                               updateLeaderboardItem(item.id, { slogan: e.target.value })
@@ -2683,7 +2697,7 @@ function Home() {
                               )
                             }}
                             className="bg-transparent border-b border-transparent hover:border-white/60 focus:border-white/60 text-white text-sm text-center focus:outline-none w-full mt-2"
-                            placeholder="乘风破浪 披荆斩棘"
+                            placeholder={uiConfig.slogan1 || '例如：乘風破浪'}
                             style={{
                               fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                               animation: 'premiumGlow 4s ease-in-out infinite, subtlePulse 6s ease-in-out infinite',
@@ -2707,7 +2721,7 @@ function Home() {
                               letterSpacing: '0.03em'
                             }}
                           >
-                            {item.slogan || '乘风破浪 披荆斩棘'}
+                            {item.slogan || uiConfig.slogan1 || '乘风破浪 披荆斩棘'}
                           </p>
                         )}
                           </div>
