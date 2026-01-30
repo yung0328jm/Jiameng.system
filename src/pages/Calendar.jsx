@@ -246,6 +246,27 @@ function Calendar() {
     }
   }, [])
 
+  const scrollModalToRef = (ref, { offsetTop = 12 } = {}) => {
+    const container = scheduleModalBodyRef.current
+    const target = ref?.current
+    if (!container || !target) return
+
+    // 只捲動彈窗本體（避免 web 版把整個頁面捲到底）
+    const cRect = container.getBoundingClientRect()
+    const tRect = target.getBoundingClientRect()
+    const desired = container.scrollTop + (tRect.top - cRect.top) - offsetTop
+    const maxTop = Math.max(0, container.scrollHeight - container.clientHeight)
+    const nextTop = Math.max(0, Math.min(desired, maxTop))
+
+    // 若已在可視範圍就不動，避免「跳太遠」
+    const visibleTop = cRect.top + offsetTop
+    const visibleBottom = cRect.bottom - 12
+    const isVisible = tRect.top >= visibleTop && tRect.bottom <= visibleBottom
+    if (isVisible) return
+
+    container.scrollTo({ top: nextTop, behavior: 'smooth' })
+  }
+
   // 处理參與人員选择
   const splitCsv = (csv) => (String(csv || '').split(',').map((v) => String(v || '').trim()).filter(Boolean))
 
@@ -2355,11 +2376,7 @@ function Calendar() {
                       onFocus={() => {
                         // 點到參與人員時，自動捲到此區塊（你希望跳到照片那邊的位置）
                         setShowParticipantDropdown(true)
-                        requestAnimationFrame(() => {
-                          try {
-                            participantDropdownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                          } catch (_) {}
-                        })
+                        requestAnimationFrame(() => scrollModalToRef(participantDropdownRef, { offsetTop: 12 }))
                       }}
                       placeholder="請輸入參與人員（多個用逗號分隔）"
                       className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
