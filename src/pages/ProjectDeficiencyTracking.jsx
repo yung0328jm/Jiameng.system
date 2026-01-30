@@ -5,6 +5,7 @@ import { getProjectRecords, saveProjectRecord, saveAllProjectRecords, updateProj
 import { getSchedules } from '../utils/scheduleStorage'
 import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getDisplayNameForAccount } from '../utils/displayName'
 
 function ProjectDeficiencyTracking() {
   const [projects, setProjects] = useState([])
@@ -335,10 +336,13 @@ function ProjectDeficiencyTracking() {
     if (searchKeyword) {
       const keyword = searchKeyword.toLowerCase()
       const matchContent = record.content?.toLowerCase().includes(keyword)
-      const matchSubmitter = record.submitter?.toLowerCase().includes(keyword)
+      const matchSubmitter =
+        record.submitter?.toLowerCase().includes(keyword) ||
+        getDisplayNameForAccount(record.submitter || '').toLowerCase().includes(keyword)
       const matchDate = record.date?.includes(keyword)
       const matchRevisions = Object.values(record.revisions || {}).some(rev => 
         rev.modifier?.toLowerCase().includes(keyword) || 
+        getDisplayNameForAccount(rev.modifier || '').toLowerCase().includes(keyword) ||
         rev.progress?.toLowerCase().includes(keyword) ||
         rev.date?.includes(keyword)
       )
@@ -349,8 +353,16 @@ function ProjectDeficiencyTracking() {
     if (filterRecordStatus !== 'all' && record.status !== filterRecordStatus) {
       return false
     }
-    if (filterSubmitter && record.submitter !== filterSubmitter) {
-      return false
+    if (filterSubmitter) {
+      const kw = String(filterSubmitter || '').toLowerCase()
+      const matchSubmitter =
+        String(record.submitter || '').toLowerCase().includes(kw) ||
+        getDisplayNameForAccount(record.submitter || '').toLowerCase().includes(kw)
+      const matchRevisions = Object.values(record.revisions || {}).some(rev =>
+        String(rev.modifier || '').toLowerCase().includes(kw) ||
+        getDisplayNameForAccount(rev.modifier || '').toLowerCase().includes(kw)
+      )
+      if (!matchSubmitter && !matchRevisions) return false
     }
     return true
   })
@@ -1356,7 +1368,7 @@ function ProjectDetailView({
                           </div>
                         )}
                       </td>
-                      <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.submitter || '—'}</td>
+                      <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.submitter ? getDisplayNameForAccount(record.submitter) : '—'}</td>
                       <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.date || '—'}</td>
                       
                       {/* 第一次修訂 */}
@@ -1368,7 +1380,7 @@ function ProjectDetailView({
                           <React.Fragment key={revision}>
                             {/* 修改人員 - 只顯示，不可編輯 */}
                             <td className={`px-1 py-1.5 text-white text-[10px] sm:text-xs ${idx > 0 ? 'border-l border-gray-700' : ''}`}>
-                              <span className="text-gray-300">{rev.modifier || '—'}</span>
+                              <span className="text-gray-300">{rev.modifier ? getDisplayNameForAccount(rev.modifier) : '—'}</span>
                             </td>
                             {/* 進度 - 可編輯 */}
                             <td className="px-1 py-1.5 text-white text-[10px] sm:text-xs">

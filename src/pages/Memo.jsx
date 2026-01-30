@@ -11,6 +11,7 @@ import { getEffectDisplayConfig, getStyleForPreset, getDecorationForPreset, getD
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
+import { getDisplayNameForAccount as getPreferredName } from '../utils/displayName'
 
 function Memo() {
   const [userRole, setUserRole] = useState(null)
@@ -749,7 +750,7 @@ function Memo() {
                         {getPriorityLabel(announcement.priority)}
                       </span>
                       <span className="text-gray-400 text-sm sm:text-xs">
-                        {announcement.createdBy} · {formatAnnouncementDate(announcement.createdAt)}
+                        {getPreferredName(announcement.createdBy)} · {formatAnnouncementDate(announcement.createdAt)}
                       </span>
                     </div>
                   </div>

@@ -18,6 +18,7 @@ import { getLeaderboardTypes, addLeaderboardType, updateLeaderboardType, deleteL
 import { getEquippedEffects } from '../utils/effectStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
+import { getDisplayNameForAccount } from '../utils/displayName'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -1915,7 +1916,7 @@ function Home() {
                   )}
                   {todo.createdBy && (
                     <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-xs flex-wrap flex-shrink-0">
-                      <span style={getTodoCreatorNameStyle(todo.createdBy)}>({todo.createdBy})</span>
+                      <span style={getTodoCreatorNameStyle(todo.createdBy)}>({getDisplayNameForAccount(todo.createdBy)})</span>
                       {(() => {
                         const deco = getTodoCreatorDecoration(todo.createdBy)
                         return deco ? <span className={deco.className}>{deco.emoji}</span> : null

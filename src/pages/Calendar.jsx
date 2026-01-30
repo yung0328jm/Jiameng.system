@@ -6,6 +6,7 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { getTripReportsByProject } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
+import { getDisplayNameForAccount } from '../utils/displayName'
 import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 
@@ -1745,7 +1746,7 @@ function Calendar() {
                                 <div key={r.id} className="bg-blue-800 rounded-lg p-3 flex items-center justify-between gap-2 flex-wrap">
                                   <span className="font-medium text-yellow-400">{r.actionType}</span>
                                   <span className="text-blue-200 text-sm flex items-center flex-wrap gap-1">
-                                    <span style={nameEffectStyle || { color: 'inherit' }}>{r.userName || r.userId}</span>
+                                    <span style={nameEffectStyle || { color: 'inherit' }}>{getDisplayNameForAccount(r.userId || r.userName || '')}</span>
                                     {nameDeco && <span className={nameDeco.className}>{nameDeco.emoji}</span>}
                                     {userTitle && (
                                       <span className="text-xs font-bold rounded" style={titleBadgeStyle}>{userTitle}</span>

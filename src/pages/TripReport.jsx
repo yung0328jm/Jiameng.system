@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { getCurrentUser } from '../utils/authStorage'
-import { getUsers } from '../utils/storage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { getTripReportsByProject, addTripReport, actionTypes } from '../utils/tripReportStorage'
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getDisplayNameForAccount } from '../utils/displayName'
 
 function TripReport() {
   const [currentUser, setCurrentUser] = useState('')
@@ -20,8 +20,7 @@ function TripReport() {
     const user = getCurrentUser()
     setCurrentUser(user || '')
     if (user) {
-      const u = getUsers().find((x) => x.account === user)
-      setUserName(u ? u.name || user : user)
+      setUserName(getDisplayNameForAccount(user))
     }
     const list = getSchedules()
     const today = new Date()
@@ -42,8 +41,7 @@ function TripReport() {
     const user = getCurrentUser()
     setCurrentUser(user || '')
     if (user) {
-      const u = getUsers().find((x) => x.account === user)
-      setUserName(u ? u.name || user : user)
+      setUserName(getDisplayNameForAccount(user))
     }
     const list = getSchedules()
     const today = new Date()
@@ -76,7 +74,8 @@ function TripReport() {
       projectName: selectedSiteName,
       actionType,
       userId: currentUser,
-      userName: userName || currentUser
+      // 優先使用你綁定的顯示名稱
+      userName: getDisplayNameForAccount(currentUser)
     })
     if (result.success) {
       setRecords(getTripReportsByProject(selectedSiteName))
@@ -218,7 +217,7 @@ function TripReport() {
                       <li key={r.id} className="px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
                         <span className="font-medium text-yellow-400">{r.actionType}</span>
                         <span className="text-gray-300 flex items-center gap-1 flex-wrap">
-                          <span style={nameEffectStyle || { color: 'inherit' }}>{r.userName || r.userId}</span>
+                          <span style={nameEffectStyle || { color: 'inherit' }}>{getDisplayNameForAccount(r.userId || r.userName || '')}</span>
                           {nameDeco && <span className={nameDeco.className}>{nameDeco.emoji}</span>}
                           {userTitle && (
                             <span className="text-xs font-bold rounded" style={titleBadgeStyle}>{userTitle}</span>
