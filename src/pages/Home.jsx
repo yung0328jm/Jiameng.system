@@ -1041,6 +1041,15 @@ function Home() {
     }
     
     const resolveToAccount = (nameOrAccount) => nameToAccountMap[nameOrAccount] || nameOrAccount
+
+    // 排行榜獎勵道具使用「穩定 ID」：避免多裝置/雲端同步時各自生成不同 id，
+    // 造成背包拿到的 itemId 在另一台機器上找不到（顯示未知道具）。
+    const stableLeaderboardRewardId = (leaderboardId, kind, rank) => {
+      const safe = String(leaderboardId || '').replace(/[^a-zA-Z0-9_-]/g, '_')
+      const safeKind = String(kind || '').replace(/[^a-zA-Z0-9_-]/g, '_')
+      const r = Number(rank) || 0
+      return `lb_${safe}_${safeKind}_r${r}`
+    }
     
     Object.keys(currentRankings).forEach(leaderboardId => {
         const leaderboardItem = currentLeaderboardItems.find(item => item && item.id === leaderboardId)
@@ -1091,9 +1100,12 @@ function Home() {
           let allItems = getItems()
           // 依排行榜維度：只找此榜的稱號道具（leaderboardId 一致）
           const isThisBoardTitle = (item) => item.type === ITEM_TYPES.TITLE && (item.leaderboardId || '') === leaderboardId
-          let firstTitleItem = allItems.find(item => isThisBoardTitle(item) && item.rank === 1)
-          let secondTitleItem = allItems.find(item => isThisBoardTitle(item) && item.rank === 2)
-          let thirdTitleItem = allItems.find(item => isThisBoardTitle(item) && item.rank === 3)
+          const titleId1 = stableLeaderboardRewardId(leaderboardId, 'title', 1)
+          const titleId2 = stableLeaderboardRewardId(leaderboardId, 'title', 2)
+          const titleId3 = stableLeaderboardRewardId(leaderboardId, 'title', 3)
+          let firstTitleItem = allItems.find(item => item.id === titleId1) || allItems.find(item => isThisBoardTitle(item) && item.rank === 1)
+          let secondTitleItem = allItems.find(item => item.id === titleId2) || allItems.find(item => isThisBoardTitle(item) && item.rank === 2)
+          let thirdTitleItem = allItems.find(item => item.id === titleId3) || allItems.find(item => isThisBoardTitle(item) && item.rank === 3)
           
           let firstTitleItemCreated = false
           let secondTitleItemCreated = false
@@ -1101,6 +1113,7 @@ function Home() {
           
           if (!firstTitleItem) {
             const result = createItem({
+              id: titleId1,
               name: lbFirst,
               type: ITEM_TYPES.TITLE,
               description: `排行榜「${leaderboardItem.name || leaderboardId}」第一名稱號`,
@@ -1122,6 +1135,7 @@ function Home() {
           
           if (!secondTitleItem) {
             const result = createItem({
+              id: titleId2,
               name: lbSecond,
               type: ITEM_TYPES.TITLE,
               description: `排行榜「${leaderboardItem.name || leaderboardId}」第二名稱號`,
@@ -1143,6 +1157,7 @@ function Home() {
           
           if (!thirdTitleItem) {
             const result = createItem({
+              id: titleId3,
               name: lbThird,
               type: ITEM_TYPES.TITLE,
               description: `排行榜「${leaderboardItem.name || leaderboardId}」第三名稱號`,
@@ -1164,16 +1179,24 @@ function Home() {
           
           // 此排行榜的名子／發話特效道具（依名次，與稱號一致）
           const isThisBoardEffect = (item, type) => item.type === type && (item.leaderboardId || '') === leaderboardId
-          let firstNameEffect = allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.NAME_EFFECT) && item.rank === 1)
-          let secondNameEffect = allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.NAME_EFFECT) && item.rank === 2)
-          let thirdNameEffect = allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.NAME_EFFECT) && item.rank === 3)
-          let firstMsgEffect = allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.MESSAGE_EFFECT) && item.rank === 1)
-          let secondMsgEffect = allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.MESSAGE_EFFECT) && item.rank === 2)
-          let thirdMsgEffect = allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.MESSAGE_EFFECT) && item.rank === 3)
+          const nameId1 = stableLeaderboardRewardId(leaderboardId, 'name_effect', 1)
+          const nameId2 = stableLeaderboardRewardId(leaderboardId, 'name_effect', 2)
+          const nameId3 = stableLeaderboardRewardId(leaderboardId, 'name_effect', 3)
+          const msgId1 = stableLeaderboardRewardId(leaderboardId, 'message_effect', 1)
+          const msgId2 = stableLeaderboardRewardId(leaderboardId, 'message_effect', 2)
+          const msgId3 = stableLeaderboardRewardId(leaderboardId, 'message_effect', 3)
+
+          let firstNameEffect = allItems.find(item => item.id === nameId1) || allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.NAME_EFFECT) && item.rank === 1)
+          let secondNameEffect = allItems.find(item => item.id === nameId2) || allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.NAME_EFFECT) && item.rank === 2)
+          let thirdNameEffect = allItems.find(item => item.id === nameId3) || allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.NAME_EFFECT) && item.rank === 3)
+          let firstMsgEffect = allItems.find(item => item.id === msgId1) || allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.MESSAGE_EFFECT) && item.rank === 1)
+          let secondMsgEffect = allItems.find(item => item.id === msgId2) || allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.MESSAGE_EFFECT) && item.rank === 2)
+          let thirdMsgEffect = allItems.find(item => item.id === msgId3) || allItems.find(item => isThisBoardEffect(item, ITEM_TYPES.MESSAGE_EFFECT) && item.rank === 3)
           const lbName = leaderboardItem.name || leaderboardId
           const ensureEffect = (current, type, rank, label) => {
             if (current) return current
             const r = createItem({
+              id: stableLeaderboardRewardId(leaderboardId, type, rank),
               name: label,
               type,
               description: `排行榜「${lbName}」第${rank}名${type === ITEM_TYPES.NAME_EFFECT ? '名子' : '發話'}特效`,
