@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
 import { getSchedules, saveSchedule, updateSchedule, deleteSchedule } from '../utils/scheduleStorage'
-import { getDropdownOptionsByCategory, addDropdownOption } from '../utils/dropdownStorage'
+import { getDropdownOptionsByCategory, addDropdownOption, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { getTripReportsByProject } from '../utils/tripReportStorage'
@@ -9,6 +9,7 @@ import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleB
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
+import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import {
   normalizeWorkItem,
   getWorkItemCollaborators,
@@ -245,16 +246,70 @@ function Calendar() {
   }, [])
 
   // 处理參與人員选择
-  const handleParticipantSelect = (value) => {
-    const currentValue = scheduleFormData.participants || ''
-    const values = currentValue ? currentValue.split(',').map(v => v.trim()).filter(v => v) : []
-    
-    if (!values.includes(value)) {
-      values.push(value)
+  const splitCsv = (csv) => (String(csv || '').split(',').map((v) => String(v || '').trim()).filter(Boolean))
+
+  const buildLeaveNameSetForDate = (ymd) => {
+    const date = String(ymd || '').slice(0, 10)
+    const set = new Set()
+    if (!date) return set
+    const isInRange = (d, start, end) => {
+      const ds = String(d || '').slice(0, 10)
+      const s = String(start || '').slice(0, 10)
+      const e = String(end || '').slice(0, 10)
+      if (!ds || !s || !e) return false
+      return ds >= s && ds <= e
     }
-    
-    setScheduleFormData(prev => ({ ...prev, participants: values.join(', ') }))
-    setShowParticipantDropdown(false)
+    const apps = Array.isArray(getLeaveApplications()) ? getLeaveApplications() : []
+    apps
+      .filter((r) => String(r?.status || '').trim() === 'approved')
+      .filter((r) => isInRange(date, r?.startDate, r?.endDate))
+      .forEach((r) => {
+        const acc = String(r?.userId || r?.userName || '').trim()
+        const name = String(r?.userName || '').trim()
+        if (name) set.add(name)
+        if (acc) {
+          try { set.add(getDisplayNameForAccount(acc)) } catch (_) {}
+          try { (getDisplayNamesForAccount(acc) || []).forEach((n) => { const t = String(n || '').trim(); if (t) set.add(t) }) } catch (_) {}
+        }
+      })
+    return set
+  }
+
+  const toggleParticipant = (name, leaveSet) => {
+    const n = String(name || '').trim()
+    if (!n) return
+    if (leaveSet && leaveSet.has(n)) return // 請假人員不可選
+    setScheduleFormData((prev) => {
+      const values = splitCsv(prev.participants)
+      const exists = values.includes(n)
+      const next = exists ? values.filter((x) => x !== n) : [...values, n]
+      return { ...prev, participants: next.join(', ') }
+    })
+  }
+
+  const selectAllParticipants = (leaveSet) => {
+    setScheduleFormData((prev) => {
+      const existing = splitCsv(prev.participants)
+      const extras = existing.filter((n) => !participantOptions.includes(n))
+      const all = (Array.isArray(participantOptions) ? participantOptions : [])
+        .map((x) => String(x || '').trim())
+        .filter(Boolean)
+        .filter((n) => !(leaveSet && leaveSet.has(n)))
+      const unique = Array.from(new Set([...extras, ...all]))
+      return { ...prev, participants: unique.join(', ') }
+    })
+  }
+
+  const clearParticipants = () => {
+    setScheduleFormData((prev) => ({ ...prev, participants: '' }))
+  }
+
+  const removeLeaveParticipants = (leaveSet) => {
+    if (!leaveSet || leaveSet.size === 0) return
+    setScheduleFormData((prev) => {
+      const filtered = splitCsv(prev.participants).filter((n) => !leaveSet.has(n))
+      return { ...prev, participants: filtered.join(', ') }
+    })
   }
 
   // 处理車輛选择
@@ -287,11 +342,16 @@ function Calendar() {
 
   // 添加新的參與人員到下拉選單
   const handleAddParticipant = () => {
-    const value = scheduleFormData.participants.trim()
-    if (value && !participantOptions.includes(value)) {
-      addDropdownOption(value, 'participants')
-      loadDropdownOptions()
-    }
+    const values = splitCsv(scheduleFormData.participants)
+    if (values.length === 0) return
+    let any = false
+    values.forEach((value) => {
+      if (value && !participantOptions.includes(value)) {
+        addDropdownOption(value, 'participants')
+        any = true
+      }
+    })
+    if (any) loadDropdownOptions()
   }
 
   // 添加新的車輛到下拉選單
@@ -2290,15 +2350,88 @@ function Calendar() {
                     />
                     {showParticipantDropdown && participantOptions.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {participantOptions.map((option, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handleParticipantSelect(option)}
-                            className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm"
-                          >
-                            {option}
-                          </div>
-                        ))}
+                        {(() => {
+                          const leaveSet = buildLeaveNameSetForDate(scheduleFormData.date)
+                          const selected = new Set(splitCsv(scheduleFormData.participants))
+                          const all = Array.isArray(participantOptions) ? participantOptions : []
+                          return (
+                            <>
+                              <div className="px-3 py-2 border-b border-gray-700 bg-gray-900/40 sticky top-0 z-10">
+                                <div className="flex flex-wrap gap-2 items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => selectAllParticipants(leaveSet)}
+                                    className="text-xs px-3 py-1 rounded-full border bg-gray-800 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200"
+                                    title="一次選取所有參與人員（自動排除請假）"
+                                  >
+                                    全選（排除請假）
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeLeaveParticipants(leaveSet)}
+                                    className="text-xs px-3 py-1 rounded-full border bg-gray-800 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200"
+                                    title="把已選名單中的請假人員移除"
+                                  >
+                                    排除請假
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={clearParticipants}
+                                    className="text-xs px-3 py-1 rounded-full border bg-gray-800 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200"
+                                  >
+                                    清空
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowParticipantDropdown(false)}
+                                    className="text-xs px-3 py-1 rounded-full border bg-yellow-500/20 border-yellow-400 text-yellow-200 hover:bg-yellow-500/30"
+                                  >
+                                    完成
+                                  </button>
+                                </div>
+                                {leaveSet.size > 0 && (
+                                  <div className="text-[11px] text-gray-400 mt-2">
+                                    請假人員已自動排除（可在清單中看到「請假」標記）
+                                  </div>
+                                )}
+                              </div>
+                              {all.map((option) => {
+                                const name = String(option || '').trim()
+                                if (!name) return null
+                                const onLeave = leaveSet.has(name)
+                                const isSelected = selected.has(name)
+                                return (
+                                  <div
+                                    key={name}
+                                    onClick={() => toggleParticipant(name, leaveSet)}
+                                    className={`px-4 py-2 text-sm flex items-center justify-between gap-2 ${
+                                      onLeave
+                                        ? 'cursor-not-allowed opacity-60'
+                                        : 'cursor-pointer hover:bg-gray-700'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={() => toggleParticipant(name, leaveSet)}
+                                        disabled={onLeave}
+                                        className="w-4 h-4 accent-yellow-400"
+                                      />
+                                      <span className="text-white truncate">{name}</span>
+                                      {onLeave && (
+                                        <span className="text-[11px] px-2 py-0.5 rounded-full border bg-teal-600/20 border-teal-500/40 text-teal-200">
+                                          請假
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
