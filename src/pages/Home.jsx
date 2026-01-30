@@ -223,7 +223,7 @@ function Home() {
   }
   useRealtimeKeys(['jiameng_todos'], loadTodos)
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
-  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus'], () => {
+  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules'], () => {
     loadLeaderboardItems()
     loadManualRankings()
     // 彈幕次數排行榜需要即時重算
@@ -951,8 +951,10 @@ function Home() {
           return nameA.localeCompare(nameB, 'zh-TW')
         })
       } else {
-        // 其他排行榜按值降序排序
-        userArray = userArray.sort((a, b) => b.value - a.value)
+        // 只顯示「有上榜資料」：把 0/空值的用戶過濾掉，避免預設把所有人都列出來
+        userArray = userArray
+          .filter((u) => (typeof u?.value === 'number' ? u.value > 0 : Boolean(u?.value)))
+          .sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
       }
       
       newRankings[leaderboardItem.id] = userArray
