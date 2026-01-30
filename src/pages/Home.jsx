@@ -223,9 +223,11 @@ function Home() {
   }
   useRealtimeKeys(['jiameng_todos'], loadTodos)
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
-  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items'], () => {
+  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus'], () => {
     loadLeaderboardItems()
     loadManualRankings()
+    // 彈幕次數排行榜需要即時重算
+    calculateAllRankings()
   })
 
   const handleAddTodo = () => {
@@ -659,6 +661,20 @@ function Home() {
       return nameToAccountMap[nameOrAccount] || nameOrAccount
     }
 
+    // 彈幕次數：依 author 統計（author 可能是帳號或顯示名稱）
+    const danmuCountByAccount = {}
+    try {
+      const danmusRaw = getDanmus()
+      const danmus = Array.isArray(danmusRaw) ? danmusRaw : []
+      danmus.forEach((d) => {
+        const acc = getNameToAccount(String(d?.author || '').trim())
+        if (!acc) return
+        danmuCountByAccount[acc] = (danmuCountByAccount[acc] || 0) + 1
+      })
+    } catch (e) {
+      console.warn('calculateAllRankings: danmuCount failed', e)
+    }
+
     // 為每個排行榜項目計算排名（不使用時間範圍過濾）
     for (const leaderboardItem of (Array.isArray(leaderboardItems) ? leaderboardItems : [])) {
       const userStats = {}
@@ -767,6 +783,9 @@ function Home() {
               break
             case 'workItems':
               stats.value = stats.totalWorkItems
+              break
+            case 'danmuCount':
+              stats.value = danmuCountByAccount[userName] || 0
               break
             case 'totalQuantity':
               // 計算總完成數量
