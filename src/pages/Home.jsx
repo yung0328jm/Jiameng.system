@@ -32,6 +32,9 @@ function Home() {
   const [editingItem, setEditingItem] = useState(null)
   const [editForm, setEditForm] = useState({
     name: '',
+    // 版面標題區：項目名稱上/下方兩行字
+    subtitle: '',
+    slogan: '',
     type: 'completionRate',
     workContent: '',
     isManual: false, // 是否為手動輸入排行榜
@@ -1437,6 +1440,8 @@ function Home() {
     setEditingItem(null)
     setEditForm({
       name: '',
+      subtitle: '',
+      slogan: '',
       type: 'completionRate',
       workContent: '',
       isManual: false,
@@ -1466,6 +1471,8 @@ function Home() {
     const defaultTitles = getTitleConfig()
     setEditForm({
       name: item.name,
+      subtitle: item.subtitle ?? '',
+      slogan: item.slogan ?? '',
       type: item.type,
       workContent: item.workContent || '',
       isManual: item.isManual || false,
@@ -1509,6 +1516,8 @@ function Home() {
         setEditingItem(null)
         setEditForm({
           name: '',
+          subtitle: '',
+          slogan: '',
           type: 'completionRate',
           workContent: '',
           isManual: false,
@@ -1539,6 +1548,8 @@ function Home() {
         setShowEditModal(false)
         setEditForm({
           name: '',
+          subtitle: '',
+          slogan: '',
           type: 'completionRate',
           workContent: '',
           isManual: false,
@@ -3242,7 +3253,7 @@ function Home() {
             {/* 標題區域 - 圖一風格 */}
             <div className="relative mb-4 pb-4 border-b border-gray-700">
               {/* 上方小標題 */}
-              <p className="text-white text-sm text-center mb-2">九月业绩</p>
+              <p className="text-white text-sm text-center mb-2">{(editForm.subtitle || uiConfig.subtitle || '九月业绩')}</p>
               
               {/* 主標題 - 白色、居中、裝飾性字體，手機用小字級 */}
               <h3 
@@ -3261,10 +3272,20 @@ function Home() {
               </h3>
               
               {/* 副標題 */}
-              <p className="text-white text-sm text-center mt-2">乘风破浪 披荆斩棘</p>
+              <p className="text-white text-sm text-center mt-2">{(editForm.slogan || uiConfig.slogan1 || '乘风破浪 披荆斩棘')}</p>
             </div>
             
             <div className="space-y-4">
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">上方文字（項目名稱上方）</label>
+                <input
+                  type="text"
+                  value={editForm.subtitle ?? ''}
+                  onChange={(e) => setEditForm({ ...editForm, subtitle: e.target.value })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  placeholder={uiConfig.subtitle || '例如：115年度'}
+                />
+              </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-2">項目名稱 *</label>
                 <input
@@ -3273,6 +3294,16 @@ function Home() {
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                   placeholder="例如：平均完成率"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">下方文字（項目名稱下方）</label>
+                <input
+                  type="text"
+                  value={editForm.slogan ?? ''}
+                  onChange={(e) => setEditForm({ ...editForm, slogan: e.target.value })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  placeholder={uiConfig.slogan1 || '例如：乘風破浪'}
                 />
               </div>
               
