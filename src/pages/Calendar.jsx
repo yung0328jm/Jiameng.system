@@ -60,6 +60,7 @@ function Calendar() {
   const [vehicleOptions, setVehicleOptions] = useState([])
   const [responsiblePersonOptions, setResponsiblePersonOptions] = useState([])
   const [projectSiteOptions, setProjectSiteOptions] = useState([]) // 專案管理案場（用於「活動」下拉；含狀態標籤）
+  const [siteStatusFilter, setSiteStatusFilter] = useState('all') // all | in_progress | planning | completed | on_hold
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false)
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false)
   const [showSiteDropdown, setShowSiteDropdown] = useState(false)
@@ -2091,6 +2092,31 @@ function Calendar() {
                     />
                     {showSiteDropdown && projectSiteOptions.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {/* 狀態標籤：點擊後篩選案場 */}
+                        <div className="px-3 py-2 border-b border-gray-700 bg-gray-900/40 sticky top-0 z-10">
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { id: 'all', label: '全部' },
+                              { id: 'in_progress', label: '進行中' },
+                              { id: 'planning', label: '規劃中' },
+                              { id: 'completed', label: '已完成' },
+                              { id: 'on_hold', label: '暫停' }
+                            ].map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setSiteStatusFilter(t.id)}
+                                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                                  siteStatusFilter === t.id
+                                    ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200'
+                                    : 'bg-gray-800 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200'
+                                }`}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         {projectSiteOptions
                           .filter((opt) => {
                             const q = (scheduleFormData.siteName || '').trim()
@@ -2099,6 +2125,10 @@ function Calendar() {
                             const label = String(opt?.label || '')
                             const status = String(opt?.status || '')
                             return name.includes(q) || label.includes(q) || status.includes(q)
+                          })
+                          .filter((opt) => {
+                            if (siteStatusFilter === 'all') return true
+                            return String(opt?.status || '') === siteStatusFilter
                           })
                           .slice(0, 200)
                           .map((option) => (
