@@ -158,6 +158,17 @@ export const removeItemIdsFromAllInventories = (itemIds) => {
   }
 }
 
+// 清空所有用戶背包（管理員功能）
+export const clearAllInventories = () => {
+  try {
+    persistAll({})
+    return { success: true }
+  } catch (error) {
+    console.error('clearAllInventories failed', error)
+    return { success: false, message: '清空背包失敗' }
+  }
+}
+
 // 檢查道具是否已裝備
 export const isItemEquipped = (username, itemId) => {
   try {

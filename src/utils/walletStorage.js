@@ -2,6 +2,12 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const WALLET_STORAGE_KEY = 'jiameng_wallets'
 
+const persistAll = (wallets) => {
+  const val = JSON.stringify(wallets || {})
+  localStorage.setItem(WALLET_STORAGE_KEY, val)
+  syncKeyToSupabase(WALLET_STORAGE_KEY, val)
+}
+
 // 獲取用戶錢包餘額
 export const getWalletBalance = (username) => {
   try {
@@ -69,6 +75,17 @@ export const getAllWallets = () => {
   } catch (error) {
     console.error('Error getting all wallets:', error)
     return {}
+  }
+}
+
+// 清空所有用戶錢包（管理員功能）
+export const clearAllWallets = () => {
+  try {
+    persistAll({})
+    return { success: true }
+  } catch (error) {
+    console.error('clearAllWallets failed', error)
+    return { success: false, message: '清空佳盟幣失敗' }
   }
 }
 

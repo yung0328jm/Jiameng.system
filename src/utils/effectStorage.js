@@ -124,3 +124,14 @@ export const cleanupEquippedEffectsByItemIds = (itemIds) => {
     return { success: false, message: '清理裝備特效失敗' }
   }
 }
+
+// 清空所有用戶已裝備特效（管理員功能）
+export const clearAllEquippedEffects = () => {
+  try {
+    persist({})
+    return { success: true }
+  } catch (error) {
+    console.error('clearAllEquippedEffects failed', error)
+    return { success: false, message: '清空已裝備特效失敗' }
+  }
+}
