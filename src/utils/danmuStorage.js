@@ -73,14 +73,17 @@ export const getActiveDanmus = () => {
   try {
     const danmus = getDanmus()
     const now = new Date()
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24小時前
+    // 規則：為了讓每個人都有機會看過再消失，保留較長時間
+    //（仍有上限 500 筆，避免無限增長）
+    const days = 7
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000) // 7 天前
     
     return danmus.filter(d => {
       if (!d.isActive) return false
       
-      // 檢查創建時間是否在24小時內
+      // 檢查創建時間是否在保留期內
       const createdAt = new Date(d.createdAt)
-      return createdAt >= twentyFourHoursAgo
+      return createdAt >= cutoff
     })
   } catch (error) {
     console.error('Error getting active danmus:', error)
