@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages } from '../utils/memoStorage'
+import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages } from '../utils/memoStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement } from '../utils/announcementStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
@@ -460,6 +460,27 @@ function Memo() {
       setTimeout(scrollToBottom, 50)
     } else {
       alert(result.message || '發送消息失敗')
+    }
+  }
+
+  const handleClearChatMessages = () => {
+    if (userRole !== 'admin') return
+    if (!window.confirm('確定要清除交流區「對話框」所有對話內容嗎？此操作會同步到所有裝置，且無法復原。')) return
+    const r = clearGlobalMessages()
+    if (r?.success) {
+      // 立即清空 UI，避免看起來像沒清掉
+      setMessages([])
+      setMessageContent('')
+      try { sessionStorage.removeItem(CHAT_SCROLL_KEY) } catch (_) {}
+      try { chatScrollRestoredRef.current = false } catch (_) {}
+      // 重新載入一次（確保與本地儲存一致）
+      loadMessages()
+      setTimeout(() => {
+        try { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }) } catch (_) {}
+      }, 0)
+      alert('已清除對話內容')
+    } else {
+      alert(r?.message || '清除失敗')
     }
   }
 
@@ -1228,6 +1249,18 @@ function Memo() {
                 className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded text-sm transition-colors border border-red-500"
               >
                 清除彈幕
+              </button>
+            )}
+
+            {/* 管理員清除對話內容 */}
+            {userRole === 'admin' && (
+              <button
+                type="button"
+                onClick={handleClearChatMessages}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded text-sm transition-colors border border-red-500"
+                title="清除交流區對話框所有訊息"
+              >
+                清除對話
               </button>
             )}
           </div>
