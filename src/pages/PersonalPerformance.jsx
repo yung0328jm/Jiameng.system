@@ -277,6 +277,8 @@ function PersonalPerformance() {
       return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
     }
     const isNoClockInAttendance = (r) => {
+      // 請假/特休：視為有紀錄，不應被算成未打卡
+      if (isLeaveAttendance(r) || r?.type === 'leave') return false
       return !r?.clockInTime ||
         r?.details === '缺少打卡時間' ||
         r?.details === '匯入檔案後無記錄' ||

@@ -55,7 +55,7 @@ function UserManagement() {
     const today = new Date()
     const pad2 = (n) => String(n).padStart(2, '0')
     const formatLocalYMD = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-    const endDate = formatLocalYMD(today)
+    let endDate = formatLocalYMD(today)
     let startDate
 
     switch (dateRange) {
@@ -65,14 +65,19 @@ function UserManagement() {
         startDate = formatLocalYMD(weekAgo)
         break
       case 'month':
-        const monthAgo = new Date(today)
-        monthAgo.setMonth(monthAgo.getMonth() - 1)
-        startDate = formatLocalYMD(monthAgo)
+        // 與「個人績效」一致：使用「當月」(月初～月底)，不是最近30天
+        startDate = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-01`
+        endDate = (() => {
+          const y = today.getFullYear()
+          const m = today.getMonth() + 1
+          const lastDay = new Date(y, m, 0).getDate()
+          return `${y}-${pad2(m)}-${pad2(lastDay)}`
+        })()
         break
       case 'year':
-        const yearAgo = new Date(today)
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1)
-        startDate = formatLocalYMD(yearAgo)
+        // 與「個人績效」一致：使用「當年」(1/1～12/31)，不是最近365天
+        startDate = `${today.getFullYear()}-01-01`
+        endDate = `${today.getFullYear()}-12-31`
         break
       default:
         startDate = null
