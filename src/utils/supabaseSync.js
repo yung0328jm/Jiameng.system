@@ -17,7 +17,12 @@ export const APP_DATA_KEYS = [
   'jiameng_completion_rate_config', 'jiameng_personal_performance', 'jiameng_activity_filter_tags',
   'jiameng_company_activities', 'jiameng_leaderboard_test_records', 'jiameng_project_deficiencies',
   'jiameng_project_records', 'jiameng_projects', 'jiameng_calendar_events', 'jiameng_engineering_records',
-  'jiameng_registration_password'
+  'jiameng_registration_password',
+  // 道具保護：避免「本機只有預設彈幕」時覆蓋雲端，可用備份救援
+  'jiameng_items_backup',
+  // 交流區關鍵字獎勵（規則 + 冷卻/領取記錄）
+  'jiameng_keyword_reward_rules',
+  'jiameng_keyword_reward_claims'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
