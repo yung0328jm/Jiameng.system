@@ -11,7 +11,7 @@ import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCount
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
-import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForName } from '../utils/workItemCollaboration'
+import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForName, getWorkItemActualForNameForPerformance } from '../utils/workItemCollaboration'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -225,7 +225,7 @@ function PersonalPerformance() {
           if (!isResponsible) return
 
           const target = getWorkItemTargetForName(it, resp)
-          const actual = parseFloat(c?.actualQuantity) || 0
+          const actual = getWorkItemActualForNameForPerformance(it, resp)
           const completionRate = target > 0 ? (actual / target * 100) : 0
 
           workDays.add(schedule.date)
@@ -616,7 +616,7 @@ function PersonalPerformance() {
             if (!resp || !displayNames.includes(resp)) return
 
             const target = getWorkItemTargetForName(it, resp)
-            const actual = parseFloat(c?.actualQuantity) || 0
+            const actual = getWorkItemActualForNameForPerformance(it, resp)
             const completionRate = target > 0 ? (actual / target * 100) : 0
 
             dailyWorkItems++

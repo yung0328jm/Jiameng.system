@@ -9,7 +9,7 @@ import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, setProfileAdmin } 
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { calculateCompletionRateAdjustment } from '../utils/completionRateConfigStorage'
 import { getLatePerformanceConfig, calculateLateCountAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
-import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForName } from '../utils/workItemCollaboration'
+import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForName, getWorkItemActualForNameForPerformance } from '../utils/workItemCollaboration'
 
 function UserManagement() {
   const [users, setUsers] = useState([])
@@ -148,7 +148,7 @@ function UserManagement() {
             if (!displayNames.includes(resp)) return
 
             const target = getWorkItemTargetForName(it, resp)
-            const actual = parseFloat(c?.actualQuantity) || 0
+            const actual = getWorkItemActualForNameForPerformance(it, resp)
             const completionRate = target > 0 ? (actual / target * 100) : 0
             totalItems++
             totalCompletionRate += completionRate

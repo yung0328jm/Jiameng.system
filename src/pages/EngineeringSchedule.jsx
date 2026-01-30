@@ -9,6 +9,8 @@ import {
   getWorkItemCollaborators,
   getWorkItemTotalActual,
   getWorkItemTotalTarget,
+  getWorkItemCollabMode,
+  getWorkItemActualForNameForPerformance,
   parseCollaboratorsCsv,
   toCollaboratorsCsv
 } from '../utils/workItemCollaboration'
@@ -70,7 +72,9 @@ function EngineeringSchedule() {
           targetQuantity: '',
           actualQuantity: '',
           isCollaborative: false,
-          collaborators: []
+          collaborators: [],
+          collabMode: 'shared', // shared: 一起完成算總數；separate: 分開完成各自算
+          sharedActualQuantity: ''
         }
       ]
     }))
@@ -177,7 +181,9 @@ function EngineeringSchedule() {
         contributors.forEach((c) => {
           const name = String(c?.name || '').trim()
           if (!name) return
-          const quantity = parseFloat(c?.actualQuantity) || 0
+          // shared：按目標比例/人數分配共同實際，避免多人重複累加
+          // separate：各自累加
+          const quantity = getWorkItemActualForNameForPerformance(workItem, name)
           if (!(quantity > 0)) return
 
           const lastAccumulatedAt = lastBy?.[name] ? new Date(lastBy[name]) : null
@@ -523,6 +529,21 @@ function EngineeringSchedule() {
                           />
                         )}
                       </div>
+                      {item.isCollaborative && (
+                        <div>
+                          <label className="block text-gray-300 text-xs mb-1">協作計算方式</label>
+                          <select
+                            value={getWorkItemCollabMode(item)}
+                            onChange={(e) => {
+                              handleWorkItemChange(item.id, 'collabMode', e.target.value)
+                            }}
+                            className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
+                          >
+                            <option value="shared">一起完成（算總數）</option>
+                            <option value="separate">分開完成（各自算）</option>
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-gray-300 text-xs mb-1">目標數量</label>
                         <input
@@ -701,6 +722,7 @@ function EngineeringSchedule() {
                             {schedule.workItems.map((item, itemIndex) => {
                               const it = normalizeWorkItem(item)
                               const isCollab = !!it.isCollaborative
+                              const collabMode = isCollab ? getWorkItemCollabMode(it) : 'shared'
                               const actualQty = isCollab ? getWorkItemTotalActual(it) : (parseFloat(it.actualQuantity) || 0)
                               const targetQty = isCollab ? getWorkItemTotalTarget(it) : (parseFloat(it.targetQuantity) || 0)
                               const completionRate = targetQty > 0 ? (actualQty / targetQty * 100).toFixed(1) : 0
@@ -721,7 +743,7 @@ function EngineeringSchedule() {
                                     )}
                                     {isCollab && (
                                       <span className="text-sm px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40">
-                                        協作（個別計算）
+                                        {collabMode === 'shared' ? '協作（一起完成）' : '協作（分開完成）'}
                                       </span>
                                     )}
                                   </div>
@@ -764,6 +786,7 @@ function EngineeringSchedule() {
                                                 const aq = it.actualQuantity ?? ''
                                                 patchWorkItem(schedule.id, item.id, {
                                                   isCollaborative: true,
+                                                  collabMode: 'shared',
                                                   collaborators: rp ? [{ name: rp, targetQuantity: it.targetQuantity ?? '', actualQuantity: aq }] : (collabs.length ? collabs : [])
                                                 })
                                               }
@@ -775,24 +798,49 @@ function EngineeringSchedule() {
                                       </div>
 
                                       {isCollab ? (
-                                        <input
-                                          type="text"
-                                          value={toCollaboratorsCsv(it)}
-                                          onChange={(e) => {
-                                            const next = parseCollaboratorsCsv(e.target.value)
-                                            // 保留既有目標/實際數量
-                                            const prevTarget = new Map(collabs.map((c) => [String(c.name).trim(), c.targetQuantity]))
-                                            const prevActual = new Map(collabs.map((c) => [String(c.name).trim(), c.actualQuantity]))
-                                            const merged = next.map((c) => ({
-                                              ...c,
-                                              targetQuantity: prevTarget.get(String(c.name).trim()) ?? '',
-                                              actualQuantity: prevActual.get(String(c.name).trim()) ?? ''
-                                            }))
-                                            patchWorkItem(schedule.id, item.id, { collaborators: merged, isCollaborative: true })
-                                          }}
-                                          className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
-                                          placeholder="協作負責人（逗號分隔）"
-                                        />
+                                        <>
+                                          <input
+                                            type="text"
+                                            value={toCollaboratorsCsv(it)}
+                                            onChange={(e) => {
+                                              const next = parseCollaboratorsCsv(e.target.value)
+                                              // 保留既有目標/實際數量
+                                              const prevTarget = new Map(collabs.map((c) => [String(c.name).trim(), c.targetQuantity]))
+                                              const prevActual = new Map(collabs.map((c) => [String(c.name).trim(), c.actualQuantity]))
+                                              const merged = next.map((c) => ({
+                                                ...c,
+                                                targetQuantity: prevTarget.get(String(c.name).trim()) ?? '',
+                                                actualQuantity: prevActual.get(String(c.name).trim()) ?? ''
+                                              }))
+                                              patchWorkItem(schedule.id, item.id, { collaborators: merged, isCollaborative: true })
+                                            }}
+                                            className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                                            placeholder="協作負責人（逗號分隔）"
+                                          />
+                                          <div className="mt-2">
+                                            <label className="block text-gray-400 text-xs mb-1">協作計算方式</label>
+                                            <select
+                                              value={collabMode}
+                                              onChange={(e) => {
+                                                const nextMode = e.target.value
+                                                const patch = { collabMode: nextMode, isCollaborative: true }
+                                                // 切到 shared：若未填共同實際，先用目前「總實際」作為預設，避免顯示為 0
+                                                if (nextMode === 'shared') {
+                                                  const hasShared = String(it.sharedActualQuantity ?? '').trim()
+                                                  if (!hasShared) {
+                                                    const fallback = getWorkItemTotalActual(it)
+                                                    if (fallback > 0) patch.sharedActualQuantity = String(fallback)
+                                                  }
+                                                }
+                                                patchWorkItem(schedule.id, item.id, patch)
+                                              }}
+                                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                                            >
+                                              <option value="shared">一起完成（算總數）</option>
+                                              <option value="separate">分開完成（各自算）</option>
+                                            </select>
+                                          </div>
+                                        </>
                                       ) : (
                                         <input
                                           type="text"
@@ -830,13 +878,33 @@ function EngineeringSchedule() {
                                       </label>
                                       {isCollab ? (
                                         <div className="space-y-2">
+                                          {collabMode === 'shared' && (
+                                            <div className="grid grid-cols-12 gap-2 items-center">
+                                              <div className="text-gray-300 text-xs w-24 truncate" title="共同實際">共同實際</div>
+                                              <input
+                                                type="number"
+                                                value={it.sharedActualQuantity ?? ''}
+                                                onChange={(e) => {
+                                                  patchWorkItem(schedule.id, item.id, { sharedActualQuantity: e.target.value, isCollaborative: true })
+                                                }}
+                                                className="col-span-8 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                                                placeholder="共同實際"
+                                                min="0"
+                                                step="0.01"
+                                                disabled={
+                                                  !(isPast || isTodayDate) ||
+                                                  (currentRole !== 'admin' && !collabs.some((x) => canEditForName(x?.name)))
+                                                }
+                                              />
+                                            </div>
+                                          )}
                                           {collabs.length === 0 ? (
                                             <div className="text-gray-500 text-xs">尚未設定協作負責人</div>
                                           ) : (
                                             collabs.map((c) => {
                                               const name = c?.name
                                               const canEditTarget = canEditForName(name)
-                                              const canEditActual = (isPast || isTodayDate) && canEditForName(name)
+                                              const canEditActual = (isPast || isTodayDate) && canEditForName(name) && collabMode !== 'shared'
                                               return (
                                                 <div key={name} className="grid grid-cols-12 gap-2 items-center">
                                                   <div className="text-gray-300 text-xs w-24 truncate" title={name}>{name}</div>
@@ -856,22 +924,28 @@ function EngineeringSchedule() {
                                                     step="0.01"
                                                     disabled={!canEditTarget}
                                                   />
-                                                  <input
-                                                    type="number"
-                                                    value={c?.actualQuantity ?? ''}
-                                                    onChange={(e) => {
-                                                      const next = collabs.map((x) => (String(x.name).trim() === String(name).trim()
-                                                        ? { ...x, actualQuantity: e.target.value }
-                                                        : x
-                                                      ))
-                                                      patchWorkItem(schedule.id, item.id, { collaborators: next, isCollaborative: true })
-                                                    }}
-                                                    className="col-span-4 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
-                                                    placeholder="實際"
-                                                    min="0"
-                                                    step="0.01"
-                                                    disabled={!canEditActual}
-                                                  />
+                                                  {collabMode === 'shared' ? (
+                                                    <div className="col-span-4 text-gray-500 text-xs">
+                                                      共同實際
+                                                    </div>
+                                                  ) : (
+                                                    <input
+                                                      type="number"
+                                                      value={c?.actualQuantity ?? ''}
+                                                      onChange={(e) => {
+                                                        const next = collabs.map((x) => (String(x.name).trim() === String(name).trim()
+                                                          ? { ...x, actualQuantity: e.target.value }
+                                                          : x
+                                                        ))
+                                                        patchWorkItem(schedule.id, item.id, { collaborators: next, isCollaborative: true })
+                                                      }}
+                                                      className="col-span-4 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                                                      placeholder="實際"
+                                                      min="0"
+                                                      step="0.01"
+                                                      disabled={!canEditActual}
+                                                    />
+                                                  )}
                                                 </div>
                                               )
                                             })
@@ -880,7 +954,10 @@ function EngineeringSchedule() {
                                             <p className="text-gray-500 text-xs">僅能在當日或之後輸入</p>
                                           )}
                                           {(isPast || isTodayDate) && currentRole !== 'admin' && (
-                                            <p className="text-gray-500 text-xs">協作模式下：每位負責人只能填寫自己的「目標/實際」</p>
+                                            <p className="text-gray-500 text-xs">
+                                              協作模式下：每位負責人只能填寫自己的「目標」
+                                              {collabMode === 'separate' ? '與「實際」' : '；共同實際可由協作成員其中一位填寫'}
+                                            </p>
                                           )}
                                         </div>
                                       ) : (
