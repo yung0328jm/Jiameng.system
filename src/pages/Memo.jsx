@@ -84,6 +84,8 @@ function Memo() {
   const danmuQueueRef = useRef([])
   const danmuSeenRef = useRef(new Set())
   const danmuLaneRef = useRef(0)
+  const danmuLaneNextAtRef = useRef([0, 0, 0, 0]) // 每條跑道下一次允許發射時間（ms）
+  const danmuLaneSpeedCapRef = useRef([Infinity, Infinity, Infinity, Infinity]) // 每條跑道「後車不得更快」速度上限
   const danmuTimersRef = useRef({})
   const [danmuContent, setDanmuContent] = useState('')
   const [showDanmuInput, setShowDanmuInput] = useState(false)
@@ -653,12 +655,23 @@ function Memo() {
           const tier = Math.floor(slotIndex / 4) // 0..3
           const lane = slotIndex % LANES
           // 用 px 固定跑道位置，避免不同高度下跑出格子
-          const jitter = ((seed % 9) - 4) * 0.4 // -1.6px ~ +1.6px
-          const topPosition = 10 + lane * 28 + jitter // 10/38/66/94（含微抖動）
+          const topPosition = 10 + lane * 28 // 10/38/66/94
           const base = 12 // 秒
-          const speedFactor = 1 + tier * 0.35
-          const duration = Math.max(4.8, (base / speedFactor) + ((seed % 9) - 4) / 20)
-          const delay = (seed % 6) / 30 // 0 ~ 0.16 秒
+          const speedFactorWanted = 1 + tier * 0.35
+          // 不要重疊：同一跑道「後面的彈幕」不能比前面更快，避免追上重疊
+          const laneCap = (danmuLaneSpeedCapRef.current?.[lane] ?? Infinity)
+          const speedFactor = Math.min(speedFactorWanted, laneCap)
+          // 若這一條變慢了，後續同跑道也跟著不要更快
+          danmuLaneSpeedCapRef.current[lane] = speedFactor
+
+          const duration = Math.max(4.8, (base / speedFactor) + ((seed % 9) - 4) / 30)
+          // 同跑道最小發射間距（秒）：避免同速也貼太近
+          const minHeadwayMs = 1500
+          const nowMs = Date.now()
+          const laneNextAt = danmuLaneNextAtRef.current?.[lane] ?? 0
+          const extraDelay = Math.max(0, laneNextAt - nowMs) / 1000
+          const delay = extraDelay + (seed % 4) / 50 // 加一點點隨機，避免完全同步
+          danmuLaneNextAtRef.current[lane] = Math.max(laneNextAt, nowMs) + minHeadwayMs
           const fontSize = 14 + (seed % 10) / 5 // 14 ~ 16px
           const animationName = safeAnimName(id)
 
@@ -667,13 +680,23 @@ function Memo() {
           try {
             if (danmuTimersRef.current[id]) clearTimeout(danmuTimersRef.current[id])
             danmuTimersRef.current[id] = setTimeout(() => {
-              setScreenDanmus((cur) => (Array.isArray(cur) ? cur.filter((x) => String(x?.id || '') !== id) : []))
+              setScreenDanmus((cur) => {
+                const arr = Array.isArray(cur) ? cur : []
+                const filtered = arr.filter((x) => String(x?.id || '') !== id)
+                // 若此跑道已清空，解除速度上限，讓下一輪可以再次加速
+                const stillHasSameLane = filtered.some((x) => (x?._anim?.lane ?? -1) === lane)
+                if (!stillHasSameLane) {
+                  danmuLaneSpeedCapRef.current[lane] = Infinity
+                  danmuLaneNextAtRef.current[lane] = 0
+                }
+                return filtered
+              })
               try { delete danmuTimersRef.current[id] } catch (_) {}
               setTimeout(() => drain(), 0)
             }, ttlMs)
           } catch (_) {}
 
-          next.push({ ...d, _anim: { animationName, topPosition, duration, delay, fontSize } })
+          next.push({ ...d, _anim: { animationName, lane, topPosition, duration, delay, fontSize } })
         }
         return next
       })
