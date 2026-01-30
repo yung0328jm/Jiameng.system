@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, Fragment, useCallback } from 'react'
 import { getItems, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
@@ -6,9 +6,11 @@ import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getAllEquippedEffects, unequipEffect } from '../utils/effectStorage'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
+import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
 function ExchangeShop() {
   const [items, setItems] = useState([])
+  const [itemsMeta, setItemsMeta] = useState({ total: 0, shopEligible: 0, hiddenInShop: 0 })
   const [showItemForm, setShowItemForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [itemForm, setItemForm] = useState({
@@ -23,15 +25,79 @@ function ExchangeShop() {
   const [currentUser, setCurrentUser] = useState('')
   const [walletBalance, setWalletBalance] = useState(0)
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
+  const [cloudItemsInfo, setCloudItemsInfo] = useState({ loading: false, count: null, sourceKey: 'jiameng_items', error: '' })
 
-  const loadItems = () => {
+  const loadItems = useCallback(() => {
     const role = getCurrentUserRole()
-    const allItems = getItems().filter(
-      (item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT
-    )
-    const visibleItems = role === 'admin' ? allItems : allItems.filter((i) => !i?.isHidden)
+    const all = Array.isArray(getItems()) ? getItems() : []
+    const shopEligible = all.filter((item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT)
+    const hiddenInShop = shopEligible.filter((i) => !!i?.isHidden).length
+    const visibleItems = role === 'admin' ? shopEligible : shopEligible.filter((i) => !i?.isHidden)
     setItems(visibleItems)
-  }
+    setItemsMeta({ total: all.length, shopEligible: shopEligible.length, hiddenInShop })
+  }, [])
+
+  const fetchCloudItemsCount = useCallback(async (sourceKey = 'jiameng_items') => {
+    if (!isSupabaseEnabled()) {
+      setCloudItemsInfo({ loading: false, count: null, sourceKey, error: '尚未啟用 Supabase' })
+      return null
+    }
+    const sb = getSupabaseClient()
+    if (!sb) {
+      setCloudItemsInfo({ loading: false, count: null, sourceKey, error: 'Supabase 未設定' })
+      return null
+    }
+    setCloudItemsInfo((s) => ({ ...s, loading: true, error: '', sourceKey }))
+    try {
+      const { data, error } = await sb
+        .from('app_data')
+        .select('data')
+        .eq('key', sourceKey)
+        .maybeSingle()
+      if (error) throw error
+      const val = data?.data
+      // backup 格式：{ savedAt, items: [...] }
+      const list = Array.isArray(val) ? val : (Array.isArray(val?.items) ? val.items : [])
+      const count = list.length
+      setCloudItemsInfo({ loading: false, count, sourceKey, error: '' })
+      return count
+    } catch (e) {
+      const msg = e?.message || '讀取雲端資料失敗'
+      setCloudItemsInfo({ loading: false, count: null, sourceKey, error: msg })
+      return null
+    }
+  }, [])
+
+  const pullItemsFromCloud = useCallback(async (sourceKey = 'jiameng_items') => {
+    if (!isSupabaseEnabled()) {
+      alert('尚未啟用 Supabase')
+      return
+    }
+    const sb = getSupabaseClient()
+    if (!sb) {
+      alert('Supabase 未設定')
+      return
+    }
+    setCloudItemsInfo((s) => ({ ...s, loading: true, error: '', sourceKey }))
+    try {
+      const { data, error } = await sb
+        .from('app_data')
+        .select('data')
+        .eq('key', sourceKey)
+        .maybeSingle()
+      if (error) throw error
+      const val = data?.data
+      const list = Array.isArray(val) ? val : (Array.isArray(val?.items) ? val.items : [])
+      localStorage.setItem('jiameng_items', JSON.stringify(list))
+      setCloudItemsInfo({ loading: false, count: list.length, sourceKey, error: '' })
+      loadItems()
+      alert(`已從雲端拉回道具（${sourceKey}）：${list.length} 筆`)
+    } catch (e) {
+      const msg = e?.message || '從雲端拉回失敗'
+      setCloudItemsInfo({ loading: false, count: null, sourceKey, error: msg })
+      alert(`從雲端拉回失敗：${msg}`)
+    }
+  }, [loadItems])
 
   const refetchExchangeShop = () => {
     try {
@@ -52,6 +118,9 @@ function ExchangeShop() {
     if (user) {
       const balance = getWalletBalance(user)
       setWalletBalance(balance)
+    }
+    if (role === 'admin') {
+      fetchCloudItemsCount('jiameng_items')
     }
   }, [])
 
@@ -264,12 +333,95 @@ function ExchangeShop() {
         {/* 管理員：新增道具按鈕 */}
         {userRole === 'admin' && (
           <div className="mb-6">
-            <button
-              onClick={handleAddItem}
-              className="bg-yellow-400 text-gray-900 px-6 py-3 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
-            >
-              + 新增道具
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleAddItem}
+                className="bg-yellow-400 text-gray-900 px-6 py-3 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
+              >
+                + 新增道具
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const localAll = Array.isArray(getItems()) ? getItems() : []
+                    const localCount = localAll.length
+                    const cloudCount = await fetchCloudItemsCount('jiameng_items')
+
+                    // 防呆：本機很少但雲端很多，禁止覆蓋
+                    if (typeof cloudCount === 'number' && cloudCount > localCount && localCount <= 1) {
+                      alert(`偵測到：本機道具只有 ${localCount} 筆，但雲端有 ${cloudCount} 筆。\n\n為避免把雲端覆蓋成只剩彈幕，已阻止推送。\n請改用「從雲端拉回道具」。`)
+                      return
+                    }
+
+                    // 防呆：本機比雲端少，需強確認
+                    if (typeof cloudCount === 'number' && cloudCount > localCount) {
+                      const ok = window.confirm(`注意：本機道具 ${localCount} 筆 < 雲端 ${cloudCount} 筆。\n推送會讓雲端道具消失！\n\n確定仍要推送本機到雲端嗎？`)
+                      if (!ok) return
+                    } else {
+                      const ok = window.confirm(`確定要推送「本機道具清單」到雲端嗎？\n\n本機：${localCount} 筆\n雲端：${typeof cloudCount === 'number' ? `${cloudCount} 筆` : '未知'}`)
+                      if (!ok) return
+                    }
+
+                    const val = localStorage.getItem('jiameng_items') || JSON.stringify(localAll || [])
+                    await syncKeyToSupabase('jiameng_items', val)
+                    await fetchCloudItemsCount('jiameng_items')
+                    alert('已推送本機道具到雲端（請在另一台刷新/重新登入）')
+                  } catch (e) {
+                    console.warn('push items to supabase failed', e)
+                    alert('推送失敗')
+                  }
+                }}
+                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                title="推送本機 jiameng_items 到雲端（已加入防呆避免覆蓋）"
+              >
+                推送本機道具到雲端
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = window.confirm('確定要「從雲端拉回」道具到本機嗎？\n\n本機的道具清單會被雲端覆蓋（不會影響背包道具數量，但商城顯示會依雲端為準）。')
+                  if (!ok) return
+                  await pullItemsFromCloud('jiameng_items')
+                }}
+                className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                title="把雲端 app_data 的 jiameng_items 拉回本機（修復只剩彈幕）"
+              >
+                從雲端拉回道具
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = window.confirm('從雲端「備份」拉回道具？\n\n若雲端主清單已被覆蓋，此功能可能救回上一版（需要之前有備份資料）。')
+                  if (!ok) return
+                  await pullItemsFromCloud('jiameng_items_backup')
+                }}
+                className="bg-indigo-700 hover:bg-indigo-600 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                title="從雲端 jiameng_items_backup 拉回（若主清單被覆蓋可嘗試救援）"
+              >
+                從雲端備份拉回
+              </button>
+              {items.length <= 1 && (
+                <div className="text-sm text-yellow-300">
+                  目前商城道具數量偏少，可能是被隱藏或同步被覆蓋。若另一台還有完整道具，請在那台按「重新同步道具到雲端」。
+                </div>
+              )}
+              <div className="text-xs text-gray-400">
+                本機：總道具 {itemsMeta.total}｜商城可售 {itemsMeta.shopEligible}｜已隱藏 {itemsMeta.hiddenInShop}
+                {cloudItemsInfo.loading ? '｜雲端：讀取中…' : (
+                  cloudItemsInfo.count == null
+                    ? (cloudItemsInfo.error ? `｜雲端：讀取失敗（${cloudItemsInfo.error}）` : '｜雲端：未知')
+                    : `｜雲端（${cloudItemsInfo.sourceKey}）：${cloudItemsInfo.count}`
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 一般用戶：提示有隱藏道具 */}
+        {userRole !== 'admin' && itemsMeta.hiddenInShop > 0 && (
+          <div className="mb-4 text-sm text-gray-400">
+            有 <span className="text-yellow-300 font-semibold">{itemsMeta.hiddenInShop}</span> 個道具已被管理員隱藏（商城不顯示，但背包已擁有仍可使用）。
           </div>
         )}
 
