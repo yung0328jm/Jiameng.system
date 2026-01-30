@@ -13,6 +13,7 @@ export const APP_DATA_KEYS = [
   'jiameng_leaderboard_types', 'jiameng_equipped_effects', 'jiameng_title_config',
   'jiameng_exchange_requests', 'jiameng_leaderboard_items', 'jiameng_leaderboard_ui',
   'jiameng_manual_rankings', 'jiameng_trades', 'jiameng_memos', 'jiameng_announcements',
+  'jiameng_messages',
   'jiameng_late_performance_config', 'jiameng_attendance_device_config', 'jiameng_dropdown_options',
   'jiameng_completion_rate_config', 'jiameng_personal_performance', 'jiameng_activity_filter_tags',
   'jiameng_company_activities', 'jiameng_leaderboard_test_records', 'jiameng_project_deficiencies',
