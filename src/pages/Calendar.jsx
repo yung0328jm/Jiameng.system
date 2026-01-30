@@ -13,6 +13,7 @@ import {
   normalizeWorkItem,
   getWorkItemCollaborators,
   getWorkItemCollabMode,
+  getWorkItemActualForName,
   getWorkItemSharedActual,
   getWorkItemTotalActual,
   getWorkItemActualForNameForPerformance,
