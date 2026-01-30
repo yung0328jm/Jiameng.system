@@ -603,8 +603,8 @@ function Memo() {
       return
     }
 
-    const MAX_ON_SCREEN = 15
-    const LANES = 5 // 只顯示 5 條「跑道」（其餘在同跑道追上），最多 15 條
+    const MAX_ON_SCREEN = 16
+    const LANES = 4 // 4 條跑道，最多 16 條（每 4 條加速一段）
 
     const hash = (str) => {
       let h = 0
@@ -649,14 +649,15 @@ function Memo() {
 
           const seed = hash(id)
           const slotIndex = next.length
-          // 速度分段：1-5 正常、6-10 加速、11-15 再加速（讓後面追上前面）
-          const tier = Math.floor(slotIndex / 5) // 0..2
+          // 速度分段：1-4 正常、5-8 加速、9-12 再加速、13-16 更快（讓後面追上前面）
+          const tier = Math.floor(slotIndex / 4) // 0..3
           const lane = slotIndex % LANES
-          // 預留上下邊距，避免最後一條貼邊「超出框」的觀感
-          const topPosition = 10 + lane * 18 + ((seed % 9) - 4) * 0.3 // 約 8% ~ 82%
+          // 用 px 固定跑道位置，避免不同高度下跑出格子
+          const jitter = ((seed % 9) - 4) * 0.4 // -1.6px ~ +1.6px
+          const topPosition = 10 + lane * 28 + jitter // 10/38/66/94（含微抖動）
           const base = 12 // 秒
           const speedFactor = 1 + tier * 0.35
-          const duration = Math.max(5.5, (base / speedFactor) + ((seed % 9) - 4) / 20) // 約 12s / 9s / 7s
+          const duration = Math.max(4.8, (base / speedFactor) + ((seed % 9) - 4) / 20)
           const delay = (seed % 6) / 30 // 0 ~ 0.16 秒
           const fontSize = 14 + (seed % 10) / 5 // 14 ~ 16px
           const animationName = safeAnimName(id)
@@ -1220,7 +1221,7 @@ function Memo() {
                 key={danmuId}
                 className="absolute pointer-events-none whitespace-nowrap danmu-item"
                 style={{
-                  top: `${anim.topPosition ?? 10}%`,
+                  top: `${anim.topPosition ?? 10}px`,
                   left: 0,
                   transform: 'translate3d(110vw, 0, 0)',
                   animationName: 'danmuMove',
