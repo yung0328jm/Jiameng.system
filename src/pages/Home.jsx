@@ -3,7 +3,7 @@ import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getUserPerformanceRecords, getUserLateRecords, getUserAttendanceRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
-import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking, clearAllLeaderboards } from '../utils/leaderboardStorage'
+import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking, clearAllLeaderboards, cleanupOrphanedLeaderboardRewards } from '../utils/leaderboardStorage'
 import { addTestRecord, getTestRecords, deleteTestRecord } from '../utils/testRecordStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getTodos, addTodo, updateTodo, deleteTodo, toggleTodo } from '../utils/todoStorage'
@@ -1723,6 +1723,21 @@ function Home() {
     }
   }
 
+  const handleCleanupOrphanedRewards = () => {
+    if (!window.confirm('要清理「已刪除排行榜」殘留的稱號／名子特效／發話特效嗎？\n這會：\n- 卸下所有人裝備\n- 從所有人背包移除\n- 刪除道具定義\n-（可選）清理已不存在排行榜的手動排名資料')) return
+    const res = cleanupOrphanedLeaderboardRewards({ cleanupManualRankings: true })
+    if (res.success) {
+      alert(`清理完成：移除道具 ${res.removedItems || 0} 個，清理手動排名 ${res.removedManualKeys || 0} 個。`)
+      // 重新載入可用道具列表（避免 UI 還顯示舊道具）
+      try {
+        const items = getItems()
+        setAvailableItems(items)
+      } catch (_) {}
+    } else {
+      alert(res.message || '清理失敗')
+    }
+  }
+
   const handleEditUIElement = (field, value) => {
     const updatedConfig = { ...uiConfig, [field]: value }
     setUIConfig(updatedConfig)
@@ -2139,6 +2154,14 @@ function Home() {
                 className="bg-yellow-400 text-gray-900 px-3 py-2.5 sm:px-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm"
               >
                 新增項目
+              </button>
+              <button
+                type="button"
+                onClick={handleCleanupOrphanedRewards}
+                className="bg-indigo-600 text-white px-3 py-2.5 sm:px-3 rounded-lg hover:bg-indigo-700 active:bg-indigo-700 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm"
+                title="清理已刪除排行榜殘留的特效/稱號道具"
+              >
+                清理失效特效
               </button>
               {leaderboardItems.length > 0 && (
                 <button
