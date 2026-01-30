@@ -1,23 +1,48 @@
 import { useState, useEffect, useRef } from 'react'
-import { getCurrentUser } from '../utils/authStorage'
+import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getSchedules } from '../utils/scheduleStorage'
 import { getTripReportsByProject, addTripReport, actionTypes } from '../utils/tripReportStorage'
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNameForAccount } from '../utils/displayName'
+import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 
 function TripReport() {
   const [currentUser, setCurrentUser] = useState('')
   const [userName, setUserName] = useState('')
   const [siteNames, setSiteNames] = useState([]) // 行事曆新建排程的案場名稱（siteName）不重複列表
+  const [allowedSiteNames, setAllowedSiteNames] = useState([]) // 非管理員：可操作（參與）的案場
   const [selectedSiteName, setSelectedSiteName] = useState('')
   const [records, setRecords] = useState([])
   const [message, setMessage] = useState(null)
   const selectedSiteNameRef = useRef('')
 
+  const buildSiteLists = (allSchedules, todayStr, userAccount, role) => {
+    const list = Array.isArray(allSchedules) ? allSchedules : []
+    const todaySchedules = list.filter((s) => (s.date || '') === todayStr)
+    const all = [...new Set(todaySchedules.map((s) => (s.siteName || '').trim()).filter(Boolean))].sort()
+    // 管理員：全部可操作
+    if (role === 'admin') return { all, allowed: all }
+    // 一般用戶：僅能看自己在 participants 裡的案場
+    const nameAliases = new Set(getDisplayNamesForAccount(userAccount || '').map((x) => String(x || '').trim()).filter(Boolean))
+    const ok = new Set()
+    todaySchedules.forEach((s) => {
+      const site = String(s?.siteName || '').trim()
+      if (!site) return
+      const parts = String(s?.participants || '')
+        .split(',')
+        .map((p) => String(p || '').trim())
+        .filter(Boolean)
+      const isParticipant = parts.some((p) => nameAliases.has(p))
+      if (isParticipant) ok.add(site)
+    })
+    return { all, allowed: Array.from(ok).sort() }
+  }
+
   const refetchTripReport = () => {
     const user = getCurrentUser()
+    const role = getCurrentUserRole()
     setCurrentUser(user || '')
     if (user) {
       setUserName(getDisplayNameForAccount(user))
@@ -25,13 +50,19 @@ function TripReport() {
     const list = getSchedules()
     const today = new Date()
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    const todaySchedules = list.filter((s) => (s.date || '') === todayStr)
-    const names = [...new Set(todaySchedules.map((s) => (s.siteName || '').trim()).filter(Boolean))].sort()
-    setSiteNames(names)
+    const { all, allowed } = buildSiteLists(list, todayStr, user || '', role)
+    setSiteNames(all)
+    setAllowedSiteNames(allowed)
     const site = selectedSiteNameRef.current
-    if (site) setRecords(getTripReportsByProject(site))
+    if (site && allowed.includes(site)) setRecords(getTripReportsByProject(site))
+    else {
+      // 若目前選到的是別組案場：自動切回第一個可操作案場（或清空）
+      const next = allowed[0] || ''
+      if (next !== site) setSelectedSiteName(next)
+      setRecords(next ? getTripReportsByProject(next) : [])
+    }
   }
-  useRealtimeKeys(['jiameng_users', 'jiameng_engineering_schedules', 'jiameng_trip_reports', 'jiameng_leaderboard_items'], refetchTripReport)
+  useRealtimeKeys(['jiameng_users', 'jiameng_engineering_schedules', 'jiameng_trip_reports', 'jiameng_leaderboard_items', 'jiameng_dropdown_options'], refetchTripReport)
 
   useEffect(() => {
     selectedSiteNameRef.current = selectedSiteName
@@ -39,6 +70,7 @@ function TripReport() {
 
   useEffect(() => {
     const user = getCurrentUser()
+    const role = getCurrentUserRole()
     setCurrentUser(user || '')
     if (user) {
       setUserName(getDisplayNameForAccount(user))
@@ -46,10 +78,14 @@ function TripReport() {
     const list = getSchedules()
     const today = new Date()
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    const todaySchedules = list.filter((s) => (s.date || '') === todayStr)
-    const names = [...new Set(todaySchedules.map((s) => (s.siteName || '').trim()).filter(Boolean))].sort()
-    setSiteNames(names)
-    setSelectedSiteName((prev) => (names.length && !prev ? names[0] : names.includes(prev) ? prev : ''))
+    const { all, allowed } = buildSiteLists(list, todayStr, user || '', role)
+    setSiteNames(all)
+    setAllowedSiteNames(allowed)
+    setSelectedSiteName((prev) => {
+      // 非管理員：只能選可操作案場；管理員 allowed=all
+      if (prev && allowed.includes(prev)) return prev
+      return allowed[0] || ''
+    })
   }, [])
 
   useEffect(() => {
@@ -68,6 +104,14 @@ function TripReport() {
     if (!selectedSiteName) {
       setMessage({ type: 'error', text: '請先選擇案場' })
       return
+    }
+    // 權限：非管理員只能回報自己參與的案場
+    const role = getCurrentUserRole()
+    if (role !== 'admin') {
+      if (!allowedSiteNames.includes(selectedSiteName)) {
+        setMessage({ type: 'error', text: '您不是此案場參與人員，無法回報其他組別的狀態。' })
+        return
+      }
     }
     const result = addTripReport({
       projectId: selectedSiteName,
@@ -148,16 +192,22 @@ function TripReport() {
             <p className="text-gray-500 text-sm">今日尚無排程案場，請至「行事曆」為今日新建排程（活動／案場名稱）。</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {siteNames.map((name) => (
+              {siteNames.map((name) => {
+                const isAllowed = getCurrentUserRole() === 'admin' || allowedSiteNames.includes(name)
+                return (
                 <button
                   key={name}
                   type="button"
-                  onClick={() => setSelectedSiteName(name)}
+                  disabled={!isAllowed}
+                  onClick={() => { if (isAllowed) setSelectedSiteName(name) }}
                   className={`text-left rounded-lg p-6 transition-colors border-2 ${
                     selectedSiteName === name
                       ? 'bg-yellow-900/30 border-yellow-400'
-                      : 'bg-gray-800 border-gray-700 hover:border-yellow-400'
+                      : isAllowed
+                        ? 'bg-gray-800 border-gray-700 hover:border-yellow-400'
+                        : 'bg-gray-800/40 border-gray-700 opacity-60 cursor-not-allowed'
                   }`}
+                  title={!isAllowed ? '您不是此案場參與人員，不能回報此案場狀態' : ''}
                 >
                   <div className="text-center">
                     <h3 className="text-2xl sm:text-xl font-bold text-white mb-2 sm:mb-1">{name}</h3>
@@ -166,8 +216,12 @@ function TripReport() {
                     </p>
                   </div>
                 </button>
-              ))}
+                )
+              })}
             </div>
+          )}
+          {getCurrentUserRole() !== 'admin' && siteNames.length > 0 && allowedSiteNames.length === 0 && (
+            <p className="text-yellow-300 text-sm mt-3">你今天有排程案場，但你不在任何案場的參與人員名單中（participants）。請管理員到行事曆把你加入該案場參與人員。</p>
           )}
         </div>
 
