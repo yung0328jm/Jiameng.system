@@ -12,6 +12,9 @@ import { getProjects } from '../utils/projectStorage'
 import {
   normalizeWorkItem,
   getWorkItemCollaborators,
+  getWorkItemCollabMode,
+  getWorkItemActualForName,
+  getWorkItemSharedActual,
   getWorkItemTotalActual,
   parseCollaboratorsCsv,
   toCollaboratorsCsv
@@ -588,7 +591,9 @@ function Calendar() {
           targetQuantity: '',
           actualQuantity: '',
           isCollaborative: false,
-          collaborators: []
+          collaborators: [],
+          collabMode: 'separate', // shared: 一起完成算總數；separate: 分開完成各自算
+          sharedActualQuantity: ''
         }
       ]
     }))
@@ -678,7 +683,7 @@ function Calendar() {
           contributors.forEach((c) => {
             const name = String(c?.name || '').trim()
             if (!name) return
-            const quantity = parseFloat(c?.actualQuantity) || 0
+            const quantity = getWorkItemActualForName(workItem, name)
             if (!(quantity > 0)) return
 
             const lastAccumulatedAt = lastBy?.[name] ? new Date(lastBy[name]) : null
@@ -2453,6 +2458,8 @@ function Calendar() {
                                     const tq = item.targetQuantity ?? ''
                                     const aq = item.actualQuantity ?? ''
                                     handleWorkItemChange(index, 'isCollaborative', true)
+                                    handleWorkItemChange(index, 'collabMode', 'separate')
+                                    handleWorkItemChange(index, 'sharedActualQuantity', '')
                                     handleWorkItemChange(index, 'collaborators', rp ? [{ name: rp, targetQuantity: tq, actualQuantity: aq }] : [])
                                   }
                                 }}
@@ -2464,6 +2471,28 @@ function Calendar() {
                           <div className="relative">
                             {item.isCollaborative ? (
                               <>
+                                <div className="mb-2">
+                                  <label className="block text-gray-300 text-xs mb-1">協作計算方式</label>
+                                  <select
+                                    value={getWorkItemCollabMode(item)}
+                                    onChange={(e) => {
+                                      const nextMode = e.target.value
+                                      handleWorkItemChange(index, 'collabMode', nextMode)
+                                      if (nextMode === 'shared') {
+                                        const it = normalizeWorkItem(item)
+                                        const existing = String(it.sharedActualQuantity ?? '').trim()
+                                        if (!existing) {
+                                          const fallback = getWorkItemSharedActual(it) || getWorkItemTotalActual(it)
+                                          if (fallback > 0) handleWorkItemChange(index, 'sharedActualQuantity', String(fallback))
+                                        }
+                                      }
+                                    }}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
+                                  >
+                                    <option value="shared">一起完成（算總數）</option>
+                                    <option value="separate">分開完成（各自算）</option>
+                                  </select>
+                                </div>
                                 <input
                                   type="text"
                                   value={toCollaboratorsCsv(item)}
@@ -2570,10 +2599,28 @@ function Calendar() {
                           <label className="block text-gray-300 text-xs mb-1">實際達成數量</label>
                           {item.isCollaborative ? (
                             <div className="space-y-2">
+                              {getWorkItemCollabMode(item) === 'shared' && (
+                                <div className="flex items-center gap-2">
+                                  <div className="text-gray-200 text-xs w-24 truncate" title="共同實際">共同實際</div>
+                                  <input
+                                    type="number"
+                                    value={item.sharedActualQuantity ?? ''}
+                                    onChange={(e) => handleWorkItemChange(index, 'sharedActualQuantity', e.target.value)}
+                                    placeholder="共同實際"
+                                    className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                </div>
+                              )}
                               {(getWorkItemCollaborators(item) || []).length === 0 ? (
                                 <div className="text-gray-300 text-xs">尚未選擇協作負責人</div>
                               ) : (
-                                getWorkItemCollaborators(item).map((c) => (
+                                getWorkItemCollaborators(item).map((c) => {
+                                  const it = normalizeWorkItem(item)
+                                  const mode = getWorkItemCollabMode(it)
+                                  const effectiveActual = getWorkItemActualForName(it, c?.name)
+                                  return (
                                   <div key={c.name} className="flex items-center gap-2">
                                     <div className="text-gray-200 text-xs w-24 truncate" title={c.name}>{c.name}</div>
                                     <input
@@ -2594,8 +2641,9 @@ function Calendar() {
                                     />
                                     <input
                                       type="number"
-                                      value={c.actualQuantity ?? ''}
+                                      value={mode === 'shared' ? (effectiveActual || '') : (c.actualQuantity ?? '')}
                                       onChange={(e) => {
+                                        if (mode === 'shared') return
                                         const prev = getWorkItemCollaborators(item)
                                         const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
                                           ? { ...x, actualQuantity: e.target.value }
@@ -2603,13 +2651,15 @@ function Calendar() {
                                         ))
                                         handleWorkItemChange(index, 'collaborators', next)
                                       }}
-                                      placeholder="實際"
+                                      placeholder={mode === 'shared' ? '共同' : '實際'}
                                       className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                                       min="0"
                                       step="0.01"
+                                      disabled={mode === 'shared'}
                                     />
                                   </div>
-                                ))
+                                  )
+                                })
                               )}
                             </div>
                           ) : (
