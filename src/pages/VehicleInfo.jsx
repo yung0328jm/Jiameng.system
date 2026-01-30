@@ -45,21 +45,41 @@ function VehicleInfo() {
       
       // 按月统计加油金额
       if (schedule.needRefuel && schedule.fuelCost) {
-        const date = new Date(schedule.date)
+        const ymd = String(schedule.date || '').slice(0, 10) // YYYY-MM-DD
+        const date = ymd ? new Date(`${ymd}T00:00:00`) : new Date('invalid')
+        if (Number.isNaN(date.getTime())) return
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
         
         if (!vehicleSummary[vehicle].monthlyFuelCosts[monthKey]) {
           vehicleSummary[vehicle].monthlyFuelCosts[monthKey] = {
             month: monthKey,
             totalCost: 0,
-            tripCount: 0
+            tripCount: 0,
+            // 同一台車同一天可能跑兩個案場：加油通常只會發生一次，避免重複計入
+            _dayToFuelCost: {}
           }
         }
         
         const fuelCost = parseFloat(schedule.fuelCost) || 0
-        vehicleSummary[vehicle].monthlyFuelCosts[monthKey].totalCost += fuelCost
-        vehicleSummary[vehicle].monthlyFuelCosts[monthKey].tripCount += 1
+        const bucket = vehicleSummary[vehicle].monthlyFuelCosts[monthKey]
+        const prev = bucket._dayToFuelCost[ymd]
+        if (prev == null) {
+          bucket._dayToFuelCost[ymd] = fuelCost
+          bucket.totalCost += fuelCost
+          bucket.tripCount += 1
+        } else if (fuelCost > prev) {
+          // 若同一天被填了不同金額，以較大者為準（用差額修正）
+          bucket._dayToFuelCost[ymd] = fuelCost
+          bucket.totalCost += (fuelCost - prev)
+        }
       }
+    })
+
+    // 清掉內部欄位，避免存進 state 後影響 UI/序列化
+    Object.values(vehicleSummary).forEach((v) => {
+      Object.values(v.monthlyFuelCosts || {}).forEach((m) => {
+        if (m && m._dayToFuelCost) delete m._dayToFuelCost
+      })
     })
     
     setVehicleData(vehicleSummary)
