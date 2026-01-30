@@ -10,6 +10,7 @@ export function SyncProvider({ children, syncReady = false }) {
   const unsubRef = useRef(null)
   const pollRef = useRef(null)
   const lastLbUpdatedAtRef = useRef('')
+  const lastTodosUpdatedAtRef = useRef('')
 
   useEffect(() => {
     if (!syncReady || !isSupabaseEnabled()) return
@@ -21,18 +22,39 @@ export function SyncProvider({ children, syncReady = false }) {
     if (sb) {
       pollRef.current = setInterval(async () => {
         try {
-          const { data } = await sb
-            .from('app_data')
-            .select('data, updated_at')
-            .eq('key', 'jiameng_leaderboard_items')
-            .maybeSingle()
-          const updatedAt = String(data?.updated_at || '')
-          if (!updatedAt || updatedAt === lastLbUpdatedAtRef.current) return
-          lastLbUpdatedAtRef.current = updatedAt
-          const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? [])
-          localStorage.setItem('jiameng_leaderboard_items', val)
-          window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: 'jiameng_leaderboard_items' } }))
-          setRevision((r) => r + 1)
+          // 1) 排行榜面板
+          {
+            const { data } = await sb
+              .from('app_data')
+              .select('data, updated_at')
+              .eq('key', 'jiameng_leaderboard_items')
+              .maybeSingle()
+            const updatedAt = String(data?.updated_at || '')
+            if (updatedAt && updatedAt !== lastLbUpdatedAtRef.current) {
+              lastLbUpdatedAtRef.current = updatedAt
+              const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? [])
+              localStorage.setItem('jiameng_leaderboard_items', val)
+              window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: 'jiameng_leaderboard_items' } }))
+              setRevision((r) => r + 1)
+            }
+          }
+
+          // 2) 待辦事項：避免不在首頁時收不到 Realtime，導致需重新登入才看到新待辦
+          {
+            const { data } = await sb
+              .from('app_data')
+              .select('data, updated_at')
+              .eq('key', 'jiameng_todos')
+              .maybeSingle()
+            const updatedAt = String(data?.updated_at || '')
+            if (updatedAt && updatedAt !== lastTodosUpdatedAtRef.current) {
+              lastTodosUpdatedAtRef.current = updatedAt
+              const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? [])
+              localStorage.setItem('jiameng_todos', val)
+              window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: 'jiameng_todos' } }))
+              setRevision((r) => r + 1)
+            }
+          }
         } catch (_) {}
       }, 8000)
     }
