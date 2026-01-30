@@ -73,6 +73,14 @@ function Memo() {
   const [danmus, setDanmus] = useState([])
   // 彈幕顯示：最多同時 15 條，超過排隊依序播放，避免「別人的彈幕被刷掉沒出現」
   const [screenDanmus, setScreenDanmus] = useState([])
+  const [danmuEnabled, setDanmuEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem('jiameng_memo_danmu_enabled')
+      return v == null ? true : v === '1'
+    } catch (_) {
+      return true
+    }
+  })
   const danmuQueueRef = useRef([])
   const danmuSeenRef = useRef(new Set())
   const danmuLaneRef = useRef(0)
@@ -583,6 +591,18 @@ function Memo() {
 
   // 彈幕排隊播放：確保同時最多 15 條，新的會排隊逐一顯示
   useEffect(() => {
+    if (!danmuEnabled) {
+      // 關閉彈幕：停止排隊與顯示，並清空畫面（避免看起來還在跑）
+      try {
+        Object.values(danmuTimersRef.current || {}).forEach((t) => { try { clearTimeout(t) } catch (_) {} })
+        danmuTimersRef.current = {}
+      } catch (_) {}
+      try { danmuQueueRef.current = [] } catch (_) {}
+      try { danmuSeenRef.current = new Set() } catch (_) {}
+      setScreenDanmus([])
+      return
+    }
+
     const MAX_ON_SCREEN = 15
     const LANES = 5 // 只顯示 5 條「跑道」（其餘在同跑道追上），最多 15 條
 
@@ -659,7 +679,7 @@ function Memo() {
 
     drain()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [danmus])
+  }, [danmus, danmuEnabled])
 
   // 清理彈幕計時器（避免記憶體堆積）
   useEffect(() => {
@@ -769,6 +789,14 @@ function Memo() {
         alert(result.message || '清除失敗')
       }
     }
+  }
+
+  const toggleDanmuEnabled = () => {
+    setDanmuEnabled((prev) => {
+      const next = !prev
+      try { localStorage.setItem('jiameng_memo_danmu_enabled', next ? '1' : '0') } catch (_) {}
+      return next
+    })
   }
   
 
@@ -1133,8 +1161,22 @@ function Memo() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {/* 彈幕按鈕 */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* 彈幕開關 */}
+            <button
+              type="button"
+              onClick={toggleDanmuEnabled}
+              className={`font-semibold px-3 py-2 rounded text-sm transition-colors border ${
+                danmuEnabled
+                  ? 'bg-gray-900 border-gray-600 text-gray-100 hover:bg-gray-800'
+                  : 'bg-gray-900 border-gray-600 text-gray-400 hover:bg-gray-800'
+              }`}
+              title={danmuEnabled ? '關閉彈幕顯示' : '開啟彈幕顯示'}
+            >
+              {danmuEnabled ? '彈幕：開' : '彈幕：關'}
+            </button>
+
+            {/* 發彈幕按鈕 */}
             <button
               onClick={() => {
                 if (!hasDanmuItem || danmuItemQuantity <= 0) {
@@ -1144,10 +1186,10 @@ function Memo() {
                 setShowDanmuInput(!showDanmuInput)
               }}
               disabled={!hasDanmuItem || danmuItemQuantity <= 0}
-              className={`font-semibold px-3 py-1 rounded text-sm transition-colors flex items-center gap-1 ${
+              className={`font-semibold px-4 py-2 rounded text-sm transition-colors flex items-center gap-2 border ${
                 hasDanmuItem && danmuItemQuantity > 0
-                  ? 'bg-yellow-400 hover:bg-yellow-500 text-gray-800'
-                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  ? 'bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-yellow-300'
+                  : 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
               }`}
             >
               <span>💬</span>
@@ -1158,7 +1200,7 @@ function Memo() {
             {userRole === 'admin' && (
               <button
                 onClick={handleClearAllDanmus}
-                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-1 rounded text-sm transition-colors"
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded text-sm transition-colors border border-red-500"
               >
                 清除彈幕
               </button>
@@ -1167,7 +1209,8 @@ function Memo() {
         </div>
 
         {/* 彈幕牆：固定在交流區這個區塊內（不覆蓋整頁） */}
-        <div className="relative mb-4 h-32 sm:h-36 bg-gray-900/40 border border-gray-700 rounded-lg overflow-hidden pointer-events-none">
+        {danmuEnabled && (
+          <div className="relative mb-4 h-32 sm:h-36 bg-gray-900/40 border border-gray-700 rounded-lg overflow-hidden pointer-events-none">
           {screenDanmus.map((danmu) => {
             const anim = danmu?._anim || {}
             const danmuId = `danmu-${danmu.id}`
@@ -1236,7 +1279,8 @@ function Memo() {
               </div>
             )
           })}
-        </div>
+          </div>
+        )}
         
         {/* 彈幕輸入框 */}
         {showDanmuInput && hasDanmuItem && danmuItemQuantity > 0 && (
