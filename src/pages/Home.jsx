@@ -2036,7 +2036,7 @@ function Home() {
             todos.map((todo) => (
               <div
                 key={todo.id}
-                className={`flex items-center gap-2 p-2 sm:p-2.5 bg-gray-900 rounded border border-gray-700 hover:bg-gray-850 ${
+                className={`flex items-start gap-2 p-2 sm:p-2.5 bg-gray-900 rounded border border-gray-700 hover:bg-gray-850 ${
                   todo.completed ? 'opacity-60' : ''
                 }`}
               >
@@ -2044,22 +2044,37 @@ function Home() {
                   type="checkbox"
                   checked={todo.completed}
                   onChange={() => handleToggleTodo(todo.id)}
-                  className="w-5 h-5 text-yellow-400 bg-gray-700 border-gray-600 rounded focus:ring-yellow-400 focus:ring-2"
+                  className="w-5 h-5 mt-0.5 text-yellow-400 bg-gray-700 border-gray-600 rounded focus:ring-yellow-400 focus:ring-2"
                 />
-                <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                <div className="flex-1 flex items-start gap-1.5 min-w-0">
                   {todo.completed ? (
-                    <span className="text-gray-500 line-through flex-1 text-xs sm:text-sm truncate">{todo.text}</span>
+                    <div className="text-gray-500 line-through flex-1 text-xs sm:text-sm break-words whitespace-pre-wrap">
+                      {todo.text}
+                    </div>
                   ) : (
-                    <input
-                      type="text"
+                    <textarea
+                      rows={1}
                       value={todo.text}
-                      onChange={(e) => handleUpdateTodo(todo.id, e.target.value)}
+                      onChange={(e) => {
+                        // 自動長高，避免文字被截斷
+                        try {
+                          e.target.style.height = 'auto'
+                          e.target.style.height = `${e.target.scrollHeight}px`
+                        } catch (_) {}
+                        handleUpdateTodo(todo.id, e.target.value)
+                      }}
+                      onFocus={(e) => {
+                        try {
+                          e.target.style.height = 'auto'
+                          e.target.style.height = `${e.target.scrollHeight}px`
+                        } catch (_) {}
+                      }}
                       onBlur={(e) => {
                         if (e.target.value.trim() !== todo.text) {
                           handleUpdateTodo(todo.id, e.target.value)
                         }
                       }}
-                      className="flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-gray-500 focus:border-yellow-400 text-white text-xs sm:text-sm focus:outline-none"
+                      className="flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-gray-500 focus:border-yellow-400 text-white text-xs sm:text-sm focus:outline-none resize-none overflow-hidden break-words whitespace-pre-wrap"
                     />
                   )}
                   {todo.createdBy && (
@@ -2080,7 +2095,7 @@ function Home() {
                 </div>
                 <button
                   onClick={() => handleDeleteTodo(todo.id)}
-                  className="text-red-400 hover:text-red-300 text-xs flex-shrink-0"
+                  className="text-red-400 hover:text-red-300 text-xs flex-shrink-0 mt-0.5"
                   title="刪除"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
