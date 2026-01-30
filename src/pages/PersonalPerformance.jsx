@@ -11,7 +11,7 @@ import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCount
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
-import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForName, getWorkItemActualForNameForPerformance } from '../utils/workItemCollaboration'
+import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance } from '../utils/workItemCollaboration'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -224,7 +224,7 @@ function PersonalPerformance() {
           const isResponsible = resp && displayNames.includes(resp)
           if (!isResponsible) return
 
-          const target = getWorkItemTargetForName(it, resp)
+          const target = getWorkItemTargetForNameForPerformance(it, resp)
           const actual = getWorkItemActualForNameForPerformance(it, resp)
           const completionRate = target > 0 ? (actual / target * 100) : 0
 
@@ -615,7 +615,7 @@ function PersonalPerformance() {
             const resp = String(c?.name || '').trim()
             if (!resp || !displayNames.includes(resp)) return
 
-            const target = getWorkItemTargetForName(it, resp)
+            const target = getWorkItemTargetForNameForPerformance(it, resp)
             const actual = getWorkItemActualForNameForPerformance(it, resp)
             const completionRate = target > 0 ? (actual / target * 100) : 0
 

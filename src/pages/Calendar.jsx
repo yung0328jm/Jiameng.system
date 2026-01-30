@@ -13,7 +13,6 @@ import {
   normalizeWorkItem,
   getWorkItemCollaborators,
   getWorkItemCollabMode,
-  getWorkItemActualForName,
   getWorkItemSharedActual,
   getWorkItemTotalActual,
   getWorkItemActualForNameForPerformance,
@@ -2583,9 +2582,21 @@ function Calendar() {
                         <div>
                           <label className="block text-gray-300 text-xs mb-1">目標數量</label>
                           {item.isCollaborative ? (
-                            <div className="text-gray-300 text-xs leading-relaxed">
-                              協作模式：請在下方為每位負責人填寫自己的目標。
-                            </div>
+                            getWorkItemCollabMode(item) === 'shared' ? (
+                              <input
+                                type="number"
+                                value={item.targetQuantity ?? ''}
+                                onChange={(e) => handleWorkItemChange(index, 'targetQuantity', e.target.value)}
+                                placeholder="共同目標"
+                                className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                min="0"
+                                step="0.01"
+                              />
+                            ) : (
+                              <div className="text-gray-300 text-xs leading-relaxed">
+                                分開完成：請在下方為每位負責人填寫自己的目標。
+                              </div>
+                            )
                           ) : (
                             <input
                               type="number"
@@ -2601,8 +2612,8 @@ function Calendar() {
                         <div>
                           <label className="block text-gray-300 text-xs mb-1">實際達成數量</label>
                           {item.isCollaborative ? (
-                            <div className="space-y-2">
-                              {getWorkItemCollabMode(item) === 'shared' && (
+                            getWorkItemCollabMode(item) === 'shared' ? (
+                              <div className="space-y-2">
                                 <div className="flex items-center gap-2">
                                   <div className="text-gray-200 text-xs w-24 truncate" title="共同實際">共同實際</div>
                                   <input
@@ -2615,56 +2626,55 @@ function Calendar() {
                                     step="0.01"
                                   />
                                 </div>
-                              )}
-                              {(getWorkItemCollaborators(item) || []).length === 0 ? (
-                                <div className="text-gray-300 text-xs">尚未選擇協作負責人</div>
-                              ) : (
-                                getWorkItemCollaborators(item).map((c) => {
-                                  const it = normalizeWorkItem(item)
-                                  const mode = getWorkItemCollabMode(it)
-                                  const effectiveActual = getWorkItemActualForName(it, c?.name)
-                                  return (
-                                  <div key={c.name} className="flex items-center gap-2">
-                                    <div className="text-gray-200 text-xs w-24 truncate" title={c.name}>{c.name}</div>
-                                    <input
-                                      type="number"
-                                      value={c.targetQuantity ?? ''}
-                                      onChange={(e) => {
-                                        const prev = getWorkItemCollaborators(item)
-                                        const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
-                                          ? { ...x, targetQuantity: e.target.value }
-                                          : x
-                                        ))
-                                        handleWorkItemChange(index, 'collaborators', next)
-                                      }}
-                                      placeholder="目標"
-                                      className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                      min="0"
-                                      step="0.01"
-                                    />
-                                    <input
-                                      type="number"
-                                      value={mode === 'shared' ? (effectiveActual || '') : (c.actualQuantity ?? '')}
-                                      onChange={(e) => {
-                                        if (mode === 'shared') return
-                                        const prev = getWorkItemCollaborators(item)
-                                        const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
-                                          ? { ...x, actualQuantity: e.target.value }
-                                          : x
-                                        ))
-                                        handleWorkItemChange(index, 'collaborators', next)
-                                      }}
-                                      placeholder={mode === 'shared' ? '共同' : '實際'}
-                                      className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                      min="0"
-                                      step="0.01"
-                                      disabled={mode === 'shared'}
-                                    />
-                                  </div>
-                                  )
-                                })
-                              )}
-                            </div>
+                                <div className="text-gray-300 text-xs">
+                                  共同完成：協作人員不需各自填寫實際；績效會一起達成/一起扣分。
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {(getWorkItemCollaborators(item) || []).length === 0 ? (
+                                  <div className="text-gray-300 text-xs">尚未選擇協作負責人</div>
+                                ) : (
+                                  getWorkItemCollaborators(item).map((c) => (
+                                    <div key={c.name} className="flex items-center gap-2">
+                                      <div className="text-gray-200 text-xs w-24 truncate" title={c.name}>{c.name}</div>
+                                      <input
+                                        type="number"
+                                        value={c.targetQuantity ?? ''}
+                                        onChange={(e) => {
+                                          const prev = getWorkItemCollaborators(item)
+                                          const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
+                                            ? { ...x, targetQuantity: e.target.value }
+                                            : x
+                                          ))
+                                          handleWorkItemChange(index, 'collaborators', next)
+                                        }}
+                                        placeholder="目標"
+                                        className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                        min="0"
+                                        step="0.01"
+                                      />
+                                      <input
+                                        type="number"
+                                        value={c.actualQuantity ?? ''}
+                                        onChange={(e) => {
+                                          const prev = getWorkItemCollaborators(item)
+                                          const next = prev.map((x) => (String(x.name).trim() === String(c.name).trim()
+                                            ? { ...x, actualQuantity: e.target.value }
+                                            : x
+                                          ))
+                                          handleWorkItemChange(index, 'collaborators', next)
+                                        }}
+                                        placeholder="實際"
+                                        className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                        min="0"
+                                        step="0.01"
+                                      />
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )
                           ) : (
                             <input
                               type="number"
