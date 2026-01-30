@@ -13,9 +13,9 @@ import {
   normalizeWorkItem,
   getWorkItemCollaborators,
   getWorkItemCollabMode,
-  getWorkItemActualForName,
   getWorkItemSharedActual,
   getWorkItemTotalActual,
+  getWorkItemActualForNameForPerformance,
   parseCollaboratorsCsv,
   toCollaboratorsCsv
 } from '../utils/workItemCollaboration'
@@ -592,7 +592,7 @@ function Calendar() {
           actualQuantity: '',
           isCollaborative: false,
           collaborators: [],
-          collabMode: 'separate', // shared: 一起完成算總數；separate: 分開完成各自算
+          collabMode: 'shared', // shared: 一起完成算總數；separate: 分開完成各自算
           sharedActualQuantity: ''
         }
       ]
@@ -683,7 +683,9 @@ function Calendar() {
           contributors.forEach((c) => {
             const name = String(c?.name || '').trim()
             if (!name) return
-            const quantity = getWorkItemActualForName(workItem, name)
+            // shared：按目標比例/人數分配共同實際，避免多人重複累加
+            // separate：各自累加
+            const quantity = getWorkItemActualForNameForPerformance(workItem, name)
             if (!(quantity > 0)) return
 
             const lastAccumulatedAt = lastBy?.[name] ? new Date(lastBy[name]) : null
@@ -2458,7 +2460,7 @@ function Calendar() {
                                     const tq = item.targetQuantity ?? ''
                                     const aq = item.actualQuantity ?? ''
                                     handleWorkItemChange(index, 'isCollaborative', true)
-                                    handleWorkItemChange(index, 'collabMode', 'separate')
+                                    handleWorkItemChange(index, 'collabMode', 'shared')
                                     handleWorkItemChange(index, 'sharedActualQuantity', '')
                                     handleWorkItemChange(index, 'collaborators', rp ? [{ name: rp, targetQuantity: tq, actualQuantity: aq }] : [])
                                   }
