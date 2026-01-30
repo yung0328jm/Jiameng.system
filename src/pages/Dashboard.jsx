@@ -17,6 +17,7 @@ import CheckIn from './CheckIn'
 import TripReport from './TripReport'
 import LeaveApplication from './LeaveApplication'
 import Messages from './Messages'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
 import { getUsers } from '../utils/storage'
@@ -484,7 +485,11 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       case 'calendar':
         return <Calendar />
       case 'messages':
-        return <Messages />
+        return (
+          <ErrorBoundary>
+            <Messages />
+          </ErrorBoundary>
+        )
       case 'vehicle':
         return <VehicleInfo />
       case 'memo':
