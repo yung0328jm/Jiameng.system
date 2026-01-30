@@ -675,10 +675,16 @@ function Home() {
 
     // Supabase 模式：用公開 profiles 清單（所有登入者都可取得），避免只靠本機 jiameng_users 造成分發失敗
     let users = getUsers().filter(u => u.role !== 'admin') // 排除管理者
+    const excludedAccounts = new Set(['jiameng.system']) // 系統帳號不納入排行榜
     if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
       try {
         const profiles = await getPublicProfiles()
         if (Array.isArray(profiles) && profiles.length > 0) {
+          // 管理員帳號不納入排行榜（避免因彈幕/排程/手動排名被補回來上榜）
+          profiles.filter(p => p?.is_admin).forEach((p) => {
+            const acc = String(p?.account || '').trim()
+            if (acc) excludedAccounts.add(acc)
+          })
           users = profiles
             .filter(p => !p?.is_admin)
             .map(p => ({ account: p.account, name: p.display_name || p.account, role: p.is_admin ? 'admin' : 'user' }))
@@ -687,6 +693,13 @@ function Home() {
         console.warn('calculateAllRankings: 取得 profiles 失敗', e)
       }
     }
+    // 非 Supabase：從 local users 補齊管理員名單
+    try {
+      ;(getUsers() || []).filter((u) => u?.role === 'admin').forEach((u) => {
+        const acc = String(u?.account || '').trim()
+        if (acc) excludedAccounts.add(acc)
+      })
+    } catch (_) {}
     const schedules = getSchedules() // 排行榜駕駛次數從此排程資訊抓取（出發駕駛、回程駕駛）
     const newRankings = {}
 
@@ -716,6 +729,7 @@ function Home() {
       danmus.forEach((d) => {
         const acc = getNameToAccount(String(d?.author || '').trim())
         if (!acc) return
+        if (excludedAccounts.has(acc)) return
         danmuCountByAccount[acc] = (danmuCountByAccount[acc] || 0) + 1
       })
     } catch (e) {
@@ -730,6 +744,7 @@ function Home() {
       const ensureUser = (acc, displayName = '') => {
         const a = String(acc || '').trim()
         if (!a) return null
+        if (excludedAccounts.has(a)) return null
         if (!userStats[a]) {
           userStats[a] = {
             userName: a,
