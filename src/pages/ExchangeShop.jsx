@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment, useCallback } from 'react'
-import { getItems, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
+import { getItems, createItem, updateItem, deleteItem, setItems, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
@@ -10,7 +10,7 @@ import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
 function ExchangeShop() {
   const [items, setItems] = useState([])
-  const [itemsMeta, setItemsMeta] = useState({ total: 0, shopEligible: 0, hiddenInShop: 0 })
+  const [itemsMeta, setItemsMeta] = useState({ total: 0, shopEligible: 0, hiddenInShop: 0, nonShop: 0 })
   const [showItemForm, setShowItemForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [itemForm, setItemForm] = useState({
@@ -34,7 +34,7 @@ function ExchangeShop() {
     const hiddenInShop = shopEligible.filter((i) => !!i?.isHidden).length
     const visibleItems = role === 'admin' ? shopEligible : shopEligible.filter((i) => !i?.isHidden)
     setItems(visibleItems)
-    setItemsMeta({ total: all.length, shopEligible: shopEligible.length, hiddenInShop })
+    setItemsMeta({ total: all.length, shopEligible: shopEligible.length, hiddenInShop, nonShop: Math.max(0, all.length - shopEligible.length) })
   }, [])
 
   const fetchCloudItemsCount = useCallback(async (sourceKey = 'jiameng_items') => {
@@ -391,6 +391,33 @@ function ExchangeShop() {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  try {
+                    const all = Array.isArray(getItems()) ? getItems() : []
+                    const next = all.map((it) => {
+                      const isShopEligible = it?.type !== ITEM_TYPES.TITLE && it?.type !== ITEM_TYPES.NAME_EFFECT && it?.type !== ITEM_TYPES.MESSAGE_EFFECT
+                      if (!isShopEligible) return it
+                      return { ...it, isHidden: false }
+                    })
+                    const r = setItems(next)
+                    if (!r?.success) {
+                      alert(r?.message || '更新失敗')
+                      return
+                    }
+                    loadItems()
+                    alert('已一鍵顯示所有可售道具（取消隱藏）')
+                  } catch (e) {
+                    console.warn('unhide all items failed', e)
+                    alert('操作失敗')
+                  }
+                }}
+                className="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                title="把商城可售的道具全部取消隱藏（一般用戶即可看見）"
+              >
+                一鍵顯示可售道具
+              </button>
+              <button
+                type="button"
                 onClick={async () => {
                   const ok = window.confirm('從雲端「備份」拉回道具？\n\n若雲端主清單已被覆蓋，此功能可能救回上一版（需要之前有備份資料）。')
                   if (!ok) return
@@ -407,7 +434,7 @@ function ExchangeShop() {
                 </div>
               )}
               <div className="text-xs text-gray-400">
-                本機：總道具 {itemsMeta.total}｜商城可售 {itemsMeta.shopEligible}｜已隱藏 {itemsMeta.hiddenInShop}
+                本機：總道具 {itemsMeta.total}｜商城可售 {itemsMeta.shopEligible}｜已隱藏 {itemsMeta.hiddenInShop}｜不在商城販售（稱號/特效）{itemsMeta.nonShop}
                 {cloudItemsInfo.loading ? '｜雲端：讀取中…' : (
                   cloudItemsInfo.count == null
                     ? (cloudItemsInfo.error ? `｜雲端：讀取失敗（${cloudItemsInfo.error}）` : '｜雲端：未知')
