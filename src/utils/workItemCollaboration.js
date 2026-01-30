@@ -2,7 +2,11 @@
 //
 // 目標：
 // - 向下相容舊資料：{ responsiblePerson, actualQuantity }
-// - 新格式：{ collaborators: [{ name, targetQuantity, actualQuantity }], lastAccumulatedBy: { [name]: isoString } }
+// - 新格式：
+//   - 協作模式：collabMode = 'shared'（共同完成/共享實際） | 'separate'（各自分工/各自實際）
+//   - collaborators: [{ name, targetQuantity, actualQuantity }]
+//   - sharedActualQuantity: '...'（shared 模式下的共同實際）
+//   - lastAccumulatedBy: { [name]: isoString }
 // - 提供「總實際/總目標」與「個人目標」等計算輔助
 
 const toStr = (v) => String(v ?? '')
@@ -52,6 +56,28 @@ export const normalizeWorkItem = (item) => {
     base.collaborators = collabs
   }
 
+  // collabMode：若未指定，嘗試推斷（避免 A100/B50 被誤判成「一起完成」）
+  if (base.collabMode !== 'shared' && base.collabMode !== 'separate') {
+    const isCollab = (Array.isArray(base.collaborators) ? base.collaborators.length : 0) > 1 || base.isCollaborative === true
+    if (!isCollab) {
+      base.collabMode = 'separate'
+    } else {
+      const directShared = toNum(base.sharedActualQuantity)
+      if (directShared > 0) {
+        base.collabMode = 'shared'
+      } else {
+        const nums = (Array.isArray(base.collaborators) ? base.collaborators : [])
+          .map((c) => toNum(c?.actualQuantity))
+          .filter((n) => n > 0)
+        if (nums.length === 0) base.collabMode = 'separate'
+        else {
+          const allSame = nums.every((n) => n === nums[0])
+          base.collabMode = allSame ? 'shared' : 'separate'
+        }
+      }
+    }
+  }
+
   // 轉換 lastAccumulatedAt -> lastAccumulatedBy（避免協作下「只記一次」卡死）
   const by = (base.lastAccumulatedBy && typeof base.lastAccumulatedBy === 'object')
     ? { ...base.lastAccumulatedBy }
@@ -76,8 +102,76 @@ export const getWorkItemCollaborators = (item) => {
   return Array.isArray(it.collaborators) ? it.collaborators : []
 }
 
+export const getWorkItemCollabMode = (item) => {
+  const it = normalizeWorkItem(item)
+  return (it.collabMode === 'separate') ? 'separate' : 'shared'
+}
+
+// shared 模式下：回傳共同實際（sharedActualQuantity > 若每人實際都相同 > 0）
+export const getWorkItemSharedActual = (item) => {
+  const it = normalizeWorkItem(item)
+  const direct = toNum(it.sharedActualQuantity)
+  if (direct > 0) return direct
+  const collabs = getWorkItemCollaborators(it)
+  if (collabs.length === 0) return 0
+  const nums = collabs.map((c) => toNum(c?.actualQuantity)).filter((n) => n > 0)
+  if (nums.length === 0) return 0
+  const allSame = nums.every((n) => n === nums[0])
+  return allSame ? nums[0] : 0
+}
+
+// 取得某位負責人的「有效實際」：
+// - 非協作：item.actualQuantity
+// - 協作 separate：collaborator.actualQuantity
+// - 協作 shared：sharedActualQuantity（或推導）——不會因為每人都填 5 而被當成 10
+export const getWorkItemActualForName = (item, name) => {
+  const it = normalizeWorkItem(item)
+  const nName = trim(name)
+  if (!it?.isCollaborative) return toNum(it?.actualQuantity)
+  const mode = getWorkItemCollabMode(it)
+  if (mode === 'shared') return getWorkItemSharedActual(it)
+  const collabs = getWorkItemCollaborators(it)
+  const mine = collabs.find((c) => trim(c?.name) === nName)
+  return toNum(mine?.actualQuantity)
+}
+
+// shared 模式下，避免「每人都拿到共同總數」造成績效膨脹：
+// - 若全員有 per-person target：按 target 比例分配共同實際
+// - 若未填 per-person target：平均分配共同實際
+// - separate 模式：回到各自實際
+export const getWorkItemActualForNameForPerformance = (item, name) => {
+  const it = normalizeWorkItem(item)
+  const nName = trim(name)
+  if (!it?.isCollaborative) return toNum(it?.actualQuantity)
+
+  const mode = getWorkItemCollabMode(it)
+  if (mode === 'separate') return getWorkItemActualForName(it, nName)
+
+  const sharedActual = getWorkItemSharedActual(it)
+  if (!(sharedActual > 0)) return 0
+
+  const collabs = getWorkItemCollaborators(it)
+  const cnt = collabs.length
+  if (cnt <= 0) return 0
+
+  const perPersonTargetSum = collabs.reduce((sum, c) => sum + toNum(c?.targetQuantity), 0)
+  if (perPersonTargetSum > 0) {
+    const mineTarget = toNum(collabs.find((c) => trim(c?.name) === nName)?.targetQuantity)
+    if (!(mineTarget > 0)) return 0
+    return sharedActual * (mineTarget / perPersonTargetSum)
+  }
+
+  // 沒有 per-person target：使用舊版平均分攤（維持總和 = sharedActual）
+  return sharedActual / cnt
+}
+
+// 取得「總實際」：提供 UI 顯示用
+// - shared：共同實際（不加總）
+// - separate：各自實際加總
 export const getWorkItemTotalActual = (item) => {
-  return getWorkItemCollaborators(item).reduce((sum, c) => sum + toNum(c?.actualQuantity), 0)
+  const it = normalizeWorkItem(item)
+  if (it?.isCollaborative && getWorkItemCollabMode(it) === 'shared') return getWorkItemSharedActual(it)
+  return getWorkItemCollaborators(it).reduce((sum, c) => sum + toNum(c?.actualQuantity), 0)
 }
 
 export const getWorkItemTotalTarget = (item) => {
