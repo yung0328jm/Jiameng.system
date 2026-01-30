@@ -31,6 +31,30 @@ export async function syncKeyToSupabase(key, value) {
   if (!sb || !key) return
   try {
     const data = typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value ?? {})
+    // 道具防呆：避免任何裝置把 jiameng_items 覆蓋成只剩彈幕
+    if (key === 'jiameng_items') {
+      const incoming = Array.isArray(data) ? data : []
+      // 如果本次要寫入的道具清單過少，先讀雲端現況比對；雲端較多則拒絕覆蓋
+      if (incoming.length <= 1) {
+        try {
+          const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
+          const cloud = Array.isArray(cloudRow?.data) ? cloudRow.data : []
+          if (cloud.length > incoming.length) {
+            console.warn('[Sync] Blocked overwrite jiameng_items (incoming too small)', { incoming: incoming.length, cloud: cloud.length })
+            return
+          }
+        } catch (_) {}
+      }
+      // 寫入前：先備份雲端舊資料（若有）
+      try {
+        const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
+        const cloud = cloudRow?.data
+        if (cloud) {
+          await sb.from('app_data').upsert({ key: 'jiameng_items_backup', data: cloud, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+        }
+      } catch (_) {}
+    }
+
     await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
   } catch (e) {
     console.warn('syncKeyToSupabase failed:', key, e)
