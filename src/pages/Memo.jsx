@@ -652,7 +652,8 @@ function Memo() {
           // 速度分段：1-5 正常、6-10 加速、11-15 再加速（讓後面追上前面）
           const tier = Math.floor(slotIndex / 5) // 0..2
           const lane = slotIndex % LANES
-          const topPosition = 8 + lane * (84 / Math.max(1, (LANES - 1))) // 8% ~ 92%
+          // 預留上下邊距，避免最後一條貼邊「超出框」的觀感
+          const topPosition = 10 + lane * 18 + ((seed % 9) - 4) * 0.3 // 約 8% ~ 82%
           const base = 12 // 秒
           const speedFactor = 1 + tier * 0.35
           const duration = Math.max(5.5, (base / speedFactor) + ((seed % 9) - 4) / 20) // 約 12s / 9s / 7s
