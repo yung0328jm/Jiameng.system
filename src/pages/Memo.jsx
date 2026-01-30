@@ -576,9 +576,7 @@ function Memo() {
   
   // 彈幕相關函數
   const loadDanmus = () => {
-    // 先清理過期彈幕
-    cleanExpiredDanmus()
-    // 只載入24小時內的活躍彈幕
+    // 只載入保留期內的活躍彈幕（保留期在 danmuStorage 內設定）
     const activeDanmus = getActiveDanmus()
     setDanmus(activeDanmus)
   }
@@ -586,7 +584,7 @@ function Memo() {
   // 彈幕排隊播放：確保同時最多 15 條，新的會排隊逐一顯示
   useEffect(() => {
     const MAX_ON_SCREEN = 15
-    const LANES = 10
+    const LANES = 5 // 只顯示 5 條「跑道」（其餘在同跑道追上），最多 15 條
 
     const hash = (str) => {
       let h = 0
@@ -630,12 +628,16 @@ function Memo() {
           if (!id) continue
 
           const seed = hash(id)
-          const lane = danmuLaneRef.current % LANES
-          danmuLaneRef.current += 1
-          const topPosition = 10 + lane * 8 + (seed % 30) / 10 // 10-90%
-          const duration = 12 + (seed % 35) / 10 // 12-15.4 秒（已略加速）
-          const delay = (seed % 15) / 10 // 0-1.5 秒
-          const fontSize = 20 + (seed % 60) / 10 // 20-26px
+          const slotIndex = next.length
+          // 速度分段：1-5 正常、6-10 加速、11-15 再加速（讓後面追上前面）
+          const tier = Math.floor(slotIndex / 5) // 0..2
+          const lane = slotIndex % LANES
+          const topPosition = 8 + lane * (84 / Math.max(1, (LANES - 1))) // 8% ~ 92%
+          const base = 12 // 秒
+          const speedFactor = 1 + tier * 0.35
+          const duration = Math.max(5.5, (base / speedFactor) + ((seed % 9) - 4) / 20) // 約 12s / 9s / 7s
+          const delay = (seed % 6) / 30 // 0 ~ 0.16 秒
+          const fontSize = 14 + (seed % 10) / 5 // 14 ~ 16px
           const animationName = safeAnimName(id)
 
           // 到期移除，空位再補下一條
@@ -1027,128 +1029,6 @@ function Memo() {
 
       {/* 下區塊：交流區 */}
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 relative" style={{ overflow: 'hidden', position: 'relative' }}>
-        {/* 彈幕顯示區域 - 限制在交流區區塊內，最上層 */}
-        <div 
-          className="absolute inset-0 pointer-events-none overflow-hidden rounded-lg"
-          style={{ 
-            zIndex: 1,
-            pointerEvents: 'none'
-          }}
-        >
-          {screenDanmus.map((danmu) => {
-            const anim = danmu?._anim || {}
-            const danmuId = `danmu-${danmu.id}`
-            
-            // 優雅的配色方案
-            const elegantColors = {
-              primary: '#E8D5B7', // 優雅的米金色
-              secondary: '#D4AF37', // 高貴的金色
-              accent: '#C9A961', // 柔和的香檳色
-              text: '#F5F1E8' // 優雅的米白色
-            }
-            
-            return (
-              <div
-                key={danmuId}
-                className="absolute pointer-events-none whitespace-nowrap danmu-item"
-                style={{
-                  top: `${anim.topPosition ?? 10}%`,
-                  left: 0,
-                  transform: 'translate3d(110vw, 0, 0)',
-                  animationName: 'danmuMove',
-                  animationDuration: `${anim.duration ?? 12}s`,
-                  animationTimingFunction: 'linear',
-                  animationDelay: `${anim.delay ?? 0}s`,
-                  animationFillMode: 'forwards',
-                  willChange: 'transform',
-                  backfaceVisibility: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '8px 16px',
-                  background: 'linear-gradient(135deg, rgba(232, 213, 183, 0.15) 0%, rgba(212, 175, 55, 0.1) 100%)',
-                  backdropFilter: 'blur(10px)',
-                  borderRadius: '24px',
-                  border: '1px solid rgba(212, 175, 55, 0.3)',
-                  boxShadow: `
-                    0 4px 20px rgba(0, 0, 0, 0.3),
-                    0 0 30px rgba(212, 175, 55, 0.1),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.2)
-                  `
-                }}
-              >
-                {/* 作者名稱 - 優雅的標籤樣式 */}
-                <span 
-                  className="inline-flex items-center px-3 py-1 rounded-full"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.4) 0%, rgba(201, 169, 97, 0.3) 100%)',
-                    border: '1px solid rgba(212, 175, 55, 0.5)',
-                    color: elegantColors.secondary,
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    letterSpacing: '1px',
-                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
-                    boxShadow: '0 2px 8px rgba(212, 175, 55, 0.2)'
-                  }}
-                >
-                  {getDisplayNameForAccount(danmu.author)}
-                  {(() => {
-                    const danmuAuthorTitle = getUserTitle(danmu.author)
-                    return danmuAuthorTitle ? (
-                      <span className="text-xs font-bold ml-2 rounded" style={getTitleBadgeStyle(danmu.author)}>
-                        {danmuAuthorTitle}
-                      </span>
-                    ) : null
-                  })()}
-                </span>
-                
-                {/* 分隔符 - 優雅的裝飾 */}
-                <span 
-                  style={{
-                    color: elegantColors.accent,
-                    fontSize: '12px',
-                    opacity: 0.6,
-                    fontWeight: '300'
-                  }}
-                >
-                  •
-                </span>
-                
-                {/* 內容文字 - 優雅的樣式 */}
-                <span 
-                  style={{ 
-                    color: elegantColors.text,
-                    fontSize: `${anim.fontSize ?? 20}px`,
-                    fontWeight: '500',
-                    letterSpacing: '0.5px',
-                    textShadow: '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 20px rgba(232, 213, 183, 0.3)',
-                    lineHeight: '1.4'
-                  }}
-                >
-                  {danmu.content}
-                </span>
-                
-                {userRole === 'admin' && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteDanmu(danmu.id)
-                    }}
-                    className="ml-2 text-red-300 hover:text-red-200 pointer-events-auto rounded-full w-6 h-6 flex items-center justify-center transition-all duration-200"
-                    style={{ 
-                      fontSize: '14px',
-                      background: 'rgba(239, 68, 68, 0.2)',
-                      border: '1px solid rgba(239, 68, 68, 0.4)',
-                      backdropFilter: 'blur(5px)'
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
         
         {/* 彈幕動畫樣式 */}
         <style>{`
@@ -1284,6 +1164,78 @@ function Memo() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* 彈幕牆：固定在交流區這個區塊內（不覆蓋整頁） */}
+        <div className="relative mb-4 h-32 sm:h-36 bg-gray-900/40 border border-gray-700 rounded-lg overflow-hidden pointer-events-none">
+          {screenDanmus.map((danmu) => {
+            const anim = danmu?._anim || {}
+            const danmuId = `danmu-${danmu.id}`
+            return (
+              <div
+                key={danmuId}
+                className="absolute pointer-events-none whitespace-nowrap danmu-item"
+                style={{
+                  top: `${anim.topPosition ?? 10}%`,
+                  left: 0,
+                  transform: 'translate3d(110vw, 0, 0)',
+                  animationName: 'danmuMove',
+                  animationDuration: `${anim.duration ?? 12}s`,
+                  animationTimingFunction: 'linear',
+                  animationDelay: `${anim.delay ?? 0}s`,
+                  animationFillMode: 'forwards',
+                  willChange: 'transform',
+                  backfaceVisibility: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  background: 'linear-gradient(135deg, rgba(232, 213, 183, 0.10) 0%, rgba(212, 175, 55, 0.06) 100%)',
+                  backdropFilter: 'blur(6px)',
+                  borderRadius: '16px',
+                  border: '1px solid rgba(212, 175, 55, 0.22)',
+                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.25)'
+                }}
+              >
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded-full"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.35) 0%, rgba(201, 169, 97, 0.25) 100%)',
+                    border: '1px solid rgba(212, 175, 55, 0.45)',
+                    color: '#D4AF37',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px',
+                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.35)'
+                  }}
+                >
+                  {getDisplayNameForAccount(danmu.author)}
+                </span>
+                <span
+                  style={{
+                    color: '#C9A961',
+                    fontSize: '10px',
+                    opacity: 0.6,
+                    fontWeight: 300
+                  }}
+                >
+                  ·
+                </span>
+                <span
+                  style={{
+                    color: '#F5F1E8',
+                    fontSize: `${anim.fontSize ?? 14}px`,
+                    fontWeight: 500,
+                    letterSpacing: '0.2px',
+                    textShadow: '0 2px 6px rgba(0, 0, 0, 0.45)',
+                    lineHeight: '1.2'
+                  }}
+                >
+                  {danmu.content}
+                </span>
+              </div>
+            )
+          })}
         </div>
         
         {/* 彈幕輸入框 */}
