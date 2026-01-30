@@ -11,6 +11,23 @@ export function SyncProvider({ children, syncReady = false }) {
   const pollRef = useRef(null)
   const lastLbUpdatedAtRef = useRef('')
   const lastTodosUpdatedAtRef = useRef('')
+  const resumeRefreshInFlightRef = useRef(false)
+
+  const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
+    const { data } = await sb
+      .from('app_data')
+      .select('data, updated_at')
+      .eq('key', key)
+      .maybeSingle()
+    const updatedAt = String(data?.updated_at || '')
+    if (!updatedAt || updatedAt === lastUpdatedAtRef.current) return false
+    lastUpdatedAtRef.current = updatedAt
+    const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? defaultValue)
+    localStorage.setItem(key, val)
+    window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
+    setRevision((r) => r + 1)
+    return true
+  }
 
   useEffect(() => {
     if (!syncReady || !isSupabaseEnabled()) return
@@ -23,43 +40,34 @@ export function SyncProvider({ children, syncReady = false }) {
       pollRef.current = setInterval(async () => {
         try {
           // 1) 排行榜面板
-          {
-            const { data } = await sb
-              .from('app_data')
-              .select('data, updated_at')
-              .eq('key', 'jiameng_leaderboard_items')
-              .maybeSingle()
-            const updatedAt = String(data?.updated_at || '')
-            if (updatedAt && updatedAt !== lastLbUpdatedAtRef.current) {
-              lastLbUpdatedAtRef.current = updatedAt
-              const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? [])
-              localStorage.setItem('jiameng_leaderboard_items', val)
-              window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: 'jiameng_leaderboard_items' } }))
-              setRevision((r) => r + 1)
-            }
-          }
-
-          // 2) 待辦事項：避免不在首頁時收不到 Realtime，導致需重新登入才看到新待辦
-          {
-            const { data } = await sb
-              .from('app_data')
-              .select('data, updated_at')
-              .eq('key', 'jiameng_todos')
-              .maybeSingle()
-            const updatedAt = String(data?.updated_at || '')
-            if (updatedAt && updatedAt !== lastTodosUpdatedAtRef.current) {
-              lastTodosUpdatedAtRef.current = updatedAt
-              const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? [])
-              localStorage.setItem('jiameng_todos', val)
-              window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: 'jiameng_todos' } }))
-              setRevision((r) => r + 1)
-            }
-          }
+          await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
+          // 2) 待辦事項
+          await refreshAppDataKey(sb, 'jiameng_todos', lastTodosUpdatedAtRef, [])
         } catch (_) {}
       }, 8000)
     }
 
+    // 背景->前景：setInterval 可能被瀏覽器降頻/暫停，回來時主動補拉一次（避免要重新登入）
+    const onResume = async () => {
+      if (!isSupabaseEnabled()) return
+      if (document.visibilityState && document.visibilityState !== 'visible') return
+      const sb2 = getSupabaseClient()
+      if (!sb2) return
+      if (resumeRefreshInFlightRef.current) return
+      resumeRefreshInFlightRef.current = true
+      try {
+        await refreshAppDataKey(sb2, 'jiameng_todos', lastTodosUpdatedAtRef, [])
+      } catch (_) {
+      } finally {
+        resumeRefreshInFlightRef.current = false
+      }
+    }
+    window.addEventListener('focus', onResume)
+    document.addEventListener('visibilitychange', onResume)
+
     return () => {
+      window.removeEventListener('focus', onResume)
+      document.removeEventListener('visibilitychange', onResume)
       if (unsubRef.current) {
         try { unsubRef.current() } catch (_) {}
         unsubRef.current = null
