@@ -680,22 +680,36 @@ function Home() {
     for (const leaderboardItem of (Array.isArray(leaderboardItems) ? leaderboardItems : [])) {
       const userStats = {}
 
-      // 初始化每個用戶的統計數據
-      users.forEach(user => {
-        const userName = user.account
-        userStats[userName] = {
-          userName,
-          name: user.name || user.account,
-          value: 0, // 排行榜值
-          totalWorkItems: 0,
-          completedItems: 0,
-          totalCompletionRate: 0,
-          itemsWithRate: 0,
-          workDays: new Set(), // 用於計算工作天數
-          departureDriverCount: 0, // 工作排程出發駕駛次數
-          returnDriverCount: 0 // 工作排程回程駕駛次數
+      // 初始化/補齊 userStats：不要只靠 users（避免某些裝置抓不到 profiles 時，只有「自己」看得到有資料榜）
+      const ensureUser = (acc, displayName = '') => {
+        const a = String(acc || '').trim()
+        if (!a) return null
+        if (!userStats[a]) {
+          userStats[a] = {
+            userName: a,
+            name: displayName || a,
+            value: 0,
+            totalWorkItems: 0,
+            completedItems: 0,
+            totalCompletionRate: 0,
+            itemsWithRate: 0,
+            workDays: new Set(),
+            departureDriverCount: 0,
+            returnDriverCount: 0
+          }
+        } else if (displayName && !userStats[a].name) {
+          userStats[a].name = displayName
         }
-      })
+        return userStats[a]
+      }
+
+      // 先以 profiles/local users 建立基本清單
+      users.forEach((u) => ensureUser(u.account, u.name || u.account))
+
+      // 再從資料來源補齊：排程上的參與人/負責人/駕駛、彈幕作者、手動排名名稱
+      try {
+        Object.keys(danmuCountByAccount || {}).forEach((a) => ensureUser(a, a))
+      } catch (_) {}
 
         // 排行榜累加邏輯：不計算今天以前的排程（只計 schedule.date >= 今日）
         const today = new Date().toISOString().split('T')[0]
@@ -704,11 +718,13 @@ function Home() {
         // 駕駛次數：抓取排程的出發駕駛、回程駕駛，每次各算 1 次；不同人則各記 1 次
         if (schedule.departureDriver) {
           const acc = getNameToAccount(String(schedule.departureDriver).trim())
-          if (userStats[acc]) userStats[acc].departureDriverCount = (userStats[acc].departureDriverCount || 0) + 1
+          const s = ensureUser(acc, acc)
+          if (s) s.departureDriverCount = (s.departureDriverCount || 0) + 1
         }
         if (schedule.returnDriver) {
           const acc = getNameToAccount(String(schedule.returnDriver).trim())
-          if (userStats[acc]) userStats[acc].returnDriverCount = (userStats[acc].returnDriverCount || 0) + 1
+          const s = ensureUser(acc, acc)
+          if (s) s.returnDriverCount = (s.returnDriverCount || 0) + 1
         }
         // 計算工作天數（用於時間類型）
         if (schedule.date && schedule.participants) {
@@ -716,9 +732,8 @@ function Home() {
           participants.forEach(participant => {
             // 將參與人員名稱轉換為帳號
             const participantAccount = getNameToAccount(participant)
-            if (userStats[participantAccount]) {
-              userStats[participantAccount].workDays.add(schedule.date)
-            }
+            const s = ensureUser(participantAccount, participant)
+            if (s) s.workDays.add(schedule.date)
           })
         }
         
@@ -732,22 +747,36 @@ function Home() {
             // 將負責人名稱轉換為帳號
             const responsiblePerson = item.responsiblePerson
             const responsiblePersonAccount = getNameToAccount(responsiblePerson)
-            if (responsiblePersonAccount && userStats[responsiblePersonAccount]) {
+            if (responsiblePersonAccount) {
+              const s = ensureUser(responsiblePersonAccount, responsiblePerson)
+              if (!s) return
               const target = parseFloat(item.targetQuantity) || 0
               const actual = parseFloat(item.actualQuantity) || 0
               const completionRate = target > 0 ? (actual / target * 100) : 0
               
-              userStats[responsiblePersonAccount].totalWorkItems++
-              userStats[responsiblePersonAccount].totalCompletionRate += completionRate
-              userStats[responsiblePersonAccount].itemsWithRate++
+              s.totalWorkItems++
+              s.totalCompletionRate += completionRate
+              s.itemsWithRate++
 
               if (completionRate >= 100) {
-                userStats[responsiblePersonAccount].completedItems++
+                s.completedItems++
               }
             }
           })
         }
       })
+
+      // totalQuantity 會用手動排名 name 來源補齊
+      try {
+        if (leaderboardItem.type === 'totalQuantity') {
+          const manualRanks = getManualRankings(leaderboardItem.id) || []
+          ;(Array.isArray(manualRanks) ? manualRanks : []).forEach((r) => {
+            const acc = getNameToAccount(String(r?.name || '').trim())
+            if (!acc) return
+            ensureUser(acc, String(r?.name || '').trim() || acc)
+          })
+        }
+      } catch (_) {}
 
       // 根據類型計算排行榜值
       Object.keys(userStats).forEach(userName => {
