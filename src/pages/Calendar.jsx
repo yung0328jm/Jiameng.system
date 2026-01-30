@@ -70,6 +70,7 @@ function Calendar() {
   const vehicleDropdownRef = useRef(null)
   const siteDropdownRef = useRef(null)
   const responsiblePersonDropdownRefs = useRef({})
+  const scheduleModalBodyRef = useRef(null)
   const [scheduleFormData, setScheduleFormData] = useState({
     siteName: '',
     date: '',
@@ -674,6 +675,13 @@ function Calendar() {
         }
       ]
     }))
+    // 新增後自動捲到底部，看到新工作項目
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = scheduleModalBodyRef.current
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      })
+    })
   }
 
   const handleRemoveWorkItem = (itemId) => {
@@ -2117,7 +2125,7 @@ function Calendar() {
       {/* 新增/编辑排程模态框 */}
       {(showScheduleForm || showScheduleModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-charcoal border border-yellow-400 rounded-lg shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div ref={scheduleModalBodyRef} className="bg-charcoal border border-yellow-400 rounded-lg shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-yellow-400">
                 {editingScheduleId ? '編輯排程' : '新增排程'}
@@ -2344,7 +2352,15 @@ function Calendar() {
                       name="participants"
                       value={scheduleFormData.participants}
                       onChange={handleParticipantInput}
-                      onFocus={() => setShowParticipantDropdown(true)}
+                      onFocus={() => {
+                        // 點到參與人員時，自動捲到此區塊（你希望跳到照片那邊的位置）
+                        setShowParticipantDropdown(true)
+                        requestAnimationFrame(() => {
+                          try {
+                            participantDropdownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          } catch (_) {}
+                        })
+                      }}
                       placeholder="請輸入參與人員（多個用逗號分隔）"
                       className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
                     />
