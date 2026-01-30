@@ -12,6 +12,18 @@ import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getDisplayNameForAccount as getPreferredName } from '../utils/displayName'
+import { addWalletBalance, addTransaction } from '../utils/walletStorage'
+import {
+  getKeywordRewardRules,
+  addKeywordRewardRule,
+  updateKeywordRewardRule,
+  deleteKeywordRewardRule,
+  canClaimGlobalKeywordReward,
+  markGlobalKeywordRewardClaimed,
+  canClaimKeywordReward,
+  markKeywordRewardClaimed,
+  matchKeywordReward
+} from '../utils/keywordRewardStorage'
 
 function Memo() {
   const [userRole, setUserRole] = useState(null)
@@ -31,6 +43,24 @@ function Memo() {
   const [messages, setMessages] = useState([])
   const [messageContent, setMessageContent] = useState('')
   const [author, setAuthor] = useState('')
+  // 交流區關鍵字獎勵（管理員設定）
+  const [keywordRewardRules, setKeywordRewardRules] = useState([])
+  const [showKeywordRewardAdmin, setShowKeywordRewardAdmin] = useState(false)
+  const [editingRuleId, setEditingRuleId] = useState(null)
+  const [ruleForm, setRuleForm] = useState({
+    keyword: '',
+    match: 'includes',
+    ignoreCase: true,
+    rewardType: 'item',
+    itemId: 'danmu_item',
+    quantity: 1,
+    coinAmount: 10,
+    cooldownSec: 30,
+    dailyLimit: 5,
+    enabled: true
+  })
+  const [keywordRewardNotice, setKeywordRewardNotice] = useState('')
+  const keywordRewardNoticeTimerRef = useRef(null)
   const [isChatCollapsed, setIsChatCollapsed] = useState(false)
   const chatScrollRef = useRef(null)
   const [stickToBottom, setStickToBottom] = useState(true)
@@ -73,6 +103,14 @@ function Memo() {
     setAnnouncements(allAnnouncements)
   }
 
+  const loadKeywordRewardRules = () => {
+    try {
+      setKeywordRewardRules(getKeywordRewardRules())
+    } catch (_) {
+      setKeywordRewardRules([])
+    }
+  }
+
   const loadMessages = () => {
     getOrCreateGlobalTopic()
     // 交流區：只保留一天內容
@@ -105,6 +143,7 @@ function Memo() {
     }
     loadAnnouncements()
     loadMessages()
+    loadKeywordRewardRules()
     loadDanmus()
     checkDanmuItem()
     loadInventory()
@@ -149,13 +188,26 @@ function Memo() {
   const refetchMemo = () => {
     loadAnnouncements()
     loadMessages()
+    loadKeywordRewardRules()
     setDanmus(getActiveDanmus())
     checkDanmuItem()
     loadInventory()
     setLeaderboardItems(getLeaderboardItems())
   }
   useRealtimeKeys(
-    ['jiameng_memos', 'jiameng_announcements', 'jiameng_danmus', 'jiameng_items', 'jiameng_inventories', 'jiameng_users', 'jiameng_equipped_effects', 'jiameng_effect_display_config', 'jiameng_leaderboard_items'],
+    [
+      'jiameng_memos',
+      'jiameng_announcements',
+      'jiameng_danmus',
+      'jiameng_items',
+      'jiameng_inventories',
+      'jiameng_users',
+      'jiameng_equipped_effects',
+      'jiameng_effect_display_config',
+      'jiameng_leaderboard_items',
+      'jiameng_keyword_reward_rules',
+      'jiameng_keyword_reward_claims'
+    ],
     refetchMemo
   )
 
@@ -248,14 +300,76 @@ function Memo() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
   }
 
+  const showKeywordNotice = (text) => {
+    try {
+      setKeywordRewardNotice(text || '')
+      if (keywordRewardNoticeTimerRef.current) clearTimeout(keywordRewardNoticeTimerRef.current)
+      keywordRewardNoticeTimerRef.current = setTimeout(() => setKeywordRewardNotice(''), 3000)
+    } catch (_) {}
+  }
+
+  const applyKeywordRewardsForMessage = (text) => {
+    const acc = String(currentUser || '').trim()
+    if (!acc) return
+    const rules = Array.isArray(keywordRewardRules) ? keywordRewardRules : []
+    if (rules.length === 0) return
+
+    const now = Date.now()
+    // 全局防刷：短時間連發 / 每日總上限
+    if (!canClaimGlobalKeywordReward(acc, now)) return
+
+    // 防刷：同一則訊息最多觸發 1 條規則（避免同時命中多個關鍵字狂刷）
+    let awardedText = ''
+    for (const r of rules) {
+      if (!r?.enabled) continue
+      if (!matchKeywordReward(text, r)) continue
+      if (!canClaimKeywordReward(acc, r, now)) continue
+
+      if (r.rewardType === 'coin') {
+        const amt = Math.max(1, Math.floor(Number(r.coinAmount) || 1))
+        addWalletBalance(acc, amt)
+        addTransaction({
+          type: 'keyword_reward',
+          from: 'system',
+          to: acc,
+          amount: amt,
+          description: `關鍵字獎勵：${r.keyword || ''}`
+        })
+        markKeywordRewardClaimed(acc, r.id, now)
+        markGlobalKeywordRewardClaimed(acc, now)
+        awardedText = `佳盟幣 +${amt}`
+      } else {
+        const itemId = String(r.itemId || '').trim()
+        if (!itemId) continue
+        const qty = Math.max(1, Math.floor(Number(r.quantity) || 1))
+        addItemToInventory(acc, itemId, qty)
+        markKeywordRewardClaimed(acc, r.id, now)
+        const item = getItem(itemId)
+        markGlobalKeywordRewardClaimed(acc, now)
+        awardedText = `${item?.name || itemId} x${qty}`
+      }
+      break
+    }
+
+    if (awardedText) {
+      showKeywordNotice(`已獲得獎勵：${awardedText}`)
+      // 背包顯示更新
+      loadInventory()
+      checkDanmuItem()
+    }
+  }
+
   const handleSendMessage = (e) => {
     e.preventDefault()
     if (!messageContent.trim()) return
     forceScrollNextRef.current = true
-    const result = addGlobalMessage(messageContent.trim(), author)
+    const text = messageContent.trim()
+    const result = addGlobalMessage(text, author)
     if (result.success) {
       setMessageContent('')
       loadMessages()
+      // 只有「送出訊息的人」在本機觸發獎勵，避免多人裝置同時重複發放
+      applyKeywordRewardsForMessage(text)
       // 發送者自己：確保捲到底一次（避免等待 effect）
       setTimeout(scrollToBottom, 50)
     } else {
@@ -1052,6 +1166,16 @@ function Memo() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <h3 className="text-lg font-bold text-yellow-400">交流區</h3>
+            {userRole === 'admin' && (
+              <button
+                type="button"
+                onClick={() => setShowKeywordRewardAdmin((v) => !v)}
+                className="project-no-print bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded-lg transition-colors"
+                title="設定交流區關鍵字自動發放獎勵"
+              >
+                關鍵字獎勵
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* 彈幕按鈕 */}
@@ -1117,6 +1241,310 @@ function Memo() {
                 取消
               </button>
             </form>
+          </div>
+        )}
+
+        {/* 關鍵字獎勵提示（所有人可見自己的獲得提示） */}
+        {keywordRewardNotice && (
+          <div className="mb-3 text-sm text-green-300 bg-green-900/30 border border-green-700 rounded-lg px-3 py-2">
+            {keywordRewardNotice}
+          </div>
+        )}
+
+        {/* 管理員：關鍵字獎勵設定 */}
+        {userRole === 'admin' && showKeywordRewardAdmin && (
+          <div className="project-no-print mb-4 p-4 bg-gray-900 rounded-lg border border-gray-700">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="text-yellow-400 font-semibold">關鍵字獎勵設定</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRuleId(null)
+                  setRuleForm({
+                    keyword: '',
+                    match: 'includes',
+                    ignoreCase: true,
+                    rewardType: 'item',
+                    itemId: 'danmu_item',
+                    quantity: 1,
+                    coinAmount: 10,
+                    cooldownSec: 30,
+                    enabled: true
+                  })
+                }}
+                className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-xs font-semibold px-3 py-1.5 rounded-lg"
+              >
+                + 新增規則
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-gray-300 text-xs mb-1">關鍵字</label>
+                <input
+                  value={ruleForm.keyword}
+                  onChange={(e) => setRuleForm((p) => ({ ...p, keyword: e.target.value }))}
+                  placeholder='例如：我要拿彈幕'
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-gray-300 text-xs mb-1">比對</label>
+                  <select
+                    value={ruleForm.match}
+                    onChange={(e) => setRuleForm((p) => ({ ...p, match: e.target.value }))}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                  >
+                    <option value="includes">包含</option>
+                    <option value="equals">完全相同</option>
+                  </select>
+                </div>
+                <div className="flex items-end gap-2">
+                  <label className="flex items-center gap-2 text-gray-300 text-xs select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!ruleForm.ignoreCase}
+                      onChange={(e) => setRuleForm((p) => ({ ...p, ignoreCase: e.target.checked }))}
+                      className="w-4 h-4 accent-yellow-400"
+                    />
+                    不分大小寫
+                  </label>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-gray-300 text-xs mb-1">獎勵類型</label>
+                  <select
+                    value={ruleForm.rewardType}
+                    onChange={(e) => setRuleForm((p) => ({ ...p, rewardType: e.target.value }))}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                  >
+                    <option value="item">道具</option>
+                    <option value="coin">佳盟幣</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-300 text-xs mb-1">冷卻(秒)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={ruleForm.cooldownSec}
+                    onChange={(e) => setRuleForm((p) => ({ ...p, cooldownSec: e.target.value === '' ? '' : (parseInt(e.target.value) || 0) }))}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+              </div>
+          <div>
+            <label className="block text-gray-300 text-xs mb-1">每日上限(次)（0=不限）</label>
+            <input
+              type="number"
+              min="0"
+              value={ruleForm.dailyLimit}
+              onChange={(e) => setRuleForm((p) => ({ ...p, dailyLimit: e.target.value === '' ? '' : (parseInt(e.target.value) || 0) }))}
+              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+            />
+            <div className="text-[11px] text-gray-500 mt-1">
+              防刷：同一人同一條規則每天最多領取此上限；另有全局限制（短時間連發不給、每日總上限）。
+            </div>
+          </div>
+
+              {ruleForm.rewardType === 'coin' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-gray-300 text-xs mb-1">佳盟幣數量</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={ruleForm.coinAmount}
+                      onChange={(e) => setRuleForm((p) => ({ ...p, coinAmount: e.target.value === '' ? '' : (parseInt(e.target.value) || 0) }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 text-gray-300 text-xs select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!ruleForm.enabled}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, enabled: e.target.checked }))}
+                        className="w-4 h-4 accent-yellow-400"
+                      />
+                      啟用
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-gray-300 text-xs mb-1">道具</label>
+                    <select
+                      value={ruleForm.itemId}
+                      onChange={(e) => setRuleForm((p) => ({ ...p, itemId: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                    >
+                      {(getItems() || []).map((it) => (
+                        <option key={it.id} value={it.id}>
+                          {it.icon} {it.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-gray-300 text-xs mb-1">數量</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={ruleForm.quantity}
+                        onChange={(e) => setRuleForm((p) => ({ ...p, quantity: e.target.value === '' ? '' : (parseInt(e.target.value) || 1) }))}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <label className="flex items-center gap-2 text-gray-300 text-xs select-none">
+                        <input
+                          type="checkbox"
+                          checked={!!ruleForm.enabled}
+                          onChange={(e) => setRuleForm((p) => ({ ...p, enabled: e.target.checked }))}
+                          className="w-4 h-4 accent-yellow-400"
+                        />
+                        啟用
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const kw = String(ruleForm.keyword || '').trim()
+                  if (!kw) { alert('請輸入關鍵字'); return }
+                  if (ruleForm.rewardType === 'item' && !String(ruleForm.itemId || '').trim()) { alert('請選擇道具'); return }
+                  const payload = { ...ruleForm, cooldownSec: parseInt(ruleForm.cooldownSec) || 0 }
+                  if (editingRuleId) {
+                    const r = updateKeywordRewardRule(editingRuleId, payload)
+                    if (!r?.success) { alert(r?.message || '更新失敗'); return }
+                    setEditingRuleId(null)
+                  } else {
+                    const r = addKeywordRewardRule(payload)
+                    if (!r?.success) { alert(r?.message || '新增失敗'); return }
+                  }
+                  loadKeywordRewardRules()
+                  setRuleForm({
+                    keyword: '',
+                    match: 'includes',
+                    ignoreCase: true,
+                    rewardType: 'item',
+                    itemId: 'danmu_item',
+                    quantity: 1,
+                    coinAmount: 10,
+                    cooldownSec: 30,
+                    dailyLimit: 5,
+                    enabled: true
+                  })
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm"
+              >
+                {editingRuleId ? '保存規則' : '新增規則'}
+              </button>
+              {editingRuleId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRuleId(null)
+                    setRuleForm({
+                      keyword: '',
+                      match: 'includes',
+                      ignoreCase: true,
+                      rewardType: 'item',
+                      itemId: 'danmu_item',
+                      quantity: 1,
+                      coinAmount: 10,
+                      cooldownSec: 30,
+                      dailyLimit: 5,
+                      enabled: true
+                    })
+                  }}
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg text-sm"
+                >
+                  取消編輯
+                </button>
+              )}
+            </div>
+
+            <div className="mt-4 border-t border-gray-700 pt-3">
+              <div className="text-gray-300 text-sm mb-2">現有規則</div>
+              {(Array.isArray(keywordRewardRules) ? keywordRewardRules : []).length === 0 ? (
+                <div className="text-gray-500 text-sm">尚無規則</div>
+              ) : (
+                <div className="space-y-2">
+                  {keywordRewardRules.map((r) => {
+                    const item = r.rewardType === 'item' ? getItem(r.itemId) : null
+                    const rewardText = r.rewardType === 'coin'
+                      ? `佳盟幣 +${r.coinAmount || 0}`
+                      : `${item?.name || r.itemId} x${r.quantity || 1}`
+                    return (
+                      <div key={r.id} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
+                        <div className="text-sm text-gray-200 min-w-0">
+                          <span className="text-yellow-300 font-semibold">「{r.keyword}」</span>
+                          <span className="text-gray-400 ml-2">({r.match === 'equals' ? '完全相同' : '包含'}{r.ignoreCase === false ? '・區分大小寫' : ''})</span>
+                          <span className="text-green-300 ml-2">{rewardText}</span>
+                          {Number(r.cooldownSec) > 0 && <span className="text-gray-400 ml-2">冷卻 {r.cooldownSec}s</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateKeywordRewardRule(r.id, { enabled: !r.enabled })
+                              loadKeywordRewardRules()
+                            }}
+                            className={`text-xs px-3 py-1 rounded-lg font-semibold ${r.enabled ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}`}
+                            title={r.enabled ? '點擊停用' : '點擊啟用'}
+                          >
+                            {r.enabled ? '啟用中' : '已停用'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingRuleId(r.id)
+                              setRuleForm({
+                                keyword: r.keyword || '',
+                                match: r.match || 'includes',
+                                ignoreCase: r.ignoreCase !== false,
+                                rewardType: r.rewardType || 'item',
+                                itemId: r.itemId || 'danmu_item',
+                                quantity: r.quantity || 1,
+                                coinAmount: r.coinAmount || 10,
+                                cooldownSec: r.cooldownSec || 0,
+                                dailyLimit: r.dailyLimit || 0,
+                                enabled: r.enabled !== false
+                              })
+                            }}
+                            className="text-xs px-3 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-semibold"
+                          >
+                            編輯
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!window.confirm(`確定要刪除關鍵字規則「${r.keyword}」嗎？`)) return
+                              deleteKeywordRewardRule(r.id)
+                              loadKeywordRewardRules()
+                            }}
+                            className="text-xs px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold"
+                          >
+                            刪除
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
         
