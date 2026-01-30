@@ -1442,8 +1442,20 @@ function Calendar() {
 
       {/* 详情弹窗 - 显示主题或排程的完整信息 */}
       {showDetailModal && selectedDetailItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`${selectedDetailType === 'schedule' ? 'bg-blue-900 border-blue-500' : 'bg-charcoal border-yellow-400'} border rounded-lg shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto`}>
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          // 點擊空白處收合
+          onClick={() => {
+            setShowDetailModal(false)
+            setSelectedDetailItem(null)
+            setSelectedDetailType(null)
+          }}
+        >
+          <div
+            className={`${selectedDetailType === 'schedule' ? 'bg-blue-900 border-blue-500' : 'bg-charcoal border-yellow-400'} border rounded-lg shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto`}
+            // 點擊彈窗本體不收合
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-xl font-bold ${selectedDetailType === 'schedule' ? 'text-white' : 'text-yellow-400'}`}>
                 {selectedDetailType === 'topic' ? '主題詳情' : 
@@ -1451,22 +1463,7 @@ function Calendar() {
                  '活動詳情'}
               </h3>
               <div className="flex items-center space-x-2">
-                {selectedDetailType === 'schedule' && (
-                  <>
-                    <button
-                      onClick={handleEditSchedule}
-                      className="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-lg hover:bg-yellow-500 transition-colors text-sm"
-                    >
-                      編輯
-                    </button>
-                    <button
-                      onClick={handleDeleteSchedule}
-                      className="bg-red-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
-                    >
-                      刪除
-                    </button>
-                  </>
-                )}
+                {/* 排程詳情：上方不顯示編輯/刪除（避免擠在一起），改用下方大按鈕 */}
                 {selectedDetailType === 'topic' && (
                   <button
                     onClick={handleDeleteTopic}
