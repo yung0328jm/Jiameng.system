@@ -66,6 +66,8 @@ function Memo() {
   const [stickToBottom, setStickToBottom] = useState(true)
   const forceScrollNextRef = useRef(false) // 發送訊息後強制捲到底一次
   const messagesEndRef = useRef(null)
+  const chatScrollRestoredRef = useRef(false)
+  const CHAT_SCROLL_KEY = 'jiameng_memo_chat_scroll_v1'
   
   // 彈幕狀態
   const [danmus, setDanmus] = useState([])
@@ -148,6 +150,32 @@ function Memo() {
     checkDanmuItem()
     loadInventory()
   }, [currentUser])
+
+  // 交流區：記住捲動位置，避免切換分頁回來跳到最上面
+  useEffect(() => {
+    const el = chatScrollRef.current
+    // 第一次進來：若沒有歷史紀錄，直接捲到底
+    try {
+      const saved = sessionStorage.getItem(CHAT_SCROLL_KEY)
+      if (!saved) {
+        // 等 DOM 內容出來後再捲到底
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+        }, 0)
+      }
+    } catch (_) {}
+
+    return () => {
+      const el2 = chatScrollRef.current
+      if (!el2) return
+      try {
+        const dist = el2.scrollHeight - el2.scrollTop - el2.clientHeight
+        const nearBottom = dist <= 140
+        sessionStorage.setItem(CHAT_SCROLL_KEY, JSON.stringify({ top: el2.scrollTop, nearBottom, savedAt: Date.now() }))
+      } catch (_) {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   // 定期更新彈幕列表並清理過期彈幕
   useEffect(() => {
@@ -176,6 +204,23 @@ function Memo() {
     const threshold = 120
     const dist = el ? (el.scrollHeight - el.scrollTop - el.clientHeight) : 0
     const nearBottom = !el ? true : dist <= threshold
+
+    // 切回交流區：優先恢復上次捲動位置（只做一次）
+    if (!chatScrollRestoredRef.current && el) {
+      chatScrollRestoredRef.current = true
+      try {
+        const saved = sessionStorage.getItem(CHAT_SCROLL_KEY)
+        if (saved) {
+          const s = JSON.parse(saved)
+          // 若上次在底部，回來就維持底部；否則回到原位置
+          setTimeout(() => {
+            if (!chatScrollRef.current) return
+            if (s?.nearBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+            else chatScrollRef.current.scrollTop = Math.max(0, Number(s?.top) || 0)
+          }, 0)
+        }
+      } catch (_) {}
+    }
 
     // 以「當下真實捲動位置」為準，避免 stickToBottom state 因重渲染/高度變化而誤判
     if (forceScrollNextRef.current || nearBottom) {
@@ -998,9 +1043,15 @@ function Memo() {
                 className="absolute pointer-events-none whitespace-nowrap danmu-item"
                 style={{
                   top: `${anim.topPosition ?? 10}%`,
-                  left: '100%',
-                  animation: `${anim.animationName || 'danmuMoveFallback'} ${anim.duration ?? 12}s linear ${anim.delay ?? 0}s forwards`,
-                  willChange: 'left',
+                  left: 0,
+                  transform: 'translate3d(110vw, 0, 0)',
+                  animationName: 'danmuMove',
+                  animationDuration: `${anim.duration ?? 12}s`,
+                  animationTimingFunction: 'linear',
+                  animationDelay: `${anim.delay ?? 0}s`,
+                  animationFillMode: 'forwards',
+                  willChange: 'transform',
+                  backfaceVisibility: 'hidden',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
@@ -1091,29 +1142,13 @@ function Memo() {
         
         {/* 彈幕動畫樣式 */}
         <style>{`
-          /* 為每條彈幕創建獨立的動畫，純線性從右到左移動，無任何跳動或閃爍 */
-          ${screenDanmus.map((danmu) => {
-            const animName = danmu?._anim?.animationName
-            if (!animName) return ''
-            return `
-            @keyframes ${animName} {
-              from {
-                left: 100%;
-              }
-              to {
-                left: -100%;
-              }
-            }
-          `
-          }).join('')}
-
-          @keyframes danmuMoveFallback {
-            from { left: 100%; }
-            to { left: -100%; }
+          /* 彈幕：使用 transform(translate3d) 動畫，GPU 友善，降低卡頓 */
+          @keyframes danmuMove {
+            from { transform: translate3d(110vw, 0, 0); }
+            to { transform: translate3d(-160vw, 0, 0); }
           }
           
           .danmu-item {
-            animation-fill-mode: forwards;
             position: absolute;
           }
           
