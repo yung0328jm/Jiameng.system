@@ -38,6 +38,12 @@ function Memo() {
   
   // 彈幕狀態
   const [danmus, setDanmus] = useState([])
+  // 彈幕顯示：最多同時 15 條，超過排隊依序播放，避免「別人的彈幕被刷掉沒出現」
+  const [screenDanmus, setScreenDanmus] = useState([])
+  const danmuQueueRef = useRef([])
+  const danmuSeenRef = useRef(new Set())
+  const danmuLaneRef = useRef(0)
+  const danmuTimersRef = useRef({})
   const [danmuContent, setDanmuContent] = useState('')
   const [showDanmuInput, setShowDanmuInput] = useState(false)
   const [hasDanmuItem, setHasDanmuItem] = useState(false)
@@ -364,6 +370,92 @@ function Memo() {
     const activeDanmus = getActiveDanmus()
     setDanmus(activeDanmus)
   }
+
+  // 彈幕排隊播放：確保同時最多 15 條，新的會排隊逐一顯示
+  useEffect(() => {
+    const MAX_ON_SCREEN = 15
+    const LANES = 10
+
+    const hash = (str) => {
+      let h = 0
+      for (let i = 0; i < str.length; i++) {
+        const c = str.charCodeAt(i)
+        h = ((h << 5) - h) + c
+        h = h & h
+      }
+      return Math.abs(h)
+    }
+    const safeAnimName = (id) => `danmuMove_${String(id || '').replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+    // 清理過大 seen，避免長時間使用累積太多
+    try {
+      if (danmuSeenRef.current.size > 1200) {
+        const keepIds = new Set()
+        ;(Array.isArray(danmus) ? danmus : []).slice(-500).forEach((d) => { if (d?.id) keepIds.add(String(d.id)) })
+        ;(danmuQueueRef.current || []).slice(-300).forEach((d) => { if (d?.id) keepIds.add(String(d.id)) })
+        ;(Array.isArray(screenDanmus) ? screenDanmus : []).forEach((d) => { if (d?.id) keepIds.add(String(d.id)) })
+        danmuSeenRef.current = keepIds
+      }
+    } catch (_) {}
+
+    // 把新彈幕加入 queue（依 createdAt 先來先播）
+    const list = Array.isArray(danmus) ? danmus : []
+    const sorted = [...list].sort((a, b) => (Date.parse(a?.createdAt || '') || 0) - (Date.parse(b?.createdAt || '') || 0))
+    sorted.forEach((d) => {
+      const id = String(d?.id || '').trim()
+      if (!id) return
+      if (danmuSeenRef.current.has(id)) return
+      danmuSeenRef.current.add(id)
+      danmuQueueRef.current.push(d)
+    })
+
+    const drain = () => {
+      setScreenDanmus((prev) => {
+        const next = [...(Array.isArray(prev) ? prev : [])]
+        while (next.length < MAX_ON_SCREEN && (danmuQueueRef.current || []).length > 0) {
+          const d = danmuQueueRef.current.shift()
+          const id = String(d?.id || '').trim()
+          if (!id) continue
+
+          const seed = hash(id)
+          const lane = danmuLaneRef.current % LANES
+          danmuLaneRef.current += 1
+          const topPosition = 10 + lane * 8 + (seed % 30) / 10 // 10-90%
+          const duration = 12 + (seed % 35) / 10 // 12-15.4 秒（已略加速）
+          const delay = (seed % 15) / 10 // 0-1.5 秒
+          const fontSize = 20 + (seed % 60) / 10 // 20-26px
+          const animationName = safeAnimName(id)
+
+          // 到期移除，空位再補下一條
+          const ttlMs = Math.round((duration + delay) * 1000) + 200
+          try {
+            if (danmuTimersRef.current[id]) clearTimeout(danmuTimersRef.current[id])
+            danmuTimersRef.current[id] = setTimeout(() => {
+              setScreenDanmus((cur) => (Array.isArray(cur) ? cur.filter((x) => String(x?.id || '') !== id) : []))
+              try { delete danmuTimersRef.current[id] } catch (_) {}
+              setTimeout(() => drain(), 0)
+            }, ttlMs)
+          } catch (_) {}
+
+          next.push({ ...d, _anim: { animationName, topPosition, duration, delay, fontSize } })
+        }
+        return next
+      })
+    }
+
+    drain()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [danmus])
+
+  // 清理彈幕計時器（避免記憶體堆積）
+  useEffect(() => {
+    return () => {
+      try {
+        Object.values(danmuTimersRef.current || {}).forEach((t) => { try { clearTimeout(t) } catch (_) {} })
+        danmuTimersRef.current = {}
+      } catch (_) {}
+    }
+  }, [])
   
   const checkDanmuItem = () => {
     if (!currentUser) return
@@ -721,25 +813,8 @@ function Memo() {
             pointerEvents: 'none'
           }}
         >
-          {danmus.slice(-20).map((danmu, index) => {
-            // 使用穩定的 hash 函數生成參數，避免重新渲染時改變
-            const hash = (str) => {
-              let hash = 0
-              for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i)
-                hash = ((hash << 5) - hash) + char
-                hash = hash & hash // Convert to 32bit integer
-              }
-              return Math.abs(hash)
-            }
-            
-            // 使用 danmu.id 生成穩定的參數
-            const stableSeed = hash(danmu.id)
-            const animationIndex = stableSeed % 10000 // 穩定的動畫索引
-            const topPosition = 10 + (index % 10) * 8 + (stableSeed % 30) / 10 // 分散在不同高度，10-90%
-            const animationDuration = 15 + (stableSeed % 40) / 10 // 15-19秒，更慢的速度
-            const animationDelay = (stableSeed % 15) / 10 // 0-1.5秒延遲，穩定
-            const fontSize = 20 + (stableSeed % 60) / 10 // 20-26px，穩定的字體大小
+          {screenDanmus.map((danmu) => {
+            const anim = danmu?._anim || {}
             const danmuId = `danmu-${danmu.id}`
             
             // 優雅的配色方案
@@ -755,9 +830,9 @@ function Memo() {
                 key={danmuId}
                 className="absolute pointer-events-none whitespace-nowrap danmu-item"
                 style={{
-                  top: `${topPosition}%`,
+                  top: `${anim.topPosition ?? 10}%`,
                   left: '100%',
-                  animation: `danmuMove${animationIndex} ${animationDuration}s linear ${animationDelay}s forwards`,
+                  animation: `${anim.animationName || 'danmuMoveFallback'} ${anim.duration ?? 12}s linear ${anim.delay ?? 0}s forwards`,
                   willChange: 'left',
                   display: 'flex',
                   alignItems: 'center',
@@ -815,7 +890,7 @@ function Memo() {
                 <span 
                   style={{ 
                     color: elegantColors.text,
-                    fontSize: `${fontSize}px`,
+                    fontSize: `${anim.fontSize ?? 20}px`,
                     fontWeight: '500',
                     letterSpacing: '0.5px',
                     textShadow: '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 20px rgba(232, 213, 183, 0.3)',
@@ -850,20 +925,11 @@ function Memo() {
         {/* 彈幕動畫樣式 */}
         <style>{`
           /* 為每條彈幕創建獨立的動畫，純線性從右到左移動，無任何跳動或閃爍 */
-          ${danmus.slice(-20).map((danmu, index) => {
-            const hash = (str) => {
-              let hash = 0
-              for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i)
-                hash = ((hash << 5) - hash) + char
-                hash = hash & hash
-              }
-              return Math.abs(hash)
-            }
-            const stableSeed = hash(danmu.id)
-            const animationIndex = stableSeed % 10000 // 使用穩定的索引
+          ${screenDanmus.map((danmu) => {
+            const animName = danmu?._anim?.animationName
+            if (!animName) return ''
             return `
-            @keyframes danmuMove${animationIndex} {
+            @keyframes ${animName} {
               from {
                 left: 100%;
               }
@@ -873,6 +939,11 @@ function Memo() {
             }
           `
           }).join('')}
+
+          @keyframes danmuMoveFallback {
+            from { left: 100%; }
+            to { left: -100%; }
+          }
           
           .danmu-item {
             animation-fill-mode: forwards;
