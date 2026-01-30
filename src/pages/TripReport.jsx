@@ -54,12 +54,15 @@ function TripReport() {
     setSiteNames(all)
     setAllowedSiteNames(allowed)
     const site = selectedSiteNameRef.current
-    if (site && allowed.includes(site)) setRecords(getTripReportsByProject(site))
-    else {
-      // 若目前選到的是別組案場：自動切回第一個可操作案場（或清空）
-      const next = allowed[0] || ''
-      if (next !== site) setSelectedSiteName(next)
-      setRecords(next ? getTripReportsByProject(next) : [])
+    // 允許查看所有案場紀錄；但只允許對「自己參與」案場回報狀態
+    if (site && all.includes(site)) setRecords(getTripReportsByProject(site))
+    else if (all.length > 0) {
+      // 若原本選到的案場已不在今日清單，切回第一個案場（可查看）
+      setSelectedSiteName(all[0])
+      setRecords(getTripReportsByProject(all[0]))
+    } else {
+      setSelectedSiteName('')
+      setRecords([])
     }
   }
   useRealtimeKeys(['jiameng_users', 'jiameng_engineering_schedules', 'jiameng_trip_reports', 'jiameng_leaderboard_items', 'jiameng_dropdown_options'], refetchTripReport)
@@ -82,9 +85,8 @@ function TripReport() {
     setSiteNames(all)
     setAllowedSiteNames(allowed)
     setSelectedSiteName((prev) => {
-      // 非管理員：只能選可操作案場；管理員 allowed=all
-      if (prev && allowed.includes(prev)) return prev
-      return allowed[0] || ''
+      if (prev && all.includes(prev)) return prev
+      return all[0] || ''
     })
   }, [])
 
@@ -132,6 +134,9 @@ function TripReport() {
   // 判斷按鈕是否可點擊：必須按照順序 出發→抵達→休息→上工→收工→離場
   const isActionEnabled = (actionType) => {
     if (!currentUser || !selectedSiteName) return false
+    // 非管理員：只能對自己參與的案場操作
+    const role = getCurrentUserRole()
+    if (role !== 'admin' && !allowedSiteNames.includes(selectedSiteName)) return false
     if (records.length === 0) {
       // 沒有紀錄時，只能點「出發」
       return actionType === '出發'
@@ -198,21 +203,20 @@ function TripReport() {
                 <button
                   key={name}
                   type="button"
-                  disabled={!isAllowed}
-                  onClick={() => { if (isAllowed) setSelectedSiteName(name) }}
+                  onClick={() => { setSelectedSiteName(name) }}
                   className={`text-left rounded-lg p-6 transition-colors border-2 ${
                     selectedSiteName === name
                       ? 'bg-yellow-900/30 border-yellow-400'
                       : isAllowed
                         ? 'bg-gray-800 border-gray-700 hover:border-yellow-400'
-                        : 'bg-gray-800/40 border-gray-700 opacity-60 cursor-not-allowed'
+                        : 'bg-gray-800/40 border-gray-700 opacity-60 hover:border-gray-600'
                   }`}
-                  title={!isAllowed ? '您不是此案場參與人員，不能回報此案場狀態' : ''}
+                  title={!isAllowed ? '可查看此案場狀態，但無法回報（不是參與人員）' : ''}
                 >
                   <div className="text-center">
                     <h3 className="text-2xl sm:text-xl font-bold text-white mb-2 sm:mb-1">{name}</h3>
                     <p className="text-gray-400 text-base sm:text-sm">
-                      {selectedSiteName === name ? '已選擇此案場' : '點擊選擇此案場'}
+                      {selectedSiteName === name ? (isAllowed ? '已選擇此案場（可回報）' : '已選擇此案場（僅可查看）') : (isAllowed ? '點擊選擇此案場' : '點擊查看狀態（不可回報）')}
                     </p>
                   </div>
                 </button>
@@ -221,7 +225,7 @@ function TripReport() {
             </div>
           )}
           {getCurrentUserRole() !== 'admin' && siteNames.length > 0 && allowedSiteNames.length === 0 && (
-            <p className="text-yellow-300 text-sm mt-3">你今天有排程案場，但你不在任何案場的參與人員名單中（participants）。請管理員到行事曆把你加入該案場參與人員。</p>
+            <p className="text-yellow-300 text-sm mt-3">你今天可以查看所有案場狀態，但目前你不在任何案場的參與人員名單中（participants），因此無法回報狀態。請管理員到行事曆把你加入該案場參與人員。</p>
           )}
         </div>
 
