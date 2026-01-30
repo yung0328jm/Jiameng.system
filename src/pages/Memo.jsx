@@ -311,7 +311,8 @@ function Memo() {
   const applyKeywordRewardsForMessage = (text) => {
     const acc = String(currentUser || '').trim()
     if (!acc) return
-    const rules = Array.isArray(keywordRewardRules) ? keywordRewardRules : []
+    // 發放時以 localStorage 為準，避免 state 尚未同步造成「看得到規則但不發」
+    const rules = getKeywordRewardRules()
     if (rules.length === 0) return
 
     const now = Date.now()
@@ -343,7 +344,11 @@ function Memo() {
 
       if (r.rewardType === 'coin') {
         const amt = Math.max(1, Math.floor(Number(r.coinAmount) || 1))
-        addWalletBalance(acc, amt)
+        const res = addWalletBalance(acc, amt)
+        if (res?.success === false) {
+          showKeywordNotice('關鍵字獎勵：發放失敗（錢包更新失敗）')
+          return
+        }
         addTransaction({
           type: 'keyword_reward',
           from: 'system',
@@ -358,7 +363,14 @@ function Memo() {
         const itemId = String(r.itemId || '').trim()
         if (!itemId) continue
         const qty = Math.max(1, Math.floor(Number(r.quantity) || 1))
-        addItemToInventory(acc, itemId, qty)
+        // 驗證發放前後數量，避免「寫入被覆蓋/未成功」但 UI 沒提示
+        const beforeQty = getItemQuantity(acc, itemId)
+        const res = addItemToInventory(acc, itemId, qty)
+        const afterQty = getItemQuantity(acc, itemId)
+        if (res?.success === false || afterQty < beforeQty + qty) {
+          showKeywordNotice('關鍵字獎勵：發放失敗（背包未更新，請稍後再試）')
+          return
+        }
         markKeywordRewardClaimed(acc, r.id, now)
         const item = getItem(itemId)
         markGlobalKeywordRewardClaimed(acc, now)
