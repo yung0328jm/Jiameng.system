@@ -7,6 +7,8 @@ const QUOTA_KEY = 'jiameng_special_leave_quota'
 const DANMU_KEY = 'jiameng_danmus'
 const TRIP_REPORT_KEY = 'jiameng_trip_reports'
 const MESSAGE_KEY = 'jiameng_messages'
+const AWARD_CLAIMS_KEY = 'jiameng_leaderboard_award_claims_v1'
+const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
 
 const evt = 'supabase-realtime-update'
 
@@ -82,6 +84,20 @@ export function subscribeRealtime(onUpdate) {
     const merged = Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
     // 防爆：最多保留 5000 筆
     return merged.slice(-5000)
+  }
+
+  function mergeObjectMap(existingObj, incomingObj, pickNewestAt = 'at') {
+    const a = existingObj && typeof existingObj === 'object' ? existingObj : {}
+    const b = incomingObj && typeof incomingObj === 'object' ? incomingObj : {}
+    const out = { ...a }
+    Object.keys(b).forEach((k) => {
+      const prev = out[k]
+      const next = b[k]
+      const ta = Date.parse(prev?.[pickNewestAt] || prev?.deletedAt || '') || 0
+      const tb = Date.parse(next?.[pickNewestAt] || next?.deletedAt || '') || 0
+      out[k] = tb >= ta ? next : prev
+    })
+    return out
   }
 
   // 站內信合併去重（避免多裝置/多人同時寫入覆蓋導致「訊息消失」或「要重登才看得到」）
@@ -241,6 +257,32 @@ export function subscribeRealtime(onUpdate) {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
                 localStorage.setItem(MESSAGE_KEY, val)
                 notifyKey(MESSAGE_KEY)
+              }
+            } else if (key === AWARD_CLAIMS_KEY || key === DELETED_LEADERBOARDS_KEY) {
+              try {
+                const incoming = (payload.new.data && typeof payload.new.data === 'object' && !Array.isArray(payload.new.data))
+                  ? payload.new.data
+                  : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '{}') : {})
+                const existing = (() => {
+                  try { return JSON.parse(localStorage.getItem(key) || '{}') } catch (_) { return {} }
+                })()
+                const merged = mergeObjectMap(existing, incoming, key === AWARD_CLAIMS_KEY ? 'at' : 'deletedAt')
+                const val = JSON.stringify(merged)
+                localStorage.setItem(key, val)
+                notifyKey(key)
+
+                // 若 incoming 少於合併後（可能被覆蓋丟失），嘗試回寫一次修復雲端
+                const now = Date.now()
+                const aLen = Object.keys(existing || {}).length
+                const bLen = Object.keys(incoming || {}).length
+                const mLen = Object.keys(merged || {}).length
+                if (mLen > bLen && now - lastMsgHealAt > 5000) {
+                  sb.from('app_data').upsert({ key, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                }
+              } catch (_) {
+                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
+                localStorage.setItem(key, val)
+                notifyKey(key)
               }
             } else {
               const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
