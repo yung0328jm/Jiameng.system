@@ -8,6 +8,8 @@ const LEADERBOARD_UI_STORAGE_KEY = 'jiameng_leaderboard_ui'
 const MANUAL_RANKINGS_STORAGE_KEY = 'jiameng_manual_rankings'
 const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
 
+const newId = (prefix = 'lb') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+
 const getDeletedLeaderboards = () => {
   try {
     const raw = localStorage.getItem(DELETED_LEADERBOARDS_KEY)
@@ -163,7 +165,7 @@ export const addLeaderboardItem = (item) => {
     const items = getLeaderboardItems()
     const newItem = {
       ...item,
-      id: item.id || Date.now().toString(),
+      id: item.id || newId('lb'),
       createdAt: item.createdAt || new Date().toISOString()
     }
     items.push(newItem)
