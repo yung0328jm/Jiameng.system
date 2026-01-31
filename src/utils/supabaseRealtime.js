@@ -109,7 +109,22 @@ export function subscribeRealtime(onUpdate) {
       const tb = lbUpdatedAt(it)
       byId.set(id, tb >= ta ? { ...prev, ...it } : { ...it, ...prev })
     })
-    return Array.from(byId.values()).sort((x, y) => lbUpdatedAt(x) - lbUpdatedAt(y))
+    // 保留面板順序：不要用 updatedAt 排序（會造成面板左右互換跳動）
+    const order = []
+    const seen = new Set()
+    a.forEach((it) => {
+      const id = String(it?.id || '').trim()
+      if (!id || seen.has(id)) return
+      seen.add(id)
+      order.push(id)
+    })
+    b.forEach((it) => {
+      const id = String(it?.id || '').trim()
+      if (!id || seen.has(id)) return
+      seen.add(id)
+      order.push(id)
+    })
+    return order.map((id) => byId.get(id)).filter(Boolean)
   }
 
   function mergeObjectMap(existingObj, incomingObj, pickNewestAt = 'at') {
