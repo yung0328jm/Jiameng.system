@@ -1085,19 +1085,37 @@ function Home() {
           if (rewardType === 'item' && leaderboardItem.rewardItemId) {
             const qty = Math.max(1, parseInt(leaderboardItem.rewardAmount, 10) || 1)
             accSet.forEach((acc) => {
-              const k = `${baseKey}|${acc}|item|${leaderboardItem.rewardItemId}|${qty}`
+              // key 不含 qty：避免之後調整數量又發一次
+              const k = `${baseKey}|${acc}|item|${leaderboardItem.rewardItemId}`
               if (hasClaim(k)) return
+              // 先記錄 claim 再發放，降低多裝置競態造成的重複發放
+              markClaim(k)
               const r = addItemToInventory(acc, leaderboardItem.rewardItemId, qty)
-              if (r?.success !== false) markClaim(k)
+              if (r?.success === false) {
+                // 若發放失敗，撤回 claim（允許下一輪重試）
+                try {
+                  const c = getAwardClaims()
+                  delete c[k]
+                  setAwardClaims(c)
+                } catch (_) {}
+              }
             })
           } else if (rewardType === 'jiameng_coin' && Number(leaderboardItem.rewardAmount) > 0) {
             const amt = Math.max(1, parseInt(leaderboardItem.rewardAmount, 10) || 0)
             if (amt > 0) {
               accSet.forEach((acc) => {
-                const k = `${baseKey}|${acc}|coin|${amt}`
+                const k = `${baseKey}|${acc}|coin`
                 if (hasClaim(k)) return
+                markClaim(k)
                 const r = addWalletBalance(acc, amt)
-                if (r?.success === false) return
+                if (r?.success === false) {
+                  try {
+                    const c = getAwardClaims()
+                    delete c[k]
+                    setAwardClaims(c)
+                  } catch (_) {}
+                  return
+                }
                 addTransaction({
                   type: 'reward',
                   from: 'system',
@@ -1105,7 +1123,6 @@ function Home() {
                   amount: amt,
                   description: `團體目標達成獎勵：${leaderboardItem.name || '團體目標'}`
                 })
-                markClaim(k)
               })
             }
           }
@@ -2904,6 +2921,7 @@ function Home() {
                                 e.preventDefault()
                                 e.stopPropagation()
                                 if (window.confirm('確定要重置團體目標進度嗎？這將清零當前進度並開始新一輪計算，排行榜累計數量將保留。溢出數量會保留在「本輪+」中。')) {
+                                  const resetAt = new Date().toISOString()
                                   // 1. 計算溢出數量（如果當前進度超過目標）
                                   const currentProgress = parseFloat(item.currentProgress) || 0
                                   const groupGoal = parseFloat(item.groupGoal) || 0
@@ -2957,14 +2975,14 @@ function Home() {
                                   updateLeaderboardItem(item.id, {
                                     currentProgress: 0,
                                     achievedAt: null,
-                                    lastResetAt: new Date().toISOString()
+                                    lastResetAt: resetAt
                                   })
                                   
                                   // 5. 立即更新本地狀態
                                   setLeaderboardItems(prev => 
                                     prev.map(i => 
                                       i.id === item.id 
-                                        ? { ...i, currentProgress: 0, achievedAt: null, lastResetAt: new Date().toISOString() }
+                                        ? { ...i, currentProgress: 0, achievedAt: null, lastResetAt: resetAt }
                                         : i
                                     )
                                   )
