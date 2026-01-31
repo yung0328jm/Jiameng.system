@@ -1036,51 +1036,77 @@ function Home() {
           isNewAchievement = true // 首次達成
         }
         
-        // 如果是新達成，派發全體達成獎勵（支援 Supabase 用戶列表）
-        if (isNewAchievement) {
-          const rewardType = leaderboardItem.rewardType || 'text'
-          let allUsers = []
+        // 團體目標達成獎勵（全體獎勵）：
+        // - 以「榜ID + 達成時間 + 用戶帳號」做去重，避免重算/多裝置同步造成重複發放
+        // - 不再用「整體一次性 claim」：避免當下用戶清單不完整導致部分人漏發，之後又無法補發
+        const rewardType = leaderboardItem.rewardType || 'text'
+        const achievedToken = String(newAchievedAt || '').trim() || String(achievedAt || '').trim()
+        const shouldEnsureGroupReward = !!achievedToken && currentProgress >= groupGoal && groupGoal > 0
+        if (shouldEnsureGroupReward && (rewardType === 'item' || rewardType === 'jiameng_coin')) {
+          // 收件人清單：Supabase profiles + local users + inventories/wallets fallback（避免漏掉只在另一裝置登入過的帳號）
+          const accSet = new Set()
+          const addAcc = (a) => {
+            const acc = String(a || '').trim()
+            if (!acc) return
+            if (acc === 'admin' || acc === 'jiameng.system') return
+            accSet.add(acc)
+          }
           if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
             try {
               const profiles = await getPublicProfiles()
-              allUsers = (profiles || []).filter(p => !p?.is_admin).map(p => ({ account: p.account }))
+              ;(Array.isArray(profiles) ? profiles : []).forEach((p) => {
+                if (p?.is_admin) return
+                addAcc(p?.account)
+              })
             } catch (e) {
               console.warn('團體目標派發：取得 profiles 失敗', e)
             }
           }
-          if (allUsers.length === 0) {
-            const local = getUsers()
-            allUsers = (Array.isArray(local) ? local : []).filter(u => u.role !== 'admin')
-          }
-          // 避免多裝置同時偵測達成而重複派發：以「榜ID+達成時間」做一次性 claim
-          const achievedToken = String(newAchievedAt || '').trim() || new Date().toISOString()
-          const claimKey = `groupReward|${leaderboardItem.id}|${achievedToken}`
-          if (hasClaim(claimKey)) {
-            // 已派發過就跳過
-          } else if (rewardType === 'item' && leaderboardItem.rewardItemId) {
-            const qty = Math.max(1, parseInt(leaderboardItem.rewardAmount, 10) || 1)
-            allUsers.forEach(user => {
-              if (user.account) {
-                addItemToInventory(user.account, leaderboardItem.rewardItemId, qty)
-              }
+          try {
+            ;(Array.isArray(getUsers()) ? getUsers() : []).forEach((u) => {
+              if (u?.role === 'admin') return
+              addAcc(u?.account)
             })
-            markClaim(claimKey)
-            console.log(`團體目標達成：已為所有用戶派發道具 ${leaderboardItem.rewardItemId}`)
-          } else if (rewardType === 'jiameng_coin' && leaderboardItem.rewardAmount > 0) {
-            allUsers.forEach(user => {
-              if (user.account) {
-                addWalletBalance(user.account, leaderboardItem.rewardAmount)
+          } catch (_) {}
+          // fallback：以現有背包/錢包 key 找出可能存在的帳號
+          try {
+            const invRaw = localStorage.getItem('jiameng_inventories')
+            const inv = invRaw ? JSON.parse(invRaw) : {}
+            Object.keys(inv || {}).forEach(addAcc)
+          } catch (_) {}
+          try {
+            const wRaw = localStorage.getItem('jiameng_wallets')
+            const w = wRaw ? JSON.parse(wRaw) : {}
+            Object.keys(w || {}).forEach(addAcc)
+          } catch (_) {}
+
+          const baseKey = `groupReward|${leaderboardItem.id}|${achievedToken}`
+          if (rewardType === 'item' && leaderboardItem.rewardItemId) {
+            const qty = Math.max(1, parseInt(leaderboardItem.rewardAmount, 10) || 1)
+            accSet.forEach((acc) => {
+              const k = `${baseKey}|${acc}|item|${leaderboardItem.rewardItemId}|${qty}`
+              if (hasClaim(k)) return
+              const r = addItemToInventory(acc, leaderboardItem.rewardItemId, qty)
+              if (r?.success !== false) markClaim(k)
+            })
+          } else if (rewardType === 'jiameng_coin' && Number(leaderboardItem.rewardAmount) > 0) {
+            const amt = Math.max(1, parseInt(leaderboardItem.rewardAmount, 10) || 0)
+            if (amt > 0) {
+              accSet.forEach((acc) => {
+                const k = `${baseKey}|${acc}|coin|${amt}`
+                if (hasClaim(k)) return
+                const r = addWalletBalance(acc, amt)
+                if (r?.success === false) return
                 addTransaction({
                   type: 'reward',
                   from: 'system',
-                  to: user.account,
-                  amount: leaderboardItem.rewardAmount,
+                  to: acc,
+                  amount: amt,
                   description: `團體目標達成獎勵：${leaderboardItem.name || '團體目標'}`
                 })
-              }
-            })
-            markClaim(claimKey)
-            console.log(`團體目標達成：已為所有用戶派發 ${leaderboardItem.rewardAmount} 佳盟幣`)
+                markClaim(k)
+              })
+            }
           }
         }
         
