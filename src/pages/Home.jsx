@@ -1589,8 +1589,9 @@ function Home() {
 
   const handleAddItem = () => {
     setEditingItem(null)
+    const nextIndex = (Array.isArray(leaderboardItems) ? leaderboardItems.length : 0) + 1
     setEditForm({
-      name: '',
+      name: `排行榜面板 ${nextIndex}`,
       subtitle: '',
       slogan: '',
       type: 'completionRate',
@@ -1653,13 +1654,12 @@ function Home() {
   }
 
   const handleSaveItem = () => {
-    if (!editForm.name.trim()) {
-      alert('請輸入項目名稱')
-      return
-    }
+    // 允許空白：自動帶入預設名稱，避免「以為存不進去」
+    const safeName = String(editForm.name || '').trim() || '未命名排行榜'
+    const payload = { ...editForm, name: safeName }
 
     if (editingItem) {
-      const result = updateLeaderboardItem(editingItem.id, editForm)
+      const result = updateLeaderboardItem(editingItem.id, payload)
       if (result.success) {
         alert('更新成功')
         loadLeaderboardItems()
@@ -1692,7 +1692,7 @@ function Home() {
         alert(result.message || '更新失敗')
       }
     } else {
-      const result = addLeaderboardItem(editForm)
+      const result = addLeaderboardItem(payload)
       if (result.success) {
         alert('添加成功')
         loadLeaderboardItems()
@@ -2920,87 +2920,32 @@ function Home() {
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                if (window.confirm('確定要重置團體目標進度嗎？這將清零當前進度並開始新一輪計算，排行榜累計數量將保留。溢出數量會保留在「本輪+」中。')) {
+                                if (window.confirm('確定要重置團體目標進度嗎？這將清零當前進度並開始下一輪計算；排行榜累計數量仍保留。')) {
                                   const resetAt = new Date().toISOString()
-                                  // 1. 計算溢出數量（如果當前進度超過目標）
-                                  const currentProgress = parseFloat(item.currentProgress) || 0
-                                  const groupGoal = parseFloat(item.groupGoal) || 0
-                                  const overflowQuantity = currentProgress > groupGoal ? (currentProgress - groupGoal) : 0
-                                  
-                                  // 2. 獲取所有排名數據，計算總的 weekQuantity（用於按比例分配溢出數量）
+
+                                  // 重置「本輪+」：全部歸零，確保下一輪從 0 開始計算
                                   const rankings = getManualRankings(item.id) || []
-                                  
-                                  // 計算所有用戶的 weekQuantity 總和（用於按比例分配）
-                                  let totalWeekQuantity = 0
-                                  rankings.forEach(ranking => {
-                                    totalWeekQuantity += parseFloat(ranking.weekQuantity) || 0
-                                  })
-                                  
-                                  // 3. 按比例分配溢出數量到各個用戶的 weekQuantity
-                                  const updatedRankings = rankings.map(ranking => {
-                                    const weekQty = parseFloat(ranking.weekQuantity) || 0
-                                    let newWeekQuantity = 0
-                                    
-                                    if (overflowQuantity > 0 && totalWeekQuantity > 0) {
-                                      // 按比例分配溢出數量（四捨五入為整數）
-                                      const proportion = weekQty / totalWeekQuantity
-                                      const allocatedOverflow = overflowQuantity * proportion
-                                      newWeekQuantity = Math.round(allocatedOverflow)
-                                    } else if (overflowQuantity > 0 && totalWeekQuantity === 0) {
-                                      // 如果沒有 weekQuantity 但有溢出，按 quantity 比例分配（四捨五入為整數）
-                                      const totalQuantity = rankings.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0), 0)
-                                      if (totalQuantity > 0) {
-                                        const qty = parseFloat(ranking.quantity) || 0
-                                        const proportion = qty / totalQuantity
-                                        const allocatedOverflow = overflowQuantity * proportion
-                                        newWeekQuantity = Math.round(allocatedOverflow)
-                                      } else {
-                                        // 如果連 quantity 都沒有，平均分配（四捨五入為整數）
-                                        newWeekQuantity = rankings.length > 0 ? Math.round(overflowQuantity / rankings.length) : 0
-                                      }
-                                    } else {
-                                      // 如果沒有溢出，歸零
-                                      newWeekQuantity = 0
-                                    }
-                                    
-                                    return {
-                                      ...ranking,
-                                      weekQuantity: newWeekQuantity.toString()
-                                    }
-                                  })
-                                  
+                                  const updatedRankings = rankings.map((r) => ({ ...r, weekQuantity: '0' }))
                                   saveManualRankings(item.id, updatedRankings)
-                                  
-                                  // 4. 更新排行榜項目：清空進度、達成時間，記錄重置時間
+
+                                  // 清空進度、達成時間，並寫入重置時間（作為下一輪 cycle token）
                                   updateLeaderboardItem(item.id, {
                                     currentProgress: 0,
                                     achievedAt: null,
                                     lastResetAt: resetAt
                                   })
-                                  
-                                  // 5. 立即更新本地狀態
-                                  setLeaderboardItems(prev => 
-                                    prev.map(i => 
-                                      i.id === item.id 
-                                        ? { ...i, currentProgress: 0, achievedAt: null, lastResetAt: resetAt }
-                                        : i
-                                    )
+
+                                  setLeaderboardItems((prev) =>
+                                    prev.map((i) => (i.id === item.id ? { ...i, currentProgress: 0, achievedAt: null, lastResetAt: resetAt } : i))
                                   )
-                                  
-                                  // 6. 重新載入手動排名數據
+
                                   loadManualRankings()
-                                  
-                                  // 7. 重新載入並計算排行榜
                                   setTimeout(() => {
                                     loadLeaderboardItems()
                                     calculateAllRankings()
                                   }, 100)
-                                  
-                                  if (overflowQuantity > 0) {
-                                    alert(`已重置團體目標進度，排行榜累計數量已保留。溢出數量 ${Math.round(overflowQuantity)} 已按比例分配至各用戶的「本輪+」中。`)
-                                  } else {
-                                    alert('已重置團體目標進度，排行榜累計數量已保留，本輪累計已歸零')
-                                  }
+
+                                  alert('已重置團體目標進度：本輪累計已歸零，開始下一輪。')
                                 }
                               }}
                               className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded transition-colors cursor-pointer relative z-10"
