@@ -6,6 +6,32 @@ import { cleanupEquippedEffectsByItemIds } from './effectStorage'
 const LEADERBOARD_STORAGE_KEY = 'jiameng_leaderboard_items'
 const LEADERBOARD_UI_STORAGE_KEY = 'jiameng_leaderboard_ui'
 const MANUAL_RANKINGS_STORAGE_KEY = 'jiameng_manual_rankings'
+const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
+
+const getDeletedLeaderboards = () => {
+  try {
+    const raw = localStorage.getItem(DELETED_LEADERBOARDS_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+const persistDeletedLeaderboards = (data) => {
+  const val = JSON.stringify(data || {})
+  localStorage.setItem(DELETED_LEADERBOARDS_KEY, val)
+  syncKeyToSupabase(DELETED_LEADERBOARDS_KEY, val)
+}
+
+const markDeletedLeaderboard = (id) => {
+  const lbid = String(id || '').trim()
+  if (!lbid) return
+  const map = getDeletedLeaderboards()
+  if (map[lbid]) return
+  map[lbid] = { deletedAt: new Date().toISOString() }
+  persistDeletedLeaderboards(map)
+}
 
 const persistManualRankings = (data) => {
   const val = JSON.stringify(data || {})
@@ -103,7 +129,12 @@ export const getLeaderboardItems = () => {
   try {
     const items = localStorage.getItem(LEADERBOARD_STORAGE_KEY)
     const parsed = items ? JSON.parse(items) : []
-    return Array.isArray(parsed) ? parsed : []
+    const list = Array.isArray(parsed) ? parsed : []
+    // 刪除黑名單：避免多裝置用舊資料把已刪除面板「同步回來」
+    const deleted = getDeletedLeaderboards()
+    const deletedSet = new Set(Object.keys(deleted || {}).map((k) => String(k)))
+    if (deletedSet.size === 0) return list
+    return list.filter((it) => !deletedSet.has(String(it?.id || '')))
   } catch (error) {
     console.error('Error getting leaderboard items:', error)
     return []
@@ -113,7 +144,10 @@ export const getLeaderboardItems = () => {
 // 保存排行榜項目
 export const saveLeaderboardItems = (items) => {
   try {
-    const val = JSON.stringify(items)
+    const deleted = getDeletedLeaderboards()
+    const deletedSet = new Set(Object.keys(deleted || {}).map((k) => String(k)))
+    const filtered = (Array.isArray(items) ? items : []).filter((it) => !deletedSet.has(String(it?.id || '')))
+    const val = JSON.stringify(filtered)
     localStorage.setItem(LEADERBOARD_STORAGE_KEY, val)
     syncKeyToSupabase(LEADERBOARD_STORAGE_KEY, val)
     return { success: true }
@@ -162,6 +196,8 @@ export const updateLeaderboardItem = (id, updates) => {
 export const deleteLeaderboardItem = (id, options = {}) => {
   try {
     const cleanupRewards = options?.cleanupRewards !== false
+    // 先寫入刪除黑名單，避免其他裝置用舊資料把面板同步回來
+    markDeletedLeaderboard(id)
     const items = getLeaderboardItems()
     const filtered = items.filter(item => item.id !== id)
     saveLeaderboardItems(filtered)
@@ -397,6 +433,9 @@ export const clearAllLeaderboards = (options = {}) => {
     const items = getLeaderboardItems()
     const ids = (Array.isArray(items) ? items : []).map((i) => String(i?.id || '')).filter(Boolean)
     if (cleanupRewards && ids.length > 0) cleanupLeaderboardRewardItems(ids)
+
+    // 全清空也寫入刪除黑名單，避免其他裝置用舊資料把面板同步回來
+    ids.forEach((id) => markDeletedLeaderboard(id))
 
     localStorage.removeItem(LEADERBOARD_STORAGE_KEY)
     localStorage.removeItem(MANUAL_RANKINGS_STORAGE_KEY)
