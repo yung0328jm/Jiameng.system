@@ -1461,35 +1461,40 @@ function Home() {
             if (m?.id) equipEffect(thirdUserName, m.id, 'message')
           }
 
-          // 上榜道具：前三名依排行榜設定的獎勵類型發放道具或佳盟幣（與團體目標分開，此為「上榜」獎勵）
-          const rewardType = leaderboardItem.rewardType || 'text'
-          const rewardAmount = parseInt(leaderboardItem.rewardAmount, 10) || 0
-          const rewardItemId = leaderboardItem.rewardItemId || ''
-          ;[0, 1, 2].forEach(idx => {
-            if (!topThree[idx] || !shouldGiveRank(idx)) return
-            const account = topThree[idx].userName
-            if (!account) return
-            if (rewardType === 'item' && rewardItemId) {
-              // 同一榜同一名次：每天只發一次（避免重算/同步造成重複發放）
-              const claimKey = `rankReward|${leaderboardId}|r${idx + 1}|${ymdLocal()}|item|${rewardItemId}|${Math.max(1, rewardAmount)}`
-              if (hasClaim(claimKey)) return
-              const qty = Math.max(1, rewardAmount)
-              addItemToInventory(account, rewardItemId, qty)
-              markClaim(claimKey)
-            } else if (rewardType === 'jiameng_coin' && rewardAmount > 0) {
-              const claimKey = `rankReward|${leaderboardId}|r${idx + 1}|${ymdLocal()}|coin|${rewardAmount}`
-              if (hasClaim(claimKey)) return
-              addWalletBalance(account, rewardAmount)
-              addTransaction({
-                type: 'reward',
-                from: 'system',
-                to: account,
-                amount: rewardAmount,
-                description: `排行榜「${leaderboardItem.name || leaderboardId}」上榜獎勵`
-              })
-              markClaim(claimKey)
-            }
-          })
+          // 上榜道具：前三名依排行榜設定的獎勵類型發放道具或佳盟幣
+          // 注意：若此榜是「團體目標（全體目標）」榜，rewardType/rewardAmount/rewardItemId 已用於「全體達標獎勵」，
+          // 若再同時發「上榜獎勵」會造成第一名（以及前三名）看起來被發放兩次。
+          // 因此團體目標榜：不發上榜獎勵（稱號/特效仍照常）。
+          if (!(leaderboardItem?.isGroupGoal && leaderboardItem?.type === 'totalQuantity')) {
+            const rewardType = leaderboardItem.rewardType || 'text'
+            const rewardAmount = parseInt(leaderboardItem.rewardAmount, 10) || 0
+            const rewardItemId = leaderboardItem.rewardItemId || ''
+            ;[0, 1, 2].forEach(idx => {
+              if (!topThree[idx] || !shouldGiveRank(idx)) return
+              const account = topThree[idx].userName
+              if (!account) return
+              if (rewardType === 'item' && rewardItemId) {
+                // 同一榜同一名次：每天只發一次（避免重算/同步造成重複發放）
+                const claimKey = `rankReward|${leaderboardId}|r${idx + 1}|${ymdLocal()}|item|${rewardItemId}|${Math.max(1, rewardAmount)}`
+                if (hasClaim(claimKey)) return
+                const qty = Math.max(1, rewardAmount)
+                addItemToInventory(account, rewardItemId, qty)
+                markClaim(claimKey)
+              } else if (rewardType === 'jiameng_coin' && rewardAmount > 0) {
+                const claimKey = `rankReward|${leaderboardId}|r${idx + 1}|${ymdLocal()}|coin|${rewardAmount}`
+                if (hasClaim(claimKey)) return
+                addWalletBalance(account, rewardAmount)
+                addTransaction({
+                  type: 'reward',
+                  from: 'system',
+                  to: account,
+                  amount: rewardAmount,
+                  description: `排行榜「${leaderboardItem.name || leaderboardId}」上榜獎勵`
+                })
+                markClaim(claimKey)
+              }
+            })
+          }
 
           // 在非手動榜下，前三名中數值為 0 的用戶不發獎勵，並收回此榜全部稱號／特效（rank 0 表示全部移除），避免新帳號或無貢獻者保留舊獎勵
           ;[0, 1, 2].forEach((idx) => {
