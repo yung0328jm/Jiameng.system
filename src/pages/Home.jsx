@@ -1037,11 +1037,12 @@ function Home() {
         }
         
         // 團體目標達成獎勵（全體獎勵）：
-        // - 以「榜ID + 達成時間 + 用戶帳號」做去重，避免重算/多裝置同步造成重複發放
+        // - 以「榜ID + 本輪cycle + 用戶帳號」做去重，避免重算/多裝置同步造成重複發放
+        //   （達成時間 achievedAt 在多裝置同時達成時可能不同步，若用它做 key 會導致部分人領兩次）
         // - 不再用「整體一次性 claim」：避免當下用戶清單不完整導致部分人漏發，之後又無法補發
         const rewardType = leaderboardItem.rewardType || 'text'
-        const achievedToken = String(newAchievedAt || '').trim() || String(achievedAt || '').trim()
-        const shouldEnsureGroupReward = !!achievedToken && currentProgress >= groupGoal && groupGoal > 0
+        const cycleToken = String(leaderboardItem?.lastResetAt || '').trim() || 'initial'
+        const shouldEnsureGroupReward = currentProgress >= groupGoal && groupGoal > 0
         if (shouldEnsureGroupReward && (rewardType === 'item' || rewardType === 'jiameng_coin')) {
           // 收件人清單：Supabase profiles + local users + inventories/wallets fallback（避免漏掉只在另一裝置登入過的帳號）
           const accSet = new Set()
@@ -1080,7 +1081,7 @@ function Home() {
             Object.keys(w || {}).forEach(addAcc)
           } catch (_) {}
 
-          const baseKey = `groupReward|${leaderboardItem.id}|${achievedToken}`
+          const baseKey = `groupReward|${leaderboardItem.id}|cycle:${cycleToken}`
           if (rewardType === 'item' && leaderboardItem.rewardItemId) {
             const qty = Math.max(1, parseInt(leaderboardItem.rewardAmount, 10) || 1)
             accSet.forEach((acc) => {
