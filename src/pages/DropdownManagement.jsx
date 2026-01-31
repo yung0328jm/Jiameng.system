@@ -432,8 +432,9 @@ function DropdownManagement({ userRole: propUserRole }) {
           </div>
         </div>
       ) : (
-      {/* 新增選項 */}
-      <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
+        <>
+          {/* 新增選項 */}
+          <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
         <h3 className="text-lg font-semibold text-white mb-4">
           新增{
             selectedCategory === 'participants' ? '參與人員' : 
@@ -564,6 +565,7 @@ function DropdownManagement({ userRole: propUserRole }) {
           </div>
         )}
       </div>
+        </>
       )}
     </div>
   )

@@ -2877,7 +2877,6 @@ function Home() {
                             value={(panelTitleDrafts[item.id]?.title ?? '')}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => updatePanelDraft(item.id, 'title', e.target.value)}
-                            onBlur={() => commitPanelDraft(item)}
                             className="bg-transparent border-b-2 border-transparent hover:border-white/60 focus:border-white/60 text-white text-3xl font-bold text-center focus:outline-none w-full pb-2"
                             placeholder="排行榜"
                             style={{
@@ -2892,6 +2891,7 @@ function Home() {
                             }}
                             onBlur={(e) => {
                               e.target.style.borderBottomColor = 'transparent'
+                              commitPanelDraft(item)
                             }}
                           />
                         ) : (
