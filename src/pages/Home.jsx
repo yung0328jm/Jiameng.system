@@ -54,7 +54,11 @@ function Home() {
     nameEffectPresetIdRank1: '', nameEffectPresetIdRank2: '', nameEffectPresetIdRank3: '',
     messageEffectPresetIdRank1: '', messageEffectPresetIdRank2: '', messageEffectPresetIdRank3: '',
     titleBadgePresetIdRank1: '', titleBadgePresetIdRank2: '', titleBadgePresetIdRank3: '',
-    decorationPresetIdRank1: '', decorationPresetIdRank2: '', decorationPresetIdRank3: ''
+    decorationPresetIdRank1: '', decorationPresetIdRank2: '', decorationPresetIdRank3: '',
+    // 固定ID特效道具模板（優先於 preset 下拉）
+    nameEffectTemplateIdRank1: '', nameEffectTemplateIdRank2: '', nameEffectTemplateIdRank3: '',
+    messageEffectTemplateIdRank1: '', messageEffectTemplateIdRank2: '', messageEffectTemplateIdRank3: '',
+    titleBadgeTemplateIdRank1: '', titleBadgeTemplateIdRank2: '', titleBadgeTemplateIdRank3: ''
   })
   const [uiConfig, setUIConfig] = useState(getLeaderboardUIConfig())
   const [showUIConfigModal, setShowUIConfigModal] = useState(false)
@@ -84,6 +88,12 @@ function Home() {
   const [todos, setTodos] = useState([])
   const [newTodoText, setNewTodoText] = useState('')
   const [currentUser, setCurrentUser] = useState('')
+
+  // 固定ID特效道具模板（由「下拉選單管理 → 特效道具庫」建立）
+  const effectTemplates = (Array.isArray(availableItems) ? availableItems : []).filter((it) => it && it.isEffectTemplate)
+  const nameEffectTemplates = effectTemplates.filter((it) => it.type === ITEM_TYPES.NAME_EFFECT)
+  const messageEffectTemplates = effectTemplates.filter((it) => it.type === ITEM_TYPES.MESSAGE_EFFECT)
+  const titleBadgeTemplates = effectTemplates.filter((it) => it.type === ITEM_TYPES.TITLE)
 
   useEffect(() => {
     const role = getCurrentUserRole()
@@ -275,6 +285,7 @@ function Home() {
   useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
     loadLeaderboardItems()
     loadManualRankings()
+    setAvailableItems(getItems())
     // 彈幕次數排行榜需要即時重算
     calculateAllRankings()
   })
@@ -1044,6 +1055,10 @@ function Home() {
         const cycleToken = String(leaderboardItem?.lastResetAt || '').trim() || 'initial'
         const shouldEnsureGroupReward = currentProgress >= groupGoal && groupGoal > 0
         if (shouldEnsureGroupReward && (rewardType === 'item' || rewardType === 'jiameng_coin')) {
+          // 僅管理員端進行全體獎勵派發，避免多端同時寫入造成漏發/重複
+          if (userRole !== 'admin') {
+            // 仍會更新進度與達成狀態，但不在非管理員端發放獎勵
+          } else {
           // 收件人清單：Supabase profiles + local users + inventories/wallets fallback（避免漏掉只在另一裝置登入過的帳號）
           const accSet = new Set()
           const addAcc = (a) => {
@@ -1126,6 +1141,7 @@ function Home() {
               })
             }
           }
+          }
         }
         
         // 更新進度和達成狀態
@@ -1170,11 +1186,14 @@ function Home() {
     
     setRankings(newRankings)
     
-    // 在排名計算完成後，立即分配稱號與上榜／團體達成道具（延遲執行以避免狀態更新衝突）
-    setTimeout(async () => {
-      console.log('calculateAllRankings 完成，開始分配稱號、特效與上榜道具')
-      await distributeTitlesAndEffects(newRankings)
-    }, 500)
+    // 在排名計算完成後，分配稱號/特效/獎勵
+    // 僅管理員端執行，避免多裝置同時發放造成「有人拿兩次/有人沒拿到」與資料互相覆蓋
+    if (userRole === 'admin') {
+      setTimeout(async () => {
+        console.log('calculateAllRankings 完成（admin），開始分配稱號、特效與上榜道具')
+        await distributeTitlesAndEffects(newRankings)
+      }, 500)
+    }
   }
 
   // 分配稱號、特效與上榜道具的獨立函數（支援 Supabase 用戶列表）
@@ -1276,6 +1295,21 @@ function Home() {
         
         if (topThree.length > 0) {
           let allItems = getItems()
+          const getEffectTemplate = (tplId, expectedType) => {
+            const id = String(tplId || '').trim()
+            if (!id) return null
+            const it = allItems.find((x) => x && x.id === id)
+            if (!it || !it.isEffectTemplate) return null
+            if (expectedType && it.type !== expectedType) return null
+            return it
+          }
+          const maybeUpdateItem = (currentItem, updates) => {
+            if (!currentItem || !updates) return
+            const keys = Object.keys(updates)
+            if (keys.length === 0) return
+            const changed = keys.some((k) => (currentItem?.[k] ?? '') !== (updates?.[k] ?? ''))
+            if (changed) updateItem(currentItem.id, updates)
+          }
           // 依排行榜維度：只找此榜的稱號道具（leaderboardId 一致）
           const isThisBoardTitle = (item) => item.type === ITEM_TYPES.TITLE && (item.leaderboardId || '') === leaderboardId
           const titleId1 = stableLeaderboardRewardId(leaderboardId, 'title', 1)
@@ -1310,6 +1344,12 @@ function Home() {
             allItems = getItems()
             firstTitleItem = allItems.find(item => item.id === firstTitleItem.id)
           }
+
+          // 若有指定「固定ID稱號徽章模板」，就把徽章樣式寫進此榜稱號道具（變穩定，不依賴排行榜 preset）
+          const titleTpl1 = getEffectTemplate(leaderboardItem.titleBadgeTemplateIdRank1, ITEM_TYPES.TITLE)
+          const titleTpl2 = getEffectTemplate(leaderboardItem.titleBadgeTemplateIdRank2, ITEM_TYPES.TITLE)
+          const titleTpl3 = getEffectTemplate(leaderboardItem.titleBadgeTemplateIdRank3, ITEM_TYPES.TITLE)
+          if (firstTitleItem && titleTpl1) maybeUpdateItem(firstTitleItem, { presetId: titleTpl1.presetId || '', templateId: titleTpl1.id })
           
           if (!secondTitleItem) {
             const result = createItem({
@@ -1332,6 +1372,7 @@ function Home() {
             allItems = getItems()
             secondTitleItem = allItems.find(item => item.id === secondTitleItem.id)
           }
+          if (secondTitleItem && titleTpl2) maybeUpdateItem(secondTitleItem, { presetId: titleTpl2.presetId || '', templateId: titleTpl2.id })
           
           if (!thirdTitleItem) {
             const result = createItem({
@@ -1354,6 +1395,7 @@ function Home() {
             allItems = getItems()
             thirdTitleItem = allItems.find(item => item.id === thirdTitleItem.id)
           }
+          if (thirdTitleItem && titleTpl3) maybeUpdateItem(thirdTitleItem, { presetId: titleTpl3.presetId || '', templateId: titleTpl3.id })
           
           // 此排行榜的名子／發話特效道具（依名次，與稱號一致）
           const isThisBoardEffect = (item, type) => item.type === type && (item.leaderboardId || '') === leaderboardId
@@ -1392,6 +1434,20 @@ function Home() {
           firstMsgEffect = ensureEffect(firstMsgEffect, ITEM_TYPES.MESSAGE_EFFECT, 1, '發話特效·第一名') || firstMsgEffect
           secondMsgEffect = ensureEffect(secondMsgEffect, ITEM_TYPES.MESSAGE_EFFECT, 2, '發話特效·第二名') || secondMsgEffect
           thirdMsgEffect = ensureEffect(thirdMsgEffect, ITEM_TYPES.MESSAGE_EFFECT, 3, '發話特效·第三名') || thirdMsgEffect
+
+          // 套用固定ID特效模板（若有設定）：把 presetId/裝飾寫入「此榜獎勵道具」
+          const nameTpl1 = getEffectTemplate(leaderboardItem.nameEffectTemplateIdRank1, ITEM_TYPES.NAME_EFFECT)
+          const nameTpl2 = getEffectTemplate(leaderboardItem.nameEffectTemplateIdRank2, ITEM_TYPES.NAME_EFFECT)
+          const nameTpl3 = getEffectTemplate(leaderboardItem.nameEffectTemplateIdRank3, ITEM_TYPES.NAME_EFFECT)
+          const msgTpl1 = getEffectTemplate(leaderboardItem.messageEffectTemplateIdRank1, ITEM_TYPES.MESSAGE_EFFECT)
+          const msgTpl2 = getEffectTemplate(leaderboardItem.messageEffectTemplateIdRank2, ITEM_TYPES.MESSAGE_EFFECT)
+          const msgTpl3 = getEffectTemplate(leaderboardItem.messageEffectTemplateIdRank3, ITEM_TYPES.MESSAGE_EFFECT)
+          if (firstNameEffect && nameTpl1) maybeUpdateItem(firstNameEffect, { name: nameTpl1.name || firstNameEffect.name, icon: nameTpl1.icon || firstNameEffect.icon, presetId: nameTpl1.presetId || '', decorationPresetId: nameTpl1.decorationPresetId || '', templateId: nameTpl1.id })
+          if (secondNameEffect && nameTpl2) maybeUpdateItem(secondNameEffect, { name: nameTpl2.name || secondNameEffect.name, icon: nameTpl2.icon || secondNameEffect.icon, presetId: nameTpl2.presetId || '', decorationPresetId: nameTpl2.decorationPresetId || '', templateId: nameTpl2.id })
+          if (thirdNameEffect && nameTpl3) maybeUpdateItem(thirdNameEffect, { name: nameTpl3.name || thirdNameEffect.name, icon: nameTpl3.icon || thirdNameEffect.icon, presetId: nameTpl3.presetId || '', decorationPresetId: nameTpl3.decorationPresetId || '', templateId: nameTpl3.id })
+          if (firstMsgEffect && msgTpl1) maybeUpdateItem(firstMsgEffect, { name: msgTpl1.name || firstMsgEffect.name, icon: msgTpl1.icon || firstMsgEffect.icon, presetId: msgTpl1.presetId || '', templateId: msgTpl1.id })
+          if (secondMsgEffect && msgTpl2) maybeUpdateItem(secondMsgEffect, { name: msgTpl2.name || secondMsgEffect.name, icon: msgTpl2.icon || secondMsgEffect.icon, presetId: msgTpl2.presetId || '', templateId: msgTpl2.id })
+          if (thirdMsgEffect && msgTpl3) maybeUpdateItem(thirdMsgEffect, { name: msgTpl3.name || thirdMsgEffect.name, icon: msgTpl3.icon || thirdMsgEffect.icon, presetId: msgTpl3.presetId || '', templateId: msgTpl3.id })
           allItems = getItems()
           
           // 只移除「屬於此排行榜」的稱號與名子／發話特效：非前三名收回此榜全部；前三名在下面只做「此榜其他名次」的移除與發放
@@ -1611,7 +1667,10 @@ function Home() {
     nameEffectPresetIdRank1: '', nameEffectPresetIdRank2: '', nameEffectPresetIdRank3: '',
     messageEffectPresetIdRank1: '', messageEffectPresetIdRank2: '', messageEffectPresetIdRank3: '',
     titleBadgePresetIdRank1: '', titleBadgePresetIdRank2: '', titleBadgePresetIdRank3: '',
-    decorationPresetIdRank1: '', decorationPresetIdRank2: '', decorationPresetIdRank3: ''
+    decorationPresetIdRank1: '', decorationPresetIdRank2: '', decorationPresetIdRank3: '',
+    nameEffectTemplateIdRank1: '', nameEffectTemplateIdRank2: '', nameEffectTemplateIdRank3: '',
+    messageEffectTemplateIdRank1: '', messageEffectTemplateIdRank2: '', messageEffectTemplateIdRank3: '',
+    titleBadgeTemplateIdRank1: '', titleBadgeTemplateIdRank2: '', titleBadgeTemplateIdRank3: ''
     })
     setExpandEditTitles(false)
     setExpandEditEffects(false)
@@ -1646,7 +1705,10 @@ function Home() {
       nameEffectPresetIdRank1: item.nameEffectPresetIdRank1 ?? '', nameEffectPresetIdRank2: item.nameEffectPresetIdRank2 ?? '', nameEffectPresetIdRank3: item.nameEffectPresetIdRank3 ?? '',
       messageEffectPresetIdRank1: item.messageEffectPresetIdRank1 ?? '', messageEffectPresetIdRank2: item.messageEffectPresetIdRank2 ?? '', messageEffectPresetIdRank3: item.messageEffectPresetIdRank3 ?? '',
       titleBadgePresetIdRank1: item.titleBadgePresetIdRank1 ?? '', titleBadgePresetIdRank2: item.titleBadgePresetIdRank2 ?? '', titleBadgePresetIdRank3: item.titleBadgePresetIdRank3 ?? '',
-      decorationPresetIdRank1: item.decorationPresetIdRank1 ?? '', decorationPresetIdRank2: item.decorationPresetIdRank2 ?? '', decorationPresetIdRank3: item.decorationPresetIdRank3 ?? ''
+      decorationPresetIdRank1: item.decorationPresetIdRank1 ?? '', decorationPresetIdRank2: item.decorationPresetIdRank2 ?? '', decorationPresetIdRank3: item.decorationPresetIdRank3 ?? '',
+      nameEffectTemplateIdRank1: item.nameEffectTemplateIdRank1 ?? '', nameEffectTemplateIdRank2: item.nameEffectTemplateIdRank2 ?? '', nameEffectTemplateIdRank3: item.nameEffectTemplateIdRank3 ?? '',
+      messageEffectTemplateIdRank1: item.messageEffectTemplateIdRank1 ?? '', messageEffectTemplateIdRank2: item.messageEffectTemplateIdRank2 ?? '', messageEffectTemplateIdRank3: item.messageEffectTemplateIdRank3 ?? '',
+      titleBadgeTemplateIdRank1: item.titleBadgeTemplateIdRank1 ?? '', titleBadgeTemplateIdRank2: item.titleBadgeTemplateIdRank2 ?? '', titleBadgeTemplateIdRank3: item.titleBadgeTemplateIdRank3 ?? ''
     })
     setExpandEditTitles(false)
     setExpandEditEffects(false)
@@ -1686,7 +1748,10 @@ function Home() {
           nameEffectPresetIdRank1: '', nameEffectPresetIdRank2: '', nameEffectPresetIdRank3: '',
           messageEffectPresetIdRank1: '', messageEffectPresetIdRank2: '', messageEffectPresetIdRank3: '',
           titleBadgePresetIdRank1: '', titleBadgePresetIdRank2: '', titleBadgePresetIdRank3: '',
-          decorationPresetIdRank1: '', decorationPresetIdRank2: '', decorationPresetIdRank3: ''
+          decorationPresetIdRank1: '', decorationPresetIdRank2: '', decorationPresetIdRank3: '',
+          nameEffectTemplateIdRank1: '', nameEffectTemplateIdRank2: '', nameEffectTemplateIdRank3: '',
+          messageEffectTemplateIdRank1: '', messageEffectTemplateIdRank2: '', messageEffectTemplateIdRank3: '',
+          titleBadgeTemplateIdRank1: '', titleBadgeTemplateIdRank2: '', titleBadgeTemplateIdRank3: ''
         })
       } else {
         alert(result.message || '更新失敗')
@@ -1717,7 +1782,11 @@ function Home() {
           nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '',
           nameEffectPresetIdRank1: '', nameEffectPresetIdRank2: '', nameEffectPresetIdRank3: '',
           messageEffectPresetIdRank1: '', messageEffectPresetIdRank2: '', messageEffectPresetIdRank3: '',
-          titleBadgePresetIdRank1: '', titleBadgePresetIdRank2: '', titleBadgePresetIdRank3: ''
+          titleBadgePresetIdRank1: '', titleBadgePresetIdRank2: '', titleBadgePresetIdRank3: '',
+          decorationPresetIdRank1: '', decorationPresetIdRank2: '', decorationPresetIdRank3: '',
+          nameEffectTemplateIdRank1: '', nameEffectTemplateIdRank2: '', nameEffectTemplateIdRank3: '',
+          messageEffectTemplateIdRank1: '', messageEffectTemplateIdRank2: '', messageEffectTemplateIdRank3: '',
+          titleBadgeTemplateIdRank1: '', titleBadgeTemplateIdRank2: '', titleBadgeTemplateIdRank3: ''
         })
       } else {
         alert(result.message || '添加失敗')
@@ -3699,7 +3768,52 @@ function Home() {
                 {[1, 2, 3].map((rank) => (
                   <div key={rank} className="mb-4 p-3 rounded bg-gray-900/50 border border-gray-600">
                     <p className="text-amber-400 text-xs font-medium mb-2">第{rank}名</p>
-                    <div className={rank === 1 ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-2 gap-2'}>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className={rank === 1 ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-2 gap-2'}>
+                        {rank === 1 && (
+                          <div>
+                            <label className="block text-gray-500 text-xs mb-1">固定道具：名子（優先）</label>
+                            <select
+                              value={editForm[`nameEffectTemplateIdRank${rank}`] ?? ''}
+                              onChange={(e) => setEditForm({ ...editForm, [`nameEffectTemplateIdRank${rank}`]: e.target.value })}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                            >
+                              <option value="">不使用（改用下方 preset）</option>
+                              {nameEffectTemplates.map((it) => (
+                                <option key={it.id} value={it.id}>{it.icon} {it.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        <div>
+                          <label className="block text-gray-500 text-xs mb-1">固定道具：發話（優先）</label>
+                          <select
+                            value={editForm[`messageEffectTemplateIdRank${rank}`] ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, [`messageEffectTemplateIdRank${rank}`]: e.target.value })}
+                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                          >
+                            <option value="">不使用（改用下方 preset）</option>
+                            {messageEffectTemplates.map((it) => (
+                              <option key={it.id} value={it.id}>{it.icon} {it.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-gray-500 text-xs mb-1">固定道具：稱號徽章（優先）</label>
+                          <select
+                            value={editForm[`titleBadgeTemplateIdRank${rank}`] ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, [`titleBadgeTemplateIdRank${rank}`]: e.target.value })}
+                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                          >
+                            <option value="">不使用（改用下方 preset）</option>
+                            {titleBadgeTemplates.map((it) => (
+                              <option key={it.id} value={it.id}>{it.icon} {it.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className={rank === 1 ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-2 gap-2'}>
                       {rank === 1 && (
                         <div>
                           <label className="block text-gray-500 text-xs mb-1">名子</label>
@@ -3735,6 +3849,7 @@ function Home() {
                           <option value="">全站預設</option>
                           {TITLE_BADGE_PRESETS.map((p) => (<option key={p.id} value={p.id}>{p.label}</option>))}
                         </select>
+                      </div>
                       </div>
                     </div>
                     <div className="mt-2">
