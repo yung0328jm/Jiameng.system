@@ -77,8 +77,12 @@ export const createItem = (itemData) => {
     const prev = getItems()
     backupItemsSnapshot(prev)
     const items = Array.isArray(prev) ? [...prev] : []
+    const desiredId = String(itemData?.id || '').trim()
+    if (desiredId && items.some((it) => String(it?.id || '').trim() === desiredId)) {
+      return { success: false, message: `道具 ID 已存在：${desiredId}` }
+    }
     const newItem = {
-      id: itemData.id || `item_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      id: desiredId || `item_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       ...itemData,
       createdAt: itemData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()

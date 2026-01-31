@@ -46,9 +46,9 @@ function getValidEquippedItem(username, slot, leaderboardItems, expectedType = n
       return null
     }
   } catch (_) {}
-  // 排行榜已刪除：若道具是「依賴排行榜設定」的舊模式（沒有 presetId），就應失效並卸下。
-  // 新模式（固定 ID 特效道具）：道具自帶 presetId，不依賴排行榜是否存在，故不在此卸下。
-  if (item.leaderboardId && !item.presetId && !isLeaderboardActive(leaderboardItems, item.leaderboardId)) {
+  // 排行榜已刪除：屬於該榜的獎勵道具（有 leaderboardId）一律失效並卸下。
+  // 固定ID特效模板（isEffectTemplate）理論上不應帶 leaderboardId；即使誤帶也不在此自動卸下。
+  if (item.leaderboardId && !item.isEffectTemplate && !isLeaderboardActive(leaderboardItems, item.leaderboardId)) {
     try { unequipEffect(username, slot) } catch (_) {}
     return null
   }
