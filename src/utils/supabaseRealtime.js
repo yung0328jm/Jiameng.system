@@ -10,6 +10,7 @@ const MESSAGE_KEY = 'jiameng_messages'
 const AWARD_CLAIMS_KEY = 'jiameng_leaderboard_award_claims_v1'
 const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
 const LEADERBOARD_ITEMS_KEY = 'jiameng_leaderboard_items'
+const ITEMS_KEY = 'jiameng_items'
 
 const evt = 'supabase-realtime-update'
 
@@ -124,6 +125,33 @@ export function subscribeRealtime(onUpdate) {
       seen.add(id)
       order.push(id)
     })
+    return order.map((id) => byId.get(id)).filter(Boolean)
+  }
+
+  // 道具清單合併去重：避免多裝置覆蓋造成「背包有 itemId 但道具定義不在 → 未知道具」
+  function itemUpdatedAt(x) {
+    const t0 = Date.parse(x?.updatedAt || '') || 0
+    const t1 = Date.parse(x?.createdAt || '') || 0
+    return Math.max(t0, t1)
+  }
+  function mergeItems(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byId = new Map()
+    ;[...a, ...b].forEach((it) => {
+      const id = String(it?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) { byId.set(id, it); return }
+      const ta = itemUpdatedAt(prev)
+      const tb = itemUpdatedAt(it)
+      byId.set(id, tb >= ta ? { ...prev, ...it } : { ...it, ...prev })
+    })
+    // 保留順序（先本機再雲端新增），避免 UI 列表跳動
+    const order = []
+    const seen = new Set()
+    a.forEach((it) => { const id = String(it?.id || '').trim(); if (!id || seen.has(id)) return; seen.add(id); order.push(id) })
+    b.forEach((it) => { const id = String(it?.id || '').trim(); if (!id || seen.has(id)) return; seen.add(id); order.push(id) })
     return order.map((id) => byId.get(id)).filter(Boolean)
   }
 
@@ -349,6 +377,29 @@ export function subscribeRealtime(onUpdate) {
                   const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
                   localStorage.setItem(LEADERBOARD_ITEMS_KEY, val)
                   notifyKey(LEADERBOARD_ITEMS_KEY)
+                }
+              } else if (key === ITEMS_KEY) {
+                try {
+                  const incoming = Array.isArray(payload.new.data)
+                    ? payload.new.data
+                    : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+                  const existing = (() => {
+                    try { return JSON.parse(localStorage.getItem(ITEMS_KEY) || '[]') } catch (_) { return [] }
+                  })()
+                  const merged = mergeItems(existing, incoming)
+                  const val = JSON.stringify(merged)
+                  localStorage.setItem(ITEMS_KEY, val)
+                  notifyKey(ITEMS_KEY)
+
+                  // 若 incoming 少於合併後（可能被覆蓋丟失），嘗試回寫一次修復雲端
+                  const now = Date.now()
+                  if (merged.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastMsgHealAt > 5000) {
+                    sb.from('app_data').upsert({ key: ITEMS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  }
+                } catch (_) {
+                  const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                  localStorage.setItem(ITEMS_KEY, val)
+                  notifyKey(ITEMS_KEY)
                 }
               } else {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})

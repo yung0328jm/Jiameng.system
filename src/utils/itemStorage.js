@@ -80,7 +80,8 @@ export const createItem = (itemData) => {
     const newItem = {
       id: itemData.id || `item_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       ...itemData,
-      createdAt: new Date().toISOString()
+      createdAt: itemData.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
     items.push(newItem)
     const val = JSON.stringify(items)
@@ -103,7 +104,7 @@ export const updateItem = (itemId, updates) => {
     if (itemIndex === -1) {
       return { success: false, message: '道具不存在' }
     }
-    items[itemIndex] = { ...items[itemIndex], ...updates }
+    items[itemIndex] = { ...items[itemIndex], ...updates, updatedAt: new Date().toISOString() }
     const val = JSON.stringify(items)
     localStorage.setItem(ITEM_STORAGE_KEY, val)
     syncKeyToSupabase(ITEM_STORAGE_KEY, val)

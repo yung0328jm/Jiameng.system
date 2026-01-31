@@ -46,8 +46,9 @@ function getValidEquippedItem(username, slot, leaderboardItems, expectedType = n
       return null
     }
   } catch (_) {}
-  // 排行榜已刪除：該榜的稱號/特效應失效並卸下
-  if (item.leaderboardId && !isLeaderboardActive(leaderboardItems, item.leaderboardId)) {
+  // 排行榜已刪除：若道具是「依賴排行榜設定」的舊模式（沒有 presetId），就應失效並卸下。
+  // 新模式（固定 ID 特效道具）：道具自帶 presetId，不依賴排行榜是否存在，故不在此卸下。
+  if (item.leaderboardId && !item.presetId && !isLeaderboardActive(leaderboardItems, item.leaderboardId)) {
     try { unequipEffect(username, slot) } catch (_) {}
     return null
   }
@@ -61,17 +62,29 @@ export function getNameEffectStyle(username, leaderboardItems = []) {
   if (!effectItem) return null
   const rank = effectItem.rank ?? 1
   if (rank !== 1) return null
-  const leaderboardId = effectItem.leaderboardId || ''
-  const leaderboard = leaderboardId ? leaderboardItems.find((l) => l.id === leaderboardId) : null
-  const presetId = getPresetIdByRank(leaderboard, 'name', rank)
+  const presetId = (effectItem.presetId || '').trim()
+    ? String(effectItem.presetId).trim()
+    : (() => {
+      const leaderboardId = effectItem.leaderboardId || ''
+      const leaderboard = leaderboardId ? leaderboardItems.find((l) => l.id === leaderboardId) : null
+      return getPresetIdByRank(leaderboard, 'name', rank)
+    })()
   return getStyleForPreset('name', presetId, rank) || null
 }
 
 /** 獲取名子旁裝飾（第 1、2、3 名皆可顯示） */
 export function getDecorationForNameEffect(username, leaderboardItems = []) {
+  const nameItem = getValidEquippedItem(username, 'name', leaderboardItems, ITEM_TYPES.NAME_EFFECT)
+  if (nameItem) {
+    const decoId = String(nameItem.decorationPresetId || '').trim()
+    if (decoId) {
+      const deco = getDecorationById(decoId)
+      if (deco) return deco
+    }
+  }
+
   let leaderboardId = ''
   let rank = 1
-  const nameItem = getValidEquippedItem(username, 'name', leaderboardItems, ITEM_TYPES.NAME_EFFECT)
   if (nameItem) {
     leaderboardId = nameItem.leaderboardId || ''
     rank = nameItem.rank ?? 1
@@ -106,8 +119,12 @@ export function getTitleBadgeStyle(username, leaderboardItems = []) {
   }
   const leaderboardId = titleItem.leaderboardId || ''
   const rank = titleItem.rank ?? 1
-  const leaderboard = leaderboardId ? leaderboardItems.find((l) => l.id === leaderboardId) : null
-  const presetId = getPresetIdByRank(leaderboard, 'title', rank)
+  const presetId = (titleItem.presetId || '').trim()
+    ? String(titleItem.presetId).trim()
+    : (() => {
+      const leaderboard = leaderboardId ? leaderboardItems.find((l) => l.id === leaderboardId) : null
+      return getPresetIdByRank(leaderboard, 'title', rank)
+    })()
   return getStyleForPreset('title', presetId, rank) || {}
 }
 
