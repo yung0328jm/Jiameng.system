@@ -9,6 +9,7 @@ const TRIP_REPORT_KEY = 'jiameng_trip_reports'
 const MESSAGE_KEY = 'jiameng_messages'
 const AWARD_CLAIMS_KEY = 'jiameng_leaderboard_award_claims_v1'
 const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
+const LEADERBOARD_ITEMS_KEY = 'jiameng_leaderboard_items'
 
 const evt = 'supabase-realtime-update'
 
@@ -84,6 +85,31 @@ export function subscribeRealtime(onUpdate) {
     const merged = Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
     // 防爆：最多保留 5000 筆
     return merged.slice(-5000)
+  }
+
+  // 排行榜面板合併去重（避免多裝置/多分頁同時寫入造成「新增面板被覆蓋消失」）
+  function lbUpdatedAt(x) {
+    const t0 = Date.parse(x?.updatedAt || '') || 0
+    const t1 = Date.parse(x?.createdAt || '') || 0
+    return Math.max(t0, t1)
+  }
+  function mergeLeaderboardItems(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byId = new Map()
+    ;[...a, ...b].forEach((it) => {
+      const id = String(it?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) {
+        byId.set(id, it)
+        return
+      }
+      const ta = lbUpdatedAt(prev)
+      const tb = lbUpdatedAt(it)
+      byId.set(id, tb >= ta ? { ...prev, ...it } : { ...it, ...prev })
+    })
+    return Array.from(byId.values()).sort((x, y) => lbUpdatedAt(x) - lbUpdatedAt(y))
   }
 
   function mergeObjectMap(existingObj, incomingObj, pickNewestAt = 'at') {
@@ -285,9 +311,35 @@ export function subscribeRealtime(onUpdate) {
                 notifyKey(key)
               }
             } else {
-              const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
-              localStorage.setItem(key, val)
-              notifyKey(key)
+              if (key === LEADERBOARD_ITEMS_KEY) {
+                try {
+                  const incoming = Array.isArray(payload.new.data)
+                    ? payload.new.data
+                    : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+                  const existing = (() => {
+                    try { return JSON.parse(localStorage.getItem(LEADERBOARD_ITEMS_KEY) || '[]') } catch (_) { return [] }
+                  })()
+                  const merged = mergeLeaderboardItems(existing, incoming)
+                  const val = JSON.stringify(merged)
+                  localStorage.setItem(LEADERBOARD_ITEMS_KEY, val)
+                  notifyKey(LEADERBOARD_ITEMS_KEY)
+
+                  // 若 incoming 少於合併後（可能被覆蓋丟失），嘗試回寫一次修復雲端
+                  const now = Date.now()
+                  const sig = `${merged.length}|${merged.slice(-5).map((d) => d?.id).join('|')}`
+                  if (merged.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastMsgHealAt > 5000) {
+                    sb.from('app_data').upsert({ key: LEADERBOARD_ITEMS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  }
+                } catch (_) {
+                  const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                  localStorage.setItem(LEADERBOARD_ITEMS_KEY, val)
+                  notifyKey(LEADERBOARD_ITEMS_KEY)
+                }
+              } else {
+                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
+                localStorage.setItem(key, val)
+                notifyKey(key)
+              }
             }
           }
         } else if (payload.old && payload.old.key != null) {
