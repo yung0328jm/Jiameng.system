@@ -279,6 +279,42 @@ function Home() {
     calculateAllRankings()
   })
 
+  // 排行榜獎勵發放去重（避免因為重算/多裝置同步造成重複發放）
+  const LB_AWARD_CLAIMS_KEY = 'jiameng_leaderboard_award_claims_v1'
+  const getAwardClaims = () => {
+    try {
+      const raw = localStorage.getItem(LB_AWARD_CLAIMS_KEY)
+      const parsed = raw ? JSON.parse(raw) : {}
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch (_) {
+      return {}
+    }
+  }
+  const setAwardClaims = (claims) => {
+    try {
+      const val = JSON.stringify(claims || {})
+      localStorage.setItem(LB_AWARD_CLAIMS_KEY, val)
+      syncKeyToSupabase(LB_AWARD_CLAIMS_KEY, val)
+    } catch (_) {}
+  }
+  const ymdLocal = () => {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dd}`
+  }
+  const hasClaim = (key) => {
+    const c = getAwardClaims()
+    return !!c?.[key]
+  }
+  const markClaim = (key) => {
+    const c = getAwardClaims()
+    if (c?.[key]) return
+    c[key] = { at: new Date().toISOString() }
+    setAwardClaims(c)
+  }
+
   const handleAddTodo = () => {
     if (!newTodoText.trim()) {
       alert('請輸入待辦事項')
@@ -1016,12 +1052,19 @@ function Home() {
             const local = getUsers()
             allUsers = (Array.isArray(local) ? local : []).filter(u => u.role !== 'admin')
           }
-          if (rewardType === 'item' && leaderboardItem.rewardItemId) {
+          // 避免多裝置同時偵測達成而重複派發：以「榜ID+達成時間」做一次性 claim
+          const achievedToken = String(newAchievedAt || '').trim() || new Date().toISOString()
+          const claimKey = `groupReward|${leaderboardItem.id}|${achievedToken}`
+          if (hasClaim(claimKey)) {
+            // 已派發過就跳過
+          } else if (rewardType === 'item' && leaderboardItem.rewardItemId) {
+            const qty = Math.max(1, parseInt(leaderboardItem.rewardAmount, 10) || 1)
             allUsers.forEach(user => {
               if (user.account) {
-                addItemToInventory(user.account, leaderboardItem.rewardItemId, 1)
+                addItemToInventory(user.account, leaderboardItem.rewardItemId, qty)
               }
             })
+            markClaim(claimKey)
             console.log(`團體目標達成：已為所有用戶派發道具 ${leaderboardItem.rewardItemId}`)
           } else if (rewardType === 'jiameng_coin' && leaderboardItem.rewardAmount > 0) {
             allUsers.forEach(user => {
@@ -1036,6 +1079,7 @@ function Home() {
                 })
               }
             })
+            markClaim(claimKey)
             console.log(`團體目標達成：已為所有用戶派發 ${leaderboardItem.rewardAmount} 佳盟幣`)
           }
         }
@@ -1426,9 +1470,15 @@ function Home() {
             const account = topThree[idx].userName
             if (!account) return
             if (rewardType === 'item' && rewardItemId) {
+              // 同一榜同一名次：每天只發一次（避免重算/同步造成重複發放）
+              const claimKey = `rankReward|${leaderboardId}|r${idx + 1}|${ymdLocal()}|item|${rewardItemId}|${Math.max(1, rewardAmount)}`
+              if (hasClaim(claimKey)) return
               const qty = Math.max(1, rewardAmount)
               addItemToInventory(account, rewardItemId, qty)
+              markClaim(claimKey)
             } else if (rewardType === 'jiameng_coin' && rewardAmount > 0) {
+              const claimKey = `rankReward|${leaderboardId}|r${idx + 1}|${ymdLocal()}|coin|${rewardAmount}`
+              if (hasClaim(claimKey)) return
               addWalletBalance(account, rewardAmount)
               addTransaction({
                 type: 'reward',
@@ -1437,6 +1487,7 @@ function Home() {
                 amount: rewardAmount,
                 description: `排行榜「${leaderboardItem.name || leaderboardId}」上榜獎勵`
               })
+              markClaim(claimKey)
             }
           })
 
@@ -1450,16 +1501,7 @@ function Home() {
       })
   }
 
-  // 為上榜用戶自動給予特效道具和稱號（useEffect 作為備用觸發）
-  useEffect(() => {
-    if (Object.keys(rankings).length === 0) {
-      console.log('useEffect: rankings 為空，跳過分配')
-      return
-    }
-    console.log('useEffect: 觸發稱號分配，排行榜數量:', Object.keys(rankings).length)
-    distributeTitlesAndEffects(rankings)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Object.keys(rankings).length])
+  // 移除備用 useEffect 觸發：分配已在 calculateAllRankings 後統一執行
 
   const getRankingValue = (user, itemType, leaderboardItem = null) => {
     if (!itemType) return ''
@@ -1637,64 +1679,8 @@ function Home() {
   const handleDeleteItem = (id) => {
     if (!window.confirm('確定要刪除此排行榜面板嗎？這將同時刪除該面板的所有排名數據，並移除所有屬於此榜的稱號／名子／發話特效道具，不保留。')) return
     
-    const result = deleteLeaderboardItem(id)
+    const result = deleteLeaderboardItem(id, { cleanupRewards: true })
     if (result.success) {
-      // 同時刪除該項目的手動排名數據
-      try {
-        const allRankings = localStorage.getItem('jiameng_manual_rankings')
-        if (allRankings) {
-          const data = JSON.parse(allRankings)
-          delete data[id]
-          localStorage.setItem('jiameng_manual_rankings', JSON.stringify(data))
-        }
-      } catch (error) {
-        console.error('Error deleting manual rankings:', error)
-      }
-
-      // 移除此排行榜所有特殊道具（稱號、名子特效、發話特效）：卸下裝備 → 清空所有人背包內該類道具 → 刪除道具定義，不保留
-      try {
-        const items = getItems()
-        const specialItems = items.filter(
-          (i) => (i.leaderboardId || '') === id && (i.type === ITEM_TYPES.TITLE || i.type === ITEM_TYPES.NAME_EFFECT || i.type === ITEM_TYPES.MESSAGE_EFFECT)
-        )
-        const specialIds = new Set(specialItems.map((i) => i.id))
-
-        // 若有屬於此榜的特殊道具，先卸下所有用戶的裝備、再從背包移除、最後刪除道具
-        if (specialIds.size > 0) {
-          const allEquipped = getAllEquippedEffects()
-          Object.keys(allEquipped || {}).forEach((username) => {
-            const e = allEquipped[username] || {}
-            if (e.nameEffect && specialIds.has(e.nameEffect)) unequipEffect(username, 'name')
-            if (e.messageEffect && specialIds.has(e.messageEffect)) unequipEffect(username, 'message')
-            if (e.title && specialIds.has(e.title)) unequipEffect(username, 'title')
-          })
-          // 從所有人的背包中移除（Supabase 模式下不能只靠 getUsers，直接掃 inventories map）
-          try {
-            const rawInv = localStorage.getItem('jiameng_inventories')
-            const inventories = rawInv ? JSON.parse(rawInv) : {}
-            let changed = false
-            Object.keys(inventories || {}).forEach((username) => {
-              const arr = Array.isArray(inventories[username]) ? inventories[username] : []
-              const filtered = arr.filter((invEntry) => !specialIds.has(invEntry.itemId))
-              if (filtered.length !== arr.length) {
-                inventories[username] = filtered
-                changed = true
-              }
-            })
-            if (changed) {
-              const val = JSON.stringify(inventories)
-              localStorage.setItem('jiameng_inventories', val)
-              syncKeyToSupabase('jiameng_inventories', val)
-            }
-          } catch (e) {
-            console.warn('Error cleaning inventories for deleted leaderboard:', e)
-          }
-          specialItems.forEach((item) => deleteItem(item.id))
-        }
-      } catch (error) {
-        console.error('Error removing special items for deleted leaderboard:', error)
-      }
-      
       alert('刪除成功')
       loadLeaderboardItems()
       loadManualRankings()
