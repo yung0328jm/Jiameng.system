@@ -2916,7 +2916,6 @@ function Home() {
                             value={(panelTitleDrafts[item.id]?.slogan ?? '')}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => updatePanelDraft(item.id, 'slogan', e.target.value)}
-                            onBlur={() => commitPanelDraft(item)}
                             className="bg-transparent border-b border-transparent hover:border-white/60 focus:border-white/60 text-white text-sm text-center focus:outline-none w-full mt-2"
                             placeholder={uiConfig.slogan1 || '例如：乘風破浪'}
                             style={{
@@ -2930,6 +2929,7 @@ function Home() {
                             }}
                             onBlur={(e) => {
                               e.target.style.borderBottomColor = 'transparent'
+                              commitPanelDraft(item)
                             }}
                           />
                         ) : (
