@@ -18,9 +18,16 @@ function TripReport() {
   const [message, setMessage] = useState(null)
   const selectedSiteNameRef = useRef('')
 
+  const isLeaveSchedule = (s) => {
+    const tag = String(s?.tag || '').trim()
+    const siteName = String(s?.siteName || '').trim()
+    return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
+  }
+
   const buildSiteLists = (allSchedules, todayStr, userAccount, role) => {
     const list = Array.isArray(allSchedules) ? allSchedules : []
-    const todaySchedules = list.filter((s) => (s.date || '') === todayStr)
+    // 行程回報只顯示「案場排程」，請假僅供行事曆查看狀態，不需回報
+    const todaySchedules = list.filter((s) => (s.date || '') === todayStr).filter((s) => !isLeaveSchedule(s))
     const all = [...new Set(todaySchedules.map((s) => (s.siteName || '').trim()).filter(Boolean))].sort()
     // 管理員：全部可操作
     if (role === 'admin') return { all, allowed: all }
@@ -107,6 +114,11 @@ function TripReport() {
       setMessage({ type: 'error', text: '請先選擇案場' })
       return
     }
+    // 防呆：請假不需回報
+    if (/^請假(\s|[-—])/u.test(String(selectedSiteName || '').trim()) || String(selectedSiteName || '').trim() === '請假') {
+      setMessage({ type: 'error', text: '請假不需要行程回報，請選擇案場。' })
+      return
+    }
     // 權限：非管理員只能回報自己參與的案場
     const role = getCurrentUserRole()
     if (role !== 'admin') {
@@ -134,6 +146,7 @@ function TripReport() {
   // 判斷按鈕是否可點擊：必須按照順序 出發→抵達→休息→上工→收工→離場
   const isActionEnabled = (actionType) => {
     if (!currentUser || !selectedSiteName) return false
+    if (/^請假(\s|[-—])/u.test(String(selectedSiteName || '').trim()) || String(selectedSiteName || '').trim() === '請假') return false
     // 非管理員：只能對自己參與的案場操作
     const role = getCurrentUserRole()
     if (role !== 'admin' && !allowedSiteNames.includes(selectedSiteName)) return false
