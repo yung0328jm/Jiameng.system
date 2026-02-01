@@ -173,6 +173,20 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     itemId: '',
     quantity: 1
   })
+
+  const ALL_USERS_VALUE = '__ALL_USERS__'
+  const getAllRecipientAccounts = () => {
+    const list = Array.isArray(allUsers) ? allUsers : []
+    return list
+      .filter((u) => {
+        const acc = String(u?.account || '').trim()
+        if (!acc) return false
+        if (acc === 'admin' || acc === 'jiameng.system') return false
+        if (u?.role === 'admin' || u?.is_admin) return false
+        return true
+      })
+      .map((u) => String(u.account).trim())
+  }
   const [availableItems, setAvailableItems] = useState([])
   const [showTopMenu, setShowTopMenu] = useState(false) // 手機版「更多」選單
   const topMenuButtonRef = useRef(null)
@@ -359,6 +373,40 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       return
     }
 
+    // 全體分發
+    if (distributionForm.username === ALL_USERS_VALUE) {
+      const recipients = getAllRecipientAccounts()
+      if (recipients.length === 0) {
+        alert('沒有可分發的用戶（已排除管理員/系統帳號）')
+        return
+      }
+      if (!window.confirm(`確定要分發 ${distributionForm.amount} 佳盟幣給所有用戶嗎？\n共 ${recipients.length} 人。`)) return
+
+      let ok = 0
+      let fail = 0
+      recipients.forEach((acc) => {
+        const r = addWalletBalance(acc, distributionForm.amount)
+        if (r?.success) {
+          ok += 1
+          addTransaction({
+            type: 'distribution',
+            from: 'admin',
+            to: acc,
+            amount: distributionForm.amount,
+            description: `管理員全體分配佳盟幣`
+          })
+        } else {
+          fail += 1
+        }
+      })
+      alert(`全體分發完成：成功 ${ok} 人，失敗 ${fail} 人。`)
+      setDistributionForm({ username: '', amount: 0 })
+      setShowDistributionModal(false)
+      setWalletBalance(getWalletBalance(currentUser))
+      return
+    }
+
+    // 單一用戶分發
     const result = addWalletBalance(distributionForm.username, distributionForm.amount)
     if (result.success) {
       // 記錄轉賬
@@ -392,6 +440,31 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     }
     if (itemDistributionForm.quantity <= 0) {
       alert('數量必須大於0')
+      return
+    }
+
+    // 全體分發
+    if (itemDistributionForm.username === ALL_USERS_VALUE) {
+      const recipients = getAllRecipientAccounts()
+      if (recipients.length === 0) {
+        alert('沒有可分發的用戶（已排除管理員/系統帳號）')
+        return
+      }
+      const selectedItem = availableItems.find(item => item.id === itemDistributionForm.itemId)
+      const itemName = selectedItem ? selectedItem.name : '道具'
+      if (!window.confirm(`確定要分發 ${itemDistributionForm.quantity} 個「${itemName}」給所有用戶嗎？\n共 ${recipients.length} 人。`)) return
+
+      let ok = 0
+      let fail = 0
+      recipients.forEach((acc) => {
+        const r = addItemToInventory(acc, itemDistributionForm.itemId, itemDistributionForm.quantity)
+        if (r?.success) ok += 1
+        else fail += 1
+      })
+      alert(`全體分發完成：成功 ${ok} 人，失敗 ${fail} 人。`)
+      setItemDistributionForm({ username: '', itemId: '', quantity: 1 })
+      setShowItemDistributionModal(false)
+      updateBackpackCount(currentUser)
       return
     }
 
@@ -764,6 +837,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-green-400 touch-manipulation text-base"
                 >
                   <option value="">請選擇用戶</option>
+                  <option value={ALL_USERS_VALUE}>所有用戶（全體分發）</option>
                   {allUsers.map((user) => (
                     <option key={user.account} value={user.account}>
                       {user.name} ({user.account}) - 當前餘額: {getWalletBalance(user.account).toLocaleString()}
@@ -788,7 +862,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 disabled={!distributionForm.username || distributionForm.amount <= 0}
                 className="w-full min-h-[48px] bg-green-500 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors touch-manipulation"
               >
-                分配
+                {distributionForm.username === ALL_USERS_VALUE ? '全體分發' : '分配'}
               </button>
             </div>
           </div>
@@ -821,6 +895,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-blue-400 touch-manipulation text-base"
                 >
                   <option value="">請選擇用戶</option>
+                  <option value={ALL_USERS_VALUE}>所有用戶（全體分發）</option>
                   {allUsers.map((user) => (
                     <option key={user.account} value={user.account}>
                       {user.name} ({user.account})
@@ -859,7 +934,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 disabled={!itemDistributionForm.username || !itemDistributionForm.itemId || itemDistributionForm.quantity <= 0}
                 className="w-full min-h-[48px] bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors touch-manipulation"
               >
-                分配道具
+                {itemDistributionForm.username === ALL_USERS_VALUE ? '全體分發道具' : '分配道具'}
               </button>
             </div>
           </div>
