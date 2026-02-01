@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment, useCallback } from 'react'
+import { useState, useEffect, Fragment, useCallback, useMemo } from 'react'
 import { getItems, createItem, updateItem, deleteItem, setItems, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
@@ -9,7 +9,7 @@ import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
 function ExchangeShop() {
-  const [items, setItems] = useState([])
+  const [shopItems, setShopItems] = useState([])
   const [itemsMeta, setItemsMeta] = useState({ total: 0, shopEligible: 0, hiddenInShop: 0, nonShop: 0 })
   const [showItemForm, setShowItemForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -19,6 +19,7 @@ function ExchangeShop() {
     icon: '🎁',
     price: 0,
     type: 'general',
+    category: '',
     isHidden: false // 管理員可隱藏：一般用戶在商城看不見，但背包仍可正常使用
   })
   const [userRole, setUserRole] = useState(null)
@@ -27,6 +28,8 @@ function ExchangeShop() {
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
   const [cloudItemsInfo, setCloudItemsInfo] = useState({ loading: false, count: null, sourceKey: 'jiameng_items', error: '' })
   const [missingIdsInfo, setMissingIdsInfo] = useState({ count: 0, ids: [] })
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [searchText, setSearchText] = useState('')
 
   const loadItems = useCallback(() => {
     const role = getCurrentUserRole()
@@ -34,9 +37,42 @@ function ExchangeShop() {
     const shopEligible = all.filter((item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT)
     const hiddenInShop = shopEligible.filter((i) => !!i?.isHidden).length
     const visibleItems = role === 'admin' ? shopEligible : shopEligible.filter((i) => !i?.isHidden)
-    setItems(visibleItems)
+    setShopItems(visibleItems)
     setItemsMeta({ total: all.length, shopEligible: shopEligible.length, hiddenInShop, nonShop: Math.max(0, all.length - shopEligible.length) })
   }, [])
+
+  const CATEGORY_UNCATEGORIZED = '__UNCATEGORIZED__'
+  const categoryOptions = useMemo(() => {
+    const map = new Map()
+    ;(Array.isArray(shopItems) ? shopItems : []).forEach((it) => {
+      const raw = String(it?.category || '').trim()
+      const key = raw ? raw : CATEGORY_UNCATEGORIZED
+      const label = raw ? raw : '未分類'
+      const prev = map.get(key) || { key, label, count: 0 }
+      map.set(key, { ...prev, count: prev.count + 1 })
+    })
+    return Array.from(map.values()).sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label, 'zh-Hant'))
+  }, [shopItems])
+
+  const filteredItems = useMemo(() => {
+    const q = String(searchText || '').trim().toLowerCase()
+    const cat = String(categoryFilter || 'all')
+    return (Array.isArray(shopItems) ? shopItems : []).filter((it) => {
+      const rawCat = String(it?.category || '').trim()
+      const catKey = rawCat ? rawCat : CATEGORY_UNCATEGORIZED
+      const catOk =
+        cat === 'all'
+          ? true
+          : cat === CATEGORY_UNCATEGORIZED
+            ? catKey === CATEGORY_UNCATEGORIZED
+            : catKey === cat
+      if (!catOk) return false
+      if (!q) return true
+      const name = String(it?.name || '').toLowerCase()
+      const desc = String(it?.description || '').toLowerCase()
+      return name.includes(q) || desc.includes(q)
+    })
+  }, [shopItems, categoryFilter, searchText])
 
   const computeMissingItemIds = useCallback(() => {
     try {
@@ -172,6 +208,7 @@ function ExchangeShop() {
       icon: '🎁',
       price: 0,
       type: 'general',
+      category: '',
       isHidden: false
     })
     setShowItemForm(true)
@@ -185,6 +222,7 @@ function ExchangeShop() {
       icon: item.icon || '🎁',
       price: item.price || 0,
       type: item.type || 'general',
+      category: item.category || '',
       isHidden: !!item.isHidden
     })
     setShowItemForm(true)
@@ -196,7 +234,7 @@ function ExchangeShop() {
       return
     }
     const priceNum = itemForm.price === '' ? 0 : (typeof itemForm.price === 'number' ? itemForm.price : (parseFloat(itemForm.price) || 0))
-    const normalizedForm = { ...itemForm, price: priceNum }
+    const normalizedForm = { ...itemForm, price: priceNum, category: String(itemForm.category || '').trim() }
     if (priceNum < 0) {
       alert('價格不能為負數')
       return
@@ -596,9 +634,41 @@ function ExchangeShop() {
           </div>
         )}
 
+        {/* 分類/搜尋（避免幾百種難找） */}
+        <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row gap-2 sm:items-center">
+          <input
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="搜尋道具名稱/描述…"
+            className="w-full sm:flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 sm:py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400"
+          />
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-full sm:w-64 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-yellow-400 cursor-pointer"
+          >
+            <option value="all">全部分類（{shopItems.length}）</option>
+            {categoryOptions.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}（{c.count}）
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => { setSearchText(''); setCategoryFilter('all') }}
+            className="w-full sm:w-auto bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 sm:py-2 rounded-lg transition-colors"
+          >
+            清除
+          </button>
+          <div className="text-xs text-gray-400 sm:ml-auto">
+            顯示 {filteredItems.length} / {shopItems.length}
+          </div>
+        </div>
+
         {/* 道具列表（小網格、點擊預覽） */}
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-1 sm:gap-2">
-          {items.map(item => {
+          {filteredItems.map(item => {
             const fullCardEl = (
               <div
                 key={item.id}
@@ -608,6 +678,13 @@ function ExchangeShop() {
                 <div className="text-center mb-5 sm:mb-4">
                   <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{item.icon}</div>
                   <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{item.name}</h3>
+                      {String(item.category || '').trim() && (
+                        <div className="mb-2">
+                          <span className="inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-600 bg-gray-900/40 text-gray-200">
+                            {String(item.category).trim()}
+                          </span>
+                        </div>
+                      )}
                   {item.description && (
                     <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{item.description}</p>
                   )}
@@ -712,6 +789,11 @@ function ExchangeShop() {
                     <div className="text-4xl sm:text-5xl">{item.icon}</div>
                     <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{item.name}</p>
                     <p className="text-yellow-400 text-[10px] sm:text-xs font-bold">{item.price || 0} 幣</p>
+                    {String(item.category || '').trim() && (
+                      <p className="text-gray-400 text-[10px] truncate w-full text-center">
+                        {String(item.category).trim()}
+                      </p>
+                    )}
                     <p className="text-gray-400 text-[10px] mt-0.5">點擊預覽</p>
                   </div>
                   {userRole === 'admin' && (
@@ -749,9 +831,9 @@ function ExchangeShop() {
           })}
         </div>
 
-        {items.length === 0 && (
+        {filteredItems.length === 0 && (
           <div className="text-center py-12 text-gray-400">
-            <p className="text-lg">尚無道具可兌換</p>
+            <p className="text-lg">沒有符合條件的道具</p>
             {userRole === 'admin' && (
               <p className="text-sm mt-2">點擊「新增道具」開始添加</p>
             )}
@@ -861,6 +943,24 @@ function ExchangeShop() {
                     <option value="danmu">彈幕道具</option>
                     <option value="special">特殊道具</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">分類（選填，用於篩選）</label>
+                  <input
+                    type="text"
+                    list="exchange-shop-category-list"
+                    value={itemForm.category}
+                    onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
+                    placeholder="例如：咖啡 / 票券 / 特殊"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                  />
+                  <datalist id="exchange-shop-category-list">
+                    {categoryOptions.map((c) => (
+                      <option key={c.key} value={c.key === CATEGORY_UNCATEGORIZED ? '' : c.label} />
+                    ))}
+                  </datalist>
+                  <p className="text-gray-500 text-xs mt-1">建議固定幾個分類名稱，之後幾百種也好找。</p>
                 </div>
 
                 <div className="flex items-center justify-between gap-3 bg-gray-900/40 border border-gray-700 rounded-lg p-3">
