@@ -494,7 +494,7 @@ function ExchangeShop() {
               >
                 從雲端備份拉回
               </button>
-              {items.length <= 1 && (
+              {shopItems.length <= 1 && (
                 <div className="text-sm text-yellow-300">
                   目前商城道具數量偏少，可能是被隱藏或同步被覆蓋。若另一台還有完整道具，請在那台按「重新同步道具到雲端」。
                 </div>
