@@ -526,6 +526,13 @@ function Calendar() {
     setShowDetailModal(true)
   }
 
+  const isLeaveScheduleItem = (schedule) => {
+    const tag = String(schedule?.tag || '').trim()
+    const siteName = String(schedule?.siteName || '').trim()
+    // 兼容不同資料來源：tag=leave 或 siteName 以「請假」開頭（例如：請假 - account - 事假）
+    return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
+  }
+
   const handleEventClick = (e, event) => {
     e.stopPropagation()
     if (event.isTopic) {
@@ -543,6 +550,10 @@ function Calendar() {
 
   const handleEditSchedule = () => {
     if (selectedDetailItem && selectedDetailType === 'schedule') {
+      if (isLeaveScheduleItem(selectedDetailItem)) {
+        alert('請假排程為自動帶入紀錄，無需編輯。')
+        return
+      }
       // 填充编辑表单数据
       setScheduleFormData({
         siteName: selectedDetailItem.siteName || '',
@@ -572,6 +583,10 @@ function Calendar() {
 
   const handleDeleteSchedule = () => {
     if (selectedDetailItem && selectedDetailType === 'schedule') {
+      if (isLeaveScheduleItem(selectedDetailItem)) {
+        alert('請假排程為自動帶入紀錄，無需刪除。')
+        return
+      }
       if (window.confirm('確定要刪除此工程排程嗎？')) {
         const result = deleteSchedule(selectedDetailItem.id)
         if (result.success) {
@@ -1745,6 +1760,11 @@ function Calendar() {
 
               {selectedDetailType === 'schedule' && (
                 <div className="space-y-3 text-white">
+                  {isLeaveScheduleItem(selectedDetailItem) && (
+                    <div className="bg-teal-600/20 border border-teal-400/40 rounded-lg p-3 text-teal-100 text-sm">
+                      此為「請假」紀錄（由請假申請自動帶入），僅供查看狀態，不提供編輯／刪除。
+                    </div>
+                  )}
                   {/* 活動 */}
                   <div className="text-lg font-semibold">{selectedDetailItem.siteName || '未命名'}</div>
                   
@@ -1973,20 +1993,22 @@ function Calendar() {
                   })()}
                   
                   {/* 编辑和删除按钮 */}
-                  <div className="flex space-x-3 pt-4 border-t border-blue-700">
-                    <button
-                      onClick={handleEditSchedule}
-                      className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 transition-colors"
-                    >
-                      編輯
-                    </button>
-                    <button
-                      onClick={handleDeleteSchedule}
-                      className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 transition-colors"
-                    >
-                      刪除
-                    </button>
-                  </div>
+                  {!isLeaveScheduleItem(selectedDetailItem) && (
+                    <div className="flex space-x-3 pt-4 border-t border-blue-700">
+                      <button
+                        onClick={handleEditSchedule}
+                        className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 transition-colors"
+                      >
+                        編輯
+                      </button>
+                      <button
+                        onClick={handleDeleteSchedule}
+                        className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 transition-colors"
+                      >
+                        刪除
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
