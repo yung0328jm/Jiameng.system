@@ -921,6 +921,8 @@ function ProjectDeficiencyTracking() {
           setShowSyncDiag={setShowSyncDiag}
           syncDiag={syncDiag}
           onRunSyncDiag={runSyncDiag}
+          onPushProjectsToCloud={pushProjectsToCloud}
+          onPushCurrentProjectRecordsToCloud={pushCurrentProjectRecordsToCloud}
         />
       )}
 
@@ -1078,7 +1080,9 @@ function ProjectDetailView({
   showSyncDiag,
   setShowSyncDiag,
   syncDiag,
-  onRunSyncDiag
+  onRunSyncDiag,
+  onPushProjectsToCloud,
+  onPushCurrentProjectRecordsToCloud
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
@@ -1286,14 +1290,14 @@ function ProjectDetailView({
               <div className="flex flex-wrap gap-2 mt-1">
                 <button
                   type="button"
-                  onClick={pushProjectsToCloud}
+                  onClick={onPushProjectsToCloud}
                   className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
                 >
                   推送專案清單到雲端
                 </button>
                 <button
                   type="button"
-                  onClick={pushCurrentProjectRecordsToCloud}
+                  onClick={onPushCurrentProjectRecordsToCloud}
                   className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
                 >
                   推送本專案缺失到雲端
