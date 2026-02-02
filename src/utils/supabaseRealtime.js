@@ -11,6 +11,7 @@ const AWARD_CLAIMS_KEY = 'jiameng_leaderboard_award_claims_v1'
 const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
 const LEADERBOARD_ITEMS_KEY = 'jiameng_leaderboard_items'
 const ITEMS_KEY = 'jiameng_items'
+const PROJECT_RECORDS_KEY = 'jiameng_project_records'
 
 const evt = 'supabase-realtime-update'
 
@@ -165,6 +166,41 @@ export function subscribeRealtime(onUpdate) {
       const ta = Date.parse(prev?.[pickNewestAt] || prev?.deletedAt || '') || 0
       const tb = Date.parse(next?.[pickNewestAt] || next?.deletedAt || '') || 0
       out[k] = tb >= ta ? next : prev
+    })
+    return out
+  }
+
+  // 專案缺失表（project_records）合併去重：避免多裝置同時更新狀態/進度造成互相覆蓋
+  function prUpdatedAt(r) {
+    const t0 = Date.parse(r?.updatedAt || '') || 0
+    const t1 = Date.parse(r?.createdAt || '') || 0
+    return Math.max(t0, t1)
+  }
+  function mergeRecordArray(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byId = new Map()
+    ;[...a, ...b].forEach((r) => {
+      const id = String(r?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) { byId.set(id, r); return }
+      const ta = prUpdatedAt(prev)
+      const tb = prUpdatedAt(r)
+      // 用較新的當 base，但保留舊的欄位避免缺欄
+      const base = tb >= ta ? r : prev
+      const other = tb >= ta ? prev : r
+      byId.set(id, { ...other, ...base })
+    })
+    // 缺失表顯示順序以 rowNumber 為主
+    return Array.from(byId.values()).sort((x, y) => (Number(x?.rowNumber) || 0) - (Number(y?.rowNumber) || 0))
+  }
+  function mergeProjectRecords(existingObj, incomingObj) {
+    const a = existingObj && typeof existingObj === 'object' ? existingObj : {}
+    const b = incomingObj && typeof incomingObj === 'object' ? incomingObj : {}
+    const out = { ...a }
+    Object.keys(b).forEach((projectId) => {
+      out[projectId] = mergeRecordArray(a?.[projectId], b?.[projectId])
     })
     return out
   }
@@ -400,6 +436,31 @@ export function subscribeRealtime(onUpdate) {
                   const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
                   localStorage.setItem(ITEMS_KEY, val)
                   notifyKey(ITEMS_KEY)
+                }
+              } else if (key === PROJECT_RECORDS_KEY) {
+                try {
+                  const incoming = (payload.new.data && typeof payload.new.data === 'object' && !Array.isArray(payload.new.data))
+                    ? payload.new.data
+                    : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '{}') : {})
+                  const existing = (() => {
+                    try { return JSON.parse(localStorage.getItem(PROJECT_RECORDS_KEY) || '{}') } catch (_) { return {} }
+                  })()
+                  const merged = mergeProjectRecords(existing, incoming)
+                  const val = JSON.stringify(merged)
+                  localStorage.setItem(PROJECT_RECORDS_KEY, val)
+                  notifyKey(PROJECT_RECORDS_KEY)
+
+                  // 若 incoming 少於合併後（可能被覆蓋丟失），嘗試回寫一次修復雲端
+                  const now = Date.now()
+                  const bLen = Object.keys(incoming || {}).length
+                  const mLen = Object.keys(merged || {}).length
+                  if (mLen >= bLen && now - lastMsgHealAt > 5000) {
+                    sb.from('app_data').upsert({ key: PROJECT_RECORDS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  }
+                } catch (_) {
+                  const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
+                  localStorage.setItem(PROJECT_RECORDS_KEY, val)
+                  notifyKey(PROJECT_RECORDS_KEY)
                 }
               } else {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
