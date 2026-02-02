@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import React from 'react'
 import { getProjects, saveProject, updateProject, deleteProject } from '../utils/projectStorage'
 import { getProjectRecords, saveProjectRecord, saveAllProjectRecords, updateProjectRecord, deleteProjectRecord } from '../utils/projectRecordStorage'
@@ -37,9 +37,23 @@ function ProjectDeficiencyTracking() {
   const [filterProjectStatus, setFilterProjectStatus] = useState('all') // all, planning, in_progress, completed, on_hold
   const [editingProjectStatusId, setEditingProjectStatusId] = useState(null) // 正在編輯狀態的專案ID
 
+  // Realtime callback 會用到：避免閉包拿到舊 viewingProjectId
+  const viewingProjectIdRef = useRef(null)
+  useEffect(() => {
+    viewingProjectIdRef.current = viewingProjectId
+  }, [viewingProjectId])
+
   const refetchDeficiency = () => {
+    // 1) 專案清單更新
     const data = getProjects()
-    setProjects(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+    setProjects((Array.isArray(data) ? [...data] : []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+    // 2) 若目前正在看某專案，則同步重讀該專案的缺失表（狀態/進度要即時更新）
+    const pid = viewingProjectIdRef.current
+    if (pid) {
+      try {
+        setProjectRecords(getProjectRecords(pid) || [])
+      } catch (_) {}
+    }
   }
   useRealtimeKeys(['jiameng_projects', 'jiameng_project_records', 'jiameng_engineering_schedules', 'jiameng_project_deficiencies'], refetchDeficiency)
 
