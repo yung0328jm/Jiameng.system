@@ -3,6 +3,15 @@ import { syncKeyToSupabase } from './supabaseSync'
 const TRIP_REPORT_STORAGE_KEY = 'jiameng_trip_reports'
 
 const actionTypes = ['出發', '抵達', '休息', '上工', '收工', '離場']
+const pad2 = (n) => String(n).padStart(2, '0')
+const ymdLocal = (iso) => {
+  try {
+    const d = new Date(iso)
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  } catch (_) {
+    return ''
+  }
+}
 
 function loadAll() {
   try {
@@ -26,11 +35,18 @@ function saveAll(list) {
   }
 }
 
-/** 取得某案場（projectId）的行程紀錄，依時間新到舊 */
-export const getTripReportsByProject = (projectId) => {
+/**
+ * 取得某案場（projectId）的行程紀錄，依時間新到舊
+ * - 若提供 todayYmd（YYYY-MM-DD），則只回傳該日（以本地時區計算）的紀錄
+ */
+export const getTripReportsByProject = (projectId, todayYmd = '') => {
   const list = loadAll()
   return list
     .filter((r) => r.projectId === projectId)
+    .filter((r) => {
+      if (!todayYmd) return true
+      return ymdLocal(r?.createdAt || '') === todayYmd
+    })
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 }
 
