@@ -156,6 +156,7 @@ export async function syncKeyToSupabase(key, value) {
 const _pending = new Map() // key -> { data, queuedAt }
 const _timer = new Map() // key -> timeoutId
 const _inFlight = new Set() // key
+const _waiters = new Map() // key -> Array<{resolve,reject}>
 
 async function _doUpsert(sb, key, value) {
   let data = typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value ?? {})
@@ -251,6 +252,13 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
       return
     }
 
+    // 讓呼叫方可 await：同 key 的多次呼叫會一起等到「最後一次」實際送出結果
+    const waitPromise = new Promise((resolve, reject) => {
+      const list = _waiters.get(key) || []
+      list.push({ resolve, reject })
+      _waiters.set(key, list)
+    })
+
     // coalesce latest
     _pending.set(key, { value, queuedAt: Date.now() })
     const prev = _timer.get(key)
@@ -269,12 +277,24 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
       if (!payload) return
       _pending.delete(key)
       _inFlight.add(key)
+      const done = (err) => {
+        const list = _waiters.get(key) || []
+        _waiters.delete(key)
+        list.forEach((w) => {
+          try {
+            if (err) w.reject(err)
+            else w.resolve(true)
+          } catch (_) {}
+        })
+      }
       try {
         await runWriteExclusive(() => _doUpsert(sb, key, payload.value))
+        done(null)
       } catch (e) {
         rememberSyncError(key, e)
         queueOutbox(key, payload.value, e)
         console.warn('syncKeyToSupabase failed:', key, e)
+        done(e)
       } finally {
         _inFlight.delete(key)
         // 若寫入期間又有新值，立即補送一次
@@ -284,10 +304,12 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
       }
     }, debounceMs)
     _timer.set(key, id)
+    return await waitPromise
   } catch (e) {
     rememberSyncError(key, e)
     queueOutbox(key, value, e)
     console.warn('syncKeyToSupabase failed:', key, e)
+    throw e
   }
 }
 
