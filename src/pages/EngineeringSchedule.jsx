@@ -361,9 +361,16 @@ function EngineeringSchedule() {
     return myDisplayNames.includes(n)
   }
 
-  const isPlannedLocked = (item) => {
+  // 規則：
+  // - 新增表單（editingId === null）：可自由編輯預計欄位
+  // - 已存在排程（editingId !== null 或排程列表中的項目）：預計欄位視為已鎖定
+  // - 舊資料若沒 plannedLockedAt，也要視為已鎖定（避免看不到「異動申請」且改了不生效）
+  const isPlannedLocked = (item, scheduleId = null) => {
     const it = normalizeWorkItem(item)
-    return !!it?.plannedLockedAt
+    if (!!it?.plannedLockedAt) return true
+    if (scheduleId) return true
+    if (editingId) return true
+    return false
   }
 
   const openChangeRequest = (scheduleId, item) => {
@@ -557,19 +564,32 @@ function EngineeringSchedule() {
               </div>
 
               <div className="space-y-3">
-                {formData.workItems.map((item, index) => (
-                  <div key={item.id} className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-yellow-400 font-semibold text-sm">工作項目 {index + 1}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveWorkItem(item.id)}
-                        className={`text-sm ${isPlannedLocked(item) ? 'text-gray-500 cursor-not-allowed' : 'text-red-400 hover:text-red-500'}`}
-                        disabled={isPlannedLocked(item)}
-                      >
-                        {isPlannedLocked(item) ? '已鎖定' : '刪除'}
-                      </button>
-                    </div>
+                {formData.workItems.map((item, index) => {
+                  const plannedLocked = isPlannedLocked(item)
+                  return (
+                    <div key={item.id} className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-yellow-400 font-semibold text-sm">工作項目 {index + 1}</span>
+                        <div className="flex items-center gap-2">
+                          {plannedLocked && editingId && (
+                            <button
+                              type="button"
+                              onClick={() => openChangeRequest(editingId, item)}
+                              className="text-sm px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40 hover:bg-blue-600/40"
+                            >
+                              異動申請
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveWorkItem(item.id)}
+                            className={`text-sm ${plannedLocked ? 'text-gray-500 cursor-not-allowed' : 'text-red-400 hover:text-red-500'}`}
+                            disabled={plannedLocked}
+                          >
+                            {plannedLocked ? '已鎖定' : '刪除'}
+                          </button>
+                        </div>
+                      </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-gray-300 text-xs mb-1">工作內容 *</label>
@@ -580,7 +600,7 @@ function EngineeringSchedule() {
                           placeholder="請輸入工作內容"
                           className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                           required
-                          disabled={isPlannedLocked(item)}
+                          disabled={plannedLocked}
                         />
                       </div>
                       <div>
@@ -613,7 +633,7 @@ function EngineeringSchedule() {
                                 }
                               }}
                               className="w-4 h-4 accent-yellow-400"
-                              disabled={isPlannedLocked(item)}
+                              disabled={plannedLocked}
                             />
                             <span>協作</span>
                           </label>
@@ -630,7 +650,7 @@ function EngineeringSchedule() {
                             placeholder="輸入協作負責人（多個用逗號分隔）"
                             className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                             required
-                            disabled={isPlannedLocked(item)}
+                            disabled={plannedLocked}
                           />
                         ) : (
                           <input
@@ -640,7 +660,7 @@ function EngineeringSchedule() {
                             placeholder="請輸入負責人"
                             className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                             required
-                            disabled={isPlannedLocked(item)}
+                            disabled={plannedLocked}
                           />
                         )}
                       </div>
@@ -653,7 +673,7 @@ function EngineeringSchedule() {
                               handleWorkItemChange(item.id, 'collabMode', e.target.value)
                             }}
                             className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
-                            disabled={isPlannedLocked(item)}
+                            disabled={plannedLocked}
                           >
                             <option value="shared">一起完成（算總數）</option>
                             <option value="separate">分開完成（各自算）</option>
@@ -694,7 +714,7 @@ function EngineeringSchedule() {
                                     className="col-span-7 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                                     min="0"
                                     step="0.01"
-                                    disabled={isPlannedLocked(item)}
+                                    disabled={plannedLocked}
                                   />
                                 </div>
                               ))
@@ -712,7 +732,7 @@ function EngineeringSchedule() {
                             className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                             min="0"
                             step="0.01"
-                            disabled={isPlannedLocked(item)}
+                            disabled={plannedLocked}
                           />
                         )}
                       </div>
@@ -737,7 +757,8 @@ function EngineeringSchedule() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 {formData.workItems.length === 0 && (
                   <div className="text-center py-4 text-gray-400 text-sm">
                     尚未添加工作項目，點擊「新增工作項目」開始添加
@@ -888,7 +909,7 @@ function EngineeringSchedule() {
                               const targetQty = isCollab ? getWorkItemTotalTarget(it) : (parseFloat(it.targetQuantity) || 0)
                               const completionRate = targetQty > 0 ? (actualQty / targetQty * 100).toFixed(1) : 0
                               const collabs = getWorkItemCollaborators(it)
-                              const plannedLocked = isPlannedLocked(it)
+                              const plannedLocked = isPlannedLocked(it, schedule.id)
                               const crStatus = String(it?.changeRequest?.status || '')
                               const isPendingChange = crStatus === 'pending'
                               
@@ -902,7 +923,7 @@ function EngineeringSchedule() {
                                           異動待審（不計分）
                                         </span>
                                       )}
-                                      {plannedLocked && !isPendingChange && currentRole !== 'admin' && (
+                                      {plannedLocked && !isPendingChange && (
                                         (isCollab
                                           ? collabs.some((x) => canEditForName(x?.name))
                                           : canEditForName(it?.responsiblePerson))
