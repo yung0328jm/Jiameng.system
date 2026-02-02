@@ -18,6 +18,20 @@ function rememberSyncError(key, err) {
 }
 
 const OUTBOX_KEY = 'jiameng_sync_outbox_v1'
+// 重要：避免瀏覽器連線/資源耗盡（net::ERR_INSUFFICIENT_RESOURCES）
+// 全站所有 app_data 寫入採「單線序列化」，避免同時大量 fetch 打爆瀏覽器與 Supabase
+let _globalWriteChain = Promise.resolve()
+const runWriteExclusive = (fn) => {
+  const prev = _globalWriteChain
+  let release
+  _globalWriteChain = new Promise((r) => { release = r })
+  return prev
+    .catch(() => {})
+    .then(async () => {
+      try { return await fn() } finally { try { release?.() } catch (_) {} }
+    })
+}
+
 function loadOutbox() {
   try {
     const raw = localStorage.getItem(OUTBOX_KEY)
@@ -33,10 +47,15 @@ function saveOutbox(obj) {
 function queueOutbox(key, value, err) {
   try {
     const out = loadOutbox()
+    const prev = out[String(key)]
+    const attempts = Math.max(0, Number(prev?.attempts) || 0) + 1
+    const backoffMs = Math.min(60000, Math.max(2000, 1000 * (2 ** Math.min(attempts, 6)))) // 2s..60s
     out[String(key)] = {
       key: String(key),
       value: typeof value === 'string' ? value : JSON.stringify(value ?? {}),
       lastError: err?.message || err?.details || String(err || ''),
+      attempts,
+      nextAttemptAt: new Date(Date.now() + backoffMs).toISOString(),
       updatedAt: new Date().toISOString()
     }
     saveOutbox(out)
@@ -52,17 +71,27 @@ export async function flushSyncOutbox() {
 
   let ok = 0
   let fail = 0
-  // 每次 flush 最多送 6 個，避免阻塞 UI
-  for (const k of keys.slice(0, 6)) {
-    const item = out[k]
-    if (!item?.key) continue
+  const now = Date.now()
+  // 每次 flush 最多送 2 個，且只送「到期」的，避免造成 request storm
+  const due = keys
+    .map((k) => out[k])
+    .filter((it) => it?.key)
+    .filter((it) => {
+      const t = Date.parse(it?.nextAttemptAt || '') || 0
+      return !t || t <= now
+    })
+    .sort((a, b) => (Date.parse(a?.nextAttemptAt || '') || 0) - (Date.parse(b?.nextAttemptAt || '') || 0))
+    .slice(0, 2)
+
+  for (const item of due) {
+    const k = String(item.key)
     try {
-      await _doUpsert(sb, item.key, item.value)
+      await runWriteExclusive(() => _doUpsert(sb, item.key, item.value))
       delete out[k]
       ok += 1
     } catch (e) {
       rememberSyncError(item.key, e)
-      out[k] = { ...item, lastError: e?.message || e?.details || String(e || ''), updatedAt: new Date().toISOString() }
+      queueOutbox(item.key, item.value, e)
       fail += 1
     }
   }
@@ -213,7 +242,7 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
   try {
     if (!debounceMs) {
       try {
-        await _doUpsert(sb, key, value)
+        await runWriteExclusive(() => _doUpsert(sb, key, value))
       } catch (e) {
         rememberSyncError(key, e)
         queueOutbox(key, value, e)
@@ -241,7 +270,7 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
       _pending.delete(key)
       _inFlight.add(key)
       try {
-        await _doUpsert(sb, key, payload.value)
+        await runWriteExclusive(() => _doUpsert(sb, key, payload.value))
       } catch (e) {
         rememberSyncError(key, e)
         queueOutbox(key, payload.value, e)
