@@ -35,33 +35,90 @@ export const APP_DATA_KEYS = [
 export async function syncKeyToSupabase(key, value) {
   const sb = getSupabaseClient()
   if (!sb || !key) return
-  try {
-    const data = typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value ?? {})
-    // 道具防呆：避免任何裝置把 jiameng_items 覆蓋成只剩彈幕
-    if (key === 'jiameng_items') {
-      const incoming = Array.isArray(data) ? data : []
-      // 如果本次要寫入的道具清單過少，先讀雲端現況比對；雲端較多則拒絕覆蓋
-      if (incoming.length <= 1) {
-        try {
-          const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
-          const cloud = Array.isArray(cloudRow?.data) ? cloudRow.data : []
-          if (cloud.length > incoming.length) {
-            console.warn('[Sync] Blocked overwrite jiameng_items (incoming too small)', { incoming: incoming.length, cloud: cloud.length })
-            return
-          }
-        } catch (_) {}
-      }
-      // 寫入前：先備份雲端舊資料（若有）
+
+  // 頻繁寫入（例如缺失表狀態下拉）容易造成並發覆蓋/掉包，改成「同 key 排隊 + 去抖」只送最後一次
+  const shouldDebounce = String(key).startsWith('jiameng_project_records:')
+  const debounceMs = shouldDebounce ? 150 : 0
+
+  // eslint-disable-next-line no-use-before-define
+  return scheduleUpsert(sb, key, value, debounceMs)
+}
+
+// -----------------------------
+// internal: per-key upsert queue
+// -----------------------------
+const _pending = new Map() // key -> { data, queuedAt }
+const _timer = new Map() // key -> timeoutId
+const _inFlight = new Set() // key
+
+async function _doUpsert(sb, key, value) {
+  const data = typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value ?? {})
+
+  // 道具防呆：避免任何裝置把 jiameng_items 覆蓋成只剩彈幕
+  if (key === 'jiameng_items') {
+    const incoming = Array.isArray(data) ? data : []
+    // 如果本次要寫入的道具清單過少，先讀雲端現況比對；雲端較多則拒絕覆蓋
+    if (incoming.length <= 1) {
       try {
         const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
-        const cloud = cloudRow?.data
-        if (cloud) {
-          await sb.from('app_data').upsert({ key: 'jiameng_items_backup', data: cloud, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+        const cloud = Array.isArray(cloudRow?.data) ? cloudRow.data : []
+        if (cloud.length > incoming.length) {
+          console.warn('[Sync] Blocked overwrite jiameng_items (incoming too small)', { incoming: incoming.length, cloud: cloud.length })
+          return
         }
       } catch (_) {}
     }
+    // 寫入前：先備份雲端舊資料（若有）
+    try {
+      const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
+      const cloud = cloudRow?.data
+      if (cloud) {
+        await sb.from('app_data').upsert({ key: 'jiameng_items_backup', data: cloud, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+      }
+    } catch (_) {}
+  }
 
-    await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+}
+
+async function scheduleUpsert(sb, key, value, debounceMs) {
+  try {
+    if (!debounceMs) {
+      await _doUpsert(sb, key, value)
+      return
+    }
+
+    // coalesce latest
+    _pending.set(key, { value, queuedAt: Date.now() })
+    const prev = _timer.get(key)
+    if (prev) {
+      try { clearTimeout(prev) } catch (_) {}
+    }
+    const id = setTimeout(async () => {
+      _timer.delete(key)
+      // 若同 key 正在寫入，等下一輪
+      if (_inFlight.has(key)) {
+        // 再排一次（保持最新）
+        scheduleUpsert(sb, key, _pending.get(key)?.value, debounceMs)
+        return
+      }
+      const payload = _pending.get(key)
+      if (!payload) return
+      _pending.delete(key)
+      _inFlight.add(key)
+      try {
+        await _doUpsert(sb, key, payload.value)
+      } catch (e) {
+        console.warn('syncKeyToSupabase failed:', key, e)
+      } finally {
+        _inFlight.delete(key)
+        // 若寫入期間又有新值，立即補送一次
+        if (_pending.has(key)) {
+          scheduleUpsert(sb, key, _pending.get(key)?.value, debounceMs)
+        }
+      }
+    }, debounceMs)
+    _timer.set(key, id)
   } catch (e) {
     console.warn('syncKeyToSupabase failed:', key, e)
   }
@@ -76,13 +133,15 @@ export async function syncFromSupabase() {
   }
 
   try {
-    const [schedRes, leaveRes, quotaRes, appRes, prRes] = await Promise.all([
+    const [schedRes, leaveRes, quotaRes, appRes, prRes, legacyPrRes] = await Promise.all([
       sb.from('engineering_schedules').select('id, data, created_at').order('created_at', { ascending: true }),
       sb.from('leave_applications').select('*').order('created_at', { ascending: true }),
       sb.from('special_leave_quota').select('account, days'),
       sb.from('app_data').select('key, data').in('key', APP_DATA_KEYS),
       // 專案缺失表：抓取所有 per-project keys
-      sb.from('app_data').select('key, data').like('key', 'jiameng_project_records:%')
+      sb.from('app_data').select('key, data').like('key', 'jiameng_project_records:%'),
+      // legacy：若雲端還只有整包（舊版），則拉回一次供本機展示（不再寫回雲端）
+      sb.from('app_data').select('data').eq('key', 'jiameng_project_records').maybeSingle()
     ])
 
     const schedules = (schedRes.data || []).map((r) => ({ ...(r.data || {}), id: r.id, createdAt: r.created_at }))
@@ -124,8 +183,24 @@ export async function syncFromSupabase() {
         localStorage.setItem(key, JSON.stringify(arr))
         if (pid) map[pid] = arr
       })
-      // 不同步回雲端，只是本機快取
+      // legacy map：不寫回雲端，只做本機快取
       localStorage.setItem('jiameng_project_records', JSON.stringify(map))
+
+      // 若雲端尚未產生任何 per-project keys，則回退讀 legacy 整包，避免新裝置看不到舊資料
+      if (rows.length === 0) {
+        const legacy = legacyPrRes?.data?.data
+        const obj =
+          legacy && typeof legacy === 'object' && !Array.isArray(legacy)
+            ? legacy
+            : (typeof legacy === 'string' ? (() => { try { return JSON.parse(legacy || '{}') } catch (_) { return {} } })() : {})
+        if (obj && typeof obj === 'object') {
+          localStorage.setItem('jiameng_project_records', JSON.stringify(obj))
+          Object.keys(obj).forEach((pid) => {
+            const arr = Array.isArray(obj?.[pid]) ? obj[pid] : []
+            localStorage.setItem(`jiameng_project_records:${pid}`, JSON.stringify(arr))
+          })
+        }
+      }
     } catch (_) {}
     if (typeof console !== 'undefined' && console.info) {
       console.info('[Sync] 已從雲端載入', { 排程: (schedRes.data || []).length, 請假: (leaveRes.data || []).length, app_data: (appRes.data || []).length })
