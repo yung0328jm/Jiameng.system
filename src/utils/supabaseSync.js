@@ -379,7 +379,16 @@ export async function syncFromSupabase() {
       const rowsNew = Array.isArray(prResNew?.data) ? prResNew.data : []
       const rowsLegacy = Array.isArray(prResLegacy?.data) ? prResLegacy.data : []
       const rows = [...rowsNew, ...rowsLegacy]
-      const map = {}
+      // 重要：不要用雲端資料覆蓋掉本機缺失（會造成「刷新後新增消失」）
+      // 先以本機 legacy map 為底，再把雲端合併進來；最後再把本機 per-project key 補進 map
+      let map = {}
+      try {
+        const rawExisting = localStorage.getItem(PROJECT_RECORDS_KEY)
+        const existing = rawExisting ? JSON.parse(rawExisting) : {}
+        map = existing && typeof existing === 'object' ? { ...existing } : {}
+      } catch (_) {
+        map = {}
+      }
       const seen = new Set()
       rows.forEach((r) => {
         const key = String(r?.key || '')
@@ -416,19 +425,33 @@ export async function syncFromSupabase() {
           }
         } catch (_) {}
       })
-      // legacy map：不寫回雲端，只做本機快取
+      // 把本機 per-project key 補進 map（即使雲端還沒有，也不能在刷新時被清掉）
+      try {
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const k = localStorage.key(i)
+          if (!k || !String(k).startsWith(PROJECT_RECORD_PREFIX_LEGACY)) continue
+          const pid = String(k).slice(PROJECT_RECORD_PREFIX_LEGACY.length).trim()
+          if (!pid) continue
+          if (Array.isArray(map?.[pid]) && map[pid].length > 0) continue
+          try {
+            const raw = localStorage.getItem(k) || '[]'
+            const arr = raw ? JSON.parse(raw) : []
+            if (Array.isArray(arr) && arr.length > 0) map[pid] = arr
+          } catch (_) {}
+        }
+      } catch (_) {}
+
+      // legacy map：不寫回雲端，只做本機快取（但不能覆蓋清空）
       localStorage.setItem(PROJECT_RECORDS_KEY, JSON.stringify(map))
 
       // 雲端沒有的專案 key：如果本機 legacy 有資料，補寫回雲端
       try {
-        const legacyRaw = localStorage.getItem(PROJECT_RECORDS_KEY)
-        const legacyObj = legacyRaw ? JSON.parse(legacyRaw) : {}
-        if (legacyObj && typeof legacyObj === 'object') {
-          Object.keys(legacyObj).forEach((pid) => {
+        if (map && typeof map === 'object') {
+          Object.keys(map).forEach((pid) => {
             if (!pid) return
             if (seen.has(String(pid))) return
             const key = `${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`
-            const arr = Array.isArray(legacyObj?.[pid]) ? legacyObj[pid] : []
+            const arr = Array.isArray(map?.[pid]) ? map[pid] : []
             if (!Array.isArray(arr) || arr.length === 0) return
             try { localStorage.setItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`, JSON.stringify(arr)) } catch (_) {}
             syncKeyToSupabase(key, JSON.stringify(arr))
