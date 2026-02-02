@@ -1,21 +1,25 @@
 // 專案記錄存储工具
 import { syncKeyToSupabase } from './supabaseSync'
 const PROJECT_RECORD_STORAGE_KEY = 'jiameng_project_records' // legacy：本機整包快取（可能過大，不寫回雲端）
-const PROJECT_RECORD_KEY_PREFIX = 'jiameng_project_records:' // 雲端同步：每個專案一個 key（避免整包太大寫不進）
+const PROJECT_RECORD_LOCAL_PREFIX = 'jiameng_project_records:' // 本機快取：每個專案一個 key
+const PROJECT_RECORD_CLOUD_PREFIX = 'jiameng_project_records__' // 雲端同步：避免 key 含 ':' 在某些環境被擋
 
-const keyForProject = (projectId) => `${PROJECT_RECORD_KEY_PREFIX}${String(projectId || '').trim()}`
+const normalizePid = (projectId) => String(projectId || '').trim()
+const localKeyForProject = (projectId) => `${PROJECT_RECORD_LOCAL_PREFIX}${normalizePid(projectId)}`
+const cloudKeyForProject = (projectId) => `${PROJECT_RECORD_CLOUD_PREFIX}${encodeURIComponent(normalizePid(projectId))}`
 
 const persistProject = (projectId, arr) => {
-  const pid = String(projectId || '').trim()
+  const pid = normalizePid(projectId)
   if (!pid) return
   const list = Array.isArray(arr) ? arr : []
-  const perKey = keyForProject(pid)
+  const perKey = localKeyForProject(pid)
   const val = JSON.stringify(list)
-  // 1) 新格式：每專案一份（同步到雲端）
+  // 1) 本機快取：每專案一份
   localStorage.setItem(perKey, val)
-  syncKeyToSupabase(perKey, val)
+  // 2) 雲端同步：每專案一份（key 使用安全命名，邏輯比照待辦事項）
+  syncKeyToSupabase(cloudKeyForProject(pid), val)
 
-  // 2) legacy：維持本機整包快取，讓舊程式/搜尋仍可讀到（不再同步到雲端，避免整包太大寫不進）
+  // 3) legacy：維持本機整包快取，讓舊程式/搜尋仍可讀到（不再同步到雲端，避免整包太大寫不進）
   try {
     const raw = localStorage.getItem(PROJECT_RECORD_STORAGE_KEY)
     const all = raw ? JSON.parse(raw) : {}
@@ -28,11 +32,11 @@ const persistProject = (projectId, arr) => {
 // 获取專案的所有記錄
 export const getProjectRecords = (projectId) => {
   try {
-    const pid = String(projectId || '').trim()
+    const pid = normalizePid(projectId)
     if (!pid) return []
 
     // 先讀新格式
-    const per = localStorage.getItem(keyForProject(pid))
+    const per = localStorage.getItem(localKeyForProject(pid))
     if (per) {
       const parsed = JSON.parse(per)
       return Array.isArray(parsed) ? parsed : []
@@ -42,7 +46,7 @@ export const getProjectRecords = (projectId) => {
     const records = localStorage.getItem(PROJECT_RECORD_STORAGE_KEY)
     const all = records ? JSON.parse(records) : {}
     const arr = Array.isArray(all?.[pid]) ? all[pid] : []
-    try { localStorage.setItem(keyForProject(pid), JSON.stringify(arr)) } catch (_) {}
+    try { localStorage.setItem(localKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
     return arr
   } catch (error) {
     console.error('Error getting project records:', error)

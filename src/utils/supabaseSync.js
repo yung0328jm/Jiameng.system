@@ -4,7 +4,10 @@ import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'
 const QUOTA_KEY = 'jiameng_special_leave_quota'
-const PROJECT_RECORD_PREFIX = 'jiameng_project_records:'
+// 專案缺失表：雲端 key 使用安全命名（避免 ':'）
+const PROJECT_RECORD_PREFIX = 'jiameng_project_records__'
+// 兼容舊雲端資料（曾使用 ':'）
+const PROJECT_RECORD_PREFIX_LEGACY = 'jiameng_project_records:'
 const PROJECT_RECORDS_KEY = 'jiameng_project_records' // legacy：整包（可能過大，不再寫回雲端）
 
 /** 需從 app_data 同步的 localStorage key（不含排程／請假／特休，不含登入狀態） */
@@ -39,7 +42,7 @@ export async function syncKeyToSupabase(key, value) {
   if (!sb || !key) return
 
   // 頻繁寫入（例如缺失表狀態下拉）容易造成並發覆蓋/掉包，改成「同 key 排隊 + 去抖」只送最後一次
-  const isProjectRecordKey = String(key).startsWith(PROJECT_RECORD_PREFIX)
+  const isProjectRecordKey = String(key).startsWith(PROJECT_RECORD_PREFIX) || String(key).startsWith(PROJECT_RECORD_PREFIX_LEGACY)
   // 彙整輸入/大量新增：盡量立即送出，避免使用者馬上重新整理造成雲端尚未寫入而「消失」
   let preferImmediate = false
   if (isProjectRecordKey) {
@@ -100,7 +103,7 @@ async function _doUpsert(sb, key, value) {
 
   // 專案缺失表（per-project）：多裝置同時更新狀態/進度時，若直接整包覆蓋會互相打架。
   // 這裡改成「先抓雲端現況 → 逐筆以 updatedAt 合併 → 再寫回」來避免覆蓋丟失。
-  if (key && String(key).startsWith(PROJECT_RECORD_PREFIX)) {
+  if (key && (String(key).startsWith(PROJECT_RECORD_PREFIX) || String(key).startsWith(PROJECT_RECORD_PREFIX_LEGACY))) {
     try {
       const incoming = Array.isArray(data) ? data : []
       const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
@@ -193,13 +196,15 @@ export async function syncFromSupabase() {
   }
 
   try {
-    const [schedRes, leaveRes, quotaRes, appRes, prRes, legacyPrRes] = await Promise.all([
+    const [schedRes, leaveRes, quotaRes, appRes, prResNew, prResLegacy, legacyPrRes] = await Promise.all([
       sb.from('engineering_schedules').select('id, data, created_at').order('created_at', { ascending: true }),
       sb.from('leave_applications').select('*').order('created_at', { ascending: true }),
       sb.from('special_leave_quota').select('account, days'),
       sb.from('app_data').select('key, data').in('key', APP_DATA_KEYS),
       // 專案缺失表：抓取所有 per-project keys
-      sb.from('app_data').select('key, data').like('key', 'jiameng_project_records:%'),
+      sb.from('app_data').select('key, data').like('key', `${PROJECT_RECORD_PREFIX}%`),
+      // 兼容舊版 key（含 ':'）
+      sb.from('app_data').select('key, data').like('key', `${PROJECT_RECORD_PREFIX_LEGACY}%`),
       // legacy：若雲端還只有整包（舊版），則拉回一次供本機展示（不再寫回雲端）
       sb.from('app_data').select('data').eq('key', PROJECT_RECORDS_KEY).maybeSingle()
     ])
@@ -232,13 +237,21 @@ export async function syncFromSupabase() {
 
     // 專案缺失表：寫入每專案 key（同時整理一份 legacy map 供舊讀取/快速查找）
     try {
-      const rows = Array.isArray(prRes?.data) ? prRes.data : []
+      const rowsNew = Array.isArray(prResNew?.data) ? prResNew.data : []
+      const rowsLegacy = Array.isArray(prResLegacy?.data) ? prResLegacy.data : []
+      const rows = [...rowsNew, ...rowsLegacy]
       const map = {}
       const seen = new Set()
       rows.forEach((r) => {
         const key = String(r?.key || '')
-        if (!key.startsWith(PROJECT_RECORD_PREFIX)) return
-        const pid = String(key).slice(PROJECT_RECORD_PREFIX.length).trim()
+        let pid = ''
+        if (key.startsWith(PROJECT_RECORD_PREFIX)) {
+          pid = decodeURIComponent(String(key).slice(PROJECT_RECORD_PREFIX.length).trim())
+        } else if (key.startsWith(PROJECT_RECORD_PREFIX_LEGACY)) {
+          pid = String(key).slice(PROJECT_RECORD_PREFIX_LEGACY.length).trim()
+        } else {
+          return
+        }
         const data = r?.data
         const arr = Array.isArray(data) ? data : (typeof data === 'string' ? (() => { try { return JSON.parse(data || '[]') } catch (_) { return [] } })() : [])
         seen.add(String(pid || ''))
@@ -246,19 +259,21 @@ export async function syncFromSupabase() {
         // 重要：刷新/登入時不要用雲端覆蓋掉本機較新的資料（會造成「重新整理就消失」）
         let localArr = []
         try {
-          const rawLocal = localStorage.getItem(key)
+          const rawLocal = localStorage.getItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`)
           localArr = rawLocal ? JSON.parse(rawLocal) : []
         } catch (_) {
           localArr = []
         }
         const merged = mergeArr(localArr, arr)
-        localStorage.setItem(key, JSON.stringify(merged))
+        // 一律寫入本機 ':' key（全 app 讀取都走這個）
+        localStorage.setItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`, JSON.stringify(merged))
         if (pid) map[pid] = merged
 
         // healing：若本機有較新/較多資料，補回雲端（避免雲端漏寫造成下一次刷新消失）
         try {
           if ((merged?.length || 0) > (arr?.length || 0)) {
-            syncKeyToSupabase(key, JSON.stringify(merged))
+            // 補寫回「新 key」（安全命名）
+            syncKeyToSupabase(`${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`, JSON.stringify(merged))
           }
         } catch (_) {}
       })
@@ -273,10 +288,10 @@ export async function syncFromSupabase() {
           Object.keys(legacyObj).forEach((pid) => {
             if (!pid) return
             if (seen.has(String(pid))) return
-            const key = `${PROJECT_RECORD_PREFIX}${pid}`
+            const key = `${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`
             const arr = Array.isArray(legacyObj?.[pid]) ? legacyObj[pid] : []
             if (!Array.isArray(arr) || arr.length === 0) return
-            try { localStorage.setItem(key, JSON.stringify(arr)) } catch (_) {}
+            try { localStorage.setItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`, JSON.stringify(arr)) } catch (_) {}
             syncKeyToSupabase(key, JSON.stringify(arr))
           })
         }
@@ -293,11 +308,12 @@ export async function syncFromSupabase() {
           localStorage.setItem(PROJECT_RECORDS_KEY, JSON.stringify(obj))
           Object.keys(obj).forEach((pid) => {
             const arr = Array.isArray(obj?.[pid]) ? obj[pid] : []
-            const perKey = `${PROJECT_RECORD_PREFIX}${pid}`
-            localStorage.setItem(perKey, JSON.stringify(arr))
+            const perKeyLocal = `${PROJECT_RECORD_PREFIX_LEGACY}${pid}`
+            const perKeyCloud = `${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`
+            localStorage.setItem(perKeyLocal, JSON.stringify(arr))
             // migration：把 legacy 拆成 per-project keys 寫回雲端（之後都用小包同步）
             try {
-              if (Array.isArray(arr) && arr.length > 0) syncKeyToSupabase(perKey, JSON.stringify(arr))
+              if (Array.isArray(arr) && arr.length > 0) syncKeyToSupabase(perKeyCloud, JSON.stringify(arr))
             } catch (_) {}
           })
         }

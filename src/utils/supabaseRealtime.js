@@ -12,7 +12,8 @@ const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
 const LEADERBOARD_ITEMS_KEY = 'jiameng_leaderboard_items'
 const ITEMS_KEY = 'jiameng_items'
 const PROJECT_RECORDS_KEY = 'jiameng_project_records'
-const PROJECT_RECORD_PREFIX = 'jiameng_project_records:'
+const PROJECT_RECORD_PREFIX_LEGACY = 'jiameng_project_records:'
+const PROJECT_RECORD_PREFIX = 'jiameng_project_records__'
 
 const evt = 'supabase-realtime-update'
 
@@ -466,15 +467,16 @@ export function subscribeRealtime(onUpdate) {
               } else if (key && String(key).startsWith(PROJECT_RECORD_PREFIX)) {
                 // 新格式：每專案一份，payload.new.data 應為 array
                 try {
-                  const pid = String(key).slice(PROJECT_RECORD_PREFIX.length).trim()
+                  const pid = decodeURIComponent(String(key).slice(PROJECT_RECORD_PREFIX.length).trim())
                   const incoming = Array.isArray(payload.new.data)
                     ? payload.new.data
                     : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+                  const localKey = `${PROJECT_RECORD_PREFIX_LEGACY}${pid}`
                   const existing = (() => {
-                    try { return JSON.parse(localStorage.getItem(key) || '[]') } catch (_) { return [] }
+                    try { return JSON.parse(localStorage.getItem(localKey) || '[]') } catch (_) { return [] }
                   })()
                   const mergedArr = mergeRecordArray(existing, incoming)
-                  localStorage.setItem(key, JSON.stringify(mergedArr))
+                  localStorage.setItem(localKey, JSON.stringify(mergedArr))
 
                   // 同步更新 legacy map（本機快取）並觸發舊監聽 key
                   try {
@@ -486,6 +488,7 @@ export function subscribeRealtime(onUpdate) {
                   } catch (_) {}
 
                   notifyKey(key)
+                  notifyKey(localKey)
                   notifyKey(PROJECT_RECORDS_KEY)
 
                   // healing：雲端比本機少時回寫（避免覆蓋丟失）
@@ -493,6 +496,45 @@ export function subscribeRealtime(onUpdate) {
                   if (mergedArr.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastMsgHealAt > 5000) {
                     sb.from('app_data').upsert({ key, data: mergedArr, updated_at: new Date().toISOString() }, { onConflict: 'key' })
                   }
+                } catch (_) {
+                  const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                  const pid = decodeURIComponent(String(key).slice(PROJECT_RECORD_PREFIX.length).trim())
+                  const localKey = `${PROJECT_RECORD_PREFIX_LEGACY}${pid}`
+                  localStorage.setItem(localKey, val)
+                  notifyKey(key)
+                  notifyKey(localKey)
+                  notifyKey(PROJECT_RECORDS_KEY)
+                }
+              } else if (key && String(key).startsWith(PROJECT_RECORD_PREFIX_LEGACY)) {
+                // 舊格式：key 內含 ':'，仍支援讀取與搬運到新 key
+                try {
+                  const pid = String(key).slice(PROJECT_RECORD_PREFIX_LEGACY.length).trim()
+                  const incoming = Array.isArray(payload.new.data)
+                    ? payload.new.data
+                    : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+                  const existing = (() => {
+                    try { return JSON.parse(localStorage.getItem(key) || '[]') } catch (_) { return [] }
+                  })()
+                  const mergedArr = mergeRecordArray(existing, incoming)
+                  localStorage.setItem(key, JSON.stringify(mergedArr))
+
+                  // 同步更新 legacy map（本機快取）
+                  try {
+                    const raw = localStorage.getItem(PROJECT_RECORDS_KEY)
+                    const map = raw ? JSON.parse(raw) : {}
+                    const next = map && typeof map === 'object' ? { ...map } : {}
+                    if (pid) next[pid] = mergedArr
+                    localStorage.setItem(PROJECT_RECORDS_KEY, JSON.stringify(next))
+                  } catch (_) {}
+
+                  notifyKey(key)
+                  notifyKey(PROJECT_RECORDS_KEY)
+
+                  // migration：嘗試寫到新安全 key（讓之後都走同一路徑）
+                  try {
+                    const safeKey = `${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`
+                    sb.from('app_data').upsert({ key: safeKey, data: mergedArr, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  } catch (_) {}
                 } catch (_) {
                   const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
                   localStorage.setItem(key, val)
