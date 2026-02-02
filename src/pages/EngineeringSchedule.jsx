@@ -300,6 +300,10 @@ function EngineeringSchedule() {
   }
 
   const handleDelete = (id) => {
+    if (currentRole !== 'admin') {
+      alert('只有管理員可以刪除排程。')
+      return
+    }
     if (window.confirm('確定要刪除此排程嗎？')) {
       deleteSchedule(id)
       loadSchedules()

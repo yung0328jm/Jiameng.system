@@ -120,6 +120,13 @@ function Calendar() {
     return myDisplayNames.includes(n)
   }
 
+  const displayCreator = (account) => {
+    const acc = String(account || '').trim()
+    if (!acc) return '—'
+    const name = String(getDisplayNameForAccount(acc) || '').trim()
+    return name || acc
+  }
+
   // 行事曆規則：
   // - 新增排程（editingScheduleId === null）：可自由編輯預計欄位
   // - 編輯既有排程（editingScheduleId !== null）：僅「原本就存在的工作項目」視為已鎖定；新加的工作項目可編輯，保存後才會鎖
@@ -877,6 +884,14 @@ function Calendar() {
 
   const handleDeleteSchedule = () => {
     if (selectedDetailItem && selectedDetailType === 'schedule') {
+      // 一般排程：只有管理員可刪除
+      if (!isLeaveScheduleItem(selectedDetailItem)) {
+        const role = getCurrentUserRole()
+        if (role !== 'admin') {
+          alert('只有管理員可以刪除工程排程。')
+          return
+        }
+      }
       if (isLeaveScheduleItem(selectedDetailItem)) {
         const role = getCurrentUserRole()
         if (role !== 'admin') {
@@ -2158,7 +2173,7 @@ function Calendar() {
                         {/* 建立者 */}
                         <div>
                           <span className="text-blue-300">建立者:</span>
-                          <span className="ml-2">{String(selectedDetailItem?.createdBy || '').trim() || '—'}</span>
+                          <span className="ml-2">{displayCreator(selectedDetailItem?.createdBy)}</span>
                         </div>
 
                         {/* 參與人員 */}
@@ -2294,7 +2309,7 @@ function Calendar() {
                               </div>
                             </div>
                             <div className="text-blue-200 text-xs mt-1">
-                              建立者：{String(it?.createdBy || selectedDetailItem?.createdBy || '').trim() || '—'}
+                              建立者：{displayCreator(it?.createdBy || selectedDetailItem?.createdBy)}
                             </div>
                             {(() => {
                               const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
@@ -2461,12 +2476,14 @@ function Calendar() {
                           編輯
                         </button>
                       )}
-                      <button
-                        onClick={handleDeleteSchedule}
-                        className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 transition-colors"
-                      >
-                        刪除
-                      </button>
+                      {getCurrentUserRole() === 'admin' && (
+                        <button
+                          onClick={handleDeleteSchedule}
+                          className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 transition-colors"
+                        >
+                          刪除
+                        </button>
+                      )}
                     </div>
                   )}
                       </>
@@ -2936,7 +2953,7 @@ function Calendar() {
                 </h3>
                 {editingScheduleId && (
                   <div className="text-gray-400 text-xs mt-1">
-                    建立者：{String(scheduleFormData?.createdBy || '').trim() || '—'}
+                    建立者：{displayCreator(scheduleFormData?.createdBy)}
                   </div>
                 )}
               </div>
