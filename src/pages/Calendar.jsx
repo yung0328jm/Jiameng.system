@@ -2558,6 +2558,28 @@ function Calendar() {
                       className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                       placeholder="負責人"
                     />
+                    {responsiblePersonOptions.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-gray-400 text-xs mb-1">下拉快速選擇</div>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-24 overflow-y-auto pr-1">
+                          {responsiblePersonOptions.map((opt) => (
+                            <button
+                              key={opt}
+                              type="button"
+                              title={opt}
+                              onClick={() => setChangeReq((prev) => ({ ...prev, proposedResponsiblePerson: String(opt || '').trim() }))}
+                              className={`w-full text-[11px] leading-tight px-2 py-1 rounded border transition-colors truncate ${
+                                String(changeReq.proposedResponsiblePerson || '').trim() === String(opt || '').trim()
+                                  ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200'
+                                  : 'bg-gray-800 border-gray-700 text-gray-200 hover:border-yellow-400 hover:text-yellow-200'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-gray-300 text-sm mb-1">目標數量（申請改為）</label>
@@ -2592,6 +2614,39 @@ function Calendar() {
                         className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                         placeholder="例如：小明, 小華"
                       />
+                      {responsiblePersonOptions.length > 0 && (
+                        <div className="mt-2">
+                          <div className="text-gray-400 text-xs mb-1">下拉快速選擇（可多選）</div>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-24 overflow-y-auto pr-1">
+                            {responsiblePersonOptions.map((opt) => {
+                              const name = String(opt || '').trim()
+                              const selected = (changeReq.proposedCollaborators || []).some((c) => String(c?.name || '').trim() === name)
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  title={opt}
+                                  onClick={() => {
+                                    if (!name) return
+                                    const prev = Array.isArray(changeReq.proposedCollaborators) ? changeReq.proposedCollaborators : []
+                                    const next = selected
+                                      ? prev.filter((c) => String(c?.name || '').trim() !== name)
+                                      : [...prev, { name, targetQuantity: '' }]
+                                    setChangeReq((p) => ({ ...p, proposedCollaborators: next }))
+                                  }}
+                                  className={`w-full text-[11px] leading-tight px-2 py-1 rounded border transition-colors truncate ${
+                                    selected
+                                      ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200'
+                                      : 'bg-gray-800 border-gray-700 text-gray-200 hover:border-yellow-400 hover:text-yellow-200'
+                                  }`}
+                                >
+                                  {opt}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-gray-300 text-sm mb-1">協作計算方式</label>
