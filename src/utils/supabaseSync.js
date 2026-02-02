@@ -8,7 +8,8 @@ const QUOTA_KEY = 'jiameng_special_leave_quota'
 const PROJECT_RECORD_PREFIX = 'jiameng_project_records__'
 // 兼容舊雲端資料（曾使用 ':'）
 const PROJECT_RECORD_PREFIX_LEGACY = 'jiameng_project_records:'
-const PROJECT_RECORDS_KEY = 'jiameng_project_records' // legacy：整包（可能過大，不再寫回雲端）
+// legacy（整包）曾使用：jiameng_project_records
+// 目前已改為 per-project keys；不再讀/寫整包，避免記憶體爆炸與 OOM
 
 function rememberSyncError(key, err) {
   try {
@@ -335,7 +336,7 @@ export async function syncFromSupabase() {
   }
 
   try {
-    const [schedRes, leaveRes, quotaRes, appRes, prResNew, prResLegacy, legacyPrRes] = await Promise.all([
+    const [schedRes, leaveRes, quotaRes, appRes, prResNew, prResLegacy] = await Promise.all([
       sb.from('engineering_schedules').select('id, data, created_at').order('created_at', { ascending: true }),
       sb.from('leave_applications').select('*').order('created_at', { ascending: true }),
       sb.from('special_leave_quota').select('account, days'),
@@ -343,9 +344,7 @@ export async function syncFromSupabase() {
       // 專案缺失表：抓取所有 per-project keys
       sb.from('app_data').select('key, data').like('key', `${PROJECT_RECORD_PREFIX}%`),
       // 兼容舊版 key（含 ':'）
-      sb.from('app_data').select('key, data').like('key', `${PROJECT_RECORD_PREFIX_LEGACY}%`),
-      // legacy：若雲端還只有整包（舊版），則拉回一次供本機展示（不再寫回雲端）
-      sb.from('app_data').select('data').eq('key', PROJECT_RECORDS_KEY).maybeSingle()
+      sb.from('app_data').select('key, data').like('key', `${PROJECT_RECORD_PREFIX_LEGACY}%`)
     ])
 
     const schedules = (schedRes.data || []).map((r) => ({ ...(r.data || {}), id: r.id, createdAt: r.created_at }))
@@ -374,22 +373,11 @@ export async function syncFromSupabase() {
       } catch (_) {}
     })
 
-    // 專案缺失表：寫入每專案 key（同時整理一份 legacy map 供舊讀取/快速查找）
+    // 專案缺失表：寫入每專案 key（不再寫整包 map，避免 OOM）
     try {
       const rowsNew = Array.isArray(prResNew?.data) ? prResNew.data : []
       const rowsLegacy = Array.isArray(prResLegacy?.data) ? prResLegacy.data : []
       const rows = [...rowsNew, ...rowsLegacy]
-      // 重要：不要用雲端資料覆蓋掉本機缺失（會造成「刷新後新增消失」）
-      // 先以本機 legacy map 為底，再把雲端合併進來；最後再把本機 per-project key 補進 map
-      let map = {}
-      try {
-        const rawExisting = localStorage.getItem(PROJECT_RECORDS_KEY)
-        const existing = rawExisting ? JSON.parse(rawExisting) : {}
-        map = existing && typeof existing === 'object' ? { ...existing } : {}
-      } catch (_) {
-        map = {}
-      }
-      const seen = new Set()
       rows.forEach((r) => {
         const key = String(r?.key || '')
         let pid = ''
@@ -402,7 +390,6 @@ export async function syncFromSupabase() {
         }
         const data = r?.data
         const arr = Array.isArray(data) ? data : (typeof data === 'string' ? (() => { try { return JSON.parse(data || '[]') } catch (_) { return [] } })() : [])
-        seen.add(String(pid || ''))
 
         // 重要：刷新/登入時不要用雲端覆蓋掉本機較新的資料（會造成「重新整理就消失」）
         let localArr = []
@@ -416,9 +403,6 @@ export async function syncFromSupabase() {
         // 一律寫入本機 ':' key（全 app 讀取都走這個）
         const mergedStr = JSON.stringify(merged)
         localStorage.setItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`, mergedStr)
-        // 本機備份：防刷新/同步覆蓋造成消失
-        try { localStorage.setItem(`jiameng_project_records_local_backup__${pid}`, mergedStr) } catch (_) {}
-        if (pid) map[pid] = merged
 
         // healing：若本機有較新/較多資料，補回雲端（避免雲端漏寫造成下一次刷新消失）
         try {
@@ -428,61 +412,6 @@ export async function syncFromSupabase() {
           }
         } catch (_) {}
       })
-      // 把本機 per-project key 補進 map（即使雲端還沒有，也不能在刷新時被清掉）
-      try {
-        for (let i = 0; i < localStorage.length; i += 1) {
-          const k = localStorage.key(i)
-          if (!k || !String(k).startsWith(PROJECT_RECORD_PREFIX_LEGACY)) continue
-          const pid = String(k).slice(PROJECT_RECORD_PREFIX_LEGACY.length).trim()
-          if (!pid) continue
-          if (Array.isArray(map?.[pid]) && map[pid].length > 0) continue
-          try {
-            const raw = localStorage.getItem(k) || '[]'
-            const arr = raw ? JSON.parse(raw) : []
-            if (Array.isArray(arr) && arr.length > 0) map[pid] = arr
-          } catch (_) {}
-        }
-      } catch (_) {}
-
-      // legacy map：不寫回雲端，只做本機快取（但不能覆蓋清空）
-      localStorage.setItem(PROJECT_RECORDS_KEY, JSON.stringify(map))
-
-      // 雲端沒有的專案 key：如果本機 legacy 有資料，補寫回雲端
-      try {
-        if (map && typeof map === 'object') {
-          Object.keys(map).forEach((pid) => {
-            if (!pid) return
-            if (seen.has(String(pid))) return
-            const key = `${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`
-            const arr = Array.isArray(map?.[pid]) ? map[pid] : []
-            if (!Array.isArray(arr) || arr.length === 0) return
-            try { localStorage.setItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`, JSON.stringify(arr)) } catch (_) {}
-            syncKeyToSupabase(key, JSON.stringify(arr))
-          })
-        }
-      } catch (_) {}
-
-      // 若雲端尚未產生任何 per-project keys，則回退讀 legacy 整包，避免新裝置看不到舊資料
-      if (rows.length === 0) {
-        const legacy = legacyPrRes?.data?.data
-        const obj =
-          legacy && typeof legacy === 'object' && !Array.isArray(legacy)
-            ? legacy
-            : (typeof legacy === 'string' ? (() => { try { return JSON.parse(legacy || '{}') } catch (_) { return {} } })() : {})
-        if (obj && typeof obj === 'object') {
-          localStorage.setItem(PROJECT_RECORDS_KEY, JSON.stringify(obj))
-          Object.keys(obj).forEach((pid) => {
-            const arr = Array.isArray(obj?.[pid]) ? obj[pid] : []
-            const perKeyLocal = `${PROJECT_RECORD_PREFIX_LEGACY}${pid}`
-            const perKeyCloud = `${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`
-            localStorage.setItem(perKeyLocal, JSON.stringify(arr))
-            // migration：把 legacy 拆成 per-project keys 寫回雲端（之後都用小包同步）
-            try {
-              if (Array.isArray(arr) && arr.length > 0) syncKeyToSupabase(perKeyCloud, JSON.stringify(arr))
-            } catch (_) {}
-          })
-        }
-      }
     } catch (_) {}
     if (typeof console !== 'undefined' && console.info) {
       console.info('[Sync] 已從雲端載入', { 排程: (schedRes.data || []).length, 請假: (leaveRes.data || []).length, app_data: (appRes.data || []).length })
