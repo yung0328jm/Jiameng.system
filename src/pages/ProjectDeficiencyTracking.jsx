@@ -49,6 +49,8 @@ function ProjectDeficiencyTracking() {
     lastError: null,
     outboxCount: 0,
     outboxPreview: [],
+    lastFlush: '',
+    lastWriteTest: '',
     lastCheckedAt: ''
   })
 
@@ -88,6 +90,8 @@ function ProjectDeficiencyTracking() {
       lastError: readLastSyncError(),
       outboxCount: 0,
       outboxPreview: [],
+      lastFlush: '',
+      lastWriteTest: '',
       lastCheckedAt: new Date().toISOString()
     }
     try {
@@ -155,8 +159,55 @@ function ProjectDeficiencyTracking() {
   }
 
   const flushOutboxNow = async () => {
-    try { await flushSyncOutbox() } catch (_) {}
+    try {
+      const r = await flushSyncOutbox()
+      setSyncDiag((s) => ({ ...s, lastFlush: `${new Date().toISOString()} ok=${r?.ok ?? 0} fail=${r?.fail ?? 0}` }))
+    } catch (e) {
+      setSyncDiag((s) => ({ ...s, lastFlush: `${new Date().toISOString()} error=${e?.message || String(e || '')}` }))
+    }
     runSyncDiag(viewingProjectIdRef.current).catch(() => {})
+  }
+
+  const writeTestKey = async () => {
+    const sb = getSupabaseClient()
+    const enabled = isSupabaseEnabled()
+    if (!enabled || !sb) {
+      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} Supabase not enabled` }))
+      return
+    }
+    const key = `jiameng_write_test__${Date.now()}`
+    try {
+      // 1) 走同一套同步函式（含序列化/去抖）
+      await syncKeyToSupabase(key, JSON.stringify({ at: new Date().toISOString() }))
+      // 2) 立刻讀回確認（若讀不到，就是「寫入根本沒成功」）
+      const { data, error } = await sb.from('app_data').select('updated_at').eq('key', key).maybeSingle()
+      if (error) throw error
+      const ua = String(data?.updated_at || '')
+      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} key=${key} updated_at=${ua || '（找不到）'}` }))
+    } catch (e) {
+      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} key=${key} error=${e?.message || String(e || '')}` }))
+    }
+  }
+
+  const forceUpsertCurrentProject = async () => {
+    const sb = getSupabaseClient()
+    const enabled = isSupabaseEnabled()
+    const pid = String(viewingProjectIdRef.current || '').trim()
+    if (!enabled || !sb || !pid) return
+    const cloudKey = `jiameng_project_records__${encodeURIComponent(pid)}`
+    const localKey = `jiameng_project_records:${pid}`
+    try {
+      const raw = localStorage.getItem(localKey) || '[]'
+      const data = raw ? JSON.parse(raw) : []
+      const { error } = await sb.from('app_data').upsert({ key: cloudKey, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+      if (error) throw error
+      const { data: row, error: rErr } = await sb.from('app_data').select('updated_at').eq('key', cloudKey).maybeSingle()
+      if (rErr) throw rErr
+      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} forceUpsert ok updated_at=${String(row?.updated_at || '') || '（找不到）'}` }))
+    } catch (e) {
+      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} forceUpsert error=${e?.message || String(e || '')}` }))
+    }
+    runSyncDiag(pid).catch(() => {})
   }
 
   useEffect(() => {
@@ -1319,6 +1370,30 @@ function ProjectDetailView({
                   立即重送 outbox
                 </button>
               </div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
+              <div className="text-gray-400">最近一次 flush 結果</div>
+              <div className="text-white break-all">{syncDiag?.lastFlush || '—'}</div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
+              <div className="text-gray-400">寫入測試 / 強制 upsert（用來判斷「寫入是否真的成功」）</div>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={writeTestKey}
+                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
+                >
+                  寫入測試 key
+                </button>
+                <button
+                  type="button"
+                  onClick={forceUpsertCurrentProject}
+                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
+                >
+                  強制 upsert 本專案缺失
+                </button>
+              </div>
+              <div className="text-white break-all mt-1">{syncDiag?.lastWriteTest || '—'}</div>
             </div>
             <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
               <div className="text-gray-400">最後一次寫入錯誤（若有）</div>
