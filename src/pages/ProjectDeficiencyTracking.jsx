@@ -6,6 +6,7 @@ import { getSchedules } from '../utils/scheduleStorage'
 import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNameForAccount } from '../utils/displayName'
+import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
 function ProjectDeficiencyTracking() {
   const [projects, setProjects] = useState([])
@@ -41,6 +42,53 @@ function ProjectDeficiencyTracking() {
   const viewingProjectIdRef = useRef(null)
   useEffect(() => {
     viewingProjectIdRef.current = viewingProjectId
+  }, [viewingProjectId])
+
+  // 備援即時同步：有些裝置收不到 Realtime（或 app_data RLS/省電造成延遲），此處直接輪詢 project_records
+  // 目標：任何一個用戶更改狀態，其他裝置在 1 秒內刷新
+  const prCloudUpdatedAtRef = useRef('')
+  useEffect(() => {
+    if (!viewingProjectId) return
+    if (!isSupabaseEnabled()) return
+    const sb = getSupabaseClient()
+    if (!sb) return
+
+    let disposed = false
+    const fetchOnce = async () => {
+      try {
+        const { data, error } = await sb
+          .from('app_data')
+          .select('data, updated_at')
+          .eq('key', 'jiameng_project_records')
+          .maybeSingle()
+        if (disposed) return
+        if (error) throw error
+        const updatedAt = String(data?.updated_at || '')
+        if (!updatedAt) return
+        if (updatedAt === prCloudUpdatedAtRef.current) return
+        prCloudUpdatedAtRef.current = updatedAt
+
+        const raw = data?.data
+        const obj =
+          raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? raw
+            : (typeof raw === 'string' ? (() => { try { return JSON.parse(raw || '{}') } catch (_) { return {} } })() : {})
+        // 寫回 localStorage，讓其它使用 useRealtimeKeys 的元件也能一致運作
+        try { localStorage.setItem('jiameng_project_records', JSON.stringify(obj)) } catch (_) {}
+        // 只更新目前正在看的專案
+        const next = Array.isArray(obj?.[viewingProjectId]) ? obj[viewingProjectId] : []
+        setProjectRecords(next)
+      } catch (_) {
+        // 靜默：避免一直跳錯誤視窗干擾操作
+      }
+    }
+
+    fetchOnce()
+    const id = setInterval(fetchOnce, 1000)
+    return () => {
+      disposed = true
+      try { clearInterval(id) } catch (_) {}
+    }
   }, [viewingProjectId])
 
   const refetchDeficiency = () => {
