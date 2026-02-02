@@ -1,7 +1,6 @@
 // 專案記錄存储工具
 import { syncKeyToSupabase } from './supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
-const PROJECT_RECORD_STORAGE_KEY = 'jiameng_project_records' // legacy：本機整包快取（可能過大，不寫回雲端）
 const PROJECT_RECORD_LOCAL_PREFIX = 'jiameng_project_records:' // 本機快取：每個專案一個 key
 const PROJECT_RECORD_CLOUD_PREFIX = 'jiameng_project_records__' // 雲端同步：避免 key 含 ':' 在某些環境被擋
 const PROJECT_RECORD_LOCAL_BACKUP_PREFIX = 'jiameng_project_records_local_backup__' // 本機備份：永不被雲端覆蓋（防刷新消失）
@@ -45,14 +44,6 @@ const persistProject = (projectId, arr) => {
     try { syncKeyToSupabase(cloudKey, val) } catch (_) {}
   }
 
-  // 3) legacy：維持本機整包快取，讓舊程式/搜尋仍可讀到（不再同步到雲端，避免整包太大寫不進）
-  try {
-    const raw = localStorage.getItem(PROJECT_RECORD_STORAGE_KEY)
-    const all = raw ? JSON.parse(raw) : {}
-    const next = all && typeof all === 'object' ? { ...all } : {}
-    next[pid] = list
-    localStorage.setItem(PROJECT_RECORD_STORAGE_KEY, JSON.stringify(next))
-  } catch (_) {}
 }
 
 // 获取專案的所有記錄
@@ -80,13 +71,8 @@ export const getProjectRecords = (projectId) => {
       } catch (_) {}
     }
 
-    // fallback：讀 legacy，並把該專案搬到新格式（只搬本機，避免一進頁面就觸發大量雲端寫入）
-    const records = localStorage.getItem(PROJECT_RECORD_STORAGE_KEY)
-    const all = records ? JSON.parse(records) : {}
-    const arr = Array.isArray(all?.[pid]) ? all[pid] : []
-    try { localStorage.setItem(localKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
-    try { localStorage.setItem(backupKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
-    return arr
+    // 真的沒有資料：回傳空陣列（不再讀整包 legacy，避免記憶體爆炸）
+    return []
   } catch (error) {
     console.error('Error getting project records:', error)
     return []
