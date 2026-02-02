@@ -39,6 +39,7 @@ function Calendar() {
   const [selectedDateForSchedule, setSelectedDateForSchedule] = useState(null)
   const [expandedSchedules, setExpandedSchedules] = useState({}) // 展开的排程ID
   const [expandedWorkItems, setExpandedWorkItems] = useState({}) // 展开的工作项目
+  const [originalWorkItemIdMap, setOriginalWorkItemIdMap] = useState({}) // 編輯既有排程時：原本就存在的 workItem.id
   const [changeReq, setChangeReq] = useState({
     open: false,
     scheduleId: '',
@@ -120,10 +121,13 @@ function Calendar() {
 
   // 行事曆規則：
   // - 新增排程（editingScheduleId === null）：可自由編輯預計欄位
-  // - 編輯既有排程（editingScheduleId !== null）：預計欄位視為已鎖定（舊資料可能沒有 plannedLockedAt）
+  // - 編輯既有排程（editingScheduleId !== null）：僅「原本就存在的工作項目」視為已鎖定；新加的工作項目可編輯，保存後才會鎖
   const isPlannedLocked = (item) => {
     const it = normalizeWorkItem(item)
-    return !!it?.plannedLockedAt || !!editingScheduleId
+    const id = String(it?.id || item?.id || '').trim()
+    if (!!it?.plannedLockedAt) return true
+    if (!editingScheduleId) return false
+    return !!originalWorkItemIdMap?.[id]
   }
 
   const openChangeRequest = (scheduleId, item) => {
@@ -784,8 +788,17 @@ function Calendar() {
         fuelCost: selectedDetailItem.fuelCost || '',
         invoiceReturned: selectedDetailItem.invoiceReturned || false,
         workItems: selectedDetailItem.workItems || [],
+        createdBy: selectedDetailItem.createdBy || '',
+        createdAt: selectedDetailItem.createdAt || '',
         tag: selectedDetailItem.tag || 'blue'
       })
+      // 記住「原本就存在」的工作項目 id，避免新加空白項目也被鎖
+      const baseIds = {}
+      ;(Array.isArray(selectedDetailItem.workItems) ? selectedDetailItem.workItems : []).forEach((wi) => {
+        const id = String(wi?.id || '').trim()
+        if (id) baseIds[id] = true
+      })
+      setOriginalWorkItemIdMap(baseIds)
       // 关闭详情弹窗，打开编辑表单
       setShowDetailModal(false)
       setShowScheduleForm(true)
@@ -907,6 +920,8 @@ function Calendar() {
         tag: 'blue'
       })
     }
+    setOriginalWorkItemIdMap({})
+    setEditingScheduleId(null)
     setShowScheduleForm(true)
     setShowEventModal(false) // 隐藏活动表单
   }
@@ -931,6 +946,7 @@ function Calendar() {
   }
 
   const handleAddWorkItem = () => {
+    const now = new Date().toISOString()
     setScheduleFormData(prev => ({
       ...prev,
       workItems: [
@@ -944,7 +960,9 @@ function Calendar() {
           isCollaborative: false,
           collaborators: [],
           collabMode: 'shared', // shared: 一起完成算總數；separate: 分開完成各自算
-          sharedActualQuantity: ''
+          sharedActualQuantity: '',
+          createdAt: now,
+          createdBy: currentUser || ''
         }
       ]
     }))
@@ -1093,10 +1111,21 @@ function Calendar() {
     let result
     if (editingScheduleId) {
       // 更新现有排程
-      result = updateSchedule(editingScheduleId, scheduleFormData)
+      const prev = schedules.find((s) => String(s?.id) === String(editingScheduleId))
+      const payload = {
+        ...scheduleFormData,
+        id: editingScheduleId,
+        createdBy: scheduleFormData?.createdBy || prev?.createdBy || '',
+        createdAt: scheduleFormData?.createdAt || prev?.createdAt || ''
+      }
+      result = updateSchedule(editingScheduleId, payload)
     } else {
       // 新增排程
-      result = saveSchedule(scheduleFormData)
+      const payload = {
+        ...scheduleFormData,
+        createdBy: scheduleFormData?.createdBy || currentUser || ''
+      }
+      result = saveSchedule(payload)
     }
 
     if (result.success) {
@@ -1122,6 +1151,7 @@ function Calendar() {
       setShowScheduleForm(false)
       setShowScheduleModal(false)
       setEditingScheduleId(null)
+      setOriginalWorkItemIdMap({})
       setSelectedDateForSchedule(null)
     } else {
       alert(result.message || '保存失敗')
@@ -1145,6 +1175,7 @@ function Calendar() {
       tag: 'blue'
     })
     setEditingScheduleId(null)
+    setOriginalWorkItemIdMap({})
     if (showScheduleForm) {
       // 如果是从主题表单打开的，返回主题表单
       setShowScheduleForm(false)
@@ -1276,7 +1307,11 @@ function Calendar() {
       })
     }
 
-    const result = saveSchedule(scheduleFormData)
+    const payload = {
+      ...scheduleFormData,
+      createdBy: scheduleFormData?.createdBy || currentUser || ''
+    }
+    const result = saveSchedule(payload)
     if (result.success) {
       // 重新加载排程列表
       const allSchedules = getSchedules()
@@ -2052,6 +2087,12 @@ function Calendar() {
                           </div>
                         )}
 
+                        {/* 建立者 */}
+                        <div>
+                          <span className="text-blue-300">建立者:</span>
+                          <span className="ml-2">{String(selectedDetailItem?.createdBy || '').trim() || '—'}</span>
+                        </div>
+
                         {/* 參與人員 */}
                         {selectedDetailItem.participants && (
                           <div>
@@ -2182,6 +2223,9 @@ function Calendar() {
                                   </button>
                                 )}
                               </div>
+                            </div>
+                            <div className="text-blue-200 text-xs mt-1">
+                              建立者：{String(it?.createdBy || selectedDetailItem?.createdBy || '').trim() || '—'}
                             </div>
                             {(() => {
                               const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
@@ -2736,9 +2780,16 @@ function Calendar() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div ref={scheduleModalBodyRef} className="bg-charcoal border border-yellow-400 rounded-lg shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-yellow-400">
-                {editingScheduleId ? '編輯排程' : '新增排程'}
-              </h3>
+              <div>
+                <h3 className="text-xl font-bold text-yellow-400">
+                  {editingScheduleId ? '編輯排程' : '新增排程'}
+                </h3>
+                {editingScheduleId && (
+                  <div className="text-gray-400 text-xs mt-1">
+                    建立者：{String(scheduleFormData?.createdBy || '').trim() || '—'}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleScheduleCancel}
                 className="text-gray-400 hover:text-white"

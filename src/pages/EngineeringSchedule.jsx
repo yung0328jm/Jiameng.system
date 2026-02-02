@@ -73,6 +73,7 @@ function EngineeringSchedule() {
   }
 
   const handleAddWorkItem = () => {
+    const now = new Date().toISOString()
     setFormData(prev => ({
       ...prev,
       workItems: [
@@ -86,7 +87,9 @@ function EngineeringSchedule() {
           isCollaborative: false,
           collaborators: [],
           collabMode: 'shared', // shared: 一起完成算總數；separate: 分開完成各自算
-          sharedActualQuantity: ''
+          sharedActualQuantity: '',
+          createdAt: now,
+          createdBy: currentUser || ''
         }
       ]
     }))
@@ -243,11 +246,20 @@ function EngineeringSchedule() {
     })
 
     if (editingId) {
-      // 更新现有排程
-      updateSchedule(editingId, formData)
+      // 更新现有排程（保留建立者）
+      const payload = {
+        ...formData,
+        createdBy: formData?.createdBy || '',
+        createdAt: formData?.createdAt || ''
+      }
+      updateSchedule(editingId, payload)
     } else {
       // 新增排程
-      saveSchedule(formData)
+      const payload = {
+        ...formData,
+        createdBy: formData?.createdBy || currentUser || ''
+      }
+      saveSchedule(payload)
     }
 
     // 重置表单
@@ -279,7 +291,9 @@ function EngineeringSchedule() {
       needRefuel: schedule.needRefuel || false,
       fuelCost: schedule.fuelCost || '',
       invoiceReturned: schedule.invoiceReturned || false,
-      workItems: schedule.workItems || []
+      workItems: schedule.workItems || [],
+      createdBy: schedule.createdBy || '',
+      createdAt: schedule.createdAt || ''
     })
     setEditingId(schedule.id)
     setShowForm(true)
@@ -303,7 +317,9 @@ function EngineeringSchedule() {
       needRefuel: false,
       fuelCost: '',
       invoiceReturned: false,
-      workItems: []
+      workItems: [],
+      createdBy: '',
+      createdAt: ''
     })
     setShowForm(false)
     setEditingId(null)
