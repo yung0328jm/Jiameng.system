@@ -1948,7 +1948,9 @@ function Calendar() {
                   {/* 行程回報紀錄：依此排程案場（siteName）顯示；名子套用特效邏輯 */}
                   {selectedDetailType === 'schedule' && (() => {
                     const siteName = (selectedDetailItem?.siteName || '').trim()
-                    const tripReports = siteName ? getTripReportsByProject(siteName) : []
+                    const ymd = String(selectedDetailItem?.date || '').slice(0, 10)
+                    // 行程回報：同名案場每天都可能去，這裡只顯示「當天」的紀錄，避免沿用上次狀態
+                    const tripReports = siteName ? getTripReportsByProject(siteName, ymd) : []
                     const leaderboardItems = getLeaderboardItems()
                     const formatTime = (iso) => {
                       try {
