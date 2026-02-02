@@ -65,8 +65,8 @@ export const getProjectRecords = (projectId) => {
     const per = localStorage.getItem(localKeyForProject(pid))
     if (per) {
       const parsed = JSON.parse(per)
-      const arr = Array.isArray(parsed) ? parsed : []
-      if (arr.length > 0) return arr
+      // 重要：允許空陣列（刪到最後一筆時必須能回傳 []，不能再 fallback 把舊資料撈回來）
+      return Array.isArray(parsed) ? parsed : []
     }
 
     // 再讀本機備份（防刷新消失）
@@ -75,10 +75,8 @@ export const getProjectRecords = (projectId) => {
       try {
         const parsed = JSON.parse(backup)
         const arr = Array.isArray(parsed) ? parsed : []
-        if (arr.length > 0) {
-          try { localStorage.setItem(localKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
-          return arr
-        }
+        try { localStorage.setItem(localKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
+        return arr
       } catch (_) {}
     }
 
