@@ -35,19 +35,22 @@ export function SyncProvider({ children, syncReady = false }) {
     unsubRef.current = subscribeRealtime(() => setRevision((r) => r + 1))
 
     // 備援：有些環境可能收不到 app_data 的 Realtime（RLS/網路/裝置省電等）
-    // 針對「排行榜面板」做輕量輪詢，避免需要重新登入才能看到新卡片
+    // 針對「缺失追蹤（狀態）」做較密輪詢，確保多人同時操作時體感即時
     const sb = getSupabaseClient()
     if (sb) {
+      let tick = 0
       pollRef.current = setInterval(async () => {
         try {
-          // 1) 排行榜面板
-          await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
-          // 2) 待辦事項
-          await refreshAppDataKey(sb, 'jiameng_todos', lastTodosUpdatedAtRef, [])
-          // 3) 缺失追蹤表（狀態需即時同步）
+          tick += 1
+          // 1) 缺失追蹤表（狀態需即時同步）：每 2 秒
           await refreshAppDataKey(sb, 'jiameng_project_records', lastProjectRecordsUpdatedAtRef, {})
+          // 2) 排行榜面板、待辦事項：每 8 秒
+          if (tick % 4 === 0) {
+            await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
+            await refreshAppDataKey(sb, 'jiameng_todos', lastTodosUpdatedAtRef, [])
+          }
         } catch (_) {}
-      }, 8000)
+      }, 2000)
     }
 
     // 背景->前景：setInterval 可能被瀏覽器降頻/暫停，回來時主動補拉一次（避免要重新登入）
