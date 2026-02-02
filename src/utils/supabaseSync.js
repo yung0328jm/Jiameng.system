@@ -17,6 +17,59 @@ function rememberSyncError(key, err) {
   } catch (_) {}
 }
 
+const OUTBOX_KEY = 'jiameng_sync_outbox_v1'
+function loadOutbox() {
+  try {
+    const raw = localStorage.getItem(OUTBOX_KEY)
+    const obj = raw ? JSON.parse(raw) : {}
+    return obj && typeof obj === 'object' ? obj : {}
+  } catch (_) {
+    return {}
+  }
+}
+function saveOutbox(obj) {
+  try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(obj || {})) } catch (_) {}
+}
+function queueOutbox(key, value, err) {
+  try {
+    const out = loadOutbox()
+    out[String(key)] = {
+      key: String(key),
+      value: typeof value === 'string' ? value : JSON.stringify(value ?? {}),
+      lastError: err?.message || err?.details || String(err || ''),
+      updatedAt: new Date().toISOString()
+    }
+    saveOutbox(out)
+  } catch (_) {}
+}
+
+export async function flushSyncOutbox() {
+  const sb = getSupabaseClient()
+  if (!sb) return { ok: 0, fail: 0 }
+  const out = loadOutbox()
+  const keys = Object.keys(out || {})
+  if (keys.length === 0) return { ok: 0, fail: 0 }
+
+  let ok = 0
+  let fail = 0
+  // 每次 flush 最多送 6 個，避免阻塞 UI
+  for (const k of keys.slice(0, 6)) {
+    const item = out[k]
+    if (!item?.key) continue
+    try {
+      await _doUpsert(sb, item.key, item.value)
+      delete out[k]
+      ok += 1
+    } catch (e) {
+      rememberSyncError(item.key, e)
+      out[k] = { ...item, lastError: e?.message || e?.details || String(e || ''), updatedAt: new Date().toISOString() }
+      fail += 1
+    }
+  }
+  saveOutbox(out)
+  return { ok, fail }
+}
+
 /** 需從 app_data 同步的 localStorage key（不含排程／請假／特休，不含登入狀態） */
 export const APP_DATA_KEYS = [
   'jiameng_todos', 'jiameng_users', 'jiameng_wallets', 'jiameng_transactions',
@@ -163,6 +216,7 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
         await _doUpsert(sb, key, value)
       } catch (e) {
         rememberSyncError(key, e)
+        queueOutbox(key, value, e)
         throw e
       }
       return
@@ -190,6 +244,7 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
         await _doUpsert(sb, key, payload.value)
       } catch (e) {
         rememberSyncError(key, e)
+        queueOutbox(key, payload.value, e)
         console.warn('syncKeyToSupabase failed:', key, e)
       } finally {
         _inFlight.delete(key)
@@ -202,6 +257,7 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
     _timer.set(key, id)
   } catch (e) {
     rememberSyncError(key, e)
+    queueOutbox(key, value, e)
     console.warn('syncKeyToSupabase failed:', key, e)
   }
 }
