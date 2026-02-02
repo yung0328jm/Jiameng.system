@@ -7,7 +7,6 @@ import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
-import { flushSyncOutbox, syncKeyToSupabase } from '../utils/supabaseSync'
 
 function ProjectDeficiencyTracking() {
   const [projects, setProjects] = useState([])
@@ -38,199 +37,11 @@ function ProjectDeficiencyTracking() {
   const [editingField, setEditingField] = useState(null) // {recordId, field, revision}
   const [filterProjectStatus, setFilterProjectStatus] = useState('all') // all, planning, in_progress, completed, on_hold
   const [editingProjectStatusId, setEditingProjectStatusId] = useState(null) // 正在編輯狀態的專案ID
-  const [showSyncDiag, setShowSyncDiag] = useState(false)
-  const [syncDiag, setSyncDiag] = useState({
-    supabaseEnabled: false,
-    supabaseHost: '',
-    todosUpdatedAt: '',
-    projectsUpdatedAt: '',
-    projectKey: '',
-    projectUpdatedAt: '',
-    lastError: null,
-    outboxCount: 0,
-    outboxPreview: [],
-    lastFlush: '',
-    lastWriteTest: '',
-    lastCheckedAt: ''
-  })
-
-  const readLastSyncError = () => {
-    try {
-      const raw = localStorage.getItem('jiameng_last_sync_error')
-      return raw ? JSON.parse(raw) : null
-    } catch (_) {
-      return null
-    }
-  }
 
   // Realtime callback 會用到：避免閉包拿到舊 viewingProjectId
   const viewingProjectIdRef = useRef(null)
   useEffect(() => {
     viewingProjectIdRef.current = viewingProjectId
-  }, [viewingProjectId])
-
-  // 同步診斷：用「待辦」作為對照，快速判斷手機端是否有連到同一套 Supabase / app_data 是否可讀
-  const runSyncDiag = async (pidArg) => {
-    const pid = String(pidArg || viewingProjectIdRef.current || '').trim()
-    const enabled = isSupabaseEnabled()
-    const sb = enabled ? getSupabaseClient() : null
-    const projectKey = pid ? `jiameng_project_records__${encodeURIComponent(pid)}` : ''
-    let supabaseHost = ''
-    try {
-      const u = import.meta?.env?.VITE_SUPABASE_URL
-      if (u) supabaseHost = new URL(u).host
-    } catch (_) {}
-    const next = {
-      supabaseEnabled: !!(enabled && sb),
-      supabaseHost,
-      todosUpdatedAt: '',
-      projectsUpdatedAt: '',
-      projectKey,
-      projectUpdatedAt: '',
-      lastError: readLastSyncError(),
-      outboxCount: 0,
-      outboxPreview: [],
-      lastFlush: '',
-      lastWriteTest: '',
-      lastCheckedAt: new Date().toISOString()
-    }
-    try {
-      try {
-        const rawOut = localStorage.getItem('jiameng_sync_outbox_v1')
-        const obj = rawOut ? JSON.parse(rawOut) : {}
-        next.outboxCount = obj && typeof obj === 'object' ? Object.keys(obj).length : 0
-        const preview = []
-        if (obj && typeof obj === 'object') {
-          Object.keys(obj).slice(0, 3).forEach((k) => {
-            const it = obj[k]
-            preview.push({
-              key: String(it?.key || k),
-              attempts: Number(it?.attempts) || 0,
-              nextAttemptAt: String(it?.nextAttemptAt || ''),
-              lastError: String(it?.lastError || '')
-            })
-          })
-        }
-        next.outboxPreview = preview
-      } catch (_) {}
-      if (sb) {
-        try {
-          const { data: tRow, error: tErr } = await sb.from('app_data').select('updated_at').eq('key', 'jiameng_todos').maybeSingle()
-          if (!tErr && tRow?.updated_at) next.todosUpdatedAt = String(tRow.updated_at)
-          if (!tErr && !tRow?.updated_at) next.todosUpdatedAt = '（找不到此 key）'
-        } catch (_) {}
-        try {
-          const { data: pRow, error: pErr } = await sb.from('app_data').select('updated_at').eq('key', 'jiameng_projects').maybeSingle()
-          if (!pErr && pRow?.updated_at) next.projectsUpdatedAt = String(pRow.updated_at)
-          if (!pErr && !pRow?.updated_at) next.projectsUpdatedAt = '（找不到此 key）'
-        } catch (_) {}
-        if (projectKey) {
-          try {
-            const { data: pRow, error: pErr } = await sb.from('app_data').select('updated_at').eq('key', projectKey).maybeSingle()
-            if (!pErr && pRow?.updated_at) next.projectUpdatedAt = String(pRow.updated_at)
-            if (!pErr && !pRow?.updated_at) next.projectUpdatedAt = '（找不到此 key）'
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
-    setSyncDiag(next)
-  }
-
-  const pushProjectsToCloud = async () => {
-    try {
-      const raw = localStorage.getItem('jiameng_projects') || '[]'
-      await syncKeyToSupabase('jiameng_projects', raw)
-    } catch (_) {}
-    try { await flushSyncOutbox() } catch (_) {}
-    runSyncDiag(viewingProjectIdRef.current).catch(() => {})
-  }
-
-  const pushCurrentProjectRecordsToCloud = async () => {
-    const pid = String(viewingProjectIdRef.current || '').trim()
-    if (!pid) return
-    const cloudKey = `jiameng_project_records__${encodeURIComponent(pid)}`
-    const localKey = `jiameng_project_records:${pid}`
-    try {
-      const raw = localStorage.getItem(localKey) || '[]'
-      await syncKeyToSupabase(cloudKey, raw)
-    } catch (_) {}
-    try { await flushSyncOutbox() } catch (_) {}
-    runSyncDiag(pid).catch(() => {})
-  }
-
-  const flushOutboxNow = async () => {
-    try {
-      const r = await flushSyncOutbox()
-      setSyncDiag((s) => ({ ...s, lastFlush: `${new Date().toISOString()} ok=${r?.ok ?? 0} fail=${r?.fail ?? 0}` }))
-    } catch (e) {
-      setSyncDiag((s) => ({ ...s, lastFlush: `${new Date().toISOString()} error=${e?.message || String(e || '')}` }))
-    }
-    runSyncDiag(viewingProjectIdRef.current).catch(() => {})
-  }
-
-  const removeOutboxKey = (key) => {
-    try {
-      const rawOut = localStorage.getItem('jiameng_sync_outbox_v1')
-      const obj = rawOut ? JSON.parse(rawOut) : {}
-      if (obj && typeof obj === 'object') {
-        delete obj[String(key)]
-        localStorage.setItem('jiameng_sync_outbox_v1', JSON.stringify(obj))
-      }
-    } catch (_) {}
-    runSyncDiag(viewingProjectIdRef.current).catch(() => {})
-  }
-
-  const writeTestKey = async () => {
-    const sb = getSupabaseClient()
-    const enabled = isSupabaseEnabled()
-    if (!enabled || !sb) {
-      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} Supabase not enabled` }))
-      return
-    }
-    const key = `jiameng_write_test__${Date.now()}`
-    try {
-      // 直接 upsert（避免被 outbox/去抖影響判讀）
-      const payload = { at: new Date().toISOString() }
-      const { error: wErr } = await sb
-        .from('app_data')
-        .upsert({ key, data: payload, updated_at: new Date().toISOString() }, { onConflict: 'key' })
-      if (wErr) throw wErr
-
-      // 立刻讀回確認（若讀不到，就是「寫入根本沒成功」）
-      const { data, error } = await sb.from('app_data').select('updated_at').eq('key', key).maybeSingle()
-      if (error) throw error
-      const ua = String(data?.updated_at || '')
-      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} key=${key} updated_at=${ua || '（找不到）'}` }))
-    } catch (e) {
-      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} key=${key} error=${e?.message || String(e || '')}` }))
-    }
-  }
-
-  const forceUpsertCurrentProject = async () => {
-    const sb = getSupabaseClient()
-    const enabled = isSupabaseEnabled()
-    const pid = String(viewingProjectIdRef.current || '').trim()
-    if (!enabled || !sb || !pid) return
-    const cloudKey = `jiameng_project_records__${encodeURIComponent(pid)}`
-    const localKey = `jiameng_project_records:${pid}`
-    try {
-      const raw = localStorage.getItem(localKey) || '[]'
-      const data = raw ? JSON.parse(raw) : []
-      const { error } = await sb.from('app_data').upsert({ key: cloudKey, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
-      if (error) throw error
-      const { data: row, error: rErr } = await sb.from('app_data').select('updated_at').eq('key', cloudKey).maybeSingle()
-      if (rErr) throw rErr
-      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} forceUpsert ok updated_at=${String(row?.updated_at || '') || '（找不到）'}` }))
-    } catch (e) {
-      setSyncDiag((s) => ({ ...s, lastWriteTest: `${new Date().toISOString()} forceUpsert error=${e?.message || String(e || '')}` }))
-    }
-    runSyncDiag(pid).catch(() => {})
-  }
-
-  useEffect(() => {
-    // 進頁/切換專案時自動跑一次診斷（不影響功能）
-    runSyncDiag(viewingProjectId).catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewingProjectId])
 
   // 備援即時同步：有些裝置收不到 Realtime（或 app_data RLS/省電造成延遲）
@@ -1007,16 +818,6 @@ function ProjectDeficiencyTracking() {
           onUpdateProject={updateProject}
           onLoadProjects={loadProjects}
           getStatusColor={getStatusColor}
-          showSyncDiag={showSyncDiag}
-          setShowSyncDiag={setShowSyncDiag}
-          syncDiag={syncDiag}
-          onRunSyncDiag={runSyncDiag}
-          onPushProjectsToCloud={pushProjectsToCloud}
-          onPushCurrentProjectRecordsToCloud={pushCurrentProjectRecordsToCloud}
-          onFlushOutboxNow={flushOutboxNow}
-          onWriteTestKey={writeTestKey}
-          onForceUpsertCurrentProject={forceUpsertCurrentProject}
-          onRemoveOutboxKey={removeOutboxKey}
         />
       )}
 
@@ -1170,17 +971,7 @@ function ProjectDetailView({
   onStatusChange,
   onUpdateProject,
   onLoadProjects,
-  getStatusColor,
-  showSyncDiag,
-  setShowSyncDiag,
-  syncDiag,
-  onRunSyncDiag,
-  onPushProjectsToCloud,
-  onPushCurrentProjectRecordsToCloud,
-  onFlushOutboxNow,
-  onWriteTestKey,
-  onForceUpsertCurrentProject,
-  onRemoveOutboxKey
+  getStatusColor
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
@@ -1303,14 +1094,6 @@ function ProjectDetailView({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowSyncDiag(!showSyncDiag)}
-            className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
-            title="顯示同步診斷（用來排查手機不同步）"
-          >
-            同步診斷
-          </button>
-          <button
-            type="button"
             onClick={handlePrint}
             className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
             title="列印整份表格（含目前篩選結果）"
@@ -1331,137 +1114,6 @@ function ProjectDetailView({
           </button>
         </div>
       </div>
-
-      {showSyncDiag && (
-        <div className="bg-gray-900 rounded-lg p-4 mb-6 border border-gray-700 project-no-print">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="text-sm font-semibold text-yellow-400">同步診斷（比對待辦 `jiameng_todos`）</div>
-            <button
-              type="button"
-              onClick={() => onRunSyncDiag(project?.id)}
-              className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-            >
-              重新檢查
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-200">
-            <div className="bg-gray-800 rounded p-2 border border-gray-700">
-              <div className="text-gray-400">Supabase</div>
-              <div className={syncDiag?.supabaseEnabled ? 'text-green-300' : 'text-red-300'}>
-                {syncDiag?.supabaseEnabled ? '已啟用（有設定 VITE_SUPABASE_URL / ANON_KEY）' : '未啟用（手機端若是 APK，通常代表打包時沒帶入 env）'}
-              </div>
-              {syncDiag?.supabaseHost ? (
-                <div className="text-gray-300 mt-1 break-all">host: {syncDiag.supabaseHost}</div>
-              ) : null}
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700">
-              <div className="text-gray-400">最後檢查時間</div>
-              <div className="text-white break-all">{syncDiag?.lastCheckedAt || '—'}</div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700">
-              <div className="text-gray-400">待辦 updated_at（jiameng_todos）</div>
-              <div className="text-white break-all">{syncDiag?.todosUpdatedAt || '—（讀不到或尚未寫入）'}</div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700">
-              <div className="text-gray-400">專案清單 updated_at（jiameng_projects）</div>
-              <div className="text-white break-all">{syncDiag?.projectsUpdatedAt || '—（讀不到或尚未寫入）'}</div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700">
-              <div className="text-gray-400">缺失表雲端 key / updated_at</div>
-              <div className="text-white break-all">{syncDiag?.projectKey || '—'}</div>
-              <div className="text-white break-all">{syncDiag?.projectUpdatedAt || '—（讀不到或尚未寫入）'}</div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
-              <div className="text-gray-400">待送出（outbox）筆數</div>
-              <div className="text-white break-all">{String(syncDiag?.outboxCount ?? 0)}</div>
-              {Array.isArray(syncDiag?.outboxPreview) && syncDiag.outboxPreview.length > 0 ? (
-                <div className="text-gray-300 mt-1 space-y-1">
-                  {syncDiag.outboxPreview.map((it) => (
-                    <div key={it.key} className="break-all">
-                      - {it.key}（attempts {it.attempts}{it.nextAttemptAt ? `, next ${it.nextAttemptAt}` : ''}）
-                      {it.lastError ? ` / ${it.lastError}` : ''}
-                      <button
-                        type="button"
-                        onClick={() => onRemoveOutboxKey(it.key)}
-                        className="ml-2 bg-gray-700 hover:bg-gray-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded"
-                        title="移除這筆 outbox（不再重試）"
-                      >
-                        移除
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={onFlushOutboxNow}
-                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-                >
-                  立即重送 outbox
-                </button>
-              </div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
-              <div className="text-gray-400">最近一次 flush 結果</div>
-              <div className="text-white break-all">{syncDiag?.lastFlush || '—'}</div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
-              <div className="text-gray-400">寫入測試 / 強制 upsert（用來判斷「寫入是否真的成功」）</div>
-              <div className="flex flex-wrap gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={onWriteTestKey}
-                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-                >
-                  寫入測試 key
-                </button>
-                <button
-                  type="button"
-                  onClick={onForceUpsertCurrentProject}
-                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-                >
-                  強制 upsert 本專案缺失
-                </button>
-              </div>
-              <div className="text-white break-all mt-1">{syncDiag?.lastWriteTest || '—'}</div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
-              <div className="text-gray-400">最後一次寫入錯誤（若有）</div>
-              <div className="text-white break-all">
-                {syncDiag?.lastError
-                  ? `${syncDiag.lastError.at || ''}  key=${syncDiag.lastError.key || ''}  ${syncDiag.lastError.message || ''}`
-                  : '—'}
-              </div>
-            </div>
-            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
-              <div className="text-gray-400">一鍵修復（把本機資料推到雲端）</div>
-              <div className="flex flex-wrap gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={onPushProjectsToCloud}
-                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-                >
-                  推送專案清單到雲端
-                </button>
-                <button
-                  type="button"
-                  onClick={onPushCurrentProjectRecordsToCloud}
-                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-                >
-                  推送本專案缺失到雲端
-                </button>
-              </div>
-              <div className="text-[11px] text-gray-400 mt-1">
-                若推送後 updated_at 仍顯示「找不到此 key」或一直 AbortError，就代表寫入請求被中斷/被擋（需再針對網路/權限處理）。
-              </div>
-            </div>
-          </div>
-          <div className="text-[11px] text-gray-400 mt-2">
-            提示：若手機端這裡顯示「Supabase 未啟用」，那手機一定不會同步（要用同一套 Supabase env 重新打包 APK）。
-          </div>
-        </div>
-      )}
 
       {/* 專案基本資訊 */}
       <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700 project-no-print">
