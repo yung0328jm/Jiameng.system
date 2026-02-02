@@ -12,7 +12,7 @@ import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
-import { getCurrentUserRole } from '../utils/authStorage'
+import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
   getWorkItemCollaborators,
@@ -39,6 +39,18 @@ function Calendar() {
   const [selectedDateForSchedule, setSelectedDateForSchedule] = useState(null)
   const [expandedSchedules, setExpandedSchedules] = useState({}) // 展开的排程ID
   const [expandedWorkItems, setExpandedWorkItems] = useState({}) // 展开的工作项目
+  const [changeReq, setChangeReq] = useState({
+    open: false,
+    scheduleId: '',
+    itemId: '',
+    reason: '',
+    proposedWorkContent: '',
+    proposedResponsiblePerson: '',
+    proposedIsCollaborative: false,
+    proposedCollabMode: 'shared',
+    proposedTargetQuantity: '',
+    proposedCollaborators: [] // [{ name, targetQuantity }]
+  })
   const [topicFormData, setTopicFormData] = useState({
     title: '',
     date: '',
@@ -95,6 +107,159 @@ function Calendar() {
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
+  const currentUser = getCurrentUser()
+  const currentRole = getCurrentUserRole()
+  const myDisplayNames = getDisplayNamesForAccount(currentUser || '') || []
+
+  const canEditForName = (displayName) => {
+    if (currentRole === 'admin') return true
+    const n = String(displayName || '').trim()
+    if (!n) return false
+    return myDisplayNames.includes(n)
+  }
+
+  // 行事曆規則：
+  // - 新增排程（editingScheduleId === null）：可自由編輯預計欄位
+  // - 編輯既有排程（editingScheduleId !== null）：預計欄位視為已鎖定（舊資料可能沒有 plannedLockedAt）
+  const isPlannedLocked = (item) => {
+    const it = normalizeWorkItem(item)
+    return !!it?.plannedLockedAt || !!editingScheduleId
+  }
+
+  const openChangeRequest = (scheduleId, item) => {
+    const it = normalizeWorkItem(item)
+    const collabs = getWorkItemCollaborators(it)
+    setChangeReq({
+      open: true,
+      scheduleId: String(scheduleId || ''),
+      itemId: String(it?.id || ''),
+      reason: '',
+      proposedWorkContent: it.workContent || '',
+      proposedResponsiblePerson: String(it.responsiblePerson || '').trim(),
+      proposedIsCollaborative: !!it.isCollaborative,
+      proposedCollabMode: getWorkItemCollabMode(it),
+      proposedTargetQuantity: it.targetQuantity ?? '',
+      proposedCollaborators: collabs.map((c) => ({
+        name: String(c?.name || '').trim(),
+        targetQuantity: c?.targetQuantity ?? ''
+      }))
+    })
+  }
+
+  const closeChangeRequest = () => setChangeReq((p) => ({ ...p, open: false }))
+
+  const submitChangeRequest = () => {
+    const scheduleId = String(changeReq.scheduleId || '')
+    const itemId = String(changeReq.itemId || '')
+    const reason = String(changeReq.reason || '').trim()
+    if (!scheduleId || !itemId) return
+    if (!reason) {
+      alert('請填寫異動原因')
+      return
+    }
+
+    const proposed = {
+      workContent: changeReq.proposedWorkContent,
+      responsiblePerson: changeReq.proposedResponsiblePerson,
+      isCollaborative: !!changeReq.proposedIsCollaborative,
+      collabMode: changeReq.proposedCollabMode,
+      targetQuantity: changeReq.proposedTargetQuantity,
+      collaborators: (Array.isArray(changeReq.proposedCollaborators) ? changeReq.proposedCollaborators : [])
+        .map((c) => ({ name: String(c?.name || '').trim(), targetQuantity: c?.targetQuantity ?? '' }))
+        .filter((c) => !!c.name)
+    }
+
+    const baseItems = (editingScheduleId === scheduleId)
+      ? (Array.isArray(scheduleFormData.workItems) ? scheduleFormData.workItems : [])
+      : (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === scheduleId) ? selectedDetailItem.workItems : null)
+        ? selectedDetailItem.workItems
+        : (schedules.find((s) => String(s?.id) === scheduleId)?.workItems || []))
+
+    const nextItems = baseItems.map((wi) => (String(wi?.id || '') === itemId
+      ? {
+        ...wi,
+        changeRequest: {
+          status: 'pending',
+          reason,
+          proposed,
+          requestedAt: new Date().toISOString(),
+          requestedBy: currentUser || ''
+        }
+      }
+      : wi
+    ))
+
+    updateSchedule(scheduleId, { workItems: nextItems })
+    setSchedules(getSchedules())
+    if (editingScheduleId === scheduleId) {
+      setScheduleFormData((prev) => ({ ...prev, workItems: nextItems }))
+    }
+    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === scheduleId) {
+      setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+    }
+    closeChangeRequest()
+  }
+
+  const approveChangeRequest = (scheduleId, item) => {
+    if (currentRole !== 'admin') return
+    const it = normalizeWorkItem(item)
+    const cr = it?.changeRequest
+    if (cr?.status !== 'pending' || !cr?.proposed) return
+    const p = cr.proposed
+    const baseItems = (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)) ? selectedDetailItem.workItems : null)
+      ? selectedDetailItem.workItems
+      : (schedules.find((s) => String(s?.id) === String(scheduleId))?.workItems || []))
+    const nextItems = (Array.isArray(baseItems) ? baseItems : []).map((wi) => {
+      if (String(wi?.id || '') !== String(it?.id || '')) return wi
+      return {
+        ...wi,
+        workContent: p.workContent,
+        responsiblePerson: p.responsiblePerson,
+        isCollaborative: !!p.isCollaborative,
+        collabMode: p.collabMode,
+        targetQuantity: p.targetQuantity,
+        collaborators: p.collaborators,
+        changeRequest: {
+          ...cr,
+          status: 'approved',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser || ''
+        }
+      }
+    })
+    updateSchedule(scheduleId, { workItems: nextItems })
+    setSchedules(getSchedules())
+    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
+      setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+    }
+  }
+
+  const rejectChangeRequest = (scheduleId, item) => {
+    if (currentRole !== 'admin') return
+    const it = normalizeWorkItem(item)
+    const cr = it?.changeRequest
+    if (cr?.status !== 'pending') return
+    const baseItems = (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)) ? selectedDetailItem.workItems : null)
+      ? selectedDetailItem.workItems
+      : (schedules.find((s) => String(s?.id) === String(scheduleId))?.workItems || []))
+    const nextItems = (Array.isArray(baseItems) ? baseItems : []).map((wi) => {
+      if (String(wi?.id || '') !== String(it?.id || '')) return wi
+      return {
+        ...wi,
+        changeRequest: {
+          ...cr,
+          status: 'rejected',
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUser || ''
+        }
+      }
+    })
+    updateSchedule(scheduleId, { workItems: nextItems })
+    setSchedules(getSchedules())
+    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
+      setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+    }
+  }
 
   // 获取月份的第一天和最后一天
   const firstDay = new Date(year, month, 1)
@@ -1985,15 +2150,40 @@ function Calendar() {
                     <div className="mt-4">
                       <div className="text-blue-300 mb-2">工作項目:</div>
                       <div className="space-y-2">
-                        {selectedDetailItem.workItems.map((item, idx) => (
+                        {selectedDetailItem.workItems.map((item, idx) => {
+                          const it = normalizeWorkItem(item)
+                          const collabs = getWorkItemCollaborators(it)
+                          const isCollab = !!it?.isCollaborative
+                          const crStatus = String(it?.changeRequest?.status || '')
+                          const isPendingChange = crStatus === 'pending'
+                          const isLocked = true
+                          const canRequest = (isCollab
+                            ? collabs.some((x) => canEditForName(x?.name))
+                            : canEditForName(it?.responsiblePerson))
+                          return (
                           <div key={idx} className="bg-blue-800 rounded-lg p-3">
-                            <div className="text-white">
-                              {item.workContent || item.content || `工作項目 ${idx + 1}`}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="text-white">
+                                {item.workContent || item.content || `工作項目 ${idx + 1}`}
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {isPendingChange && (
+                                  <span className="text-xs px-2 py-1 rounded bg-purple-600/30 text-purple-200 border border-purple-500/40">
+                                    異動待審（不計分）
+                                  </span>
+                                )}
+                                {isLocked && !isPendingChange && canRequest && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openChangeRequest(selectedDetailItem.id, it)}
+                                    className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40 hover:bg-blue-600/40"
+                                  >
+                                    異動申請
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             {(() => {
-                              const it = normalizeWorkItem(item)
-                              const collabs = getWorkItemCollaborators(it)
-                              const isCollab = !!it?.isCollaborative
                               const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
                               const name = String(it?.responsiblePerson || '').trim()
                               const t = parseFloat(it?.targetQuantity) || 0
@@ -2040,8 +2230,34 @@ function Calendar() {
                                 </>
                               )
                             })()}
+                            {currentRole === 'admin' && isPendingChange && (
+                              <div className="mt-3 bg-blue-950/30 border border-purple-500/30 rounded-lg p-3">
+                                <div className="text-purple-200 font-semibold text-sm mb-2">異動申請審核</div>
+                                <div className="text-blue-100 text-sm space-y-1">
+                                  <div><span className="text-blue-300">申請人:</span> {String(it?.changeRequest?.requestedBy || '').trim() || '—'}</div>
+                                  <div><span className="text-blue-300">原因:</span> {String(it?.changeRequest?.reason || '').trim() || '—'}</div>
+                                </div>
+                                <div className="flex gap-2 mt-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => approveChangeRequest(selectedDetailItem.id, it)}
+                                    className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded"
+                                  >
+                                    核准
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => rejectChangeRequest(selectedDetailItem.id, it)}
+                                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded"
+                                  >
+                                    退回
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -2268,6 +2484,193 @@ function Calendar() {
                   + 新增排程
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 異動申請 Modal（行事曆） */}
+      {changeReq.open && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">工作項目異動申請</h3>
+              <button
+                type="button"
+                onClick={closeChangeRequest}
+                className="text-gray-300 hover:text-white"
+              >
+                關閉
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">異動原因 *</label>
+                <textarea
+                  value={changeReq.reason}
+                  onChange={(e) => setChangeReq((prev) => ({ ...prev, reason: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  rows={3}
+                  placeholder="請說明為何需要異動（外在因素、施工限制、客戶變更等）"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-300 text-sm mb-1">工作內容（申請改為）</label>
+                  <input
+                    type="text"
+                    value={changeReq.proposedWorkContent}
+                    onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedWorkContent: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                    placeholder="工作內容"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 text-sm mb-1">模式</label>
+                  <select
+                    value={changeReq.proposedIsCollaborative ? 'collab' : 'single'}
+                    onChange={(e) => {
+                      const isCollab = e.target.value === 'collab'
+                      setChangeReq((prev) => ({
+                        ...prev,
+                        proposedIsCollaborative: isCollab,
+                        proposedCollabMode: isCollab ? prev.proposedCollabMode : 'shared'
+                      }))
+                    }}
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  >
+                    <option value="single">單人</option>
+                    <option value="collab">協作</option>
+                  </select>
+                </div>
+              </div>
+
+              {!changeReq.proposedIsCollaborative ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-300 text-sm mb-1">負責人（申請改為）</label>
+                    <input
+                      type="text"
+                      value={changeReq.proposedResponsiblePerson}
+                      onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedResponsiblePerson: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                      placeholder="負責人"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm mb-1">目標數量（申請改為）</label>
+                    <input
+                      type="number"
+                      value={changeReq.proposedTargetQuantity}
+                      onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedTargetQuantity: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                      min="0"
+                      step="0.01"
+                      placeholder="目標"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-300 text-sm mb-1">協作負責人（逗號分隔）</label>
+                      <input
+                        type="text"
+                        value={(Array.isArray(changeReq.proposedCollaborators) ? changeReq.proposedCollaborators : []).map((c) => c.name).join(', ')}
+                        onChange={(e) => {
+                          const next = parseCollaboratorsCsv(e.target.value)
+                          const prevTarget = new Map((changeReq.proposedCollaborators || []).map((c) => [String(c.name).trim(), c.targetQuantity]))
+                          const merged = next.map((c) => ({
+                            name: c.name,
+                            targetQuantity: prevTarget.get(String(c.name).trim()) ?? ''
+                          }))
+                          setChangeReq((prev) => ({ ...prev, proposedCollaborators: merged }))
+                        }}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                        placeholder="例如：小明, 小華"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-300 text-sm mb-1">協作計算方式</label>
+                      <select
+                        value={changeReq.proposedCollabMode}
+                        onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedCollabMode: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                      >
+                        <option value="shared">一起完成（算總數）</option>
+                        <option value="separate">分開完成（各自算）</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {changeReq.proposedCollabMode === 'shared' ? (
+                    <div>
+                      <label className="block text-gray-300 text-sm mb-1">總目標數量（申請改為）</label>
+                      <input
+                        type="number"
+                        value={changeReq.proposedTargetQuantity}
+                        onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedTargetQuantity: e.target.value }))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                        min="0"
+                        step="0.01"
+                        placeholder="總目標"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-gray-300 text-sm">每人目標（申請改為）</div>
+                      {(changeReq.proposedCollaborators || []).length === 0 ? (
+                        <div className="text-gray-500 text-sm">尚未填協作負責人</div>
+                      ) : (
+                        (changeReq.proposedCollaborators || []).map((c) => (
+                          <div key={c.name} className="grid grid-cols-12 gap-2 items-center">
+                            <div className="col-span-4 text-gray-300 text-sm truncate" title={c.name}>{c.name}</div>
+                            <input
+                              type="number"
+                              value={c.targetQuantity ?? ''}
+                              onChange={(e) => {
+                                const next = (changeReq.proposedCollaborators || []).map((x) => (
+                                  String(x.name).trim() === String(c.name).trim()
+                                    ? { ...x, targetQuantity: e.target.value }
+                                    : x
+                                ))
+                                setChangeReq((prev) => ({ ...prev, proposedCollaborators: next }))
+                              }}
+                              className="col-span-8 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                              min="0"
+                              step="0.01"
+                              placeholder="目標"
+                            />
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={submitChangeRequest}
+                  className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 transition-colors"
+                >
+                  送出申請
+                </button>
+                <button
+                  type="button"
+                  onClick={closeChangeRequest}
+                  className="flex-1 bg-gray-800 text-white font-semibold py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+              <p className="text-gray-500 text-xs">
+                送出後，此工作項目將「暫不列入績效評分」，直到管理員審核完成。
+              </p>
             </div>
           </div>
         </div>
@@ -2772,17 +3175,38 @@ function Calendar() {
                 </div>
 
                 <div className="space-y-3 pb-24">
-                  {scheduleFormData.workItems.map((item, index) => (
+                  {scheduleFormData.workItems.map((item, index) => {
+                    const plannedLocked = isPlannedLocked(item)
+                    const crStatus = String(normalizeWorkItem(item)?.changeRequest?.status || '')
+                    const isPendingChange = crStatus === 'pending'
+                    return (
                     <div key={item.id} className="bg-gray-700 rounded-lg p-4 border border-gray-600">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-yellow-400 font-semibold text-sm">工作項目 {index + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveWorkItem(item.id)}
-                          className="text-red-400 hover:text-red-500 text-sm"
-                        >
-                          刪除
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {isPendingChange && (
+                            <span className="text-xs px-2 py-1 rounded bg-purple-600/30 text-purple-200 border border-purple-500/40">
+                              異動待審（不計分）
+                            </span>
+                          )}
+                          {plannedLocked && !isPendingChange && editingScheduleId && (
+                            <button
+                              type="button"
+                              onClick={() => openChangeRequest(editingScheduleId, item)}
+                              className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40 hover:bg-blue-600/40"
+                            >
+                              異動申請
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveWorkItem(item.id)}
+                            className={`text-sm ${plannedLocked ? 'text-gray-500 cursor-not-allowed' : 'text-red-400 hover:text-red-500'}`}
+                            disabled={plannedLocked}
+                          >
+                            {plannedLocked ? '已鎖定' : '刪除'}
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2794,6 +3218,7 @@ function Calendar() {
                             placeholder="請輸入工作內容"
                             className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                             required
+                            disabled={plannedLocked}
                           />
                         </div>
                         <div 
@@ -2833,6 +3258,7 @@ function Calendar() {
                                   }
                                 }}
                                 className="w-4 h-4 accent-yellow-400"
+                                disabled={plannedLocked}
                               />
                               <span>協作</span>
                             </label>
@@ -2857,6 +3283,7 @@ function Calendar() {
                                       }
                                     }}
                                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
+                                    disabled={plannedLocked}
                                   >
                                     <option value="shared">一起完成（算總數）</option>
                                     <option value="separate">分開完成（各自算）</option>
@@ -2880,6 +3307,7 @@ function Calendar() {
                                   placeholder="輸入協作負責人（可逗號分隔/可手打）"
                                   className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                                   required
+                                  disabled={plannedLocked}
                                 />
                                 {responsiblePersonOptions.length > 0 && (
                                   <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-24 overflow-y-auto w-full max-w-full min-w-0 overflow-x-hidden pr-1">
@@ -2921,6 +3349,7 @@ function Calendar() {
                                 placeholder="請輸入負責人"
                                 className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                                 required
+                                disabled={plannedLocked}
                               />
                             )}
                             {!item.isCollaborative && showResponsiblePersonDropdown[item.id] && responsiblePersonOptions.length > 0 && (
@@ -2959,6 +3388,7 @@ function Calendar() {
                                 className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                                 min="0"
                                 step="0.01"
+                                disabled={plannedLocked}
                               />
                             ) : (
                               <div className="text-gray-300 text-xs leading-relaxed">
@@ -2974,6 +3404,7 @@ function Calendar() {
                               className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                               min="0"
                               step="0.01"
+                              disabled={plannedLocked}
                             />
                           )}
                         </div>
@@ -3022,6 +3453,7 @@ function Calendar() {
                                           className="w-full min-w-0 bg-gray-600 border border-gray-500 rounded px-2 py-1.5 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-[12px]"
                                           min="0"
                                           step="0.01"
+                                          disabled={plannedLocked}
                                         />
                                         <input
                                           type="number"
@@ -3059,7 +3491,8 @@ function Calendar() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                   {scheduleFormData.workItems.length === 0 && (
                     <div className="text-center py-4 text-gray-400 text-sm">
                       尚未添加工作項目，點擊「新增工作項目」開始添加
