@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
-import { isSupabaseEnabled } from '../utils/supabaseSync'
+import { isSupabaseEnabled, flushSyncOutbox } from '../utils/supabaseSync'
 import { subscribeRealtime, REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { getSupabaseClient } from '../utils/supabaseClient'
 
@@ -39,6 +39,8 @@ export function SyncProvider({ children, syncReady = false }) {
     if (sb) {
       pollRef.current = setInterval(async () => {
         try {
+          // 0) 先補送 outbox（避免一次中斷就永遠不同步）
+          await flushSyncOutbox()
           // 1) 排行榜面板
           await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
           // 2) 待辦事項
@@ -56,6 +58,7 @@ export function SyncProvider({ children, syncReady = false }) {
       if (resumeRefreshInFlightRef.current) return
       resumeRefreshInFlightRef.current = true
       try {
+        await flushSyncOutbox()
         await refreshAppDataKey(sb2, 'jiameng_todos', lastTodosUpdatedAtRef, [])
       } catch (_) {
       } finally {
