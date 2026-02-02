@@ -945,6 +945,7 @@ function ProjectDeficiencyTracking() {
           onRunSyncDiag={runSyncDiag}
           onPushProjectsToCloud={pushProjectsToCloud}
           onPushCurrentProjectRecordsToCloud={pushCurrentProjectRecordsToCloud}
+          onFlushOutboxNow={flushOutboxNow}
         />
       )}
 
@@ -1104,7 +1105,8 @@ function ProjectDetailView({
   syncDiag,
   onRunSyncDiag,
   onPushProjectsToCloud,
-  onPushCurrentProjectRecordsToCloud
+  onPushCurrentProjectRecordsToCloud,
+  onFlushOutboxNow
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
@@ -1311,7 +1313,7 @@ function ProjectDetailView({
               <div className="mt-2">
                 <button
                   type="button"
-                  onClick={flushOutboxNow}
+                  onClick={onFlushOutboxNow}
                   className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
                 >
                   立即重送 outbox
