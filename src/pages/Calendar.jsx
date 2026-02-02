@@ -40,6 +40,7 @@ function Calendar() {
   const [expandedSchedules, setExpandedSchedules] = useState({}) // 展开的排程ID
   const [expandedWorkItems, setExpandedWorkItems] = useState({}) // 展开的工作项目
   const [originalWorkItemIdMap, setOriginalWorkItemIdMap] = useState({}) // 編輯既有排程時：原本就存在的 workItem.id
+  const [changeAction, setChangeAction] = useState({ open: false, scheduleId: '', itemId: '' })
   const [changeReq, setChangeReq] = useState({
     open: false,
     scheduleId: '',
@@ -130,6 +131,50 @@ function Calendar() {
     return !!originalWorkItemIdMap?.[id]
   }
 
+  const openChangeActionModal = (scheduleId, item) => {
+    const it = normalizeWorkItem(item)
+    setChangeAction({
+      open: true,
+      scheduleId: String(scheduleId || ''),
+      itemId: String(it?.id || '')
+    })
+  }
+
+  const closeChangeActionModal = () => setChangeAction({ open: false, scheduleId: '', itemId: '' })
+
+  const submitCancelRequest = (scheduleId, itemId) => {
+    const sid = String(scheduleId || '')
+    const wid = String(itemId || '')
+    if (!sid || !wid) return
+
+    const baseItems = (editingScheduleId === sid)
+      ? (Array.isArray(scheduleFormData.workItems) ? scheduleFormData.workItems : [])
+      : (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === sid) ? selectedDetailItem.workItems : null)
+        ? selectedDetailItem.workItems
+        : (schedules.find((s) => String(s?.id) === sid)?.workItems || []))
+
+    const nextItems = baseItems.map((wi) => (String(wi?.id || '') === wid
+      ? {
+        ...wi,
+        changeRequest: {
+          kind: 'cancel',
+          status: 'pending',
+          reason: String(wi?.changeRequest?.reason || '').trim(),
+          requestedAt: new Date().toISOString(),
+          requestedBy: currentUser || ''
+        }
+      }
+      : wi
+    ))
+
+    updateSchedule(sid, { workItems: nextItems })
+    setSchedules(getSchedules())
+    if (editingScheduleId === sid) setScheduleFormData((prev) => ({ ...prev, workItems: nextItems }))
+    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === sid) {
+      setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+    }
+  }
+
   const openChangeRequest = (scheduleId, item) => {
     const it = normalizeWorkItem(item)
     const collabs = getWorkItemCollaborators(it)
@@ -183,6 +228,7 @@ function Calendar() {
       ? {
         ...wi,
         changeRequest: {
+          kind: 'change',
           status: 'pending',
           reason,
           proposed,
@@ -208,13 +254,27 @@ function Calendar() {
     if (currentRole !== 'admin') return
     const it = normalizeWorkItem(item)
     const cr = it?.changeRequest
-    if (cr?.status !== 'pending' || !cr?.proposed) return
-    const p = cr.proposed
+    if (cr?.status !== 'pending') return
+    const kind = String(cr?.kind || cr?.type || 'change').trim() || 'change'
+    const p = cr?.proposed
     const baseItems = (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)) ? selectedDetailItem.workItems : null)
       ? selectedDetailItem.workItems
       : (schedules.find((s) => String(s?.id) === String(scheduleId))?.workItems || []))
     const nextItems = (Array.isArray(baseItems) ? baseItems : []).map((wi) => {
       if (String(wi?.id || '') !== String(it?.id || '')) return wi
+      if (kind === 'cancel') {
+        return {
+          ...wi,
+          changeRequest: {
+            ...cr,
+            kind: 'cancel',
+            status: 'approved',
+            reviewedAt: new Date().toISOString(),
+            reviewedBy: currentUser || ''
+          }
+        }
+      }
+      if (!p) return wi
       return {
         ...wi,
         workContent: p.workContent,
@@ -225,13 +285,19 @@ function Calendar() {
         collaborators: p.collaborators,
         changeRequest: {
           ...cr,
+          kind: 'change',
           status: 'approved',
           reviewedAt: new Date().toISOString(),
           reviewedBy: currentUser || ''
         }
       }
     })
-    updateSchedule(scheduleId, { workItems: nextItems })
+    // 取消申請核准後：自動刪除該工作項目
+    if (kind === 'cancel') {
+      updateSchedule(scheduleId, { workItems: nextItems, __deleteWorkItemIds: [String(it?.id || '')] })
+    } else {
+      updateSchedule(scheduleId, { workItems: nextItems })
+    }
     setSchedules(getSchedules())
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
       setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
@@ -243,6 +309,7 @@ function Calendar() {
     const it = normalizeWorkItem(item)
     const cr = it?.changeRequest
     if (cr?.status !== 'pending') return
+    const kind = String(cr?.kind || cr?.type || 'change').trim() || 'change'
     const baseItems = (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)) ? selectedDetailItem.workItems : null)
       ? selectedDetailItem.workItems
       : (schedules.find((s) => String(s?.id) === String(scheduleId))?.workItems || []))
@@ -252,6 +319,7 @@ function Calendar() {
         ...wi,
         changeRequest: {
           ...cr,
+          kind,
           status: 'rejected',
           reviewedAt: new Date().toISOString(),
           reviewedBy: currentUser || ''
@@ -2195,6 +2263,7 @@ function Calendar() {
                           const it = normalizeWorkItem(item)
                           const collabs = getWorkItemCollaborators(it)
                           const isCollab = !!it?.isCollaborative
+                          const crKind = String(it?.changeRequest?.kind || it?.changeRequest?.type || 'change').trim() || 'change'
                           const crStatus = String(it?.changeRequest?.status || '')
                           const isPendingChange = crStatus === 'pending'
                           const isLocked = true
@@ -2210,13 +2279,13 @@ function Calendar() {
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 {isPendingChange && (
                                   <span className="text-xs px-2 py-1 rounded bg-purple-600/30 text-purple-200 border border-purple-500/40">
-                                    異動待審（不計分）
+                                    {crKind === 'cancel' ? '取消待審（不計分）' : '異動待審（不計分）'}
                                   </span>
                                 )}
                                 {isLocked && !isPendingChange && canRequest && (
                                   <button
                                     type="button"
-                                    onClick={() => openChangeRequest(selectedDetailItem.id, it)}
+                                    onClick={() => openChangeActionModal(selectedDetailItem.id, it)}
                                     className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40 hover:bg-blue-600/40"
                                   >
                                     異動申請
@@ -2280,6 +2349,32 @@ function Calendar() {
                                 <div className="text-blue-100 text-sm space-y-1">
                                   <div><span className="text-blue-300">申請人:</span> {String(it?.changeRequest?.requestedBy || '').trim() || '—'}</div>
                                   <div><span className="text-blue-300">原因:</span> {String(it?.changeRequest?.reason || '').trim() || '—'}</div>
+                                  <div>
+                                    <span className="text-blue-300">申請內容:</span>{' '}
+                                    {crKind === 'cancel' ? '申請取消此工作項目（核准後自動刪除）' : '申請變更內容'}
+                                  </div>
+                                  {crKind !== 'cancel' && (
+                                    <div className="mt-1 text-blue-200 text-xs space-y-1">
+                                      <div>工作內容：{String(it?.workContent || '').trim() || '—'} → {String(it?.changeRequest?.proposed?.workContent || '').trim() || '—'}</div>
+                                      <div>模式：{it?.changeRequest?.proposed?.isCollaborative ? '協作' : '單人'}</div>
+                                      {!it?.changeRequest?.proposed?.isCollaborative ? (
+                                        <>
+                                          <div>負責人：{String(it?.responsiblePerson || '').trim() || '—'} → {String(it?.changeRequest?.proposed?.responsiblePerson || '').trim() || '—'}</div>
+                                          <div>目標：{String(it?.targetQuantity ?? '').trim() || '—'} → {String(it?.changeRequest?.proposed?.targetQuantity ?? '').trim() || '—'}</div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <div>協作方式：{String(it?.changeRequest?.proposed?.collabMode || 'shared')}</div>
+                                          <div>
+                                            協作人員/目標：{(Array.isArray(it?.changeRequest?.proposed?.collaborators) ? it.changeRequest.proposed.collaborators : [])
+                                              .map((c) => `${String(c?.name || '').trim()}(${String(c?.targetQuantity ?? '').trim() || '—'})`)
+                                              .filter(Boolean)
+                                              .join('、') || '—'}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="flex gap-2 mt-3">
                                   <button
@@ -2287,7 +2382,7 @@ function Calendar() {
                                     onClick={() => approveChangeRequest(selectedDetailItem.id, it)}
                                     className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded"
                                   >
-                                    核准
+                                    {crKind === 'cancel' ? '核准（刪除）' : '核准'}
                                   </button>
                                   <button
                                     type="button"
@@ -2529,6 +2624,61 @@ function Calendar() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 異動方式選擇（先選：申請取消 / 變更內容） */}
+      {changeAction.open && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
+          <div className="w-full max-w-md bg-gray-900 border border-gray-700 rounded-lg p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-white font-semibold">異動申請</div>
+              <button
+                type="button"
+                onClick={closeChangeActionModal}
+                className="text-gray-300 hover:text-white"
+              >
+                關閉
+              </button>
+            </div>
+            <div className="text-gray-300 text-sm">
+              先選擇你要申請的類型：
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  submitCancelRequest(changeAction.scheduleId, changeAction.itemId)
+                  closeChangeActionModal()
+                }}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-lg transition-colors"
+              >
+                申請取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // 先關選擇，再開「變更內容」表單
+                  const sid = changeAction.scheduleId
+                  const wid = changeAction.itemId
+                  closeChangeActionModal()
+                  const baseItems = (editingScheduleId === sid)
+                    ? (Array.isArray(scheduleFormData.workItems) ? scheduleFormData.workItems : [])
+                    : (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === sid) ? selectedDetailItem.workItems : null)
+                      ? selectedDetailItem.workItems
+                      : (schedules.find((s) => String(s?.id) === sid)?.workItems || []))
+                  const item = (Array.isArray(baseItems) ? baseItems : []).find((x) => String(x?.id || '') === String(wid || ''))
+                  if (item) openChangeRequest(sid, item)
+                }}
+                className="flex-1 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 rounded-lg transition-colors"
+              >
+                變更內容
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-3">
+              「申請取消」送出後會進入待審，核准後系統會自動刪除此工作項目，且待審期間不計分。
+            </p>
           </div>
         </div>
       )}
@@ -3283,6 +3433,7 @@ function Calendar() {
                 <div className="space-y-3 pb-24">
                   {scheduleFormData.workItems.map((item, index) => {
                     const plannedLocked = isPlannedLocked(item)
+                    const crKind = String(normalizeWorkItem(item)?.changeRequest?.kind || normalizeWorkItem(item)?.changeRequest?.type || 'change').trim() || 'change'
                     const crStatus = String(normalizeWorkItem(item)?.changeRequest?.status || '')
                     const isPendingChange = crStatus === 'pending'
                     return (
@@ -3292,13 +3443,13 @@ function Calendar() {
                         <div className="flex items-center gap-2">
                           {isPendingChange && (
                             <span className="text-xs px-2 py-1 rounded bg-purple-600/30 text-purple-200 border border-purple-500/40">
-                              異動待審（不計分）
+                              {crKind === 'cancel' ? '取消待審（不計分）' : '異動待審（不計分）'}
                             </span>
                           )}
                           {plannedLocked && !isPendingChange && editingScheduleId && (
                             <button
                               type="button"
-                              onClick={() => openChangeRequest(editingScheduleId, item)}
+                              onClick={() => openChangeActionModal(editingScheduleId, item)}
                               className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40 hover:bg-blue-600/40"
                             >
                               異動申請
