@@ -61,7 +61,9 @@ function ProjectDeficiencyTracking() {
         if (inFlight) return
         inFlight = true
 
-        const key = `jiameng_project_records:${viewingProjectId}`
+        // 跟待辦同套路徑：雲端 key 用安全命名（避免 ':' 在某些環境被擋）
+        const key = `jiameng_project_records__${encodeURIComponent(String(viewingProjectId || '').trim())}`
+        const localKey = `jiameng_project_records:${String(viewingProjectId || '').trim()}`
         // 1) 先只抓 updated_at（小流量）
         const { data: tsRow, error: tsErr } = await sb
           .from('app_data')
@@ -93,7 +95,7 @@ function ProjectDeficiencyTracking() {
         const pid = String(viewingProjectId || '').trim()
 
         // 寫回 localStorage（per-project key + legacy map），讓其它頁面也能一致運作
-        try { localStorage.setItem(key, JSON.stringify(arr)) } catch (_) {}
+        try { localStorage.setItem(localKey, JSON.stringify(arr)) } catch (_) {}
         try {
           const legacyRaw = localStorage.getItem('jiameng_project_records')
           const legacy = legacyRaw ? JSON.parse(legacyRaw) : {}
@@ -131,7 +133,7 @@ function ProjectDeficiencyTracking() {
     }
   }
   // 監聽 per-project keys：任何專案缺失表有變動都觸發 refetch（prefix match）
-  useRealtimeKeys(['jiameng_projects', 'jiameng_project_records:', 'jiameng_engineering_schedules', 'jiameng_project_deficiencies'], refetchDeficiency)
+  useRealtimeKeys(['jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_engineering_schedules', 'jiameng_project_deficiencies'], refetchDeficiency)
 
   useEffect(() => {
     loadProjects()
