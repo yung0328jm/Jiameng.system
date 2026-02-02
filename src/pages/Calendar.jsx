@@ -127,6 +127,11 @@ function Calendar() {
     return name || acc
   }
 
+  const hasPendingChangeRequest = (schedule) => {
+    const items = Array.isArray(schedule?.workItems) ? schedule.workItems : []
+    return items.some((wi) => String(wi?.changeRequest?.status || '') === 'pending')
+  }
+
   // 行事曆規則：
   // - 新增排程（editingScheduleId === null）：可自由編輯預計欄位
   // - 編輯既有排程（editingScheduleId !== null）：僅「原本就存在的工作項目」視為已鎖定；新加的工作項目可編輯，保存後才會鎖
@@ -1677,6 +1682,13 @@ function Calendar() {
                       >
                         <span className="truncate flex-1 min-w-0">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                          {/* 異動待審提示 */}
+                          {hasPendingChangeRequest(schedule) && (
+                            <div
+                              className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_6px_1px_rgba(168,85,247,0.9)]"
+                              title="有工作項目異動待審（暫不計分）"
+                            />
+                          )}
                           {/* 加油指示灯 */}
                           <div 
                             className={`relative w-2 h-2 rounded-full shadow ${
@@ -2484,6 +2496,11 @@ function Calendar() {
                           刪除
                         </button>
                       )}
+                    </div>
+                  )}
+                  {selectedDetailType === 'schedule' && hasPendingChangeRequest(selectedDetailItem) && (
+                    <div className="mt-3 bg-purple-600/20 border border-purple-500/40 rounded-lg p-3 text-purple-100 text-sm">
+                      此排程有工作項目「異動/取消」待審，待審期間暫不列入績效評分。
                     </div>
                   )}
                       </>
