@@ -428,6 +428,15 @@ function ProjectDeficiencyTracking() {
       }
     } else {
       updates[field] = value
+      // 內容/備註被他人編輯時，「填單人」改為最新編輯者（讓表格能反映誰最後更新）
+      if (field === 'content') {
+        updates.submitter = currentUser
+        try {
+          const today = new Date()
+          const year = today.getFullYear() - 1911
+          updates.date = `${year}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`
+        } catch (_) {}
+      }
     }
 
     const result = updateProjectRecord(viewingProjectId, recordId, updates)
@@ -1084,6 +1093,16 @@ function ProjectDetailView({
     return Boolean(m || p || d)
   }
 
+  // 修繕彈窗：當 records 更新（例如同步/儲存進度）時，讓彈窗內容即時跟著刷新
+  useEffect(() => {
+    if (!showRepairModal) return
+    const id = String(repairModalRecord?.id || '').trim()
+    if (!id) return
+    const next = (Array.isArray(records) ? records : []).find((r) => String(r?.id || '').trim() === id)
+    if (next) setRepairModalRecord(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, showRepairModal])
+
   return (
     <div>
       {/* 列印專用樣式：只印表格（含目前篩選結果），取消捲動與 sticky 表頭 */}
@@ -1479,7 +1498,7 @@ function ProjectDetailView({
                             <button
                               type="button"
                               onClick={() => openRepairModal(record)}
-                              className="text-left text-white text-[10px] sm:text-xs truncate max-w-[140px] sm:max-w-none hover:text-yellow-300"
+                              className="text-left text-white text-[12px] sm:text-xs leading-snug break-words whitespace-normal line-clamp-3 sm:line-clamp-2 hover:text-yellow-300"
                               title="點擊查看完整內容/修繕紀錄"
                             >
                               {record.content || '—'}
@@ -1542,7 +1561,7 @@ function ProjectDetailView({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-yellow-400 font-semibold">修繕紀錄</div>
-                <div className="text-gray-300 text-xs mt-1 break-words">
+                <div className="text-gray-200 text-sm mt-2 break-words whitespace-pre-wrap">
                   {repairModalRecord?.content || '—'}
                 </div>
               </div>
