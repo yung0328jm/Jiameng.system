@@ -130,7 +130,7 @@ function PersonalPerformance() {
     setDataRevision(r => r + 1)
   }
   useRealtimeKeys(
-    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config'],
+    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config'],
     refetchPerformance
   )
 
