@@ -99,7 +99,17 @@ export function useRealtimeKeys(keys, refetch) {
   useEffect(() => {
     const fn = (e) => {
       const k = e.detail?.key
-      if (k && keysRef.current.includes(k) && typeof refetchRef.current === 'function') {
+      const wants = Array.isArray(keysRef.current) ? keysRef.current : []
+      const hit = !!k && wants.some((want) => {
+        if (!want) return false
+        if (want === k) return true
+        if (typeof want !== 'string') return false
+        // prefix match：允許用 'foo:*' 或 'foo:' 來監聽一整類 key（例如 per-project keys）
+        if (want.endsWith('*')) return String(k).startsWith(want.slice(0, -1))
+        if (want.endsWith(':')) return String(k).startsWith(want)
+        return false
+      })
+      if (hit && typeof refetchRef.current === 'function') {
         refetchRef.current()
       }
     }
