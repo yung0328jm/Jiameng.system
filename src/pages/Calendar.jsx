@@ -537,6 +537,50 @@ function Calendar() {
     return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
   }
 
+  const parseLeaveSiteName = (siteName) => {
+    const s = String(siteName || '').trim()
+    const m = s.match(/^請假\s*(?:-|—)\s*(.+?)(?:\s*(?:-|—)\s*(.+))?$/u)
+    return {
+      personRaw: String(m?.[1] || '').trim(),
+      typeRaw: String(m?.[2] || '').trim()
+    }
+  }
+
+  const resolveDisplayName = (raw) => {
+    const t = String(raw || '').trim()
+    if (!t) return ''
+    try {
+      const dn = getDisplayNameForAccount(t)
+      if (dn && String(dn).trim() && String(dn).trim() !== t) return String(dn).trim()
+    } catch (_) {}
+    try {
+      const aliases = (getDisplayNamesForAccount(t) || []).map((x) => String(x || '').trim()).filter(Boolean)
+      if (aliases.length > 0) return aliases[0]
+    } catch (_) {}
+    return t
+  }
+
+  const getLeaveInfoForSchedule = (schedule) => {
+    const leaveId = String(schedule?.leaveApplicationId || '').trim()
+    const apps = Array.isArray(getLeaveApplications()) ? getLeaveApplications() : []
+    const app = leaveId ? apps.find((r) => String(r?.id || '').trim() === leaveId) : null
+    const parsed = parseLeaveSiteName(schedule?.siteName)
+    const acc = String(app?.userId || '').trim()
+    const appName = String(app?.userName || '').trim()
+    const person = resolveDisplayName(acc) || resolveDisplayName(appName) || resolveDisplayName(parsed.personRaw) || appName || parsed.personRaw || acc || '—'
+    const leaveType = String(app?.reason || '').trim() || parsed.typeRaw || ''
+    return { person, leaveType }
+  }
+
+  const getScheduleDisplayTitle = (schedule) => {
+    if (isLeaveScheduleItem(schedule)) {
+      const info = getLeaveInfoForSchedule(schedule)
+      const type = info.leaveType ? ` - ${info.leaveType}` : ''
+      return `請假 - ${info.person}${type}`
+    }
+    return String(schedule?.siteName || '').trim()
+  }
+
   const handleEventClick = (e, event) => {
     e.stopPropagation()
     if (event.isTopic) {
@@ -1160,7 +1204,7 @@ function Calendar() {
     if (schedule && selectedDateForSchedule) {
       // 将排程添加到日历事件
       const result = saveEvent({
-        title: schedule.siteName,
+        title: getScheduleDisplayTitle(schedule),
         type: 'blue',
         date: selectedDateForSchedule,
         scheduleId: schedule.id,
@@ -1346,9 +1390,9 @@ function Calendar() {
                         key={schedule.id} 
                         className={`${displayClass} text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
-                        title={`${schedule.siteName}${timeDisplay} - 工程排程`}
+                        title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程`}
                       >
-                        <span className="truncate flex-1 min-w-0">{schedule.siteName}{timeDisplay}</span>
+                        <span className="truncate flex-1 min-w-0">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 加油指示灯 */}
                           <div 
@@ -1544,7 +1588,7 @@ function Calendar() {
                         <div key={scheduleId} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-white font-semibold">{schedule.siteName}</div>
+                              <div className="text-white font-semibold">{getScheduleDisplayTitle(schedule)}</div>
                               {schedule.participants && (
                                 <div className="text-gray-400 text-sm">參與人員: {schedule.participants}</div>
                               )}
@@ -1693,7 +1737,7 @@ function Calendar() {
                           if (!schedule) return null
                           return (
                             <div key={scheduleId} className="bg-blue-900 border border-blue-700 rounded-lg p-4 space-y-2">
-                              <div className="text-white font-semibold text-lg">{schedule.siteName}</div>
+                              <div className="text-white font-semibold text-lg">{getScheduleDisplayTitle(schedule)}</div>
                               {schedule.date && (
                                 <div className="text-blue-200 text-sm">
                                   <span className="text-blue-300">日期:</span> {schedule.date.replace(/-/g, '/')}
@@ -1786,49 +1830,78 @@ function Calendar() {
                 </>
               )}
 
-              {selectedDetailType === 'schedule' && (
-                <div className="space-y-3 text-white">
-                  {isLeaveScheduleItem(selectedDetailItem) && (
-                    <div className="bg-teal-600/20 border border-teal-400/40 rounded-lg p-3 text-teal-100 text-sm">
-                      此為「請假」紀錄（由請假申請自動帶入），僅供查看狀態，不提供編輯；管理員可刪除。
-                    </div>
-                  )}
-                  {/* 活動 */}
-                  <div className="text-lg font-semibold">{selectedDetailItem.siteName || '未命名'}</div>
-                  
-                  {/* 日期 */}
-                  {selectedDetailItem.date && (
-                    <div>
-                      <span className="text-blue-300">日期:</span>
-                      <span className="ml-2">{selectedDetailItem.date.replace(/-/g, '/')}</span>
-                      {selectedDetailItem.isAllDay === false && (
-                        <span className="ml-2 text-gray-400">
-                          {selectedDetailItem.startTime || ''}
-                          {selectedDetailItem.startTime && selectedDetailItem.endTime ? ' - ' : ''}
-                          {selectedDetailItem.endTime || ''}
-                        </span>
-                      )}
-                      {selectedDetailItem.isAllDay !== false && (
-                        <span className="ml-2 text-gray-400">全天</span>
-                      )}
-                    </div>
-                  )}
+              {selectedDetailType === 'schedule' && (() => {
+                const isLeave = isLeaveScheduleItem(selectedDetailItem)
+                const leaveInfo = isLeave ? getLeaveInfoForSchedule(selectedDetailItem) : null
+                const dateText = selectedDetailItem?.date ? String(selectedDetailItem.date).replace(/-/g, '/') : '—'
+                const timeText = selectedDetailItem?.isAllDay === false
+                  ? `${selectedDetailItem?.startTime || ''}${(selectedDetailItem?.startTime && selectedDetailItem?.endTime) ? ' - ' : ''}${selectedDetailItem?.endTime || ''}`
+                  : '全天'
+                return (
+                  <div className="space-y-3 text-white">
+                    {isLeave && (
+                      <div className="bg-teal-600/20 border border-teal-400/40 rounded-lg p-3 text-teal-100 text-sm">
+                        此為「請假」紀錄（由請假申請自動帶入），僅供查看狀態，不提供編輯；管理員可刪除。
+                      </div>
+                    )}
 
-                  {/* 參與人員 */}
-                  {selectedDetailItem.participants && (
-                    <div>
-                      <span className="text-blue-300">參與人員:</span>
-                      <span className="ml-2">{selectedDetailItem.participants}</span>
-                    </div>
-                  )}
+                    {isLeave ? (
+                      <div className="bg-blue-950/30 border border-blue-700 rounded-lg p-4">
+                        <div className="text-3xl font-extrabold text-white mb-3">請假</div>
+                        <div className="space-y-2 text-base">
+                          <div>
+                            <span className="text-blue-300">請假人員:</span>
+                            <span className="ml-2 text-white font-semibold">{leaveInfo?.person || '—'}</span>
+                          </div>
+                          <div>
+                            <span className="text-blue-300">日期:</span>
+                            <span className="ml-2">{dateText}</span>
+                            <span className="ml-2 text-gray-300">{timeText}</span>
+                          </div>
+                          <div>
+                            <span className="text-blue-300">假別:</span>
+                            <span className="ml-2">{leaveInfo?.leaveType || '—'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* 活動 */}
+                        <div className="text-lg font-semibold">{selectedDetailItem.siteName || '未命名'}</div>
+                        
+                        {/* 日期 */}
+                        {selectedDetailItem.date && (
+                          <div>
+                            <span className="text-blue-300">日期:</span>
+                            <span className="ml-2">{selectedDetailItem.date.replace(/-/g, '/')}</span>
+                            {selectedDetailItem.isAllDay === false && (
+                              <span className="ml-2 text-gray-400">
+                                {selectedDetailItem.startTime || ''}
+                                {selectedDetailItem.startTime && selectedDetailItem.endTime ? ' - ' : ''}
+                                {selectedDetailItem.endTime || ''}
+                              </span>
+                            )}
+                            {selectedDetailItem.isAllDay !== false && (
+                              <span className="ml-2 text-gray-400">全天</span>
+                            )}
+                          </div>
+                        )}
 
-                  {/* 車輛 */}
-                  {selectedDetailItem.vehicle && (
-                    <div>
-                      <span className="text-blue-300">車輛:</span>
-                      <span className="ml-2">{selectedDetailItem.vehicle}</span>
-                    </div>
-                  )}
+                        {/* 參與人員 */}
+                        {selectedDetailItem.participants && (
+                          <div>
+                            <span className="text-blue-300">參與人員:</span>
+                            <span className="ml-2">{selectedDetailItem.participants}</span>
+                          </div>
+                        )}
+
+                        {/* 車輛 */}
+                        {selectedDetailItem.vehicle && (
+                          <div>
+                            <span className="text-blue-300">車輛:</span>
+                            <span className="ml-2">{selectedDetailItem.vehicle}</span>
+                          </div>
+                        )}
 
                   {/* 出發駕駛 */}
                   {selectedDetailItem.departureDriver && (
@@ -1877,16 +1950,16 @@ function Calendar() {
                     </div>
                   )}
 
-                  {/* 是否加油 */}
-                  <div className="flex items-center">
-                    <span className="text-blue-300">是否加油:</span>
-                    <span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span>
-                    {/* 加油指示灯 */}
-                    <div className="ml-3 flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${selectedDetailItem.needRefuel ? 'bg-green-500' : 'bg-gray-600'}`}></div>
-                      <span className="text-xs text-gray-400">加油</span>
-                    </div>
-                  </div>
+                        {/* 是否加油 */}
+                        <div className="flex items-center">
+                          <span className="text-blue-300">是否加油:</span>
+                          <span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span>
+                          {/* 加油指示灯 */}
+                          <div className="ml-3 flex items-center space-x-2">
+                            <div className={`w-3 h-3 rounded-full ${selectedDetailItem.needRefuel ? 'bg-green-500' : 'bg-gray-600'}`}></div>
+                            <span className="text-xs text-gray-400">加油</span>
+                          </div>
+                        </div>
 
                   {/* 油資 */}
                   {selectedDetailItem.fuelCost && (
@@ -1896,7 +1969,7 @@ function Calendar() {
                     </div>
                   )}
 
-                  {/* 發票是否繳回 */}
+                        {/* 發票是否繳回 */}
                   <div className="flex items-center">
                     <span className="text-blue-300">發票是否繳回:</span>
                     <span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span>
@@ -1974,7 +2047,7 @@ function Calendar() {
                   )}
 
                   {/* 行程回報紀錄：依此排程案場（siteName）顯示；名子套用特效邏輯 */}
-                  {selectedDetailType === 'schedule' && (() => {
+                  {selectedDetailType === 'schedule' && !isLeaveScheduleItem(selectedDetailItem) && (() => {
                     const siteName = (selectedDetailItem?.siteName || '').trim()
                     const ymd = String(selectedDetailItem?.date || '').slice(0, 10)
                     // 行程回報：同名案場每天都可能去，這裡只顯示「當天」的紀錄，避免沿用上次狀態
@@ -2041,8 +2114,11 @@ function Calendar() {
                       </button>
                     </div>
                   )}
-                </div>
-              )}
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
 
               {selectedDetailType === 'event' && (
                 <div className="bg-gray-800 rounded-lg p-4 space-y-3">
