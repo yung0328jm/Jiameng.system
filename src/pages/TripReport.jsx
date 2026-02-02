@@ -137,7 +137,9 @@ function TripReport() {
       actionType,
       userId: currentUser,
       // 優先使用你綁定的顯示名稱
-      userName: getDisplayNameForAccount(currentUser)
+      userName: getDisplayNameForAccount(currentUser),
+      // 用明確日期欄位，避免跨日/時區造成「同日卻看不到」
+      ymd: getTodayStr()
     })
     if (result.success) {
       setRecords(getTripReportsByProject(selectedSiteName, getTodayStr()))
