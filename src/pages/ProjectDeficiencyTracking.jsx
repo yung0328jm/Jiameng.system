@@ -1498,7 +1498,7 @@ function ProjectDetailView({
                             <button
                               type="button"
                               onClick={() => openRepairModal(record)}
-                              className="text-left text-white text-[12px] sm:text-xs leading-snug break-words whitespace-normal line-clamp-3 sm:line-clamp-2 hover:text-yellow-300"
+                              className="text-left text-white text-[10px] sm:text-xs whitespace-nowrap hover:text-yellow-300"
                               title="點擊查看完整內容/修繕紀錄"
                             >
                               {record.content || '—'}
