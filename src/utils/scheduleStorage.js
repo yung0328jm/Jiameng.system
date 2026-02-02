@@ -164,7 +164,12 @@ const mergeWorkItemsWithLock = (prevWorkItems, nextWorkItems, lockAt) => {
   nextArr.forEach((item) => {
     const id = String(item?.id || '')
     if (!id || prevMap.has(id)) return
-    merged.push({ ...item, plannedLockedAt: item.plannedLockedAt || lockAt })
+    merged.push({
+      ...item,
+      plannedLockedAt: item.plannedLockedAt || lockAt,
+      createdAt: item?.createdAt || lockAt,
+      createdBy: item?.createdBy || ''
+    })
   })
 
   return merged
@@ -229,6 +234,7 @@ export const saveSchedule = (schedule) => {
     const lockAt = nowIso()
     const newSchedule = {
       ...schedule,
+      createdBy: schedule?.createdBy || schedule?.created_by || schedule?.creator || '',
       id: schedule.id || Date.now().toString(),
       createdAt: schedule.createdAt || lockAt
     }
@@ -237,6 +243,14 @@ export const saveSchedule = (schedule) => {
       newSchedule.workItems = newSchedule.workItems.map((wi) => ({
         ...normalizeWorkItem(wi),
         plannedLockedAt: wi?.plannedLockedAt || lockAt
+      }))
+    }
+    // 盡量補齊 workItem 建立資訊（若前端未帶）
+    if (Array.isArray(newSchedule.workItems)) {
+      newSchedule.workItems = newSchedule.workItems.map((wi) => ({
+        ...wi,
+        createdAt: wi?.createdAt || lockAt,
+        createdBy: wi?.createdBy || newSchedule.createdBy || ''
       }))
     }
     schedules.push(newSchedule)
@@ -256,11 +270,30 @@ export const updateSchedule = (scheduleId, updates) => {
     if (index !== -1) {
       const lockAt = nowIso()
       const prev = schedules[index]
-      const next = { ...prev, ...updates }
+      const deleteIds = (updates && Array.isArray(updates.__deleteWorkItemIds))
+        ? updates.__deleteWorkItemIds.map((x) => String(x || '').trim()).filter(Boolean)
+        : []
+      const next = {
+        ...prev,
+        ...updates,
+        // 保護建立者資訊：除非明確提供，否則沿用舊值
+        createdBy: (updates && Object.prototype.hasOwnProperty.call(updates, 'createdBy')) ? updates.createdBy : prev?.createdBy,
+        createdAt: (updates && Object.prototype.hasOwnProperty.call(updates, 'createdAt')) ? updates.createdAt : prev?.createdAt
+      }
 
       // workItems：鎖定「預計」欄位且不可刪除既有項目
       if ('workItems' in (updates || {})) {
         next.workItems = mergeWorkItemsWithLock(prev?.workItems, updates?.workItems, lockAt)
+      }
+      // 特例：僅允許「取消申請已核准」的工作項目被刪除
+      if (deleteIds.length > 0 && Array.isArray(next.workItems)) {
+        next.workItems = next.workItems.filter((wi) => {
+          const id = String(wi?.id || '').trim()
+          if (!deleteIds.includes(id)) return true
+          const kind = String(wi?.changeRequest?.kind || wi?.changeRequest?.type || '').trim()
+          const status = String(wi?.changeRequest?.status || '').trim()
+          return !(kind === 'cancel' && status === 'approved')
+        })
       }
 
       schedules[index] = next
