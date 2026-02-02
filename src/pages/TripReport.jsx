@@ -9,6 +9,12 @@ import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 
 function TripReport() {
+  const pad2 = (n) => String(n).padStart(2, '0')
+  const getTodayStr = () => {
+    const today = new Date()
+    return `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  }
+
   const [currentUser, setCurrentUser] = useState('')
   const [userName, setUserName] = useState('')
   const [siteNames, setSiteNames] = useState([]) // 行事曆新建排程的案場名稱（siteName）不重複列表
@@ -55,18 +61,17 @@ function TripReport() {
       setUserName(getDisplayNameForAccount(user))
     }
     const list = getSchedules()
-    const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = getTodayStr()
     const { all, allowed } = buildSiteLists(list, todayStr, user || '', role)
     setSiteNames(all)
     setAllowedSiteNames(allowed)
     const site = selectedSiteNameRef.current
     // 允許查看所有案場紀錄；但只允許對「自己參與」案場回報狀態
-    if (site && all.includes(site)) setRecords(getTripReportsByProject(site))
+    if (site && all.includes(site)) setRecords(getTripReportsByProject(site, todayStr))
     else if (all.length > 0) {
       // 若原本選到的案場已不在今日清單，切回第一個案場（可查看）
       setSelectedSiteName(all[0])
-      setRecords(getTripReportsByProject(all[0]))
+      setRecords(getTripReportsByProject(all[0], todayStr))
     } else {
       setSelectedSiteName('')
       setRecords([])
@@ -86,8 +91,7 @@ function TripReport() {
       setUserName(getDisplayNameForAccount(user))
     }
     const list = getSchedules()
-    const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = getTodayStr()
     const { all, allowed } = buildSiteLists(list, todayStr, user || '', role)
     setSiteNames(all)
     setAllowedSiteNames(allowed)
@@ -99,7 +103,7 @@ function TripReport() {
 
   useEffect(() => {
     if (selectedSiteName) {
-      setRecords(getTripReportsByProject(selectedSiteName))
+      setRecords(getTripReportsByProject(selectedSiteName, getTodayStr()))
     } else {
       setRecords([])
     }
@@ -136,7 +140,7 @@ function TripReport() {
       userName: getDisplayNameForAccount(currentUser)
     })
     if (result.success) {
-      setRecords(getTripReportsByProject(selectedSiteName))
+      setRecords(getTripReportsByProject(selectedSiteName, getTodayStr()))
       setMessage({ type: 'success', text: `已紀錄：${actionType}` })
     } else {
       setMessage({ type: 'error', text: result.message || '紀錄失敗' })
