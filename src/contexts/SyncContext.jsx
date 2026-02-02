@@ -11,6 +11,7 @@ export function SyncProvider({ children, syncReady = false }) {
   const pollRef = useRef(null)
   const lastLbUpdatedAtRef = useRef('')
   const lastTodosUpdatedAtRef = useRef('')
+  const lastProjectRecordsUpdatedAtRef = useRef('')
   const resumeRefreshInFlightRef = useRef(false)
 
   const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
@@ -43,6 +44,8 @@ export function SyncProvider({ children, syncReady = false }) {
           await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
           // 2) 待辦事項
           await refreshAppDataKey(sb, 'jiameng_todos', lastTodosUpdatedAtRef, [])
+          // 3) 缺失追蹤表（狀態需即時同步）
+          await refreshAppDataKey(sb, 'jiameng_project_records', lastProjectRecordsUpdatedAtRef, {})
         } catch (_) {}
       }, 8000)
     }
@@ -57,6 +60,7 @@ export function SyncProvider({ children, syncReady = false }) {
       resumeRefreshInFlightRef.current = true
       try {
         await refreshAppDataKey(sb2, 'jiameng_todos', lastTodosUpdatedAtRef, [])
+        await refreshAppDataKey(sb2, 'jiameng_project_records', lastProjectRecordsUpdatedAtRef, {})
       } catch (_) {
       } finally {
         resumeRefreshInFlightRef.current = false
