@@ -177,9 +177,14 @@ function ProjectDeficiencyTracking() {
     }
     const key = `jiameng_write_test__${Date.now()}`
     try {
-      // 1) 走同一套同步函式（含序列化/去抖）
-      await syncKeyToSupabase(key, JSON.stringify({ at: new Date().toISOString() }))
-      // 2) 立刻讀回確認（若讀不到，就是「寫入根本沒成功」）
+      // 直接 upsert（避免被 outbox/去抖影響判讀）
+      const payload = { at: new Date().toISOString() }
+      const { error: wErr } = await sb
+        .from('app_data')
+        .upsert({ key, data: payload, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+      if (wErr) throw wErr
+
+      // 立刻讀回確認（若讀不到，就是「寫入根本沒成功」）
       const { data, error } = await sb.from('app_data').select('updated_at').eq('key', key).maybeSingle()
       if (error) throw error
       const ua = String(data?.updated_at || '')
