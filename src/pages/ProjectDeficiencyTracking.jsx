@@ -975,6 +975,8 @@ function ProjectDetailView({
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
+  const [showRepairModal, setShowRepairModal] = useState(false)
+  const [repairModalRecord, setRepairModalRecord] = useState(null)
   const [projectInfoForm, setProjectInfoForm] = useState({
     startDate: '',
     endDate: '',
@@ -1061,6 +1063,25 @@ function ProjectDetailView({
       return `${year}/${m}/${d}`
     }
     return dateStr
+  }
+
+  const openRepairModal = (record) => {
+    setRepairModalRecord(record || null)
+    setShowRepairModal(true)
+  }
+
+  const closeRepairModal = () => {
+    setShowRepairModal(false)
+    setRepairModalRecord(null)
+    try { onEditField(null, null) } catch (_) {}
+  }
+
+  const hasRepair = (record, revision) => {
+    const rev = record?.revisions?.[revision] || {}
+    const m = String(rev?.modifier || '').trim()
+    const p = String(rev?.progress || '').trim()
+    const d = String(rev?.date || '').trim()
+    return Boolean(m || p || d)
   }
 
   return (
@@ -1400,44 +1421,19 @@ function ProjectDetailView({
                 <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">內容/備註</th>
                 <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">填單人</th>
                 <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">日期</th>
-                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs border-l-2 border-yellow-400" colSpan="3">
-                  第一次修訂
-                </th>
-                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs border-l-2 border-yellow-400" colSpan="3">
-                  第二次修訂
-                </th>
-                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs border-l-2 border-yellow-400" colSpan="3">
-                  第三次修訂
-                </th>
-              </tr>
-              <tr className="bg-gray-900 border-b border-gray-700 sticky top-[38px] z-10">
-                <th></th>
-                <th></th>
-                <th></th>
-                <th></th>
-                <th></th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">修改人員</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">進度</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">日期</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold border-l border-gray-700">修改人員</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">進度</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">日期</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold border-l border-gray-700">修改人員</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">進度</th>
-                <th className="px-1 py-1 text-yellow-400 text-[9px] sm:text-[10px] font-semibold">日期</th>
+                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs">是否修繕過</th>
               </tr>
             </thead>
             <tbody>
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan="14" className="px-2 py-6 text-center text-gray-400 text-xs">
+                  <td colSpan="6" className="px-2 py-6 text-center text-gray-400 text-xs">
                     尚無記錄，請使用快速輸入區新增記錄
                   </td>
                 </tr>
               ) : (
                 records.map((record) => {
                   const isEditingContent = editingField?.recordId === record.id && editingField?.field === 'content' && !editingField?.revision
-                  const editingRevision = editingField?.recordId === record.id ? editingField?.revision : null
 
                   return (
                     <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-900">
@@ -1480,7 +1476,14 @@ function ProjectDetailView({
                           </div>
                         ) : (
                           <div className="flex items-center space-x-1">
-                            <span className="text-white text-[10px] sm:text-xs truncate max-w-[120px] sm:max-w-none">{record.content || '—'}</span>
+                            <button
+                              type="button"
+                              onClick={() => openRepairModal(record)}
+                              className="text-left text-white text-[10px] sm:text-xs truncate max-w-[140px] sm:max-w-none hover:text-yellow-300"
+                              title="點擊查看完整內容/修繕紀錄"
+                            >
+                              {record.content || '—'}
+                            </button>
                             <button
                               onClick={() => onEditField(record.id, 'content')}
                               className="text-yellow-400 hover:text-yellow-500 flex-shrink-0"
@@ -1507,52 +1510,20 @@ function ProjectDetailView({
                       </td>
                       <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.submitter ? getDisplayNameForAccount(record.submitter) : '—'}</td>
                       <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.date || '—'}</td>
-                      
-                      {/* 第一次修訂 */}
-                      {['first', 'second', 'third'].map((revision, idx) => {
-                        const rev = record.revisions?.[revision] || {}
-                        const isEditingProgress = editingRevision === revision && editingField?.field === 'progress'
-                        
-                        return (
-                          <React.Fragment key={revision}>
-                            {/* 修改人員 - 只顯示，不可編輯 */}
-                            <td className={`px-1 py-1.5 text-white text-[10px] sm:text-xs ${idx > 0 ? 'border-l border-gray-700' : ''}`}>
-                              <span className="text-gray-300">{rev.modifier ? getDisplayNameForAccount(rev.modifier) : '—'}</span>
-                            </td>
-                            {/* 進度 - 可編輯 */}
-                            <td className="px-1 py-1.5 text-white text-[10px] sm:text-xs">
-                              {isEditingProgress ? (
-                                <input
-                                  type="text"
-                                  defaultValue={rev.progress}
-                                  onBlur={(e) => onSaveField(record.id, 'progress', e.target.value, revision)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      onSaveField(record.id, 'progress', e.target.value, revision)
-                                    }
-                                    if (e.key === 'Escape') {
-                                      onEditField(null, null)
-                                    }
-                                  }}
-                                  autoFocus
-                                  className="w-full bg-gray-700 border border-yellow-400 rounded px-1 py-0.5 text-white text-[10px] focus:outline-none"
-                                />
-                              ) : (
-                                <span 
-                                  className="cursor-pointer hover:text-yellow-400"
-                                  onClick={() => onEditField(record.id, 'progress', revision)}
-                                >
-                                  {rev.progress || '進度'}
-                                </span>
-                              )}
-                            </td>
-                            {/* 日期 - 只顯示，不可編輯 */}
-                            <td className="px-1 py-1.5 text-white text-[10px] sm:text-xs">
-                              <span className="text-gray-300">{rev.date || '—'}</span>
-                            </td>
-                          </React.Fragment>
-                        )
-                      })}
+                      <td className="px-2 py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openRepairModal(record)}
+                          className="w-full flex items-center justify-center gap-1"
+                          title="查看修繕紀錄（第一次/第二次/第三次）"
+                        >
+                          {['first', 'second', 'third'].map((rev) => {
+                            const done = hasRepair(record, rev)
+                            const cls = done ? 'bg-green-400' : 'bg-gray-600'
+                            return <span key={rev} className={`inline-block w-2.5 h-2.5 rounded-full ${cls}`} />
+                          })}
+                        </button>
+                      </td>
                     </tr>
                   )
                 })
@@ -1563,6 +1534,80 @@ function ProjectDetailView({
       </div>
           </div>
       </div>
+
+      {/* 修繕紀錄彈窗：第一次～第三次 */}
+      {showRepairModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 project-no-print" onMouseDown={closeRepairModal}>
+          <div className="w-[92vw] max-w-2xl max-h-[85vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-4" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-yellow-400 font-semibold">修繕紀錄</div>
+                <div className="text-gray-300 text-xs mt-1 break-words">
+                  {repairModalRecord?.content || '—'}
+                </div>
+              </div>
+              <button type="button" onClick={closeRepairModal} className="shrink-0 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded">
+                關閉
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {['first', 'second', 'third'].map((revision, idx) => {
+                const rev = repairModalRecord?.revisions?.[revision] || {}
+                const isEditingProgress = editingField?.recordId === repairModalRecord?.id && editingField?.field === 'progress' && editingField?.revision === revision
+                const title = idx === 0 ? '第一次修繕' : (idx === 1 ? '第二次修繕' : '第三次修繕')
+                return (
+                  <div key={revision} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-white font-semibold text-sm">{title}</div>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${hasRepair(repairModalRecord, revision) ? 'bg-green-400' : 'bg-gray-600'}`} />
+                        <span className="text-gray-400 text-xs">{hasRepair(repairModalRecord, revision) ? '已修繕' : '未修繕'}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2 text-xs">
+                      <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
+                        <div className="text-gray-400 mb-1">修改人員</div>
+                        <div className="text-white break-all">{rev.modifier ? getDisplayNameForAccount(rev.modifier) : '—'}</div>
+                      </div>
+                      <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
+                        <div className="text-gray-400 mb-1">進度</div>
+                        {isEditingProgress ? (
+                          <input
+                            type="text"
+                            defaultValue={rev.progress}
+                            onBlur={(e) => onSaveField(repairModalRecord.id, 'progress', e.target.value, revision)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') onSaveField(repairModalRecord.id, 'progress', e.target.value, revision)
+                              if (e.key === 'Escape') onEditField(null, null)
+                            }}
+                            autoFocus
+                            className="w-full bg-gray-700 border border-yellow-400 rounded px-2 py-1 text-white text-xs focus:outline-none"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="w-full text-left text-white hover:text-yellow-300"
+                            onClick={() => onEditField(repairModalRecord.id, 'progress', revision)}
+                            title="點擊編輯進度"
+                          >
+                            {String(rev.progress || '').trim() ? rev.progress : '點擊填寫進度'}
+                          </button>
+                        )}
+                      </div>
+                      <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
+                        <div className="text-gray-400 mb-1">日期</div>
+                        <div className="text-white break-all">{rev.date || '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
