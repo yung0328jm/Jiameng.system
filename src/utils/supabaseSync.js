@@ -10,6 +10,13 @@ const PROJECT_RECORD_PREFIX = 'jiameng_project_records__'
 const PROJECT_RECORD_PREFIX_LEGACY = 'jiameng_project_records:'
 const PROJECT_RECORDS_KEY = 'jiameng_project_records' // legacy：整包（可能過大，不再寫回雲端）
 
+function rememberSyncError(key, err) {
+  try {
+    const msg = err?.message || err?.details || String(err || '')
+    localStorage.setItem('jiameng_last_sync_error', JSON.stringify({ key: String(key || ''), message: msg, at: new Date().toISOString() }))
+  } catch (_) {}
+}
+
 /** 需從 app_data 同步的 localStorage key（不含排程／請假／特休，不含登入狀態） */
 export const APP_DATA_KEYS = [
   'jiameng_todos', 'jiameng_users', 'jiameng_wallets', 'jiameng_transactions',
@@ -106,7 +113,8 @@ async function _doUpsert(sb, key, value) {
   if (key && (String(key).startsWith(PROJECT_RECORD_PREFIX) || String(key).startsWith(PROJECT_RECORD_PREFIX_LEGACY))) {
     try {
       const incoming = Array.isArray(data) ? data : []
-      const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
       const cloudRaw = cloudRow?.data
       const cloud = Array.isArray(cloudRaw)
         ? cloudRaw
@@ -123,7 +131,8 @@ async function _doUpsert(sb, key, value) {
     // 如果本次要寫入的道具清單過少，先讀雲端現況比對；雲端較多則拒絕覆蓋
     if (incoming.length <= 1) {
       try {
-        const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
+        const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
+        if (cloudErr) throw cloudErr
         const cloud = Array.isArray(cloudRow?.data) ? cloudRow.data : []
         if (cloud.length > incoming.length) {
           console.warn('[Sync] Blocked overwrite jiameng_items (incoming too small)', { incoming: incoming.length, cloud: cloud.length })
@@ -133,21 +142,29 @@ async function _doUpsert(sb, key, value) {
     }
     // 寫入前：先備份雲端舊資料（若有）
     try {
-      const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', 'jiameng_items').maybeSingle()
+      if (cloudErr) throw cloudErr
       const cloud = cloudRow?.data
       if (cloud) {
-        await sb.from('app_data').upsert({ key: 'jiameng_items_backup', data: cloud, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+        const { error: bErr } = await sb.from('app_data').upsert({ key: 'jiameng_items_backup', data: cloud, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+        if (bErr) throw bErr
       }
     } catch (_) {}
   }
 
-  await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  const { error } = await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  if (error) throw error
 }
 
 async function scheduleUpsert(sb, key, value, debounceMs) {
   try {
     if (!debounceMs) {
-      await _doUpsert(sb, key, value)
+      try {
+        await _doUpsert(sb, key, value)
+      } catch (e) {
+        rememberSyncError(key, e)
+        throw e
+      }
       return
     }
 
@@ -172,6 +189,7 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
       try {
         await _doUpsert(sb, key, payload.value)
       } catch (e) {
+        rememberSyncError(key, e)
         console.warn('syncKeyToSupabase failed:', key, e)
       } finally {
         _inFlight.delete(key)
@@ -183,6 +201,7 @@ async function scheduleUpsert(sb, key, value, debounceMs) {
     }, debounceMs)
     _timer.set(key, id)
   } catch (e) {
+    rememberSyncError(key, e)
     console.warn('syncKeyToSupabase failed:', key, e)
   }
 }
