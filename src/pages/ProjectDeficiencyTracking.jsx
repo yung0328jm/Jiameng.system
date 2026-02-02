@@ -41,9 +41,11 @@ function ProjectDeficiencyTracking() {
   const [syncDiag, setSyncDiag] = useState({
     supabaseEnabled: false,
     todosUpdatedAt: '',
+    projectsUpdatedAt: '',
     projectKey: '',
     projectUpdatedAt: '',
     lastError: null,
+    outboxCount: 0,
     lastCheckedAt: ''
   })
 
@@ -71,16 +73,27 @@ function ProjectDeficiencyTracking() {
     const next = {
       supabaseEnabled: !!(enabled && sb),
       todosUpdatedAt: '',
+      projectsUpdatedAt: '',
       projectKey,
       projectUpdatedAt: '',
       lastError: readLastSyncError(),
+      outboxCount: 0,
       lastCheckedAt: new Date().toISOString()
     }
     try {
+      try {
+        const rawOut = localStorage.getItem('jiameng_sync_outbox_v1')
+        const obj = rawOut ? JSON.parse(rawOut) : {}
+        next.outboxCount = obj && typeof obj === 'object' ? Object.keys(obj).length : 0
+      } catch (_) {}
       if (sb) {
         try {
           const { data: tRow, error: tErr } = await sb.from('app_data').select('updated_at').eq('key', 'jiameng_todos').maybeSingle()
           if (!tErr) next.todosUpdatedAt = String(tRow?.updated_at || '')
+        } catch (_) {}
+        try {
+          const { data: pRow, error: pErr } = await sb.from('app_data').select('updated_at').eq('key', 'jiameng_projects').maybeSingle()
+          if (!pErr) next.projectsUpdatedAt = String(pRow?.updated_at || '')
         } catch (_) {}
         if (projectKey) {
           try {
@@ -1214,9 +1227,17 @@ function ProjectDetailView({
               <div className="text-white break-all">{syncDiag?.todosUpdatedAt || '—（讀不到或尚未寫入）'}</div>
             </div>
             <div className="bg-gray-800 rounded p-2 border border-gray-700">
+              <div className="text-gray-400">專案清單 updated_at（jiameng_projects）</div>
+              <div className="text-white break-all">{syncDiag?.projectsUpdatedAt || '—（讀不到或尚未寫入）'}</div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700">
               <div className="text-gray-400">缺失表雲端 key / updated_at</div>
               <div className="text-white break-all">{syncDiag?.projectKey || '—'}</div>
               <div className="text-white break-all">{syncDiag?.projectUpdatedAt || '—（讀不到或尚未寫入）'}</div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
+              <div className="text-gray-400">待送出（outbox）筆數</div>
+              <div className="text-white break-all">{String(syncDiag?.outboxCount ?? 0)}</div>
             </div>
             <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
               <div className="text-gray-400">最後一次寫入錯誤（若有）</div>
