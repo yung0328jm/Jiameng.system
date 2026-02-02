@@ -7,6 +7,7 @@ import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
+import { syncKeyToSupabase } from '../utils/supabaseSync'
 
 function ProjectDeficiencyTracking() {
   const [projects, setProjects] = useState([])
@@ -40,6 +41,7 @@ function ProjectDeficiencyTracking() {
   const [showSyncDiag, setShowSyncDiag] = useState(false)
   const [syncDiag, setSyncDiag] = useState({
     supabaseEnabled: false,
+    supabaseHost: '',
     todosUpdatedAt: '',
     projectsUpdatedAt: '',
     projectKey: '',
@@ -70,8 +72,14 @@ function ProjectDeficiencyTracking() {
     const enabled = isSupabaseEnabled()
     const sb = enabled ? getSupabaseClient() : null
     const projectKey = pid ? `jiameng_project_records__${encodeURIComponent(pid)}` : ''
+    let supabaseHost = ''
+    try {
+      const u = import.meta?.env?.VITE_SUPABASE_URL
+      if (u) supabaseHost = new URL(u).host
+    } catch (_) {}
     const next = {
       supabaseEnabled: !!(enabled && sb),
+      supabaseHost,
       todosUpdatedAt: '',
       projectsUpdatedAt: '',
       projectKey,
@@ -89,21 +97,44 @@ function ProjectDeficiencyTracking() {
       if (sb) {
         try {
           const { data: tRow, error: tErr } = await sb.from('app_data').select('updated_at').eq('key', 'jiameng_todos').maybeSingle()
-          if (!tErr) next.todosUpdatedAt = String(tRow?.updated_at || '')
+          if (!tErr && tRow?.updated_at) next.todosUpdatedAt = String(tRow.updated_at)
+          if (!tErr && !tRow?.updated_at) next.todosUpdatedAt = '（找不到此 key）'
         } catch (_) {}
         try {
           const { data: pRow, error: pErr } = await sb.from('app_data').select('updated_at').eq('key', 'jiameng_projects').maybeSingle()
-          if (!pErr) next.projectsUpdatedAt = String(pRow?.updated_at || '')
+          if (!pErr && pRow?.updated_at) next.projectsUpdatedAt = String(pRow.updated_at)
+          if (!pErr && !pRow?.updated_at) next.projectsUpdatedAt = '（找不到此 key）'
         } catch (_) {}
         if (projectKey) {
           try {
             const { data: pRow, error: pErr } = await sb.from('app_data').select('updated_at').eq('key', projectKey).maybeSingle()
-            if (!pErr) next.projectUpdatedAt = String(pRow?.updated_at || '')
+            if (!pErr && pRow?.updated_at) next.projectUpdatedAt = String(pRow.updated_at)
+            if (!pErr && !pRow?.updated_at) next.projectUpdatedAt = '（找不到此 key）'
           } catch (_) {}
         }
       }
     } catch (_) {}
     setSyncDiag(next)
+  }
+
+  const pushProjectsToCloud = async () => {
+    try {
+      const raw = localStorage.getItem('jiameng_projects') || '[]'
+      await syncKeyToSupabase('jiameng_projects', raw)
+    } catch (_) {}
+    runSyncDiag(viewingProjectIdRef.current).catch(() => {})
+  }
+
+  const pushCurrentProjectRecordsToCloud = async () => {
+    const pid = String(viewingProjectIdRef.current || '').trim()
+    if (!pid) return
+    const cloudKey = `jiameng_project_records__${encodeURIComponent(pid)}`
+    const localKey = `jiameng_project_records:${pid}`
+    try {
+      const raw = localStorage.getItem(localKey) || '[]'
+      await syncKeyToSupabase(cloudKey, raw)
+    } catch (_) {}
+    runSyncDiag(pid).catch(() => {})
   }
 
   useEffect(() => {
@@ -1217,6 +1248,9 @@ function ProjectDetailView({
               <div className={syncDiag?.supabaseEnabled ? 'text-green-300' : 'text-red-300'}>
                 {syncDiag?.supabaseEnabled ? '已啟用（有設定 VITE_SUPABASE_URL / ANON_KEY）' : '未啟用（手機端若是 APK，通常代表打包時沒帶入 env）'}
               </div>
+              {syncDiag?.supabaseHost ? (
+                <div className="text-gray-300 mt-1 break-all">host: {syncDiag.supabaseHost}</div>
+              ) : null}
             </div>
             <div className="bg-gray-800 rounded p-2 border border-gray-700">
               <div className="text-gray-400">最後檢查時間</div>
@@ -1245,6 +1279,28 @@ function ProjectDetailView({
                 {syncDiag?.lastError
                   ? `${syncDiag.lastError.at || ''}  key=${syncDiag.lastError.key || ''}  ${syncDiag.lastError.message || ''}`
                   : '—'}
+              </div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
+              <div className="text-gray-400">一鍵修復（把本機資料推到雲端）</div>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={pushProjectsToCloud}
+                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
+                >
+                  推送專案清單到雲端
+                </button>
+                <button
+                  type="button"
+                  onClick={pushCurrentProjectRecordsToCloud}
+                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
+                >
+                  推送本專案缺失到雲端
+                </button>
+              </div>
+              <div className="text-[11px] text-gray-400 mt-1">
+                若推送後 updated_at 仍顯示「找不到此 key」或一直 AbortError，就代表寫入請求被中斷/被擋（需再針對網路/權限處理）。
               </div>
             </div>
           </div>
