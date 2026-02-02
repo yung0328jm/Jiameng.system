@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
-import { getDropdownOptions, getDropdownOptionsByCategory, saveDropdownOptions, addDropdownOption, updateDropdownOption, deleteDropdownOption } from '../utils/dropdownStorage'
+import { getDropdownOptions, getDropdownOptionsByCategory, saveDropdownOptions, addDropdownOption, updateDropdownOption, deleteDropdownOption, reorderDropdownOptionsByCategory } from '../utils/dropdownStorage'
 import { getItems, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
 import { NAME_EFFECT_PRESETS, MESSAGE_EFFECT_PRESETS, TITLE_BADGE_PRESETS, DECORATION_PRESETS } from '../utils/effectDisplayStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
@@ -205,6 +205,27 @@ function DropdownManagement({ userRole: propUserRole }) {
     setEditingId(null)
     setEditValue('')
     setEditBoundAccount('')
+  }
+
+  const handleMoveOption = (id, delta) => {
+    const list = Array.isArray(dropdownOptions) ? dropdownOptions : []
+    const from = list.findIndex((x) => x.id === id)
+    if (from < 0) return
+    const to = from + delta
+    if (to < 0 || to >= list.length) return
+
+    const next = [...list]
+    const tmp = next[from]
+    next[from] = next[to]
+    next[to] = tmp
+    setDropdownOptions(next)
+
+    const res = reorderDropdownOptionsByCategory(selectedCategory, next.map((x) => x.id))
+    if (!res?.success) {
+      // 回復到最新資料
+      loadDropdownOptions()
+      alert(res?.message || '排序失敗')
+    }
   }
 
   const isAdmin = userRole === 'admin'
@@ -488,8 +509,8 @@ function DropdownManagement({ userRole: propUserRole }) {
           </div>
         ) : (
           <div className="divide-y divide-gray-700">
-            {(Array.isArray(dropdownOptions) ? dropdownOptions : []).map((option) => (
-              <div key={option.id} className="p-4 hover:bg-gray-750 flex items-center justify-between">
+            {(Array.isArray(dropdownOptions) ? dropdownOptions : []).map((option, idx) => (
+              <div key={option.id} className="p-4 hover:bg-gray-750 flex items-center justify-between gap-3">
                 {editingId === option.id ? (
                   <div className="flex-1 space-y-3">
                     <div className="flex items-center gap-2">
@@ -545,6 +566,32 @@ function DropdownManagement({ userRole: propUserRole }) {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveOption(option.id, -1)}
+                          disabled={idx === 0}
+                          className={`px-2 py-2 rounded text-sm transition-colors min-h-[36px] ${
+                            idx === 0 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-700 text-white hover:bg-gray-600'
+                          }`}
+                          title="上移"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveOption(option.id, 1)}
+                          disabled={idx === (Array.isArray(dropdownOptions) ? dropdownOptions.length : 0) - 1}
+                          className={`px-2 py-2 rounded text-sm transition-colors min-h-[36px] ${
+                            idx === (Array.isArray(dropdownOptions) ? dropdownOptions.length : 0) - 1
+                              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                              : 'bg-gray-700 text-white hover:bg-gray-600'
+                          }`}
+                          title="下移"
+                        >
+                          ↓
+                        </button>
+                      </div>
                       <button
                         onClick={() => handleStartEdit(option)}
                         className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors text-sm"
