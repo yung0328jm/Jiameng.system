@@ -211,6 +211,8 @@ function PersonalPerformance() {
       if (!schedule.workItems || schedule.workItems.length === 0) return
 
       schedule.workItems.forEach(item => {
+        // 有異動申請待審：暫不列入績效評分
+        if (String(item?.changeRequest?.status || '') === 'pending') return
         const it = normalizeWorkItem(item)
         const collabs = it.isCollaborative
           ? getWorkItemCollaborators(it)
@@ -603,6 +605,8 @@ function PersonalPerformance() {
         if (!schedule.workItems || schedule.workItems.length === 0) return
         
         schedule.workItems.forEach(item => {
+          // 有異動申請待審：暫不列入績效評分
+          if (String(item?.changeRequest?.status || '') === 'pending') return
           const it = normalizeWorkItem(item)
           const collabs = it.isCollaborative
             ? getWorkItemCollaborators(it)
