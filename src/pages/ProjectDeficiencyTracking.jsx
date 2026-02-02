@@ -7,7 +7,7 @@ import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
-import { syncKeyToSupabase } from '../utils/supabaseSync'
+import { flushSyncOutbox, syncKeyToSupabase } from '../utils/supabaseSync'
 
 function ProjectDeficiencyTracking() {
   const [projects, setProjects] = useState([])
@@ -48,6 +48,7 @@ function ProjectDeficiencyTracking() {
     projectUpdatedAt: '',
     lastError: null,
     outboxCount: 0,
+    outboxPreview: [],
     lastCheckedAt: ''
   })
 
@@ -86,6 +87,7 @@ function ProjectDeficiencyTracking() {
       projectUpdatedAt: '',
       lastError: readLastSyncError(),
       outboxCount: 0,
+      outboxPreview: [],
       lastCheckedAt: new Date().toISOString()
     }
     try {
@@ -93,6 +95,19 @@ function ProjectDeficiencyTracking() {
         const rawOut = localStorage.getItem('jiameng_sync_outbox_v1')
         const obj = rawOut ? JSON.parse(rawOut) : {}
         next.outboxCount = obj && typeof obj === 'object' ? Object.keys(obj).length : 0
+        const preview = []
+        if (obj && typeof obj === 'object') {
+          Object.keys(obj).slice(0, 3).forEach((k) => {
+            const it = obj[k]
+            preview.push({
+              key: String(it?.key || k),
+              attempts: Number(it?.attempts) || 0,
+              nextAttemptAt: String(it?.nextAttemptAt || ''),
+              lastError: String(it?.lastError || '')
+            })
+          })
+        }
+        next.outboxPreview = preview
       } catch (_) {}
       if (sb) {
         try {
@@ -122,6 +137,7 @@ function ProjectDeficiencyTracking() {
       const raw = localStorage.getItem('jiameng_projects') || '[]'
       await syncKeyToSupabase('jiameng_projects', raw)
     } catch (_) {}
+    try { await flushSyncOutbox() } catch (_) {}
     runSyncDiag(viewingProjectIdRef.current).catch(() => {})
   }
 
@@ -134,7 +150,13 @@ function ProjectDeficiencyTracking() {
       const raw = localStorage.getItem(localKey) || '[]'
       await syncKeyToSupabase(cloudKey, raw)
     } catch (_) {}
+    try { await flushSyncOutbox() } catch (_) {}
     runSyncDiag(pid).catch(() => {})
+  }
+
+  const flushOutboxNow = async () => {
+    try { await flushSyncOutbox() } catch (_) {}
+    runSyncDiag(viewingProjectIdRef.current).catch(() => {})
   }
 
   useEffect(() => {
@@ -1276,6 +1298,25 @@ function ProjectDetailView({
             <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
               <div className="text-gray-400">待送出（outbox）筆數</div>
               <div className="text-white break-all">{String(syncDiag?.outboxCount ?? 0)}</div>
+              {Array.isArray(syncDiag?.outboxPreview) && syncDiag.outboxPreview.length > 0 ? (
+                <div className="text-gray-300 mt-1 space-y-1">
+                  {syncDiag.outboxPreview.map((it) => (
+                    <div key={it.key} className="break-all">
+                      - {it.key}（attempts {it.attempts}{it.nextAttemptAt ? `, next ${it.nextAttemptAt}` : ''}）
+                      {it.lastError ? ` / ${it.lastError}` : ''}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={flushOutboxNow}
+                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
+                >
+                  立即重送 outbox
+                </button>
+              </div>
             </div>
             <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
               <div className="text-gray-400">最後一次寫入錯誤（若有）</div>
