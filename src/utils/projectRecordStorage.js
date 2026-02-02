@@ -3,10 +3,12 @@ import { syncKeyToSupabase } from './supabaseSync'
 const PROJECT_RECORD_STORAGE_KEY = 'jiameng_project_records' // legacy：本機整包快取（可能過大，不寫回雲端）
 const PROJECT_RECORD_LOCAL_PREFIX = 'jiameng_project_records:' // 本機快取：每個專案一個 key
 const PROJECT_RECORD_CLOUD_PREFIX = 'jiameng_project_records__' // 雲端同步：避免 key 含 ':' 在某些環境被擋
+const PROJECT_RECORD_LOCAL_BACKUP_PREFIX = 'jiameng_project_records_local_backup__' // 本機備份：永不被雲端覆蓋（防刷新消失）
 
 const normalizePid = (projectId) => String(projectId || '').trim()
 const localKeyForProject = (projectId) => `${PROJECT_RECORD_LOCAL_PREFIX}${normalizePid(projectId)}`
 const cloudKeyForProject = (projectId) => `${PROJECT_RECORD_CLOUD_PREFIX}${encodeURIComponent(normalizePid(projectId))}`
+const backupKeyForProject = (projectId) => `${PROJECT_RECORD_LOCAL_BACKUP_PREFIX}${normalizePid(projectId)}`
 
 const persistProject = (projectId, arr) => {
   const pid = normalizePid(projectId)
@@ -16,6 +18,8 @@ const persistProject = (projectId, arr) => {
   const val = JSON.stringify(list)
   // 1) 本機快取：每專案一份
   localStorage.setItem(perKey, val)
+  // 1.1) 本機備份：防止刷新/同步覆蓋造成消失
+  try { localStorage.setItem(backupKeyForProject(pid), val) } catch (_) {}
   // 2) 雲端同步：每專案一份（key 使用安全命名，邏輯比照待辦事項）
   syncKeyToSupabase(cloudKeyForProject(pid), val)
 
@@ -39,7 +43,21 @@ export const getProjectRecords = (projectId) => {
     const per = localStorage.getItem(localKeyForProject(pid))
     if (per) {
       const parsed = JSON.parse(per)
-      return Array.isArray(parsed) ? parsed : []
+      const arr = Array.isArray(parsed) ? parsed : []
+      if (arr.length > 0) return arr
+    }
+
+    // 再讀本機備份（防刷新消失）
+    const backup = localStorage.getItem(backupKeyForProject(pid))
+    if (backup) {
+      try {
+        const parsed = JSON.parse(backup)
+        const arr = Array.isArray(parsed) ? parsed : []
+        if (arr.length > 0) {
+          try { localStorage.setItem(localKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
+          return arr
+        }
+      } catch (_) {}
     }
 
     // fallback：讀 legacy，並把該專案搬到新格式（只搬本機，避免一進頁面就觸發大量雲端寫入）
@@ -47,6 +65,7 @@ export const getProjectRecords = (projectId) => {
     const all = records ? JSON.parse(records) : {}
     const arr = Array.isArray(all?.[pid]) ? all[pid] : []
     try { localStorage.setItem(localKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
+    try { localStorage.setItem(backupKeyForProject(pid), JSON.stringify(arr)) } catch (_) {}
     return arr
   } catch (error) {
     console.error('Error getting project records:', error)

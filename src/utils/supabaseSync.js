@@ -414,7 +414,10 @@ export async function syncFromSupabase() {
         }
         const merged = mergeArr(localArr, arr)
         // 一律寫入本機 ':' key（全 app 讀取都走這個）
-        localStorage.setItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`, JSON.stringify(merged))
+        const mergedStr = JSON.stringify(merged)
+        localStorage.setItem(`${PROJECT_RECORD_PREFIX_LEGACY}${pid}`, mergedStr)
+        // 本機備份：防刷新/同步覆蓋造成消失
+        try { localStorage.setItem(`jiameng_project_records_local_backup__${pid}`, mergedStr) } catch (_) {}
         if (pid) map[pid] = merged
 
         // healing：若本機有較新/較多資料，補回雲端（避免雲端漏寫造成下一次刷新消失）
