@@ -168,6 +168,18 @@ function ProjectDeficiencyTracking() {
     runSyncDiag(viewingProjectIdRef.current).catch(() => {})
   }
 
+  const removeOutboxKey = (key) => {
+    try {
+      const rawOut = localStorage.getItem('jiameng_sync_outbox_v1')
+      const obj = rawOut ? JSON.parse(rawOut) : {}
+      if (obj && typeof obj === 'object') {
+        delete obj[String(key)]
+        localStorage.setItem('jiameng_sync_outbox_v1', JSON.stringify(obj))
+      }
+    } catch (_) {}
+    runSyncDiag(viewingProjectIdRef.current).catch(() => {})
+  }
+
   const writeTestKey = async () => {
     const sb = getSupabaseClient()
     const enabled = isSupabaseEnabled()
@@ -1004,6 +1016,7 @@ function ProjectDeficiencyTracking() {
           onFlushOutboxNow={flushOutboxNow}
           onWriteTestKey={writeTestKey}
           onForceUpsertCurrentProject={forceUpsertCurrentProject}
+          onRemoveOutboxKey={removeOutboxKey}
         />
       )}
 
@@ -1166,7 +1179,8 @@ function ProjectDetailView({
   onPushCurrentProjectRecordsToCloud,
   onFlushOutboxNow,
   onWriteTestKey,
-  onForceUpsertCurrentProject
+  onForceUpsertCurrentProject,
+  onRemoveOutboxKey
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
@@ -1366,6 +1380,14 @@ function ProjectDetailView({
                     <div key={it.key} className="break-all">
                       - {it.key}（attempts {it.attempts}{it.nextAttemptAt ? `, next ${it.nextAttemptAt}` : ''}）
                       {it.lastError ? ` / ${it.lastError}` : ''}
+                      <button
+                        type="button"
+                        onClick={() => onRemoveOutboxKey(it.key)}
+                        className="ml-2 bg-gray-700 hover:bg-gray-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded"
+                        title="移除這筆 outbox（不再重試）"
+                      >
+                        移除
+                      </button>
                     </div>
                   ))}
                 </div>
