@@ -56,10 +56,11 @@ function ProjectDeficiencyTracking() {
     let disposed = false
     const fetchOnce = async () => {
       try {
+        const key = `jiameng_project_records:${viewingProjectId}`
         const { data, error } = await sb
           .from('app_data')
           .select('data, updated_at')
-          .eq('key', 'jiameng_project_records')
+          .eq('key', key)
           .maybeSingle()
         if (disposed) return
         if (error) throw error
@@ -69,15 +70,22 @@ function ProjectDeficiencyTracking() {
         prCloudUpdatedAtRef.current = updatedAt
 
         const raw = data?.data
-        const obj =
-          raw && typeof raw === 'object' && !Array.isArray(raw)
+        const arr =
+          Array.isArray(raw)
             ? raw
-            : (typeof raw === 'string' ? (() => { try { return JSON.parse(raw || '{}') } catch (_) { return {} } })() : {})
-        // 寫回 localStorage，讓其它使用 useRealtimeKeys 的元件也能一致運作
-        try { localStorage.setItem('jiameng_project_records', JSON.stringify(obj)) } catch (_) {}
-        // 只更新目前正在看的專案
-        const next = Array.isArray(obj?.[viewingProjectId]) ? obj[viewingProjectId] : []
-        setProjectRecords(next)
+            : (typeof raw === 'string' ? (() => { try { return JSON.parse(raw || '[]') } catch (_) { return [] } })() : [])
+
+        // 寫回 localStorage（per-project key + legacy map），讓其它頁面也能一致運作
+        try { localStorage.setItem(key, JSON.stringify(arr)) } catch (_) {}
+        try {
+          const legacyRaw = localStorage.getItem('jiameng_project_records')
+          const legacy = legacyRaw ? JSON.parse(legacyRaw) : {}
+          const nextLegacy = legacy && typeof legacy === 'object' ? { ...legacy } : {}
+          nextLegacy[String(viewingProjectId)] = arr
+          localStorage.setItem('jiameng_project_records', JSON.stringify(nextLegacy))
+        } catch (_) {}
+
+        setProjectRecords(arr)
       } catch (_) {
         // 靜默：避免一直跳錯誤視窗干擾操作
       }
