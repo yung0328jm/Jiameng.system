@@ -11,7 +11,6 @@ export function SyncProvider({ children, syncReady = false }) {
   const pollRef = useRef(null)
   const lastLbUpdatedAtRef = useRef('')
   const lastTodosUpdatedAtRef = useRef('')
-  const lastProjectRecordsUpdatedAtRef = useRef('')
   const resumeRefreshInFlightRef = useRef(false)
 
   const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
@@ -35,22 +34,17 @@ export function SyncProvider({ children, syncReady = false }) {
     unsubRef.current = subscribeRealtime(() => setRevision((r) => r + 1))
 
     // 備援：有些環境可能收不到 app_data 的 Realtime（RLS/網路/裝置省電等）
-    // 針對「缺失追蹤（狀態）」做較密輪詢，確保多人同時操作時體感即時
+    // 全站層級只保留輕量輪詢（排行榜/待辦）；缺失表改由頁面針對「當前專案」用 per-project key 輪詢。
     const sb = getSupabaseClient()
     if (sb) {
-      let tick = 0
       pollRef.current = setInterval(async () => {
         try {
-          tick += 1
-          // 1) 缺失追蹤表（狀態需即時同步）：每 2 秒
-          await refreshAppDataKey(sb, 'jiameng_project_records', lastProjectRecordsUpdatedAtRef, {})
-          // 2) 排行榜面板、待辦事項：每 8 秒
-          if (tick % 4 === 0) {
-            await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
-            await refreshAppDataKey(sb, 'jiameng_todos', lastTodosUpdatedAtRef, [])
-          }
+          // 1) 排行榜面板
+          await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
+          // 2) 待辦事項
+          await refreshAppDataKey(sb, 'jiameng_todos', lastTodosUpdatedAtRef, [])
         } catch (_) {}
-      }, 2000)
+      }, 8000)
     }
 
     // 背景->前景：setInterval 可能被瀏覽器降頻/暫停，回來時主動補拉一次（避免要重新登入）
@@ -63,7 +57,6 @@ export function SyncProvider({ children, syncReady = false }) {
       resumeRefreshInFlightRef.current = true
       try {
         await refreshAppDataKey(sb2, 'jiameng_todos', lastTodosUpdatedAtRef, [])
-        await refreshAppDataKey(sb2, 'jiameng_project_records', lastProjectRecordsUpdatedAtRef, {})
       } catch (_) {
       } finally {
         resumeRefreshInFlightRef.current = false
