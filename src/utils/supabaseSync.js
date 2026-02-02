@@ -73,6 +73,14 @@ export async function flushSyncOutbox() {
   let fail = 0
   const now = Date.now()
   // 每次 flush 最多送 2 個，且只送「到期」的，避免造成 request storm
+  const priorityOf = (k) => {
+    const key = String(k || '')
+    // 缺失表：最高優先（避免被其他 noisy key 擋住）
+    if (key.startsWith('jiameng_project_records__') || key.startsWith('jiameng_project_records:')) return 0
+    // 專案清單：很容易因為 payload 較大/網路被中斷而失敗，放最後
+    if (key === 'jiameng_projects') return 9
+    return 5
+  }
   const due = keys
     .map((k) => out[k])
     .filter((it) => it?.key)
@@ -80,7 +88,12 @@ export async function flushSyncOutbox() {
       const t = Date.parse(it?.nextAttemptAt || '') || 0
       return !t || t <= now
     })
-    .sort((a, b) => (Date.parse(a?.nextAttemptAt || '') || 0) - (Date.parse(b?.nextAttemptAt || '') || 0))
+    .sort((a, b) => {
+      const pa = priorityOf(a?.key)
+      const pb = priorityOf(b?.key)
+      if (pa !== pb) return pa - pb
+      return (Date.parse(a?.nextAttemptAt || '') || 0) - (Date.parse(b?.nextAttemptAt || '') || 0)
+    })
     .slice(0, 2)
 
   for (const item of due) {
