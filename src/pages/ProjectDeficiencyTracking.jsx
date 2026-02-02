@@ -44,8 +44,9 @@ function ProjectDeficiencyTracking() {
     viewingProjectIdRef.current = viewingProjectId
   }, [viewingProjectId])
 
-  // 備援即時同步：有些裝置收不到 Realtime（或 app_data RLS/省電造成延遲），此處直接輪詢 project_records
-  // 目標：任何一個用戶更改狀態，其他裝置在 1 秒內刷新
+  // 備援即時同步：有些裝置收不到 Realtime（或 app_data RLS/省電造成延遲）
+  // 策略：針對「當前專案」的 per-project key，每 1 秒只抓 updated_at（timestamp），變更才抓整包 data
+  // 目標：任何一個用戶更改狀態，其他裝置在 1 秒內刷新，且不會每秒都拉大 payload
   const prCloudUpdatedAtRef = useRef('')
   useEffect(() => {
     if (!viewingProjectId) return
@@ -54,26 +55,42 @@ function ProjectDeficiencyTracking() {
     if (!sb) return
 
     let disposed = false
+    let inFlight = false
     const fetchOnce = async () => {
       try {
+        if (inFlight) return
+        inFlight = true
+
         const key = `jiameng_project_records:${viewingProjectId}`
-        const { data, error } = await sb
+        // 1) 先只抓 updated_at（小流量）
+        const { data: tsRow, error: tsErr } = await sb
+          .from('app_data')
+          .select('updated_at')
+          .eq('key', key)
+          .maybeSingle()
+        if (disposed) return
+        if (tsErr) throw tsErr
+        const updatedAt = String(tsRow?.updated_at || '')
+        if (!updatedAt) return
+        if (updatedAt === prCloudUpdatedAtRef.current) return
+
+        // 2) 有變更才抓整包 data
+        const { data: fullRow, error: fullErr } = await sb
           .from('app_data')
           .select('data, updated_at')
           .eq('key', key)
           .maybeSingle()
         if (disposed) return
-        if (error) throw error
-        const updatedAt = String(data?.updated_at || '')
-        if (!updatedAt) return
-        if (updatedAt === prCloudUpdatedAtRef.current) return
-        prCloudUpdatedAtRef.current = updatedAt
+        if (fullErr) throw fullErr
+        const updatedAt2 = String(fullRow?.updated_at || '')
+        if (updatedAt2) prCloudUpdatedAtRef.current = updatedAt2
 
-        const raw = data?.data
+        const raw = fullRow?.data
         const arr =
           Array.isArray(raw)
             ? raw
             : (typeof raw === 'string' ? (() => { try { return JSON.parse(raw || '[]') } catch (_) { return [] } })() : [])
+        const pid = String(viewingProjectId || '').trim()
 
         // 寫回 localStorage（per-project key + legacy map），讓其它頁面也能一致運作
         try { localStorage.setItem(key, JSON.stringify(arr)) } catch (_) {}
@@ -81,13 +98,15 @@ function ProjectDeficiencyTracking() {
           const legacyRaw = localStorage.getItem('jiameng_project_records')
           const legacy = legacyRaw ? JSON.parse(legacyRaw) : {}
           const nextLegacy = legacy && typeof legacy === 'object' ? { ...legacy } : {}
-          nextLegacy[String(viewingProjectId)] = arr
+          nextLegacy[String(pid)] = arr
           localStorage.setItem('jiameng_project_records', JSON.stringify(nextLegacy))
         } catch (_) {}
 
         setProjectRecords(arr)
       } catch (_) {
         // 靜默：避免一直跳錯誤視窗干擾操作
+      } finally {
+        inFlight = false
       }
     }
 
@@ -111,7 +130,8 @@ function ProjectDeficiencyTracking() {
       } catch (_) {}
     }
   }
-  useRealtimeKeys(['jiameng_projects', 'jiameng_project_records', 'jiameng_engineering_schedules', 'jiameng_project_deficiencies'], refetchDeficiency)
+  // 監聽 per-project keys：任何專案缺失表有變動都觸發 refetch（prefix match）
+  useRealtimeKeys(['jiameng_projects', 'jiameng_project_records:', 'jiameng_engineering_schedules', 'jiameng_project_deficiencies'], refetchDeficiency)
 
   useEffect(() => {
     loadProjects()
