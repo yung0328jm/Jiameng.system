@@ -17,7 +17,9 @@ export const APP_DATA_KEYS = [
   'jiameng_late_performance_config', 'jiameng_attendance_device_config', 'jiameng_dropdown_options',
   'jiameng_completion_rate_config', 'jiameng_personal_performance', 'jiameng_activity_filter_tags',
   'jiameng_company_activities', 'jiameng_leaderboard_test_records', 'jiameng_project_deficiencies',
-  'jiameng_project_records', 'jiameng_projects', 'jiameng_calendar_events', 'jiameng_engineering_records',
+  // 專案缺失表：改為每專案一份 key（jiameng_project_records:<projectId>），避免整包太大導致不同步
+  // legacy 'jiameng_project_records' 不再納入初始同步清單（仍可能存在於雲端，避免拉回超大 payload）
+  'jiameng_projects', 'jiameng_calendar_events', 'jiameng_engineering_records',
   'jiameng_registration_password',
   // 排行榜：刪除黑名單 + 獎勵去重記錄（避免多裝置同步造成復活/重複發放）
   'jiameng_deleted_leaderboards',
@@ -74,11 +76,13 @@ export async function syncFromSupabase() {
   }
 
   try {
-    const [schedRes, leaveRes, quotaRes, appRes] = await Promise.all([
+    const [schedRes, leaveRes, quotaRes, appRes, prRes] = await Promise.all([
       sb.from('engineering_schedules').select('id, data, created_at').order('created_at', { ascending: true }),
       sb.from('leave_applications').select('*').order('created_at', { ascending: true }),
       sb.from('special_leave_quota').select('account, days'),
-      sb.from('app_data').select('key, data').in('key', APP_DATA_KEYS)
+      sb.from('app_data').select('key, data').in('key', APP_DATA_KEYS),
+      // 專案缺失表：抓取所有 per-project keys
+      sb.from('app_data').select('key, data').like('key', 'jiameng_project_records:%')
     ])
 
     const schedules = (schedRes.data || []).map((r) => ({ ...(r.data || {}), id: r.id, createdAt: r.created_at }))
@@ -106,6 +110,23 @@ export async function syncFromSupabase() {
         localStorage.setItem(r.key, typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}))
       } catch (_) {}
     })
+
+    // 專案缺失表：寫入每專案 key（同時整理一份 legacy map 供舊讀取/快速查找）
+    try {
+      const rows = Array.isArray(prRes?.data) ? prRes.data : []
+      const map = {}
+      rows.forEach((r) => {
+        const key = String(r?.key || '')
+        if (!key.startsWith('jiameng_project_records:')) return
+        const pid = key.split(':')[1] || ''
+        const data = r?.data
+        const arr = Array.isArray(data) ? data : (typeof data === 'string' ? (() => { try { return JSON.parse(data || '[]') } catch (_) { return [] } })() : [])
+        localStorage.setItem(key, JSON.stringify(arr))
+        if (pid) map[pid] = arr
+      })
+      // 不同步回雲端，只是本機快取
+      localStorage.setItem('jiameng_project_records', JSON.stringify(map))
+    } catch (_) {}
     if (typeof console !== 'undefined' && console.info) {
       console.info('[Sync] 已從雲端載入', { 排程: (schedRes.data || []).length, 請假: (leaveRes.data || []).length, app_data: (appRes.data || []).length })
     }
