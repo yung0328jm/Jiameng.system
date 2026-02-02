@@ -997,6 +997,8 @@ function ProjectDeficiencyTracking() {
           onPushProjectsToCloud={pushProjectsToCloud}
           onPushCurrentProjectRecordsToCloud={pushCurrentProjectRecordsToCloud}
           onFlushOutboxNow={flushOutboxNow}
+          onWriteTestKey={writeTestKey}
+          onForceUpsertCurrentProject={forceUpsertCurrentProject}
         />
       )}
 
@@ -1157,7 +1159,9 @@ function ProjectDetailView({
   onRunSyncDiag,
   onPushProjectsToCloud,
   onPushCurrentProjectRecordsToCloud,
-  onFlushOutboxNow
+  onFlushOutboxNow,
+  onWriteTestKey,
+  onForceUpsertCurrentProject
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
@@ -1380,14 +1384,14 @@ function ProjectDetailView({
               <div className="flex flex-wrap gap-2 mt-1">
                 <button
                   type="button"
-                  onClick={writeTestKey}
+                  onClick={onWriteTestKey}
                   className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
                 >
                   寫入測試 key
                 </button>
                 <button
                   type="button"
-                  onClick={forceUpsertCurrentProject}
+                  onClick={onForceUpsertCurrentProject}
                   className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
                 >
                   強制 upsert 本專案缺失
