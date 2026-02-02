@@ -4,6 +4,7 @@ import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'
 const QUOTA_KEY = 'jiameng_special_leave_quota'
+const PROJECT_RECORD_PREFIX = 'jiameng_project_records:'
 
 /** 需從 app_data 同步的 localStorage key（不含排程／請假／特休，不含登入狀態） */
 export const APP_DATA_KEYS = [
@@ -52,7 +53,55 @@ const _timer = new Map() // key -> timeoutId
 const _inFlight = new Set() // key
 
 async function _doUpsert(sb, key, value) {
-  const data = typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value ?? {})
+  let data = typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value ?? {})
+
+  // 專案缺失表（per-project）：多裝置同時更新狀態/進度時，若直接整包覆蓋會互相打架。
+  // 這裡改成「先抓雲端現況 → 逐筆以 updatedAt 合併 → 再寫回」來避免覆蓋丟失。
+  if (key && String(key).startsWith(PROJECT_RECORD_PREFIX)) {
+    try {
+      const incoming = Array.isArray(data) ? data : []
+      const { data: cloudRow } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      const cloudRaw = cloudRow?.data
+      const cloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+
+      const updatedAtOf = (r) => {
+        const t0 = Date.parse(r?.updatedAt || '') || 0
+        const t1 = Date.parse(r?.createdAt || '') || 0
+        return Math.max(t0, t1)
+      }
+      const mergeArr = (a0, b0) => {
+        const a = Array.isArray(a0) ? a0 : []
+        const b = Array.isArray(b0) ? b0 : []
+        const byId = new Map()
+        ;[...a, ...b].forEach((r) => {
+          const id = String(r?.id || '').trim()
+          if (!id) return
+          const prev = byId.get(id)
+          if (!prev) { byId.set(id, r); return }
+          const ta = updatedAtOf(prev)
+          const tb = updatedAtOf(r)
+          const base = tb >= ta ? r : prev
+          const other = tb >= ta ? prev : r
+          byId.set(id, { ...other, ...base })
+        })
+        const merged = Array.from(byId.values())
+        // rowNumber 是表格順序，優先以它排序
+        merged.sort((x, y) => {
+          const ax = Number(x?.rowNumber) || 0
+          const ay = Number(y?.rowNumber) || 0
+          if (ax !== ay) return ax - ay
+          return updatedAtOf(y) - updatedAtOf(x)
+        })
+        return merged
+      }
+
+      data = mergeArr(cloud, incoming)
+    } catch (_) {
+      // 若雲端讀取失敗，仍然照原本資料寫入
+    }
+  }
 
   // 道具防呆：避免任何裝置把 jiameng_items 覆蓋成只剩彈幕
   if (key === 'jiameng_items') {
