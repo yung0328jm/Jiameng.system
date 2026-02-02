@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
 import { getSchedules, saveSchedule, updateSchedule, deleteSchedule } from '../utils/scheduleStorage'
+import { deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
 import { getDropdownOptionsByCategory, addDropdownOption, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
@@ -10,6 +11,8 @@ import { getDisplayNameForAccount } from '../utils/displayName'
 import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
+import { getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
   getWorkItemCollaborators,
@@ -219,6 +222,7 @@ function Calendar() {
     loadDropdownOptions()
   }
   useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
+  useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
 
   // 点击外部关闭下拉選單
   useEffect(() => {
@@ -584,7 +588,31 @@ function Calendar() {
   const handleDeleteSchedule = () => {
     if (selectedDetailItem && selectedDetailType === 'schedule') {
       if (isLeaveScheduleItem(selectedDetailItem)) {
-        alert('請假排程為自動帶入紀錄，無需刪除。')
+        const role = getCurrentUserRole()
+        if (role !== 'admin') {
+          alert('請假排程為自動帶入紀錄，只有管理員可以刪除。')
+          return
+        }
+        const leaveId = String(selectedDetailItem?.leaveApplicationId || '').trim()
+        const msg = leaveId
+          ? '確定要刪除此「請假」紀錄嗎？\n（將同時刪除這筆請假申請與所有請假排程天數）'
+          : '確定要刪除此「請假」排程嗎？'
+        if (!window.confirm(msg)) return
+
+        if (leaveId) {
+          // 1) 刪除所有由該 leaveApplicationId 產生的請假排程
+          deleteSchedulesByLeaveApplicationId(leaveId)
+          // 2) 刪除請假申請
+          deleteLeaveApplication(leaveId)
+        } else {
+          // fallback：只刪單天排程
+          deleteSchedule(selectedDetailItem.id)
+        }
+        const allSchedules = getSchedules()
+        setSchedules(allSchedules)
+        setShowDetailModal(false)
+        setSelectedDetailItem(null)
+        setSelectedDetailType(null)
         return
       }
       if (window.confirm('確定要刪除此工程排程嗎？')) {
@@ -1762,7 +1790,7 @@ function Calendar() {
                 <div className="space-y-3 text-white">
                   {isLeaveScheduleItem(selectedDetailItem) && (
                     <div className="bg-teal-600/20 border border-teal-400/40 rounded-lg p-3 text-teal-100 text-sm">
-                      此為「請假」紀錄（由請假申請自動帶入），僅供查看狀態，不提供編輯／刪除。
+                      此為「請假」紀錄（由請假申請自動帶入），僅供查看狀態，不提供編輯；管理員可刪除。
                     </div>
                   )}
                   {/* 活動 */}
@@ -1995,14 +2023,16 @@ function Calendar() {
                   })()}
                   
                   {/* 编辑和删除按钮 */}
-                  {!isLeaveScheduleItem(selectedDetailItem) && (
+                  {(!isLeaveScheduleItem(selectedDetailItem) || getCurrentUserRole() === 'admin') && (
                     <div className="flex space-x-3 pt-4 border-t border-blue-700">
-                      <button
-                        onClick={handleEditSchedule}
-                        className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 transition-colors"
-                      >
-                        編輯
-                      </button>
+                      {!isLeaveScheduleItem(selectedDetailItem) && (
+                        <button
+                          onClick={handleEditSchedule}
+                          className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 transition-colors"
+                        >
+                          編輯
+                        </button>
+                      )}
                       <button
                         onClick={handleDeleteSchedule}
                         className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 transition-colors"
