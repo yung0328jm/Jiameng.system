@@ -45,13 +45,16 @@ export const getTripReportsByProject = (projectId, todayYmd = '') => {
     .filter((r) => r.projectId === projectId)
     .filter((r) => {
       if (!todayYmd) return true
+      // 先看明確紀錄的 ymd（避免跨日/時區造成「同日卻看不到」）
+      const ymd = String(r?.ymd || '').trim()
+      if (ymd) return ymd === todayYmd
       return ymdLocal(r?.createdAt || '') === todayYmd
     })
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 }
 
 /** 新增一筆行程回報 */
-export const addTripReport = ({ projectId, projectName, actionType, userId, userName }) => {
+export const addTripReport = ({ projectId, projectName, actionType, userId, userName, ymd }) => {
   if (!actionTypes.includes(actionType)) return { success: false, message: '無效的類型' }
   const list = loadAll()
   const record = {
@@ -61,6 +64,7 @@ export const addTripReport = ({ projectId, projectName, actionType, userId, user
     actionType,
     userId: userId || '',
     userName: userName || userId || '',
+    ymd: String(ymd || '').trim() || ymdLocal(new Date().toISOString()),
     createdAt: new Date().toISOString()
   }
   list.push(record)
