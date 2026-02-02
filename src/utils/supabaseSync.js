@@ -39,8 +39,20 @@ export async function syncKeyToSupabase(key, value) {
   if (!sb || !key) return
 
   // 頻繁寫入（例如缺失表狀態下拉）容易造成並發覆蓋/掉包，改成「同 key 排隊 + 去抖」只送最後一次
-  const shouldDebounce = String(key).startsWith(PROJECT_RECORD_PREFIX)
-  const debounceMs = shouldDebounce ? 150 : 0
+  const isProjectRecordKey = String(key).startsWith(PROJECT_RECORD_PREFIX)
+  // 彙整輸入/大量新增：盡量立即送出，避免使用者馬上重新整理造成雲端尚未寫入而「消失」
+  let preferImmediate = false
+  if (isProjectRecordKey) {
+    try {
+      const raw = typeof value === 'string' ? value : JSON.stringify(value ?? [])
+      const arr = Array.isArray(value)
+        ? value
+        : (typeof value === 'string' ? (() => { try { return JSON.parse(value || '[]') } catch (_) { return [] } })() : [])
+      if ((arr?.length || 0) >= 5) preferImmediate = true
+      if (raw && raw.length >= 8000) preferImmediate = true
+    } catch (_) {}
+  }
+  const debounceMs = isProjectRecordKey && !preferImmediate ? 150 : 0
 
   // eslint-disable-next-line no-use-before-define
   return scheduleUpsert(sb, key, value, debounceMs)
@@ -222,17 +234,53 @@ export async function syncFromSupabase() {
     try {
       const rows = Array.isArray(prRes?.data) ? prRes.data : []
       const map = {}
+      const seen = new Set()
       rows.forEach((r) => {
         const key = String(r?.key || '')
         if (!key.startsWith(PROJECT_RECORD_PREFIX)) return
         const pid = String(key).slice(PROJECT_RECORD_PREFIX.length).trim()
         const data = r?.data
         const arr = Array.isArray(data) ? data : (typeof data === 'string' ? (() => { try { return JSON.parse(data || '[]') } catch (_) { return [] } })() : [])
-        localStorage.setItem(key, JSON.stringify(arr))
-        if (pid) map[pid] = arr
+        seen.add(String(pid || ''))
+
+        // 重要：刷新/登入時不要用雲端覆蓋掉本機較新的資料（會造成「重新整理就消失」）
+        let localArr = []
+        try {
+          const rawLocal = localStorage.getItem(key)
+          localArr = rawLocal ? JSON.parse(rawLocal) : []
+        } catch (_) {
+          localArr = []
+        }
+        const merged = mergeArr(localArr, arr)
+        localStorage.setItem(key, JSON.stringify(merged))
+        if (pid) map[pid] = merged
+
+        // healing：若本機有較新/較多資料，補回雲端（避免雲端漏寫造成下一次刷新消失）
+        try {
+          if ((merged?.length || 0) > (arr?.length || 0)) {
+            syncKeyToSupabase(key, JSON.stringify(merged))
+          }
+        } catch (_) {}
       })
       // legacy map：不寫回雲端，只做本機快取
       localStorage.setItem(PROJECT_RECORDS_KEY, JSON.stringify(map))
+
+      // 雲端沒有的專案 key：如果本機 legacy 有資料，補寫回雲端
+      try {
+        const legacyRaw = localStorage.getItem(PROJECT_RECORDS_KEY)
+        const legacyObj = legacyRaw ? JSON.parse(legacyRaw) : {}
+        if (legacyObj && typeof legacyObj === 'object') {
+          Object.keys(legacyObj).forEach((pid) => {
+            if (!pid) return
+            if (seen.has(String(pid))) return
+            const key = `${PROJECT_RECORD_PREFIX}${pid}`
+            const arr = Array.isArray(legacyObj?.[pid]) ? legacyObj[pid] : []
+            if (!Array.isArray(arr) || arr.length === 0) return
+            try { localStorage.setItem(key, JSON.stringify(arr)) } catch (_) {}
+            syncKeyToSupabase(key, JSON.stringify(arr))
+          })
+        }
+      } catch (_) {}
 
       // 若雲端尚未產生任何 per-project keys，則回退讀 legacy 整包，避免新裝置看不到舊資料
       if (rows.length === 0) {
@@ -245,7 +293,12 @@ export async function syncFromSupabase() {
           localStorage.setItem(PROJECT_RECORDS_KEY, JSON.stringify(obj))
           Object.keys(obj).forEach((pid) => {
             const arr = Array.isArray(obj?.[pid]) ? obj[pid] : []
-            localStorage.setItem(`${PROJECT_RECORD_PREFIX}${pid}`, JSON.stringify(arr))
+            const perKey = `${PROJECT_RECORD_PREFIX}${pid}`
+            localStorage.setItem(perKey, JSON.stringify(arr))
+            // migration：把 legacy 拆成 per-project keys 寫回雲端（之後都用小包同步）
+            try {
+              if (Array.isArray(arr) && arr.length > 0) syncKeyToSupabase(perKey, JSON.stringify(arr))
+            } catch (_) {}
           })
         }
       }
