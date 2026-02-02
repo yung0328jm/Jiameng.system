@@ -96,6 +96,58 @@ export const deleteDropdownOption = (id) => {
   }
 }
 
+// 調整某分類內的選項順序（依照 orderedIds 排列）
+// 會保留其他分類的相對位置，只替換該分類在全量陣列中的順序
+export const reorderDropdownOptionsByCategory = (category, orderedIds = []) => {
+  try {
+    const cat = String(category || '').trim()
+    if (!cat) return { success: false, message: '缺少分類' }
+    const ids = Array.isArray(orderedIds) ? orderedIds.map((x) => String(x || '').trim()).filter(Boolean) : []
+
+    const options = getDropdownOptions()
+    const catOptions = options.filter((opt) => opt && opt.category === cat)
+    if (catOptions.length <= 1) return { success: true } // 不需要調整
+
+    const map = new Map(catOptions.map((o) => [String(o.id), o]))
+    const used = new Set()
+    const reordered = []
+
+    // 先依照傳入順序排列
+    ids.forEach((id) => {
+      const it = map.get(id)
+      if (it && !used.has(id)) {
+        reordered.push(it)
+        used.add(id)
+      }
+    })
+    // 再補齊沒有在 ids 內的（保持原順序）
+    catOptions.forEach((it) => {
+      const id = String(it.id)
+      if (!used.has(id)) {
+        reordered.push(it)
+        used.add(id)
+      }
+    })
+
+    // 用 reordered 逐一替換原本 options 中該分類的位置（保留其他分類順序）
+    let idx = 0
+    const merged = options.map((opt) => {
+      if (opt && opt.category === cat) {
+        const next = reordered[idx]
+        idx += 1
+        return next || opt
+      }
+      return opt
+    })
+
+    saveDropdownOptions(merged)
+    return { success: true }
+  } catch (error) {
+    console.error('Error reordering dropdown options:', error)
+    return { success: false, message: '排序失敗' }
+  }
+}
+
 // 根據下拉選單的顯示名稱（value）獲取綁定的帳號
 // 如果沒有綁定帳號，則返回原來的名稱
 export const getBoundAccountByValue = (value, category = 'participants') => {
