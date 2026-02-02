@@ -1,5 +1,6 @@
 // 專案記錄存储工具
 import { syncKeyToSupabase } from './supabaseSync'
+import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 const PROJECT_RECORD_STORAGE_KEY = 'jiameng_project_records' // legacy：本機整包快取（可能過大，不寫回雲端）
 const PROJECT_RECORD_LOCAL_PREFIX = 'jiameng_project_records:' // 本機快取：每個專案一個 key
 const PROJECT_RECORD_CLOUD_PREFIX = 'jiameng_project_records__' // 雲端同步：避免 key 含 ':' 在某些環境被擋
@@ -20,8 +21,29 @@ const persistProject = (projectId, arr) => {
   localStorage.setItem(perKey, val)
   // 1.1) 本機備份：防止刷新/同步覆蓋造成消失
   try { localStorage.setItem(backupKeyForProject(pid), val) } catch (_) {}
-  // 2) 雲端同步：每專案一份（key 使用安全命名，邏輯比照待辦事項）
-  syncKeyToSupabase(cloudKeyForProject(pid), val)
+  // 2) 雲端同步：每專案一份
+  // 先用「直接 upsert」(等同你按的「強制」) 確保立即可見；失敗才回退到 outbox/排隊機制
+  const cloudKey = cloudKeyForProject(pid)
+  try {
+    const sb = isSupabaseEnabled() ? getSupabaseClient() : null
+    if (sb) {
+      ;(async () => {
+        try {
+          const { error } = await sb
+            .from('app_data')
+            .upsert({ key: cloudKey, data: list, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+          if (error) throw error
+        } catch (_) {
+          // fallback：走既有的同步佇列/去抖/合併邏輯
+          try { syncKeyToSupabase(cloudKey, val) } catch (_) {}
+        }
+      })()
+    } else {
+      syncKeyToSupabase(cloudKey, val)
+    }
+  } catch (_) {
+    try { syncKeyToSupabase(cloudKey, val) } catch (_) {}
+  }
 
   // 3) legacy：維持本機整包快取，讓舊程式/搜尋仍可讀到（不再同步到雲端，避免整包太大寫不進）
   try {
