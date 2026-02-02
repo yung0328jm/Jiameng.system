@@ -27,6 +27,25 @@ const deleteScheduleFromSupabase = async (scheduleId) => {
   }
 }
 
+/** 刪除同一筆請假申請寫入的所有請假排程（多天） */
+export const deleteSchedulesByLeaveApplicationId = (leaveApplicationId) => {
+  try {
+    const leaveId = String(leaveApplicationId || '').trim()
+    if (!leaveId) return { success: false, message: '缺少 leaveApplicationId' }
+    const schedules = getSchedules()
+    const toDelete = (Array.isArray(schedules) ? schedules : []).filter((s) => String(s?.leaveApplicationId || '').trim() === leaveId)
+    const keep = (Array.isArray(schedules) ? schedules : []).filter((s) => String(s?.leaveApplicationId || '').trim() !== leaveId)
+    localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(keep))
+    toDelete.forEach((s) => {
+      try { deleteScheduleFromSupabase(s.id) } catch (_) {}
+    })
+    return { success: true, count: toDelete.length }
+  } catch (e) {
+    console.error('deleteSchedulesByLeaveApplicationId:', e)
+    return { success: false, message: '刪除失敗' }
+  }
+}
+
 export const getSchedules = () => {
   try {
     const schedules = localStorage.getItem(SCHEDULE_STORAGE_KEY)

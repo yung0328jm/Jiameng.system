@@ -91,3 +91,23 @@ export const updateLeaveApplicationStatus = (id, status, approvedBy = '') => {
 export const getLeaveApplicationById = (id) => {
   return getLeaveApplications().find((r) => r.id === id) || null
 }
+
+/** 管理員刪除請假申請（同時同步刪除到 Supabase leave_applications） */
+export const deleteLeaveApplication = (id) => {
+  try {
+    const leaveId = String(id || '').trim()
+    if (!leaveId) return { success: false, message: '缺少 id' }
+    const list = getLeaveApplications()
+    const next = (Array.isArray(list) ? list : []).filter((r) => String(r?.id || '').trim() !== leaveId)
+    localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(next))
+
+    const sb = getSupabaseClient()
+    if (sb) {
+      sb.from('leave_applications').delete().eq('id', leaveId).catch((e) => console.warn('deleteLeaveApplication supabase:', e))
+    }
+    return { success: true }
+  } catch (e) {
+    console.error('deleteLeaveApplication:', e)
+    return { success: false, message: '刪除失敗' }
+  }
+}
