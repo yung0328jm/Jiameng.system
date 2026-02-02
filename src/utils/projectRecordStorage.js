@@ -1,7 +1,7 @@
 // 專案記錄存储工具
 import { syncKeyToSupabase } from './supabaseSync'
-const PROJECT_RECORD_STORAGE_KEY = 'jiameng_project_records' // 雲端同步用（單一 key，避免 RLS 不允許任意 key）
-const PROJECT_RECORD_KEY_PREFIX = 'jiameng_project_records:' // 本機快取：每個專案一份，讀取更快
+const PROJECT_RECORD_STORAGE_KEY = 'jiameng_project_records' // legacy：本機整包快取（可能過大，不寫回雲端）
+const PROJECT_RECORD_KEY_PREFIX = 'jiameng_project_records:' // 雲端同步：每個專案一個 key（避免整包太大寫不進）
 
 const keyForProject = (projectId) => `${PROJECT_RECORD_KEY_PREFIX}${String(projectId || '').trim()}`
 
@@ -11,19 +11,17 @@ const persistProject = (projectId, arr) => {
   const list = Array.isArray(arr) ? arr : []
   const perKey = keyForProject(pid)
   const val = JSON.stringify(list)
-  // 1) 本機快取：每專案一份
+  // 1) 新格式：每專案一份（同步到雲端）
   localStorage.setItem(perKey, val)
+  syncKeyToSupabase(perKey, val)
 
-  // 2) 雲端同步：仍使用單一 key（jiameng_project_records），確保所有裝置都能讀到
-  //    並且避免 Supabase RLS 對任意 key pattern 的限制。
+  // 2) legacy：維持本機整包快取，讓舊程式/搜尋仍可讀到（不再同步到雲端，避免整包太大寫不進）
   try {
     const raw = localStorage.getItem(PROJECT_RECORD_STORAGE_KEY)
     const all = raw ? JSON.parse(raw) : {}
     const next = all && typeof all === 'object' ? { ...all } : {}
     next[pid] = list
     localStorage.setItem(PROJECT_RECORD_STORAGE_KEY, JSON.stringify(next))
-    // 寫回雲端（同步）
-    syncKeyToSupabase(PROJECT_RECORD_STORAGE_KEY, JSON.stringify(next))
   } catch (_) {}
 }
 
