@@ -37,11 +37,66 @@ function ProjectDeficiencyTracking() {
   const [editingField, setEditingField] = useState(null) // {recordId, field, revision}
   const [filterProjectStatus, setFilterProjectStatus] = useState('all') // all, planning, in_progress, completed, on_hold
   const [editingProjectStatusId, setEditingProjectStatusId] = useState(null) // 正在編輯狀態的專案ID
+  const [showSyncDiag, setShowSyncDiag] = useState(false)
+  const [syncDiag, setSyncDiag] = useState({
+    supabaseEnabled: false,
+    todosUpdatedAt: '',
+    projectKey: '',
+    projectUpdatedAt: '',
+    lastError: null,
+    lastCheckedAt: ''
+  })
+
+  const readLastSyncError = () => {
+    try {
+      const raw = localStorage.getItem('jiameng_last_sync_error')
+      return raw ? JSON.parse(raw) : null
+    } catch (_) {
+      return null
+    }
+  }
 
   // Realtime callback 會用到：避免閉包拿到舊 viewingProjectId
   const viewingProjectIdRef = useRef(null)
   useEffect(() => {
     viewingProjectIdRef.current = viewingProjectId
+  }, [viewingProjectId])
+
+  // 同步診斷：用「待辦」作為對照，快速判斷手機端是否有連到同一套 Supabase / app_data 是否可讀
+  const runSyncDiag = async (pidArg) => {
+    const pid = String(pidArg || viewingProjectIdRef.current || '').trim()
+    const enabled = isSupabaseEnabled()
+    const sb = enabled ? getSupabaseClient() : null
+    const projectKey = pid ? `jiameng_project_records__${encodeURIComponent(pid)}` : ''
+    const next = {
+      supabaseEnabled: !!(enabled && sb),
+      todosUpdatedAt: '',
+      projectKey,
+      projectUpdatedAt: '',
+      lastError: readLastSyncError(),
+      lastCheckedAt: new Date().toISOString()
+    }
+    try {
+      if (sb) {
+        try {
+          const { data: tRow, error: tErr } = await sb.from('app_data').select('updated_at').eq('key', 'jiameng_todos').maybeSingle()
+          if (!tErr) next.todosUpdatedAt = String(tRow?.updated_at || '')
+        } catch (_) {}
+        if (projectKey) {
+          try {
+            const { data: pRow, error: pErr } = await sb.from('app_data').select('updated_at').eq('key', projectKey).maybeSingle()
+            if (!pErr) next.projectUpdatedAt = String(pRow?.updated_at || '')
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+    setSyncDiag(next)
+  }
+
+  useEffect(() => {
+    // 進頁/切換專案時自動跑一次診斷（不影響功能）
+    runSyncDiag(viewingProjectId).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewingProjectId])
 
   // 備援即時同步：有些裝置收不到 Realtime（或 app_data RLS/省電造成延遲）
@@ -818,6 +873,10 @@ function ProjectDeficiencyTracking() {
           onUpdateProject={updateProject}
           onLoadProjects={loadProjects}
           getStatusColor={getStatusColor}
+          showSyncDiag={showSyncDiag}
+          setShowSyncDiag={setShowSyncDiag}
+          syncDiag={syncDiag}
+          onRunSyncDiag={runSyncDiag}
         />
       )}
 
@@ -971,7 +1030,11 @@ function ProjectDetailView({
   onStatusChange,
   onUpdateProject,
   onLoadProjects,
-  getStatusColor
+  getStatusColor,
+  showSyncDiag,
+  setShowSyncDiag,
+  syncDiag,
+  onRunSyncDiag
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
@@ -1094,6 +1157,14 @@ function ProjectDetailView({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setShowSyncDiag(!showSyncDiag)}
+            className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+            title="顯示同步診斷（用來排查手機不同步）"
+          >
+            同步診斷
+          </button>
+          <button
+            type="button"
             onClick={handlePrint}
             className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
             title="列印整份表格（含目前篩選結果）"
@@ -1114,6 +1185,53 @@ function ProjectDetailView({
           </button>
         </div>
       </div>
+
+      {showSyncDiag && (
+        <div className="bg-gray-900 rounded-lg p-4 mb-6 border border-gray-700 project-no-print">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-sm font-semibold text-yellow-400">同步診斷（比對待辦 `jiameng_todos`）</div>
+            <button
+              type="button"
+              onClick={() => onRunSyncDiag(project?.id)}
+              className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
+            >
+              重新檢查
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-200">
+            <div className="bg-gray-800 rounded p-2 border border-gray-700">
+              <div className="text-gray-400">Supabase</div>
+              <div className={syncDiag?.supabaseEnabled ? 'text-green-300' : 'text-red-300'}>
+                {syncDiag?.supabaseEnabled ? '已啟用（有設定 VITE_SUPABASE_URL / ANON_KEY）' : '未啟用（手機端若是 APK，通常代表打包時沒帶入 env）'}
+              </div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700">
+              <div className="text-gray-400">最後檢查時間</div>
+              <div className="text-white break-all">{syncDiag?.lastCheckedAt || '—'}</div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700">
+              <div className="text-gray-400">待辦 updated_at（jiameng_todos）</div>
+              <div className="text-white break-all">{syncDiag?.todosUpdatedAt || '—（讀不到或尚未寫入）'}</div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700">
+              <div className="text-gray-400">缺失表雲端 key / updated_at</div>
+              <div className="text-white break-all">{syncDiag?.projectKey || '—'}</div>
+              <div className="text-white break-all">{syncDiag?.projectUpdatedAt || '—（讀不到或尚未寫入）'}</div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 border border-gray-700 sm:col-span-2">
+              <div className="text-gray-400">最後一次寫入錯誤（若有）</div>
+              <div className="text-white break-all">
+                {syncDiag?.lastError
+                  ? `${syncDiag.lastError.at || ''}  key=${syncDiag.lastError.key || ''}  ${syncDiag.lastError.message || ''}`
+                  : '—'}
+              </div>
+            </div>
+          </div>
+          <div className="text-[11px] text-gray-400 mt-2">
+            提示：若手機端這裡顯示「Supabase 未啟用」，那手機一定不會同步（要用同一套 Supabase env 重新打包 APK）。
+          </div>
+        </div>
+      )}
 
       {/* 專案基本資訊 */}
       <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700 project-no-print">
