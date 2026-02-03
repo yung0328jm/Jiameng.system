@@ -74,11 +74,18 @@ function VehicleInfo() {
           processOneVehicle(vehicleKey, ymd, activity, dep, ret, !!entry.needRefuel, entry.fuelCost)
         })
       } else {
-        const vehicle = String(schedule.vehicle || '').trim()
-        if (!vehicle) return
+        const vehicleStr = String(schedule.vehicle || '').trim()
+        if (!vehicleStr) return
         const dep = parseFloat(schedule.departureMileage) || 0
         const ret = parseFloat(schedule.returnMileage) || 0
-        processOneVehicle(vehicle, ymd, activity, dep, ret, !!schedule.needRefuel, schedule.fuelCost)
+        const needRefuel = !!schedule.needRefuel
+        const fuelCost = schedule.fuelCost
+        // 舊資料可能 vehicle 為 "車牌A, 車牌B"，依逗號拆開讓每台車各一張卡
+        const vehicleKeys = vehicleStr.split(',').map((v) => String(v).trim()).filter(Boolean)
+        if (vehicleKeys.length === 0) return
+        vehicleKeys.forEach((vehicleKey) => {
+          processOneVehicle(vehicleKey, ymd, activity, dep, ret, needRefuel, fuelCost)
+        })
       }
     })
 
