@@ -27,6 +27,10 @@ import { getPendingExchangeRequests, approveExchangeRequest, rejectExchangeReque
 import { removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
+import { getAdminUnreadCount, getUserMessages } from '../utils/messageStorage'
+import { getPendingLeaveApplications, getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { getAnnouncements } from '../utils/announcementStorage'
+import { getLastSeen, touchLastSeen } from '../utils/lastSeenStorage'
 
 // 图标组件
 function HomeIcon() {
@@ -191,6 +195,63 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [showTopMenu, setShowTopMenu] = useState(false) // 手機版「更多」選單
   const topMenuButtonRef = useRef(null)
   const [topMenuPosition, setTopMenuPosition] = useState({ top: 0, right: 0 })
+  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0 })
+
+  const calcNavBadges = (me, role) => {
+    const account = String(me || '').trim()
+    const r = String(role || '').trim()
+
+    // 站內信
+    let messagesBadge = 0
+    if (r === 'admin') {
+      messagesBadge = getAdminUnreadCount()
+    } else if (account) {
+      const lastSeen = getLastSeen(account, 'messages') // 使用者端：看「管理員回覆是否有新」
+      const lastTs = Date.parse(lastSeen || '') || 0
+      const threads = getUserMessages(account)
+      messagesBadge = threads.filter((m) => {
+        const replies = Array.isArray(m?.replies) ? m.replies : []
+        const lastReplyTs = replies.reduce((mx, rep) => {
+          const t = Date.parse(rep?.createdAt || '') || 0
+          return t > mx ? t : mx
+        }, 0)
+        return lastReplyTs > lastTs
+      }).length
+    }
+
+    // 請假申請
+    let leaveBadge = 0
+    if (r === 'admin') {
+      leaveBadge = getPendingLeaveApplications().length
+    } else if (account) {
+      const lastSeen = getLastSeen(account, 'leave')
+      const lastTs = Date.parse(lastSeen || '') || 0
+      const mine = (getLeaveApplications() || []).filter((x) => String(x?.userId || '').trim() === account)
+      // 使用者端：看「審核結果更新」是否有新（approvedAt 最準；沒有則用 createdAt）
+      leaveBadge = mine.filter((x) => {
+        const status = String(x?.status || 'pending')
+        if (status === 'pending') return false
+        const t = Date.parse(x?.approvedAt || x?.createdAt || '') || 0
+        return t > lastTs
+      }).length
+    }
+
+    // 交流區（公佈欄更新）
+    let memoBadge = 0
+    if (account) {
+      const lastSeen = getLastSeen(account, 'memo_announcements')
+      const lastTs = Date.parse(lastSeen || '') || 0
+      const anns = getAnnouncements() || []
+      memoBadge = anns.filter((a) => {
+        const t = Date.parse(a?.createdAt || '') || 0
+        if (!(t > lastTs)) return false
+        // 自己發的公告不算未讀
+        return String(a?.createdBy || '').trim() !== account
+      }).length
+    }
+
+    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge }
+  }
 
   const loadAllUsersForAdmin = async () => {
     const me = String(getCurrentUser() || '').trim()
@@ -312,11 +373,23 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       setAvailableItems(getItems())
       loadPendingExchangeRequests()
     }
+    setNavBadges(calcNavBadges(user, role))
   }
   useRealtimeKeys(
-    ['jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests'],
+    [
+      'jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests',
+      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_announcements', 'jiameng_last_seen_v1'
+    ],
     refetchDashboard
   )
+
+  // 初始計算一次徽章（避免等到 realtime 才出現）
+  useEffect(() => {
+    const user = getCurrentUser()
+    const role = getCurrentUserRole()
+    setNavBadges(calcNavBadges(user, role))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleApproveExchange = (requestId) => {
     if (!window.confirm('確定要確認此兌換請求嗎？確認後道具將從用戶背包中移除。')) {
@@ -511,6 +584,15 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const handleTabClick = (tab, path) => {
     setActiveTab(tab)
     navigate(path)
+    // 點進頁面時：立即標記已讀（僅影響「使用者端 lastSeen」，管理員待審/未讀是狀態制）
+    const me = String(getCurrentUser() || '').trim()
+    const role = getCurrentUserRole()
+    if (me && role !== 'admin') {
+      if (tab === 'messages') touchLastSeen(me, 'messages')
+      if (tab === 'leave-application') touchLastSeen(me, 'leave')
+      if (tab === 'memo') touchLastSeen(me, 'memo_announcements')
+      setNavBadges(calcNavBadges(me, role))
+    }
   }
 
   // 依目前分頁回傳標題（上方導覽列中央顯示用）
@@ -1054,6 +1136,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="交流區"
             isActive={activeTab === 'memo'}
             onClick={() => handleTabClick('memo', '/memo')}
+            badge={navBadges.memo > 0 ? navBadges.memo : null}
           />
           <NavItem
             icon={<PeopleIcon />}
@@ -1099,12 +1182,14 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="站內信"
             isActive={activeTab === 'messages'}
             onClick={() => handleTabClick('messages', '/messages')}
+            badge={navBadges.messages > 0 ? navBadges.messages : null}
           />
           <NavItem
             icon={<LeaveIcon />}
             label="請假申請"
             isActive={activeTab === 'leave-application'}
             onClick={() => handleTabClick('leave-application', '/leave-application')}
+            badge={navBadges.leave > 0 ? navBadges.leave : null}
           />
           <NavItem
             icon={<CheckInIcon />}
