@@ -124,12 +124,12 @@ export const getLeaveFillerAccount = () => {
   }
 }
 
-/** 管理員設定請假代填人帳號 */
+/** 管理員設定請假代填人帳號（寫入 Supabase 時需傳 JSON 字串，否則 _doUpsert 的 JSON.parse 會拋錯導致未寫入） */
 export const setLeaveFillerAccount = (account) => {
   try {
     const val = account != null ? String(account).trim() : ''
     localStorage.setItem(LEAVE_FILLER_KEY, val)
-    syncKeyToSupabase(LEAVE_FILLER_KEY, val)
+    syncKeyToSupabase(LEAVE_FILLER_KEY, JSON.stringify(val))
     return { success: true }
   } catch (e) {
     console.error('setLeaveFillerAccount:', e)
