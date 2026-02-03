@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
+import { getDisplayNameForAccount } from '../utils/displayName'
 import {
   addLeaveApplication,
   getLeaveApplications,
   getPendingLeaveApplications,
   updateLeaveApplicationStatus,
-  getLeaveApplicationById
+  getLeaveApplicationById,
+  getLeaveFillerAccount,
+  setLeaveFillerAccount
 } from '../utils/leaveApplicationStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { saveSchedule } from '../utils/scheduleStorage'
+import { touchLastSeen } from '../utils/lastSeenStorage'
 import {
   getSpecialLeaveQuota,
   getSpecialLeaveUsed,
@@ -68,13 +72,19 @@ function LeaveApplication() {
   const [applications, setApplications] = useState([])
   const [pendingList, setPendingList] = useState([])
   const [quotaUsers, setQuotaUsers] = useState([]) // 特休設定用：Supabase 時從 profiles 載入
+  const [leaveFillerAccount, setLeaveFillerAccountState] = useState('')
+  const [applyForUserId, setApplyForUserId] = useState('') // 代填人：代誰請假
 
   const loadApplications = () => {
     setApplications(getLeaveApplications())
     setPendingList(getPendingLeaveApplications())
   }
+  const loadFillerAccount = () => setLeaveFillerAccountState(getLeaveFillerAccount())
 
-  useRealtimeKeys(['jiameng_leave_applications', 'jiameng_special_leave_quota'], loadApplications)
+  useRealtimeKeys(['jiameng_leave_applications', 'jiameng_special_leave_quota', 'jiameng_leave_filler_account'], () => {
+    loadApplications()
+    loadFillerAccount()
+  })
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -86,11 +96,22 @@ function LeaveApplication() {
       setUserName(u ? u.name || user : user)
     }
     loadApplications()
+    loadFillerAccount()
   }, [])
 
-  // 管理員特休設定：Supabase 時從 profiles 載入所有用戶，否則從 storage
+  // 使用者端：進入請假申請頁就視為「已查看自己的審核更新」
   useEffect(() => {
-    if (userRole !== 'admin') {
+    if (!currentUser) return
+    if (userRole === 'admin') return
+    touchLastSeen(currentUser, 'leave')
+  }, [currentUser, userRole])
+
+  const isFiller = !!(currentUser && leaveFillerAccount && currentUser === leaveFillerAccount)
+
+  // 管理員：載入用戶（特休設定、指派代填人）；代填人：載入可代填的用戶列表
+  useEffect(() => {
+    const needList = userRole === 'admin' || isFiller
+    if (!needList) {
       setQuotaUsers([])
       return
     }
@@ -98,23 +119,35 @@ function LeaveApplication() {
     if (isAuthSupabase()) {
       getAllProfiles().then((profiles) => {
         if (!cancelled && Array.isArray(profiles)) {
-          setQuotaUsers(profiles.map((p) => ({
-            account: p.account,
-            name: p.display_name || p.account,
-            role: p.is_admin ? 'admin' : 'user'
-          })))
+          const list = profiles
+            .filter((p) => !p?.is_admin)
+            .map((p) => ({
+              account: p.account,
+              name: p.display_name || p.account,
+              role: 'user'
+            }))
+          setQuotaUsers(list)
         }
       }).catch(() => { if (!cancelled) setQuotaUsers([]) })
     } else {
-      setQuotaUsers(getUsers() || [])
+      const users = (getUsers() || []).filter((u) => u?.role !== 'admin')
+      setQuotaUsers(users.map((u) => ({ account: u.account, name: u.name || u.account, role: 'user' })))
     }
     return () => { cancelled = true }
-  }, [userRole])
+  }, [userRole, isFiller])
 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!currentUser) {
       setMessage({ type: 'error', text: '請先登入' })
+      return
+    }
+    const targetUserId = isFiller ? (applyForUserId || currentUser) : currentUser
+    const targetUserName = isFiller
+      ? (quotaUsers.find((u) => u.account === applyForUserId)?.name || applyForUserId || userName)
+      : (userName || currentUser)
+    if (isFiller && !applyForUserId) {
+      setMessage({ type: 'error', text: '請選擇代誰請假' })
       return
     }
     if (!startDate || !endDate) {
@@ -140,21 +173,21 @@ function LeaveApplication() {
         days += 1
         cur.setDate(cur.getDate() + 1)
       }
-      const remaining = getSpecialLeaveRemaining(currentUser)
+      const remaining = getSpecialLeaveRemaining(targetUserId)
       if (days > remaining) {
         setMessage({
           type: 'error',
-          text: `特休剩餘 ${remaining} 天，此區間為 ${days} 天，不足無法送出。請聯絡管理員調整可休天數。`
+          text: `該員特休剩餘 ${remaining} 天，此區間為 ${days} 天，不足無法送出。請聯絡管理員調整可休天數。`
         })
         return
       }
     }
     const result = addLeaveApplication({
-      userId: currentUser,
-      userName: userName || currentUser,
+      userId: targetUserId,
+      userName: targetUserName,
       startDate,
       endDate,
-      reason: reason.trim()
+      reason: reasonTrim
     })
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '申請失敗' })
@@ -165,6 +198,7 @@ function LeaveApplication() {
     setStartDate('')
     setEndDate('')
     setReason('')
+    if (isFiller) setApplyForUserId('')
   }
 
   const writeLeaveToCalendar = (rec) => {
@@ -251,7 +285,13 @@ function LeaveApplication() {
       <div className="max-w-xl mx-auto w-full">
         <div className="mb-4 sm:mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-1">請假申請</h1>
-          <p className="text-gray-400 text-sm sm:text-base">填寫請假區間與事由，送出後由管理員審核，核准後才會顯示於行事曆</p>
+          <p className="text-gray-400 text-sm sm:text-base">
+            {userRole === 'admin'
+              ? '指派一位代填人代為填寫請假；審核通過後會顯示於行事曆。'
+              : isFiller
+                ? '您為代填人，可代他人送出請假申請，送出後由管理員審核。'
+                : '您可在此查看自己的休假訊息、特休天數與今年請假紀錄。'}
+          </p>
         </div>
 
         {message && (
@@ -266,52 +306,96 @@ function LeaveApplication() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">請假起始日 <span className="text-red-400">*</span></label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base focus:outline-none focus:border-yellow-400 touch-manipulation"
-              required
-            />
+        {/* 管理員：指派代填人 */}
+        {userRole === 'admin' && (
+          <div className="mb-6 p-4 bg-gray-800 border border-gray-600 rounded-xl">
+            <h2 className="text-lg font-bold text-yellow-400 mb-2">指派請假代填人</h2>
+            <p className="text-gray-400 text-sm mb-3">僅被指派的帳號可代他人填寫請假申請；其他用戶僅能查看自己的休假與紀錄。</p>
+            <select
+              value={leaveFillerAccount}
+              onChange={(e) => {
+                const v = e.target.value
+                setLeaveFillerAccount(v)
+                setLeaveFillerAccountState(v)
+              }}
+              className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
+            >
+              <option value="">（未指派）</option>
+              {quotaUsers.map((u) => (
+                <option key={u.account} value={u.account}>{u.name}（{u.account}）</option>
+              ))}
+            </select>
           </div>
-          <div>
-            <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">請假結束日 <span className="text-red-400">*</span></label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base focus:outline-none focus:border-yellow-400 touch-manipulation"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">事由（選填）</label>
-            <input
-              type="text"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="例：事假、病假、特休"
-              className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base placeholder-gray-500 focus:outline-none focus:border-yellow-400 touch-manipulation"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={!currentUser}
-            className="w-full min-h-[48px] py-3.5 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 active:bg-yellow-400 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors text-base touch-manipulation"
-          >
-            送出請假申請（待管理員審核）
-          </button>
-        </form>
-
-        {!currentUser && (
-          <p className="mt-4 text-gray-500 text-sm">請先登入後再申請請假。</p>
         )}
 
-        {/* 特休天數：可休 / 已休 / 剩餘（登入者） */}
-        {currentUser && (
+        {/* 代填人：代他人請假表單 */}
+        {isFiller && (
+          <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">代誰請假 <span className="text-red-400">*</span></label>
+              <select
+                value={applyForUserId}
+                onChange={(e) => setApplyForUserId(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base focus:outline-none focus:border-yellow-400 touch-manipulation"
+                required
+              >
+                <option value="">請選擇人員</option>
+                {quotaUsers.map((u) => (
+                  <option key={u.account} value={u.account}>{u.name}（{u.account}）</option>
+                ))}
+              </select>
+              {applyForUserId && (reason || '').toString().includes('特休') && (
+                <p className="text-gray-400 text-xs mt-1">
+                  該員特休剩餘 {getSpecialLeaveRemaining(applyForUserId)} 天
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">請假起始日 <span className="text-red-400">*</span></label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base focus:outline-none focus:border-yellow-400 touch-manipulation"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">請假結束日 <span className="text-red-400">*</span></label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base focus:outline-none focus:border-yellow-400 touch-manipulation"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">事由（選填）</label>
+              <input
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="例：事假、病假、特休"
+                className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base placeholder-gray-500 focus:outline-none focus:border-yellow-400 touch-manipulation"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!currentUser || !applyForUserId}
+              className="w-full min-h-[48px] py-3.5 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 active:bg-yellow-400 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors text-base touch-manipulation"
+            >
+              送出請假申請（待管理員審核）
+            </button>
+          </form>
+        )}
+
+        {!currentUser && (
+          <p className="mt-4 text-gray-500 text-sm">請先登入後再使用。</p>
+        )}
+
+        {/* 特休天數：可休 / 已休 / 剩餘（非管理員看自己的） */}
+        {currentUser && userRole !== 'admin' && (
           <div className="mt-4 sm:mt-6 p-4 bg-gray-800 border border-gray-600 rounded-xl">
             <h2 className="text-base sm:text-lg font-bold text-yellow-400 mb-3">特休</h2>
             <div className="grid grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
@@ -371,7 +455,7 @@ function LeaveApplication() {
                   className="bg-gray-800 border border-gray-600 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3"
                 >
                   <div className="text-xs sm:text-sm min-w-0 flex-1">
-                    <span className="font-semibold text-white block sm:inline">{r.userName || r.userId}</span>
+                    <span className="font-semibold text-white block sm:inline">{getDisplayNameForAccount(r.userId || r.userName || '')}</span>
                     <span className="text-gray-400 hidden sm:inline mx-2">｜</span>
                     <span className="text-gray-300 block sm:inline mt-0.5 sm:mt-0">{r.startDate} ~ {r.endDate}</span>
                     {r.reason && <span className="text-gray-500 block sm:inline sm:ml-2 mt-0.5 sm:mt-0">（{r.reason}）</span>}
@@ -398,15 +482,21 @@ function LeaveApplication() {
           </div>
         )}
 
-        {/* 我的申請紀錄 */}
-        {currentUser && applications.filter((a) => a.userId === currentUser).length > 0 && (
+        {/* 今年請假紀錄（自己的） */}
+        {currentUser && (() => {
+          const currentYear = new Date().getFullYear()
+          const myRecords = applications
+            .filter((a) => a.userId === currentUser)
+            .filter((a) => {
+              const y = a.startDate ? new Date(a.startDate).getFullYear() : (a.createdAt ? new Date(a.createdAt).getFullYear() : 0)
+              return y === currentYear
+            })
+            .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+          return myRecords.length > 0 ? (
           <div className="mt-6 sm:mt-8">
-            <h2 className="text-lg sm:text-xl font-bold text-yellow-400 mb-2 sm:mb-3">我的申請紀錄</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-yellow-400 mb-2 sm:mb-3">今年請假紀錄</h2>
             <div className="space-y-2 max-h-64 overflow-y-auto overflow-x-hidden -mr-1 pr-1">
-              {applications
-                .filter((a) => a.userId === currentUser)
-                .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-                .map((r) => (
+              {myRecords.map((r) => (
                   <div
                     key={r.id}
                     className="bg-gray-800 border border-gray-600 rounded-lg p-3 text-xs sm:text-sm flex flex-wrap items-center justify-between gap-2 min-h-[44px]"
@@ -428,7 +518,8 @@ function LeaveApplication() {
                 ))}
             </div>
           </div>
-        )}
+          ) : null
+        })()}
       </div>
     </div>
   )
