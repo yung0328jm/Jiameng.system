@@ -187,6 +187,10 @@ function PersonalPerformance() {
   const calculatePerformance = (userName) => {
     const { startDate, endDate } = getDateRange()
     const currentRole = getCurrentUserRole()
+    // 只計算至當日：不把未來日期的排程算進績效
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const effectiveEndDate = endDate > todayStr ? todayStr : endDate
+
     // 帳號對應的顯示名稱（含綁定）：行事曆存的是參與人員/負責人的顯示名稱
     const displayNames = getDisplayNamesForAccount(userName || '')
 
@@ -204,10 +208,10 @@ function PersonalPerformance() {
     let itemsWithRate = 0
     let totalCompletionRateAdjustment = 0 // 每天每條工項依完成率各算加減分，再加總（不用整月平均）
 
-    // 依據行事曆排程中的工作項目（目標數、實際數量）計算 平均完成率、完成項目、部分完成；每條工項依完成率查表加減分後加總
+    // 依據行事曆排程中的工作項目（目標數、實際數量）計算 平均完成率、完成項目、部分完成；每條工項依完成率查表加減分後加總；只算到當日為止
     schedules.forEach(schedule => {
       if (startDate && schedule.date && schedule.date < startDate) return
-      if (endDate && schedule.date && schedule.date > endDate) return
+      if (schedule.date && schedule.date > effectiveEndDate) return
 
       if (!schedule.workItems || schedule.workItems.length === 0) return
 

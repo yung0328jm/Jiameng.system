@@ -137,6 +137,8 @@ function UserManagement() {
 
   const calculateAllUsersPerformance = () => {
     const { startDate, endDate } = getDateRange()
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const effectiveEndDate = endDate > todayStr ? todayStr : endDate // 只計算至當日，不納入未來排程
     const performanceData = {}
     const lateConfig = getLatePerformanceConfig()
     const normalizeYMD = (d) => String(d || '').slice(0, 10)
@@ -172,7 +174,7 @@ function UserManagement() {
 
       schedules.forEach(schedule => {
         if (startDate && schedule.date && schedule.date < startDate) return
-        if (endDate && schedule.date && schedule.date > endDate) return
+        if (schedule.date && schedule.date > effectiveEndDate) return
 
         if (!schedule.workItems || schedule.workItems.length === 0) return
         schedule.workItems.forEach(item => {
