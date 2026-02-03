@@ -99,6 +99,13 @@ function LeaveApplication() {
     loadFillerAccount()
   }, [])
 
+  // 代理人裝置可能晚於同步：每隔幾秒重讀代填人設定，讓表單在同步後能出現
+  useEffect(() => {
+    if (!currentUser || userRole === 'admin') return
+    const t = setInterval(() => loadFillerAccount(), 3000)
+    return () => clearInterval(t)
+  }, [currentUser, userRole])
+
   // 使用者端：進入請假申請頁就視為「已查看自己的審核更新」
   useEffect(() => {
     if (!currentUser) return
@@ -106,7 +113,13 @@ function LeaveApplication() {
     touchLastSeen(currentUser, 'leave')
   }, [currentUser, userRole])
 
-  const isFiller = !!(currentUser && leaveFillerAccount && currentUser === leaveFillerAccount)
+  // 每次渲染都從 storage 讀取代填人，避免同步較晚時表單不顯示
+  const fillerAccountFromStorage = getLeaveFillerAccount()
+  const isFiller = !!(
+    currentUser &&
+    fillerAccountFromStorage &&
+    String(currentUser).trim() === String(fillerAccountFromStorage).trim()
+  )
   const needUserList = userRole === 'admin' || isFiller
 
   // 管理員：載入用戶（特休設定、指派代填人）；代填人：載入可代填的用戶列表
