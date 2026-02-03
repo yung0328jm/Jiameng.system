@@ -89,6 +89,16 @@ function Calendar() {
   const siteDropdownRef = useRef(null)
   const responsiblePersonDropdownRefs = useRef({})
   const scheduleModalBodyRef = useRef(null)
+  const emptyVehicleEntry = () => ({
+    vehicle: '',
+    departureDriver: '',
+    returnDriver: '',
+    departureMileage: '',
+    returnMileage: '',
+    needRefuel: false,
+    fuelCost: '',
+    invoiceReturned: false
+  })
   const [scheduleFormData, setScheduleFormData] = useState({
     siteName: '',
     date: '',
@@ -97,6 +107,7 @@ function Calendar() {
     endTime: '', // 结束时间
     participants: '',
     vehicle: '',
+    vehicleEntries: [], // 每台車一組：出發/回程駕駛、里程、加油、發票
     departureDriver: '',
     returnDriver: '',
     departureMileage: '',
@@ -594,12 +605,17 @@ function Calendar() {
     .map((s) => s.trim())
     .filter(Boolean)
 
-  // 勾選/取消車輛（可多選，例如案場兩台車）
+  // 勾選/取消車輛（可多選，例如案場兩台車）；同步 vehicleEntries 每台車一組駕駛/里程
   const handleVehicleCheckToggle = (option) => {
-    const next = selectedVehicleList.includes(option)
+    const nextList = selectedVehicleList.includes(option)
       ? selectedVehicleList.filter((v) => v !== option)
       : [...selectedVehicleList, option]
-    setScheduleFormData((prev) => ({ ...prev, vehicle: next.join(', ') }))
+    const prevEntries = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
+    const nextEntries = nextList.map((v) => {
+      const existing = prevEntries.find((e) => String(e?.vehicle || '').trim() === v)
+      return existing ? { ...emptyVehicleEntry(), ...existing, vehicle: v } : { ...emptyVehicleEntry(), vehicle: v }
+    })
+    setScheduleFormData((prev) => ({ ...prev, vehicle: nextList.join(', '), vehicleEntries: nextEntries }))
   }
 
   // 處理車輛選擇（下拉單選，保留以相容既有邏輯；若需多選請用勾選）
@@ -646,7 +662,7 @@ function Calendar() {
     if (any) loadDropdownOptions()
   }
 
-  // 添加新的車輛到選單，並可選擇是否同時勾選
+  // 添加新的車輛到選單，並可選擇是否同時勾選；同步 vehicleEntries
   const handleAddVehicle = () => {
     const value = newVehicleInput.trim()
     if (!value) return
@@ -655,9 +671,13 @@ function Calendar() {
       addDropdownOption(value, 'vehicles')
       loadDropdownOptions()
     }
-    // 加入選單後一併勾選（納入此排程的車輛）
-    const next = selectedVehicleList.includes(value) ? selectedVehicleList : [...selectedVehicleList, value]
-    setScheduleFormData((prev) => ({ ...prev, vehicle: next.join(', ') }))
+    const nextList = selectedVehicleList.includes(value) ? selectedVehicleList : [...selectedVehicleList, value]
+    const prevEntries = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
+    const nextEntries = nextList.map((v) => {
+      const existing = prevEntries.find((e) => String(e?.vehicle || '').trim() === v)
+      return existing ? { ...emptyVehicleEntry(), ...existing, vehicle: v } : { ...emptyVehicleEntry(), vehicle: v }
+    })
+    setScheduleFormData((prev) => ({ ...prev, vehicle: nextList.join(', '), vehicleEntries: nextEntries }))
     setNewVehicleInput('')
   }
 
@@ -704,6 +724,7 @@ function Calendar() {
         endTime: '',
         participants: '',
         vehicle: '',
+        vehicleEntries: [],
         departureDriver: '',
         returnDriver: '',
         departureMileage: '',
@@ -732,6 +753,7 @@ function Calendar() {
         endTime: '',
         participants: '',
         vehicle: '',
+        vehicleEntries: [],
         departureDriver: '',
         returnDriver: '',
         departureMileage: '',
@@ -877,26 +899,43 @@ function Calendar() {
         return
       }
       // 填充编辑表单数据
-      setScheduleFormData({
-        siteName: selectedDetailItem.siteName || '',
-        date: selectedDetailItem.date || '',
-        isAllDay: selectedDetailItem.isAllDay !== undefined ? selectedDetailItem.isAllDay : true,
-        startTime: selectedDetailItem.startTime || '',
-        endTime: selectedDetailItem.endTime || '',
-        participants: selectedDetailItem.participants || '',
-        vehicle: selectedDetailItem.vehicle || '',
-        departureDriver: selectedDetailItem.departureDriver || '',
-        returnDriver: selectedDetailItem.returnDriver || '',
-        departureMileage: selectedDetailItem.departureMileage || '',
-        returnMileage: selectedDetailItem.returnMileage || '',
-        needRefuel: selectedDetailItem.needRefuel || false,
-        fuelCost: selectedDetailItem.fuelCost || '',
-        invoiceReturned: selectedDetailItem.invoiceReturned || false,
-        workItems: selectedDetailItem.workItems || [],
-        createdBy: selectedDetailItem.createdBy || '',
-        createdAt: selectedDetailItem.createdAt || '',
-        tag: selectedDetailItem.tag || 'blue'
-      })
+      (() => {
+        const vehicleStr = selectedDetailItem.vehicle || ''
+        const entries = Array.isArray(selectedDetailItem.vehicleEntries) && selectedDetailItem.vehicleEntries.length > 0
+          ? selectedDetailItem.vehicleEntries.map((e) => ({ ...emptyVehicleEntry(), ...e, vehicle: e.vehicle || '' }))
+          : vehicleStr.split(',').map((s) => s.trim()).filter(Boolean).map((v) => ({
+              ...emptyVehicleEntry(),
+              vehicle: v,
+              departureDriver: selectedDetailItem.departureDriver || '',
+              returnDriver: selectedDetailItem.returnDriver || '',
+              departureMileage: selectedDetailItem.departureMileage || '',
+              returnMileage: selectedDetailItem.returnMileage || '',
+              needRefuel: selectedDetailItem.needRefuel || false,
+              fuelCost: selectedDetailItem.fuelCost || '',
+              invoiceReturned: selectedDetailItem.invoiceReturned || false
+            }))
+        setScheduleFormData({
+          siteName: selectedDetailItem.siteName || '',
+          date: selectedDetailItem.date || '',
+          isAllDay: selectedDetailItem.isAllDay !== undefined ? selectedDetailItem.isAllDay : true,
+          startTime: selectedDetailItem.startTime || '',
+          endTime: selectedDetailItem.endTime || '',
+          participants: selectedDetailItem.participants || '',
+          vehicle: vehicleStr,
+          vehicleEntries: entries,
+          departureDriver: selectedDetailItem.departureDriver || '',
+          returnDriver: selectedDetailItem.returnDriver || '',
+          departureMileage: selectedDetailItem.departureMileage || '',
+          returnMileage: selectedDetailItem.returnMileage || '',
+          needRefuel: selectedDetailItem.needRefuel || false,
+          fuelCost: selectedDetailItem.fuelCost || '',
+          invoiceReturned: selectedDetailItem.invoiceReturned || false,
+          workItems: selectedDetailItem.workItems || [],
+          createdBy: selectedDetailItem.createdBy || '',
+          createdAt: selectedDetailItem.createdAt || '',
+          tag: selectedDetailItem.tag || 'blue'
+        })
+      })()
       // 記住「原本就存在」的工作項目 id，避免新加空白項目也被鎖
       const baseIds = {}
       ;(Array.isArray(selectedDetailItem.workItems) ? selectedDetailItem.workItems : []).forEach((wi) => {
@@ -1022,6 +1061,7 @@ function Calendar() {
         endTime: '',
         participants: '',
         vehicle: '',
+        vehicleEntries: [],
         departureDriver: '',
         returnDriver: '',
         departureMileage: '',
@@ -1046,6 +1086,16 @@ function Calendar() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
+  }
+
+  /** 每台車一組的駕駛/里程/加油/發票 */
+  const handleVehicleEntryChange = (index, field, value) => {
+    setScheduleFormData((prev) => {
+      const list = Array.isArray(prev.vehicleEntries) ? [...prev.vehicleEntries] : []
+      if (index < 0 || index >= list.length) return prev
+      list[index] = { ...list[index], [field]: value }
+      return { ...prev, vehicleEntries: list }
+    })
   }
 
   const handleWorkItemChange = (index, field, value) => {
@@ -1226,20 +1276,42 @@ function Calendar() {
     if (editingScheduleId) {
       // 更新现有排程
       const prev = schedules.find((s) => String(s?.id) === String(editingScheduleId))
-      const payload = {
+      const entriesEdit = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
+      const payloadEdit = {
         ...scheduleFormData,
+        vehicleEntries: entriesEdit,
         id: editingScheduleId,
         createdBy: scheduleFormData?.createdBy || prev?.createdBy || '',
         createdAt: scheduleFormData?.createdAt || prev?.createdAt || ''
       }
-      result = updateSchedule(editingScheduleId, payload)
+      if (entriesEdit.length === 1) {
+        payloadEdit.departureDriver = entriesEdit[0].departureDriver || ''
+        payloadEdit.returnDriver = entriesEdit[0].returnDriver || ''
+        payloadEdit.departureMileage = entriesEdit[0].departureMileage || ''
+        payloadEdit.returnMileage = entriesEdit[0].returnMileage || ''
+        payloadEdit.needRefuel = !!entriesEdit[0].needRefuel
+        payloadEdit.fuelCost = entriesEdit[0].fuelCost || ''
+        payloadEdit.invoiceReturned = !!entriesEdit[0].invoiceReturned
+      }
+      result = updateSchedule(editingScheduleId, payloadEdit)
     } else {
       // 新增排程
-      const payload = {
+      const entriesNew = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
+      const payloadNew = {
         ...scheduleFormData,
-        createdBy: scheduleFormData?.createdBy || currentUser || ''
+        createdBy: scheduleFormData?.createdBy || currentUser || '',
+        vehicleEntries: entriesNew
       }
-      result = saveSchedule(payload)
+      if (entriesNew.length === 1) {
+        payloadNew.departureDriver = entriesNew[0].departureDriver || ''
+        payloadNew.returnDriver = entriesNew[0].returnDriver || ''
+        payloadNew.departureMileage = entriesNew[0].departureMileage || ''
+        payloadNew.returnMileage = entriesNew[0].returnMileage || ''
+        payloadNew.needRefuel = !!entriesNew[0].needRefuel
+        payloadNew.fuelCost = entriesNew[0].fuelCost || ''
+        payloadNew.invoiceReturned = !!entriesNew[0].invoiceReturned
+      }
+      result = saveSchedule(payloadNew)
     }
 
     if (result.success) {
@@ -1252,6 +1324,7 @@ function Calendar() {
         date: '',
         participants: '',
         vehicle: '',
+        vehicleEntries: [],
         departureDriver: '',
         returnDriver: '',
         departureMileage: '',
@@ -1279,6 +1352,7 @@ function Calendar() {
       date: selectedDateForSchedule || '',
       participants: '',
       vehicle: '',
+      vehicleEntries: [],
       departureDriver: '',
       returnDriver: '',
       departureMileage: '',
@@ -1423,9 +1497,20 @@ function Calendar() {
       })
     }
 
+    const entries = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
     const payload = {
       ...scheduleFormData,
-      createdBy: scheduleFormData?.createdBy || currentUser || ''
+      createdBy: scheduleFormData?.createdBy || currentUser || '',
+      vehicleEntries: entries
+    }
+    if (entries.length === 1) {
+      payload.departureDriver = entries[0].departureDriver || ''
+      payload.returnDriver = entries[0].returnDriver || ''
+      payload.departureMileage = entries[0].departureMileage || ''
+      payload.returnMileage = entries[0].returnMileage || ''
+      payload.needRefuel = !!entries[0].needRefuel
+      payload.fuelCost = entries[0].fuelCost || ''
+      payload.invoiceReturned = !!entries[0].invoiceReturned
     }
     const result = saveSchedule(payload)
     if (result.success) {
@@ -1451,6 +1536,7 @@ function Calendar() {
         date: selectedDateForSchedule || '',
         participants: '',
         vehicle: '',
+        vehicleEntries: [],
         departureDriver: '',
         returnDriver: '',
         departureMileage: '',
@@ -2225,90 +2311,43 @@ function Calendar() {
                           </div>
                         )}
 
-                        {/* 車輛 */}
+                        {/* 車輛：多台時依 vehicleEntries 分組顯示 */}
                         {selectedDetailItem.vehicle && (
                           <div>
                             <span className="text-blue-300">車輛:</span>
                             <span className="ml-2">{selectedDetailItem.vehicle}</span>
                           </div>
                         )}
-
-                  {/* 出發駕駛 */}
-                  {selectedDetailItem.departureDriver && (
-                    <div>
-                      <span className="text-blue-300">出發駕駛:</span>
-                      <span className="ml-2">{selectedDetailItem.departureDriver}</span>
-                    </div>
-                  )}
-
-                  {/* 回程駕駛 */}
-                  {selectedDetailItem.returnDriver && (
-                    <div>
-                      <span className="text-blue-300">回程駕駛:</span>
-                      <span className="ml-2">{selectedDetailItem.returnDriver}</span>
-                    </div>
-                  )}
-
-                  {/* 出發里程 */}
-                  {selectedDetailItem.departureMileage && (
-                    <div>
-                      <span className="text-blue-300">出發里程:</span>
-                      <span className="ml-2">{selectedDetailItem.departureMileage} km</span>
-                    </div>
-                  )}
-
-                  {/* 回程里程 */}
-                  {selectedDetailItem.returnMileage && (
-                    <div>
-                      <span className="text-blue-300">回程里程:</span>
-                      <span className="ml-2">{selectedDetailItem.returnMileage} km</span>
-                    </div>
-                  )}
-
-                  {/* 今日總里程 */}
-                  {selectedDetailItem.departureMileage && selectedDetailItem.returnMileage && (
-                    <div>
-                      <span className="text-blue-300">今日總里程:</span>
-                      <span className="ml-2">
-                        {(() => {
-                          const departure = parseFloat(selectedDetailItem.departureMileage) || 0
-                          const returnMile = parseFloat(selectedDetailItem.returnMileage) || 0
-                          const total = returnMile > departure ? returnMile - departure : 0
-                          return `${total} km`
-                        })()}
-                      </span>
-                    </div>
-                  )}
-
-                        {/* 是否加油 */}
-                        <div className="flex items-center">
-                          <span className="text-blue-300">是否加油:</span>
-                          <span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span>
-                          {/* 加油指示灯 */}
-                          <div className="ml-3 flex items-center space-x-2">
-                            <div className={`w-3 h-3 rounded-full ${selectedDetailItem.needRefuel ? 'bg-green-500' : 'bg-gray-600'}`}></div>
-                            <span className="text-xs text-gray-400">加油</span>
-                          </div>
-                        </div>
-
-                  {/* 油資 */}
-                  {selectedDetailItem.fuelCost && (
-                    <div>
-                      <span className="text-blue-300">油資:</span>
-                      <span className="ml-2">NT$ {parseFloat(selectedDetailItem.fuelCost).toLocaleString()}</span>
-                    </div>
-                  )}
-
-                        {/* 發票是否繳回 */}
-                  <div className="flex items-center">
-                    <span className="text-blue-300">發票是否繳回:</span>
-                    <span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span>
-                    {/* 發票指示灯 */}
-                    <div className="ml-3 flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${selectedDetailItem.invoiceReturned ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className="text-xs text-gray-400">發票</span>
-                    </div>
-                  </div>
+                        {Array.isArray(selectedDetailItem.vehicleEntries) && selectedDetailItem.vehicleEntries.length > 0 ? (
+                          selectedDetailItem.vehicleEntries.map((entry, idx) => (
+                            <div key={idx} className="bg-gray-800/60 border border-gray-600 rounded-lg p-3 space-y-2">
+                              <div className="text-yellow-400 font-medium text-sm">車輛 {idx + 1}：{entry.vehicle || '—'}</div>
+                              {entry.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{entry.departureDriver}</span></div>}
+                              {entry.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{entry.returnDriver}</span></div>}
+                              {entry.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{entry.departureMileage} km</span></div>}
+                              {entry.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{entry.returnMileage} km</span></div>}
+                              {entry.departureMileage && entry.returnMileage && (
+                                <div><span className="text-blue-300">今日總里程:</span><span className="ml-2">{Math.max(0, (parseFloat(entry.returnMileage) || 0) - (parseFloat(entry.departureMileage) || 0))} km</span></div>
+                              )}
+                              <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{entry.needRefuel ? '是' : '否'}</span></div>
+                              {entry.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(entry.fuelCost).toLocaleString()}</span></div>}
+                              <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{entry.invoiceReturned ? '是' : '否'}</span></div>
+                            </div>
+                          ))
+                        ) : (
+                          <>
+                            {selectedDetailItem.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{selectedDetailItem.departureDriver}</span></div>}
+                            {selectedDetailItem.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{selectedDetailItem.returnDriver}</span></div>}
+                            {selectedDetailItem.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{selectedDetailItem.departureMileage} km</span></div>}
+                            {selectedDetailItem.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{selectedDetailItem.returnMileage} km</span></div>}
+                            {selectedDetailItem.departureMileage && selectedDetailItem.returnMileage && (
+                              <div><span className="text-blue-300">今日總里程:</span><span className="ml-2">{Math.max(0, (parseFloat(selectedDetailItem.returnMileage) || 0) - (parseFloat(selectedDetailItem.departureMileage) || 0))} km</span></div>
+                            )}
+                            <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span></div>
+                            {selectedDetailItem.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(selectedDetailItem.fuelCost).toLocaleString()}</span></div>}
+                            <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span></div>
+                          </>
+                        )}
 
                   {/* 工作項目 */}
                   {selectedDetailItem.workItems && selectedDetailItem.workItems.length > 0 && (
@@ -2627,19 +2666,28 @@ function Calendar() {
                         </div>
                       )}
 
-                      {/* 出發駕駛 */}
-                      {schedule.departureDriver && (
-                        <div className="text-white text-sm">
-                          <span className="text-blue-300">出發駕駛:</span> {schedule.departureDriver}
-                        </div>
-                      )}
-
-                      {/* 回程駕駛 */}
-                      {schedule.returnDriver && (
-                        <div className="text-white text-sm">
-                          <span className="text-blue-300">回程駕駛:</span> {schedule.returnDriver}
-                        </div>
-                      )}
+                      {/* 出發駕駛／回程駕駛：多台車時依 vehicleEntries 顯示 */}
+                      {(Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0)
+                        ? schedule.vehicleEntries.map((entry, idx) => (
+                            (entry.departureDriver || entry.returnDriver) && (
+                              <div key={idx} className="text-white text-sm">
+                                {entry.vehicle && <span className="text-yellow-300">{entry.vehicle}: </span>}
+                                {entry.departureDriver && <span><span className="text-blue-300">出發</span> {entry.departureDriver}</span>}
+                                {entry.departureDriver && entry.returnDriver && ' / '}
+                                {entry.returnDriver && <span><span className="text-blue-300">回程</span> {entry.returnDriver}</span>}
+                              </div>
+                            )
+                          ))
+                        : (schedule.departureDriver || schedule.returnDriver) && (
+                            <>
+                              {schedule.departureDriver && (
+                                <div className="text-white text-sm"><span className="text-blue-300">出發駕駛:</span> {schedule.departureDriver}</div>
+                              )}
+                              {schedule.returnDriver && (
+                                <div className="text-white text-sm"><span className="text-blue-300">回程駕駛:</span> {schedule.returnDriver}</div>
+                              )}
+                            </>
+                          )}
 
                       {/* 工作項目 */}
                       {schedule.workItems && schedule.workItems.length > 0 && (
@@ -3375,118 +3423,98 @@ function Calendar() {
                   <p className="text-gray-500 text-xs mt-1">輸入後按「加入選單」可新增選項，再從上方勾選一或多台車輛</p>
                 </div>
 
-                {/* 出發駕駛 */}
-                <div>
-                  <label className="block text-gray-300 text-sm mb-2">出發駕駛</label>
-                  <select
-                    name="departureDriver"
-                    value={scheduleFormData.departureDriver}
-                    onChange={handleScheduleChange}
-                    className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
-                  >
-                    <option value="">請選擇</option>
-                    {responsiblePersonOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 回程駕駛 */}
-                <div>
-                  <label className="block text-gray-300 text-sm mb-2">回程駕駛</label>
-                  <select
-                    name="returnDriver"
-                    value={scheduleFormData.returnDriver}
-                    onChange={handleScheduleChange}
-                    className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
-                  >
-                    <option value="">請選擇</option>
-                    {responsiblePersonOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 出發里程 */}
-                <div>
-                  <label className="block text-gray-300 text-sm mb-2">
-                    出發里程
-                  </label>
-                  <input
-                    type="number"
-                    name="departureMileage"
-                    value={scheduleFormData.departureMileage}
-                    onChange={handleScheduleChange}
-                    placeholder="請輸入出發里程"
-                    className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                    min="0"
-                    step="0.1"
-                  />
-                </div>
-
-                {/* 回程里程 */}
-                <div>
-                  <label className="block text-gray-300 text-sm mb-2">
-                    回程里程
-                  </label>
-                  <input
-                    type="number"
-                    name="returnMileage"
-                    value={scheduleFormData.returnMileage}
-                    onChange={handleScheduleChange}
-                    placeholder="請輸入回程里程"
-                    className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                    min="0"
-                    step="0.1"
-                  />
-                </div>
-
-                {/* 是否加油 */}
-                <div className="flex items-center space-x-3">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="needRefuel"
-                      checked={scheduleFormData.needRefuel}
-                      onChange={handleScheduleChange}
-                      className="w-5 h-5 text-yellow-400 bg-gray-700 border-gray-500 rounded focus:ring-yellow-400"
-                    />
-                    <span className="text-gray-300 text-sm">是否加油</span>
-                  </label>
-                </div>
-
-                {/* 油資 */}
-                {scheduleFormData.needRefuel && (
-                  <div>
-                    <label className="block text-gray-300 text-sm mb-2">
-                      油資
-                    </label>
-                    <input
-                      type="number"
-                      name="fuelCost"
-                      value={scheduleFormData.fuelCost}
-                      onChange={handleScheduleChange}
-                      placeholder="請輸入油資金額"
-                      className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                      min="0"
-                      step="0.01"
-                    />
+                {/* 每台車一組：出發/回程駕駛、里程、加油、發票 */}
+                {(Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map((entry, idx) => (
+                  <div key={entry.vehicle || idx} className="space-y-3 p-4 bg-gray-800/50 border border-gray-600 rounded-lg">
+                    <h3 className="text-yellow-400 font-medium text-sm border-b border-gray-600 pb-2">車輛 {idx + 1}：{entry.vehicle || '(未命名)'}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-gray-300 text-sm mb-1">出發駕駛</label>
+                        <select
+                          value={entry.departureDriver || ''}
+                          onChange={(e) => handleVehicleEntryChange(idx, 'departureDriver', e.target.value)}
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
+                        >
+                          <option value="">請選擇</option>
+                          {responsiblePersonOptions.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-gray-300 text-sm mb-1">回程駕駛</label>
+                        <select
+                          value={entry.returnDriver || ''}
+                          onChange={(e) => handleVehicleEntryChange(idx, 'returnDriver', e.target.value)}
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
+                        >
+                          <option value="">請選擇</option>
+                          {responsiblePersonOptions.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-gray-300 text-sm mb-1">出發里程</label>
+                        <input
+                          type="number"
+                          value={entry.departureMileage || ''}
+                          onChange={(e) => handleVehicleEntryChange(idx, 'departureMileage', e.target.value)}
+                          placeholder="請輸入出發里程"
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                          min="0"
+                          step="0.1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-300 text-sm mb-1">回程里程</label>
+                        <input
+                          type="number"
+                          value={entry.returnMileage || ''}
+                          onChange={(e) => handleVehicleEntryChange(idx, 'returnMileage', e.target.value)}
+                          placeholder="請輸入回程里程"
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                          min="0"
+                          step="0.1"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!entry.needRefuel}
+                          onChange={(e) => handleVehicleEntryChange(idx, 'needRefuel', e.target.checked)}
+                          className="w-4 h-4 text-yellow-400 bg-gray-700 border-gray-500 rounded focus:ring-yellow-400"
+                        />
+                        <span className="text-gray-300 text-sm">是否加油</span>
+                      </label>
+                      {entry.needRefuel && (
+                        <input
+                          type="number"
+                          value={entry.fuelCost || ''}
+                          onChange={(e) => handleVehicleEntryChange(idx, 'fuelCost', e.target.value)}
+                          placeholder="油資金額"
+                          className="w-28 bg-gray-700 border border-gray-500 rounded px-2 py-1 text-white text-sm"
+                          min="0"
+                          step="0.01"
+                        />
+                      )}
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!entry.invoiceReturned}
+                          onChange={(e) => handleVehicleEntryChange(idx, 'invoiceReturned', e.target.checked)}
+                          className="w-4 h-4 text-yellow-400 bg-gray-700 border-gray-500 rounded focus:ring-yellow-400"
+                        />
+                        <span className="text-gray-300 text-sm">發票是否繳回</span>
+                      </label>
+                    </div>
                   </div>
+                ))}
+                {(!scheduleFormData.vehicleEntries || scheduleFormData.vehicleEntries.length === 0) && (
+                  <p className="text-gray-500 text-sm">請先在上方勾選一或多台車輛，此處會顯示每台車的出發/回程駕駛與里程。</p>
                 )}
-
-                {/* 發票是否繳回 */}
-                <div className="flex items-center space-x-3">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="invoiceReturned"
-                      checked={scheduleFormData.invoiceReturned}
-                      onChange={handleScheduleChange}
-                      className="w-5 h-5 text-yellow-400 bg-gray-700 border-gray-500 rounded focus:ring-yellow-400"
-                    />
-                    <span className="text-gray-300 text-sm">發票是否繳回</span>
-                  </label>
-                </div>
               </div>
 
               {/* 工作項目列表 */}
