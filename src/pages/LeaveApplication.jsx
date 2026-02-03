@@ -62,17 +62,17 @@ function SpecialLeaveQuotaRow({ account, name, quota, used, onSave }) {
 }
 
 function LeaveApplication() {
-  const [currentUser, setCurrentUser] = useState('')
+  const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
   const [userName, setUserName] = useState('')
-  const [userRole, setUserRole] = useState(null)
+  const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState(null)
   const [applications, setApplications] = useState([])
   const [pendingList, setPendingList] = useState([])
-  const [quotaUsers, setQuotaUsers] = useState([]) // 特休設定用：Supabase 時從 profiles 載入
-  const [leaveFillerAccount, setLeaveFillerAccountState] = useState('')
+  const [quotaUsers, setQuotaUsers] = useState([]) // 特休設定用／代填人可代填名單
+  const [leaveFillerAccount, setLeaveFillerAccountState] = useState(() => getLeaveFillerAccount())
   const [applyForUserId, setApplyForUserId] = useState('') // 代填人：代誰請假
 
   const loadApplications = () => {
@@ -107,11 +107,11 @@ function LeaveApplication() {
   }, [currentUser, userRole])
 
   const isFiller = !!(currentUser && leaveFillerAccount && currentUser === leaveFillerAccount)
+  const needUserList = userRole === 'admin' || isFiller
 
   // 管理員：載入用戶（特休設定、指派代填人）；代填人：載入可代填的用戶列表
   useEffect(() => {
-    const needList = userRole === 'admin' || isFiller
-    if (!needList) {
+    if (!needUserList) {
       setQuotaUsers([])
       return
     }
@@ -134,7 +134,7 @@ function LeaveApplication() {
       setQuotaUsers(users.map((u) => ({ account: u.account, name: u.name || u.account, role: 'user' })))
     }
     return () => { cancelled = true }
-  }, [userRole, isFiller])
+  }, [userRole, needUserList])
 
   const handleSubmit = (e) => {
     e.preventDefault()
