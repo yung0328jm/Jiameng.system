@@ -81,6 +81,7 @@ function Calendar() {
   const [siteStatusFilter, setSiteStatusFilter] = useState('all') // all | in_progress | planning | completed | on_hold
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false)
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false)
+  const [newVehicleInput, setNewVehicleInput] = useState('') // 用於「新增車輛到選單」的輸入，不直接寫入 vehicle
   const [showSiteDropdown, setShowSiteDropdown] = useState(false)
   const [showResponsiblePersonDropdown, setShowResponsiblePersonDropdown] = useState({}) // 每个工作项目的下拉選單状态
   const participantDropdownRef = useRef(null)
@@ -587,9 +588,26 @@ function Calendar() {
     })
   }
 
-  // 处理車輛选择
+  // 已選車輛（從字串解析，供勾選用）
+  const selectedVehicleList = (scheduleFormData.vehicle || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  // 勾選/取消車輛（可多選，例如案場兩台車）
+  const handleVehicleCheckToggle = (option) => {
+    const next = selectedVehicleList.includes(option)
+      ? selectedVehicleList.filter((v) => v !== option)
+      : [...selectedVehicleList, option]
+    setScheduleFormData((prev) => ({ ...prev, vehicle: next.join(', ') }))
+  }
+
+  // 處理車輛選擇（下拉單選，保留以相容既有邏輯；若需多選請用勾選）
   const handleVehicleSelect = (value) => {
-    setScheduleFormData(prev => ({ ...prev, vehicle: value }))
+    const next = selectedVehicleList.includes(value)
+      ? selectedVehicleList.filter((v) => v !== value)
+      : [...selectedVehicleList, value]
+    setScheduleFormData((prev) => ({ ...prev, vehicle: next.join(', ') }))
     setShowVehicleDropdown(false)
   }
 
@@ -599,10 +617,9 @@ function Calendar() {
     setScheduleFormData(prev => ({ ...prev, participants: value }))
   }
 
-  // 处理車輛输入
-  const handleVehicleInput = (e) => {
-    const value = e.target.value
-    setScheduleFormData(prev => ({ ...prev, vehicle: value }))
+  // 處理「新增車輛到選單」的輸入（不直接寫入排程 vehicle）
+  const handleNewVehicleInput = (e) => {
+    setNewVehicleInput(e.target.value)
   }
 
   // 处理活動（案場）输入/选择
@@ -629,13 +646,19 @@ function Calendar() {
     if (any) loadDropdownOptions()
   }
 
-  // 添加新的車輛到下拉選單
+  // 添加新的車輛到選單，並可選擇是否同時勾選
   const handleAddVehicle = () => {
-    const value = scheduleFormData.vehicle.trim()
-    if (value && !vehicleOptions.includes(value)) {
+    const value = newVehicleInput.trim()
+    if (!value) return
+    const added = !vehicleOptions.includes(value)
+    if (added) {
       addDropdownOption(value, 'vehicles')
       loadDropdownOptions()
     }
+    // 加入選單後一併勾選（納入此排程的車輛）
+    const next = selectedVehicleList.includes(value) ? selectedVehicleList : [...selectedVehicleList, value]
+    setScheduleFormData((prev) => ({ ...prev, vehicle: next.join(', ') }))
+    setNewVehicleInput('')
   }
 
   // 处理負責人选择
@@ -691,6 +714,7 @@ function Calendar() {
         workItems: [],
         tag: 'blue'
       })
+      setNewVehicleInput('')
       // 显示新增工程排程表单
       setShowScheduleForm(true)
     }
@@ -717,6 +741,7 @@ function Calendar() {
         invoiceReturned: false,
         workItems: []
       })
+      setNewVehicleInput('')
     }
     setShowScheduleForm(true)
   }
@@ -1007,6 +1032,7 @@ function Calendar() {
         workItems: [],
         tag: 'blue'
       })
+      setNewVehicleInput('')
     }
     setOriginalWorkItemIdMap({})
     setEditingScheduleId(null)
@@ -1236,6 +1262,7 @@ function Calendar() {
         workItems: [],
         tag: 'blue'
       })
+      setNewVehicleInput('')
       setShowScheduleForm(false)
       setShowScheduleModal(false)
       setEditingScheduleId(null)
@@ -1262,6 +1289,7 @@ function Calendar() {
       workItems: [],
       tag: 'blue'
     })
+    setNewVehicleInput('')
     setEditingScheduleId(null)
     setOriginalWorkItemIdMap({})
     if (showScheduleForm) {
@@ -1433,6 +1461,7 @@ function Calendar() {
         workItems: [],
         tag: 'blue'
       })
+      setNewVehicleInput('')
       setShowScheduleForm(false)
       // 主题表单保持打开，用户可以继续添加或保存
     } else {
@@ -3302,44 +3331,48 @@ function Calendar() {
                   )}
                 </div>
 
-                {/* 車輛 */}
+                {/* 車輛（可勾選多台，例如案場兩台車） */}
                 <div className="relative" ref={vehicleDropdownRef}>
                   <label className="block text-gray-300 text-sm mb-2">
-                    車輛
+                    車輛（可勾選多台）
                   </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="vehicle"
-                      value={scheduleFormData.vehicle}
-                      onChange={handleVehicleInput}
-                      onFocus={() => setShowVehicleDropdown(true)}
-                      placeholder="請輸入車輛資訊"
-                      className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                    />
-                    {showVehicleDropdown && vehicleOptions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {vehicleOptions.map((option, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handleVehicleSelect(option)}
-                            className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm"
-                          >
+                  {/* 勾選清單：選單項目 + 已選但尚未在選單中的項目 */}
+                  {(vehicleOptions.length > 0 || selectedVehicleList.length > 0) && (
+                    <div className="mb-3 p-3 bg-gray-800/60 border border-gray-600 rounded-lg">
+                      <span className="text-gray-400 text-xs block mb-2">已選：{selectedVehicleList.length ? selectedVehicleList.join('、') : '無'}</span>
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        {[...new Set([...vehicleOptions, ...selectedVehicleList])].map((option) => (
+                          <label key={option} className="inline-flex items-center gap-2 cursor-pointer text-white text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedVehicleList.includes(option)}
+                              onChange={() => handleVehicleCheckToggle(option)}
+                              className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
+                            />
                             {option}
-                          </div>
+                          </label>
                         ))}
                       </div>
-                    )}
-                  </div>
-                  {scheduleFormData.vehicle && (
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newVehicleInput}
+                      onChange={handleNewVehicleInput}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddVehicle())}
+                      placeholder="請輸入車輛資訊"
+                      className="flex-1 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                    />
                     <button
                       type="button"
                       onClick={handleAddVehicle}
-                      className="mt-2 text-xs text-yellow-400 hover:text-yellow-300"
+                      className="shrink-0 px-3 py-2 rounded bg-gray-600 hover:bg-gray-500 text-yellow-400 text-sm whitespace-nowrap"
                     >
-                      + 將此車輛加入選單
+                      + 加入選單
                     </button>
-                  )}
+                  </div>
+                  <p className="text-gray-500 text-xs mt-1">輸入後按「加入選單」可新增選項，再從上方勾選一或多台車輛</p>
                 </div>
 
                 {/* 出發駕駛 */}
