@@ -17,8 +17,7 @@ function VehicleInfo() {
         vehicleSummary[key] = {
           vehicle: key,
           activities: {},
-          monthlyFuelCosts: {},
-          hasRefueled: false
+          monthlyFuelCosts: {}
         }
       }
       return key
@@ -33,7 +32,6 @@ function VehicleInfo() {
       const delta = returnMile > departure ? (returnMile - departure) : 0
       if (delta > dayByVehicle[key][ymd].mileage) dayByVehicle[key][ymd].mileage = delta
       if (needRefuel && fuelCost != null && fuelCost !== '') {
-        vehicleSummary[key].hasRefueled = true
         const date = new Date(`${ymd}T00:00:00`)
         if (!Number.isNaN(date.getTime())) {
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
