@@ -44,18 +44,20 @@ export const saveCompletionRateRules = (rules) => {
   }
 }
 
-// 根據平均完成率計算調整分數（使用配置的規則）
+// 根據完成率計算單條加減分（使用配置的規則）；區間為 min <= rate <= max（含邊界）
 export const calculateCompletionRateAdjustment = (averageCompletionRate) => {
   const rules = getCompletionRateRules()
-  // 按 minRate 降序排序（優先匹配較高的完成率）
+  // 按 minRate 降序排序（優先匹配較高的完成率，例如 ≥100% 先於 90-100%）
   const sortedRules = [...rules].sort((a, b) => (b.minRate || 0) - (a.minRate || 0))
   
   for (const rule of sortedRules) {
     const min = rule.minRate || 0
     const max = rule.maxRate
     
-    if (averageCompletionRate >= min && (max === null || averageCompletionRate < max)) {
-      return rule.adjustment || 0
+    // 90-100% 表示 90 <= rate <= 100（含 100）；≥100% 用 max === null 表示無上限
+    if (averageCompletionRate >= min && (max === null || averageCompletionRate <= max)) {
+      const adj = rule.adjustment
+      return typeof adj === 'number' && !Number.isNaN(adj) ? adj : (parseFloat(adj) || 0)
     }
   }
   
