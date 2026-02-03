@@ -7,74 +7,78 @@ function VehicleInfo() {
 
   const loadVehicleData = () => {
     const schedules = getSchedules()
-    
-    // 按车辆分组汇总数据
     const vehicleSummary = {}
-
-    // B 方案：同一天同一台車只輸入一次里程，平均分攤到當天所有案場
-    // vehicle -> ymd -> { mileage, activities:Set<string> }
     const dayByVehicle = {}
-    
-    schedules.forEach(schedule => {
-      if (!schedule.vehicle) return
-      
-      const vehicle = schedule.vehicle
-      if (!vehicleSummary[vehicle]) {
-        vehicleSummary[vehicle] = {
-          vehicle: vehicle,
-          activities: {}, // 按活动分组的里程统计
-          monthlyFuelCosts: {} // 按月分组的加油金额
+
+    const ensureVehicle = (vehicleKey) => {
+      const key = String(vehicleKey || '').trim()
+      if (!key) return null
+      if (!vehicleSummary[key]) {
+        vehicleSummary[key] = {
+          vehicle: key,
+          activities: {},
+          monthlyFuelCosts: {},
+          hasRefueled: false
         }
       }
+      return key
+    }
 
-      const ymd = String(schedule.date || '').slice(0, 10)
-      if (!ymd) return
-
-      if (!dayByVehicle[vehicle]) dayByVehicle[vehicle] = {}
-      if (!dayByVehicle[vehicle][ymd]) {
-        dayByVehicle[vehicle][ymd] = { mileage: 0, activities: new Set() }
-      }
-
-      // 記錄當天跑過哪些案場（活動）
-      const activity = String(schedule.siteName || '').trim()
-      if (activity) {
-        dayByVehicle[vehicle][ymd].activities.add(activity)
-      }
-      
-      // 收集「當天這台車」的里程（取最大，避免同一天被填兩次不同數值）
-      const departure = parseFloat(schedule.departureMileage) || 0
-      const returnMile = parseFloat(schedule.returnMileage) || 0
+    const processOneVehicle = (vehicleKey, ymd, activity, departure, returnMile, needRefuel, fuelCost) => {
+      const key = ensureVehicle(vehicleKey)
+      if (!key) return
+      if (!dayByVehicle[key]) dayByVehicle[key] = {}
+      if (!dayByVehicle[key][ymd]) dayByVehicle[key][ymd] = { mileage: 0, activities: new Set() }
+      if (activity) dayByVehicle[key][ymd].activities.add(activity)
       const delta = returnMile > departure ? (returnMile - departure) : 0
-      if (delta > dayByVehicle[vehicle][ymd].mileage) dayByVehicle[vehicle][ymd].mileage = delta
-      
-      // 按月统计加油金额
-      if (schedule.needRefuel && schedule.fuelCost) {
-        const date = ymd ? new Date(`${ymd}T00:00:00`) : new Date('invalid')
-        if (Number.isNaN(date.getTime())) return
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-        
-        if (!vehicleSummary[vehicle].monthlyFuelCosts[monthKey]) {
-          vehicleSummary[vehicle].monthlyFuelCosts[monthKey] = {
-            month: monthKey,
-            totalCost: 0,
-            tripCount: 0,
-            // 同一台車同一天可能跑兩個案場：加油通常只會發生一次，避免重複計入
-            _dayToFuelCost: {}
+      if (delta > dayByVehicle[key][ymd].mileage) dayByVehicle[key][ymd].mileage = delta
+      if (needRefuel && fuelCost != null && fuelCost !== '') {
+        vehicleSummary[key].hasRefueled = true
+        const date = new Date(`${ymd}T00:00:00`)
+        if (!Number.isNaN(date.getTime())) {
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+          if (!vehicleSummary[key].monthlyFuelCosts[monthKey]) {
+            vehicleSummary[key].monthlyFuelCosts[monthKey] = {
+              month: monthKey,
+              totalCost: 0,
+              tripCount: 0,
+              _dayToFuelCost: {}
+            }
+          }
+          const bucket = vehicleSummary[key].monthlyFuelCosts[monthKey]
+          const cost = parseFloat(fuelCost) || 0
+          const prev = bucket._dayToFuelCost[ymd]
+          if (prev == null) {
+            bucket._dayToFuelCost[ymd] = cost
+            bucket.totalCost += cost
+            bucket.tripCount += 1
+          } else if (cost > prev) {
+            bucket._dayToFuelCost[ymd] = cost
+            bucket.totalCost += (cost - prev)
           }
         }
-        
-        const fuelCost = parseFloat(schedule.fuelCost) || 0
-        const bucket = vehicleSummary[vehicle].monthlyFuelCosts[monthKey]
-        const prev = bucket._dayToFuelCost[ymd]
-        if (prev == null) {
-          bucket._dayToFuelCost[ymd] = fuelCost
-          bucket.totalCost += fuelCost
-          bucket.tripCount += 1
-        } else if (fuelCost > prev) {
-          // 若同一天被填了不同金額，以較大者為準（用差額修正）
-          bucket._dayToFuelCost[ymd] = fuelCost
-          bucket.totalCost += (fuelCost - prev)
-        }
+      }
+    }
+
+    schedules.forEach(schedule => {
+      const ymd = String(schedule.date || '').slice(0, 10)
+      if (!ymd) return
+      const activity = String(schedule.siteName || '').trim()
+
+      if (Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0) {
+        schedule.vehicleEntries.forEach((entry) => {
+          const vehicleKey = String(entry?.vehicle || '').trim()
+          if (!vehicleKey) return
+          const dep = parseFloat(entry.departureMileage) || 0
+          const ret = parseFloat(entry.returnMileage) || 0
+          processOneVehicle(vehicleKey, ymd, activity, dep, ret, !!entry.needRefuel, entry.fuelCost)
+        })
+      } else {
+        const vehicle = String(schedule.vehicle || '').trim()
+        if (!vehicle) return
+        const dep = parseFloat(schedule.departureMileage) || 0
+        const ret = parseFloat(schedule.returnMileage) || 0
+        processOneVehicle(vehicle, ymd, activity, dep, ret, !!schedule.needRefuel, schedule.fuelCost)
       }
     })
 
@@ -103,7 +107,6 @@ function VehicleInfo() {
       })
     })
 
-    // 清掉內部欄位，避免存進 state 後影響 UI/序列化
     Object.values(vehicleSummary).forEach((v) => {
       Object.values(v.monthlyFuelCosts || {}).forEach((m) => {
         if (m && m._dayToFuelCost) delete m._dayToFuelCost
@@ -139,13 +142,19 @@ function VehicleInfo() {
         <div className="space-y-6">
           {vehicles.map((vehicle, index) => (
             <div key={index} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              {/* 车辆标题 */}
+              {/* 車輛標題：有加油時亮綠燈 */}
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700">
-                <h3 className="text-xl font-semibold text-yellow-400 flex items-center">
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h3 className="text-xl font-semibold text-yellow-400 flex items-center gap-2">
+                  <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   {vehicle.vehicle}
+                  {vehicle.hasRefueled && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/20 border border-green-400/50" title="有加油記錄">
+                      <span className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]" />
+                      <span className="text-green-400 text-xs font-normal">已加油</span>
+                    </span>
+                  )}
                 </h3>
               </div>
 
