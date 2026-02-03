@@ -202,8 +202,9 @@ function PersonalPerformance() {
     let uncompletedItems = 0
     let totalCompletionRate = 0
     let itemsWithRate = 0
+    let totalCompletionRateAdjustment = 0 // 每天每條工項依完成率各算加減分，再加總（不用整月平均）
 
-    // 依據行事曆排程中的工作項目（目標數、實際數量）計算 平均完成率、完成項目、部分完成
+    // 依據行事曆排程中的工作項目（目標數、實際數量）計算 平均完成率、完成項目、部分完成；每條工項依完成率查表加減分後加總
     schedules.forEach(schedule => {
       if (startDate && schedule.date && schedule.date < startDate) return
       if (endDate && schedule.date && schedule.date > endDate) return
@@ -234,6 +235,7 @@ function PersonalPerformance() {
           totalItems++
           totalCompletionRate += completionRate
           itemsWithRate++
+          totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
 
           if (completionRate >= 100) {
             completedItems++
@@ -494,11 +496,11 @@ function PersonalPerformance() {
       })
     }
 
-    // 計算平均完成率
+    // 計算平均完成率（僅供顯示用）
     const averageCompletionRate = itemsWithRate > 0 ? (totalCompletionRate / itemsWithRate) : 0
 
-    // 根據工作項目達成率計算績效調整分數（使用配置的規則）
-    const completionRateAdjustment = itemsWithRate > 0 ? calculateCompletionRateAdjustment(averageCompletionRate) : 0
+    // 達成率調整分數：每天每條工項依完成率查表加減分後加總（不再用整月平均完成率算一次）
+    const completionRateAdjustment = totalCompletionRateAdjustment
 
     // 分別計算遲到調整分數和未打卡調整分數
     const lateConfig = getLatePerformanceConfig()
@@ -586,6 +588,7 @@ function PersonalPerformance() {
     let cumulativeNoClockInCount = 0
     let cumulativeTotalCompletion = 0
     let cumulativeItemsWithRate = 0
+    let cumulativeCompletionRateAdjustmentSum = 0 // 累積：每天每條工項的達成率加減分加總
     
     while (currentDate <= end) {
       const dateStr = currentDate.toISOString().split('T')[0]
@@ -598,6 +601,7 @@ function PersonalPerformance() {
       let dailyPartial = 0
       let dailyTotalCompletion = 0
       let dailyItemsWithRate = 0
+      let dailyTotalCompletionRateAdjustment = 0 // 當日每條工項依完成率查表加減分後加總
       
       // 統計當日工作項目
       schedules.forEach(schedule => {
@@ -626,6 +630,7 @@ function PersonalPerformance() {
             dailyWorkItems++
             dailyTotalCompletion += completionRate
             dailyItemsWithRate++
+            dailyTotalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
 
             if (completionRate >= 100) {
               dailyCompleted++
@@ -639,14 +644,14 @@ function PersonalPerformance() {
       // 累積達成率統計
       cumulativeTotalCompletion += dailyTotalCompletion
       cumulativeItemsWithRate += dailyItemsWithRate
+      cumulativeCompletionRateAdjustmentSum += dailyTotalCompletionRateAdjustment
       
-      // 計算當天的達成率調整（根據當天的平均達成率）
+      // 當天的達成率調整：當日每條工項依完成率查表加減分後加總（不用當日平均完成率）
+      const dailyCompletionRateAdjustment = dailyTotalCompletionRateAdjustment
       const dailyAvgCompletion = dailyItemsWithRate > 0 ? (dailyTotalCompletion / dailyItemsWithRate) : 0
-      const dailyCompletionRateAdjustment = dailyItemsWithRate > 0 ? calculateCompletionRateAdjustment(dailyAvgCompletion) : 0
       
-      // 計算累積到當天的平均達成率（用於績效分數計算）
-      const cumulativeAvgCompletion = cumulativeItemsWithRate > 0 ? (cumulativeTotalCompletion / cumulativeItemsWithRate) : 0
-      const cumulativeCompletionRateAdjustment = cumulativeItemsWithRate > 0 ? calculateCompletionRateAdjustment(cumulativeAvgCompletion) : 0
+      // 累積到當天的達成率調整：從月初到當日所有工項的加減分加總
+      const cumulativeCompletionRateAdjustment = cumulativeCompletionRateAdjustmentSum
       
       // 統計當日管理者調整
       const dailyRecords = allRecords.filter(r => 

@@ -161,13 +161,14 @@ function UserManagement() {
         }
       })
 
-      // 計算工作完成情況
+      // 計算工作完成情況；每條工項依完成率查表加減分後加總（每天每條都會有加減分）
       const schedules = getSchedules()
       let totalItems = 0
       let completedItems = 0
       let partialItems = 0
       let totalCompletionRate = 0
       let itemsWithRate = 0
+      let totalCompletionRateAdjustment = 0
 
       schedules.forEach(schedule => {
         if (startDate && schedule.date && schedule.date < startDate) return
@@ -194,6 +195,7 @@ function UserManagement() {
             totalItems++
             totalCompletionRate += completionRate
             itemsWithRate++
+            totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
 
             if (completionRate >= 100) completedItems++
             else if (completionRate > 0) partialItems++
@@ -230,8 +232,8 @@ function UserManagement() {
         if (isNoClockIn) noClockInCount++
       })
 
-      // 將達成率/出勤扣分計入「實際績效」
-      const completionRateAdjustment = averageCompletionRate > 0 ? calculateCompletionRateAdjustment(averageCompletionRate) : 0
+      // 將達成率/出勤扣分計入「實際績效」（每條工項依完成率查表加減分後加總）
+      const completionRateAdjustment = totalCompletionRateAdjustment
       const lateAdjustment = lateConfig?.enabled ? calculateLateCountAdjustment(lateCount) : 0
       const noClockInAdjustment = lateConfig?.enabled ? calculateNoClockInAdjustment(noClockInCount) : 0
       const totalAdjustmentAll = totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment
