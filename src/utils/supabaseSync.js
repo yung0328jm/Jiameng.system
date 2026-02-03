@@ -136,7 +136,11 @@ export const APP_DATA_KEYS = [
   'jiameng_items_backup',
   // 交流區關鍵字獎勵（規則 + 冷卻/領取記錄）
   'jiameng_keyword_reward_rules',
-  'jiameng_keyword_reward_claims'
+  'jiameng_keyword_reward_claims',
+  // 未讀/通知（每帳號最後查看時間）
+  'jiameng_last_seen_v1',
+  // 請假代填人（管理員指派一人可代他人填寫請假）
+  'jiameng_leave_filler_account'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */

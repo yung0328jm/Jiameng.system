@@ -1,7 +1,9 @@
 // 請假申請儲存：記錄請假申請；僅在管理員核准後才由頁面呼叫 saveSchedule 寫入行事曆
 import { getSupabaseClient } from './supabaseClient'
+import { syncKeyToSupabase } from './supabaseSync'
 
 const LEAVE_APPLICATION_KEY = 'jiameng_leave_applications'
+const LEAVE_FILLER_KEY = 'jiameng_leave_filler_account'
 
 const toRow = (r) => ({
   id: r.id,
@@ -109,5 +111,28 @@ export const deleteLeaveApplication = (id) => {
   } catch (e) {
     console.error('deleteLeaveApplication:', e)
     return { success: false, message: '刪除失敗' }
+  }
+}
+
+/** 取得管理員指派的請假代填人帳號（僅此帳號可代他人送出請假） */
+export const getLeaveFillerAccount = () => {
+  try {
+    const v = localStorage.getItem(LEAVE_FILLER_KEY)
+    return v != null ? String(v).trim() : ''
+  } catch (e) {
+    return ''
+  }
+}
+
+/** 管理員設定請假代填人帳號 */
+export const setLeaveFillerAccount = (account) => {
+  try {
+    const val = account != null ? String(account).trim() : ''
+    localStorage.setItem(LEAVE_FILLER_KEY, val)
+    syncKeyToSupabase(LEAVE_FILLER_KEY, val)
+    return { success: true }
+  } catch (e) {
+    console.error('setLeaveFillerAccount:', e)
+    return { success: false, message: '儲存失敗' }
   }
 }
