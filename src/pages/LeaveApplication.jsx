@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
-import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, getPublicProfiles } from '../utils/authSupabase'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import {
   addLeaveApplication,
@@ -123,6 +123,7 @@ function LeaveApplication() {
   const needUserList = userRole === 'admin' || isFiller
 
   // 管理員：載入用戶（特休設定、指派代填人）；代填人：載入可代填的用戶列表
+  // Supabase 時用 getPublicProfiles（所有已登入用戶可取得），代填人非管理員時 getAllProfiles 會回傳空
   useEffect(() => {
     if (!needUserList) {
       setQuotaUsers([])
@@ -130,7 +131,8 @@ function LeaveApplication() {
     }
     let cancelled = false
     if (isAuthSupabase()) {
-      getAllProfiles().then((profiles) => {
+      const fetchProfiles = userRole === 'admin' ? getAllProfiles() : getPublicProfiles()
+      fetchProfiles.then((profiles) => {
         if (!cancelled && Array.isArray(profiles)) {
           const list = profiles
             .filter((p) => !p?.is_admin)
