@@ -1804,52 +1804,28 @@ function Calendar() {
                               title="有工作項目異動待審（暫不計分）"
                             />
                           )}
-                          {/* 行事曆加油燈：多車時任一台有加油即綠燈 */}
+                          {/* 行事曆加油燈／發票燈：多車時任一台有加油即綠燈；有 vehicleEntries 用其值，否則用 flat；支援字串 "true" */}
                           {(() => {
-                            const hasRefuel = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
-                              ? schedule.vehicleEntries.some((e) => !!e.needRefuel)
-                              : !!schedule.needRefuel
-                            const hasInvoiceReturned = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
-                              ? schedule.vehicleEntries.some((e) => !!e.invoiceReturned)
-                              : !!schedule.invoiceReturned
+                            const toBool = (v) => v === true || v === 'true'
+                            const entries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
+                            const refuelFromEntries = entries && schedule.vehicleEntries.some((e) => toBool(e.needRefuel))
+                            const invoiceFromEntries = entries && schedule.vehicleEntries.some((e) => toBool(e.invoiceReturned))
+                            const refuelFlat = toBool(schedule.needRefuel)
+                            const invoiceFlat = toBool(schedule.invoiceReturned)
+                            const hasRefuel = !!refuelFromEntries || refuelFlat
+                            const hasInvoiceReturned = !!invoiceFromEntries || invoiceFlat
                             return (
                               <>
                                 <div
-                                  className={`relative w-2 h-2 rounded-full shadow ${hasRefuel ? 'bg-green-500' : 'bg-gray-500'}`}
+                                  className={`relative w-3 h-3 rounded-full flex-shrink-0 ${hasRefuel ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-gray-500'}`}
                                   title={hasRefuel ? '已加油' : '未加油'}
-                                >
-                                  {hasRefuel ? (
-                                    <>
-                                      <div className="absolute inset-0 rounded-full bg-green-400 animate-gentle-blink opacity-75"></div>
-                                      <div className="absolute inset-0 rounded-full bg-green-500 animate-gentle-blink"></div>
-                                      <div className="absolute inset-0 rounded-full shadow-[0_0_8px_2px_rgba(34,197,94,0.8)] animate-gentle-blink"></div>
-                                    </>
-                                  ) : (
-                                    <div className="absolute inset-0 rounded-full bg-gray-500"></div>
-                                  )}
-                                </div>
+                                />
                                 <div
-                                  className={`relative w-2 h-2 rounded-full shadow ${
-                                    !hasRefuel ? 'bg-gray-500' : hasInvoiceReturned ? 'bg-green-500' : 'bg-red-500'
+                                  className={`relative w-3 h-3 rounded-full flex-shrink-0 ${
+                                    !hasRefuel ? 'bg-gray-500' : hasInvoiceReturned ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
                                   }`}
                                   title={!hasRefuel ? '無發票狀態（未加油）' : hasInvoiceReturned ? '發票已繳回' : '發票未繳回'}
-                                >
-                                  {!hasRefuel ? (
-                                    <div className="absolute inset-0 rounded-full bg-gray-500"></div>
-                                  ) : hasInvoiceReturned ? (
-                                    <>
-                                      <div className="absolute inset-0 rounded-full bg-green-400 animate-gentle-blink opacity-75"></div>
-                                      <div className="absolute inset-0 rounded-full bg-green-500 animate-gentle-blink"></div>
-                                      <div className="absolute inset-0 rounded-full shadow-[0_0_8px_2px_rgba(34,197,94,0.8)] animate-gentle-blink"></div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <div className="absolute inset-0 rounded-full bg-red-400 animate-gentle-blink opacity-75"></div>
-                                      <div className="absolute inset-0 rounded-full bg-red-500 animate-gentle-blink"></div>
-                                      <div className="absolute inset-0 rounded-full shadow-[0_0_8px_2px_rgba(239,68,68,0.8)] animate-gentle-blink"></div>
-                                    </>
-                                  )}
-                                </div>
+                                />
                               </>
                             )
                           })()}
