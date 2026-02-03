@@ -1943,7 +1943,7 @@ function PersonalPerformance() {
 
       {/* 績效統計卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        {/* 平均完成率 */}
+        {/* 平均完成率（僅供參考，不影響績效評分） */}
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -1952,7 +1952,7 @@ function PersonalPerformance() {
                 {performanceData.averageCompletionRate.toFixed(1)}%
               </p>
               <p className="text-gray-500 text-[10px] mt-0.5">
-                共 {performanceData.totalWorkItems} 個項目
+                共 {performanceData.totalWorkItems} 個項目 · 僅供參考不計分
               </p>
             </div>
             <div className="bg-yellow-400/20 rounded-full p-2">
@@ -2375,8 +2375,8 @@ function PersonalPerformance() {
                     {performanceData.completionRateAdjustment !== 0 && (
                       <>
                         <span className="text-gray-500">+</span>
-                        <span className={performanceData.completionRateAdjustment >= 0 ? 'text-green-400' : 'text-red-400'} title="依工作明細完成率計算">
-                          達成率{performanceData.completionRateAdjustment >= 0 ? '+' : ''}{performanceData.completionRateAdjustment}
+                        <span className={performanceData.completionRateAdjustment >= 0 ? 'text-green-400' : 'text-red-400'} title="依每條工項完成率查表加減分後加總">
+                          每條完成率{performanceData.completionRateAdjustment >= 0 ? '+' : ''}{performanceData.completionRateAdjustment}
                         </span>
                       </>
                     )}
@@ -2404,7 +2404,7 @@ function PersonalPerformance() {
                 )}
               </div>
               {performanceData.totalWorkItems > 0 && (
-                <p className="text-gray-500 text-[10px] mt-1">工作明細完成率已計入績效評分</p>
+                <p className="text-gray-500 text-[10px] mt-1">績效評分依每天每條完成率記分（每條加減分加總），平均完成率僅供參考不計入</p>
               )}
             </div>
             <div className="bg-purple-400/20 rounded-full p-2">
@@ -2847,7 +2847,7 @@ function PersonalPerformance() {
           
           {showCompletionRateConfig && (
             <div className="space-y-4">
-              <p className="text-gray-400 text-sm">設定平均完成率對應的績效調整分數</p>
+              <p className="text-gray-400 text-sm">設定每條工項完成率區間對應的加減分（每天每條依此記分，與平均完成率無關）</p>
               
               {/* 規則列表 */}
               <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
@@ -3122,11 +3122,11 @@ function PersonalPerformance() {
         </div>
       )}
 
-      {/* 工作明細：完成率→計算績效分數→統計至績效評分 */}
+      {/* 工作明細：每條完成率→查表加減分→加總計入績效評分 */}
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
         <div className="mb-4">
           <h3 className="text-lg font-bold text-yellow-400">工作明細</h3>
-          <p className="text-gray-500 text-xs mt-1">完成率依目標數與實際數量計算，已計入績效分數並統計至績效評分</p>
+          <p className="text-gray-500 text-xs mt-1">每條依目標數與實際數量算完成率，再依規則查表加減分後加總計入績效評分（與平均完成率無關）</p>
         </div>
         {performanceData.workDetails.length === 0 ? (
           <div className="text-gray-400 text-center py-8">
