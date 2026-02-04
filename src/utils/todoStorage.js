@@ -13,11 +13,14 @@ export const getTodos = () => {
   }
 }
 
-// 保存待辦事項：先寫本地並立即回傳，雲端背景同步（與交流區對話框相同，Realtime 推給其他裝置）
+const TODO_LAST_WRITE_KEY = 'jiameng_todos_last_write'
+
+// 保存待辦事項：先寫本地並立即回傳，雲端背景同步（與交流區對話框相同）
 export function saveTodos(todos) {
   try {
     const val = JSON.stringify(todos)
     localStorage.setItem(TODO_STORAGE_KEY, val)
+    try { localStorage.setItem(TODO_LAST_WRITE_KEY, String(Date.now())) } catch (_) {}
     syncKeyToSupabase(TODO_STORAGE_KEY, val).catch((err) => {
       console.warn('Todo sync to cloud failed, will retry via outbox:', err)
     })

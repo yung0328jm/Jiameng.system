@@ -494,11 +494,18 @@ export function subscribeRealtime(onUpdate) {
                   notifyKey(key)
                 }
               } else if (key === 'jiameng_todos') {
-                // 待辦：與交流區一樣，Realtime 收到就寫入；只有內容與本機相同時才跳過（避免同裝置回聲造成閃爍）
-                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                // 待辦：內容相同則跳過；若雲端筆數比本機多，且本機剛寫入（3 秒內）才不覆寫，避免刪除被蓋回、又不擋另一台新增
+                const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
+                const val = JSON.stringify(incoming)
                 try {
-                  const current = localStorage.getItem(key)
-                  if (current === val) return
+                  const currentRaw = localStorage.getItem(key)
+                  const current = (() => { try { return currentRaw ? JSON.parse(currentRaw) : [] } catch (_) { return [] } })()
+                  if (currentRaw === val) return
+                  if (Array.isArray(current) && incoming.length > current.length) {
+                    const lastWrite = parseInt(localStorage.getItem('jiameng_todos_last_write') || '', 10)
+                    if (lastWrite && (Date.now() - lastWrite < 3000)) return
+                  }
+                  try { localStorage.removeItem('jiameng_todos_last_write') } catch (_) {}
                 } catch (_) {}
                 localStorage.setItem(key, val)
                 notifyKey(key)

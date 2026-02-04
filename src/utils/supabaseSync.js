@@ -376,10 +376,10 @@ export async function syncFromSupabase() {
     ;(appRes.data || []).forEach((r) => {
       try {
         const key = r.key
-        // 待辦與交流區一致：不讓初始同步蓋掉本機已有資料（避免登入/重整後狀態被洗掉）
+        // 待辦與交流區：只要本機有寫過（含空陣列 []）就不覆寫，避免刪光或刪一筆後被雲端舊資料蓋回
         if (key === 'jiameng_todos' || key === 'jiameng_memos') {
           const existing = localStorage.getItem(key)
-          if (existing != null && existing !== '' && existing !== '[]' && existing !== '{}') return
+          if (existing != null) return
         }
         localStorage.setItem(key, typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}))
       } catch (_) {}
