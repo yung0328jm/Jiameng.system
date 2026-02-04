@@ -1232,7 +1232,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="交流區"
             isActive={activeTab === 'memo'}
             onClick={() => handleTabClick('memo', '/memo')}
-            badge={navBadges.memo > 0 ? navBadges.memo : null}
+            badge={activeTab === 'memo' ? null : (navBadges.memo > 0 ? navBadges.memo : null)}
           />
           <NavItem
             icon={<PeopleIcon />}
