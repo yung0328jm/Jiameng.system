@@ -1110,20 +1110,38 @@ function Calendar() {
     })
   }
 
-  // 獨立負責時：新增同一負責人的第二項、第三項（contentRows）
+  // 獨立負責或協作時：同一張卡新增多項工作內容（contentRows）
   const handleAddContentRow = (itemIndex) => {
     setScheduleFormData((prev) => {
       const list = Array.isArray(prev.workItems) ? prev.workItems : []
       if (itemIndex < 0 || itemIndex >= list.length) return prev
       const item = list[itemIndex]
       const rows = Array.isArray(item.contentRows) ? [...item.contentRows] : []
+      const isCollab = !!item.isCollaborative
+      const collabShared = getWorkItemCollabMode(item) === 'shared'
       if (rows.length === 0) {
-        rows.push(
-          { id: `row-${Date.now()}-1`, workContent: item.workContent || '', targetQuantity: item.targetQuantity ?? '', actualQuantity: item.actualQuantity ?? '' },
-          { id: `row-${Date.now()}-2`, workContent: '', targetQuantity: '', actualQuantity: '' }
-        )
+        if (isCollab && collabShared) {
+          rows.push(
+            { id: `row-${Date.now()}-1`, workContent: item.workContent || '', targetQuantity: item.targetQuantity ?? '', actualQuantity: item.sharedActualQuantity ?? item.actualQuantity ?? '' },
+            { id: `row-${Date.now()}-2`, workContent: '', targetQuantity: '', actualQuantity: '' }
+          )
+        } else if (isCollab && !collabShared) {
+          rows.push(
+            { id: `row-${Date.now()}-1`, workContent: item.workContent || '' },
+            { id: `row-${Date.now()}-2`, workContent: '' }
+          )
+        } else {
+          rows.push(
+            { id: `row-${Date.now()}-1`, workContent: item.workContent || '', targetQuantity: item.targetQuantity ?? '', actualQuantity: item.actualQuantity ?? '' },
+            { id: `row-${Date.now()}-2`, workContent: '', targetQuantity: '', actualQuantity: '' }
+          )
+        }
       } else {
-        rows.push({ id: `row-${Date.now()}`, workContent: '', targetQuantity: '', actualQuantity: '' })
+        if (isCollab && !collabShared) {
+          rows.push({ id: `row-${Date.now()}`, workContent: '' })
+        } else {
+          rows.push({ id: `row-${Date.now()}`, workContent: '', targetQuantity: '', actualQuantity: '' })
+        }
       }
       const newWorkItems = [...list]
       newWorkItems[itemIndex] = { ...item, contentRows: rows }
@@ -1141,8 +1159,23 @@ function Calendar() {
       const removed = rows[rowIndex]
       const newRows = rows.filter((_, i) => i !== rowIndex)
       const newWorkItems = [...list]
+      const isCollab = !!item.isCollaborative
+      const collabShared = getWorkItemCollabMode(item) === 'shared'
       if (newRows.length === 0) {
-        newWorkItems[itemIndex] = { ...item, contentRows: undefined, workContent: removed.workContent ?? '', targetQuantity: removed.targetQuantity ?? '', actualQuantity: removed.actualQuantity ?? '' }
+        if (isCollab && collabShared) {
+          newWorkItems[itemIndex] = {
+            ...item,
+            contentRows: undefined,
+            workContent: removed.workContent ?? '',
+            targetQuantity: removed.targetQuantity ?? '',
+            sharedActualQuantity: removed.actualQuantity ?? '',
+            actualQuantity: removed.actualQuantity ?? ''
+          }
+        } else if (isCollab && !collabShared) {
+          newWorkItems[itemIndex] = { ...item, contentRows: undefined, workContent: removed.workContent ?? '' }
+        } else {
+          newWorkItems[itemIndex] = { ...item, contentRows: undefined, workContent: removed.workContent ?? '', targetQuantity: removed.targetQuantity ?? '', actualQuantity: removed.actualQuantity ?? '' }
+        }
       } else {
         newWorkItems[itemIndex] = { ...item, contentRows: newRows }
       }
@@ -2398,10 +2431,15 @@ function Calendar() {
                               <div className="text-white">
                                 {item.contentRows && item.contentRows.length > 0 ? (
                                   <>
-                                    <div className="text-blue-200 text-sm">負責人: {item.responsiblePerson || '—'}</div>
+                                    {item.isCollaborative ? (
+                                      <div className="text-blue-200 text-sm">協作: {getWorkItemCollaborators(it).map((c) => c.name).join(', ') || '—'}</div>
+                                    ) : (
+                                      <div className="text-blue-200 text-sm">負責人: {item.responsiblePerson || '—'}</div>
+                                    )}
                                     {item.contentRows.map((row, ri) => (
                                       <div key={row.id || ri} className="text-sm mt-1">
-                                        • {row.workContent || '未填'} — 目標 {row.targetQuantity ?? '—'} / 實際 {row.actualQuantity ?? '—'}
+                                        • {row.workContent || '未填'}
+                                        {(row.targetQuantity != null && row.targetQuantity !== '') || (row.actualQuantity != null && row.actualQuantity !== '') ? ` — 目標 ${row.targetQuantity ?? '—'} / 實際 ${row.actualQuantity ?? '—'}` : ''}
                                       </div>
                                     ))}
                                   </>
@@ -3600,97 +3638,155 @@ function Calendar() {
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* 獨立負責且已展開多項：只顯示負責人 + 多筆工作內容/目標/實際 */}
-                        {!item.isCollaborative && item.contentRows && item.contentRows.length > 0 ? (
+                        {/* 已展開多項（獨立負責 或 協作）：負責人/協作區 + 多筆工作內容列 */}
+                        {item.contentRows && item.contentRows.length > 0 ? (
                           <>
-                            <div
-                              className="md:col-span-2 relative"
-                              ref={(el) => { if (el) responsiblePersonDropdownRefs.current[item.id] = el }}
-                            >
-                              <label className="block text-gray-300 text-xs mb-1">負責人 *</label>
-                              <input
-                                type="text"
-                                value={item.responsiblePerson || ''}
-                                onChange={(e) => handleResponsiblePersonInput(item.id, e.target.value)}
-                                onFocus={() => setShowResponsiblePersonDropdown(prev => ({ ...prev, [item.id]: true }))}
-                                placeholder="請輸入負責人"
-                                className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                required
-                                disabled={plannedLocked}
-                              />
-                              {showResponsiblePersonDropdown[item.id] && responsiblePersonOptions.length > 0 && (
-                                <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                  {responsiblePersonOptions.map((option, optIndex) => (
-                                    <div
-                                      key={optIndex}
-                                      onClick={() => handleResponsiblePersonSelect(item.id, option)}
-                                      className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm"
-                                    >
-                                      {option}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            {item.contentRows.map((row, rowIndex) => (
-                              <div key={row.id || rowIndex} className="md:col-span-2 grid grid-cols-1 md:grid-cols-12 gap-2 items-end border border-gray-600 rounded p-2 bg-gray-600/50">
-                                <div className="md:col-span-5">
-                                  <label className="block text-gray-300 text-xs mb-1">工作內容 *</label>
-                                  <input
-                                    type="text"
-                                    value={row.workContent ?? ''}
-                                    onChange={(e) => handleContentRowChange(index, rowIndex, 'workContent', e.target.value)}
-                                    placeholder="請輸入工作內容"
-                                    className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                    disabled={plannedLocked}
-                                  />
-                                </div>
-                                <div className="md:col-span-2">
-                                  <label className="block text-gray-300 text-xs mb-1">目標數量</label>
-                                  <input
-                                    type="number"
-                                    value={row.targetQuantity ?? ''}
-                                    onChange={(e) => handleContentRowChange(index, rowIndex, 'targetQuantity', e.target.value)}
-                                    placeholder="目標"
-                                    className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                    min="0"
-                                    step="0.01"
-                                    disabled={plannedLocked}
-                                  />
-                                </div>
-                                <div className="md:col-span-2">
-                                  <label className="block text-gray-300 text-xs mb-1">實際達成數量</label>
-                                  <input
-                                    type="number"
-                                    value={row.actualQuantity ?? ''}
-                                    onChange={(e) => handleContentRowChange(index, rowIndex, 'actualQuantity', e.target.value)}
-                                    placeholder="實際"
-                                    className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                                    min="0"
-                                    step="0.01"
-                                    disabled={plannedLocked}
-                                  />
-                                </div>
-                                <div className="md:col-span-2 flex items-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveContentRow(index, rowIndex)}
-                                    className="text-red-400 hover:text-red-500 text-sm py-2"
+                            {!item.isCollaborative ? (
+                              <div className="md:col-span-2 relative" ref={(el) => { if (el) responsiblePersonDropdownRefs.current[item.id] = el }}>
+                                <label className="block text-gray-300 text-xs mb-1">負責人 *</label>
+                                <input
+                                  type="text"
+                                  value={item.responsiblePerson || ''}
+                                  onChange={(e) => handleResponsiblePersonInput(item.id, e.target.value)}
+                                  onFocus={() => setShowResponsiblePersonDropdown(prev => ({ ...prev, [item.id]: true }))}
+                                  placeholder="請輸入負責人"
+                                  className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                  required
+                                  disabled={plannedLocked}
+                                />
+                                {showResponsiblePersonDropdown[item.id] && responsiblePersonOptions.length > 0 && (
+                                  <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                    {responsiblePersonOptions.map((option, optIndex) => (
+                                      <div key={optIndex} onClick={() => handleResponsiblePersonSelect(item.id, option)} className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm">{option}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="md:col-span-2 space-y-2">
+                                <div>
+                                  <label className="block text-gray-300 text-xs mb-1">協作計算方式</label>
+                                  <select
+                                    value={getWorkItemCollabMode(item)}
+                                    onChange={(e) => { handleWorkItemChange(index, 'collabMode', e.target.value) }}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
                                     disabled={plannedLocked}
                                   >
-                                    刪除本項
-                                  </button>
+                                    <option value="shared">一起完成（算總數）</option>
+                                    <option value="separate">分開完成（各自算）</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-gray-300 text-xs mb-1">協作負責人 *</label>
+                                  <input
+                                    type="text"
+                                    value={toCollaboratorsCsv(item)}
+                                    onChange={(e) => {
+                                      const next = parseCollaboratorsCsv(e.target.value)
+                                      const prev = getWorkItemCollaborators(item)
+                                      const prevTarget = new Map(prev.map((c) => [String(c.name).trim(), c.targetQuantity]))
+                                      const prevActual = new Map(prev.map((c) => [String(c.name).trim(), c.actualQuantity]))
+                                      handleWorkItemChange(index, 'collaborators', next.map((c) => ({ ...c, targetQuantity: prevTarget.get(String(c.name).trim()) ?? '', actualQuantity: prevActual.get(String(c.name).trim()) ?? '' })))
+                                    }}
+                                    placeholder="輸入協作負責人（可逗號分隔/可手打）"
+                                    className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                    required
+                                    disabled={plannedLocked}
+                                  />
+                                  {responsiblePersonOptions.length > 0 && (
+                                    <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-24 overflow-y-auto">
+                                      {responsiblePersonOptions.map((opt) => {
+                                        const selected = (getWorkItemCollaborators(item) || []).some((c) => String(c?.name || '').trim() === String(opt || '').trim())
+                                        return (
+                                          <button
+                                            key={opt}
+                                            type="button"
+                                            onClick={() => {
+                                              const prev = getWorkItemCollaborators(item)
+                                              const name = String(opt || '').trim()
+                                              if (!name) return
+                                              const next = selected ? prev.filter((c) => String(c?.name || '').trim() !== name) : [...prev, { name, targetQuantity: '', actualQuantity: '' }]
+                                              handleWorkItemChange(index, 'collaborators', next)
+                                            }}
+                                            className={`w-full text-[11px] px-2 py-1 rounded border truncate ${selected ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200' : 'bg-gray-700 border-gray-600 text-gray-200 hover:border-yellow-400'}`}
+                                          >
+                                            {opt}
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            ))}
+                            )}
+                            {item.contentRows.map((row, rowIndex) => {
+                              const collabShared = getWorkItemCollabMode(item) === 'shared'
+                              const showQty = !item.isCollaborative || collabShared
+                              return (
+                                <div key={row.id || rowIndex} className="md:col-span-2 grid grid-cols-1 md:grid-cols-12 gap-2 items-end border border-gray-600 rounded p-2 bg-gray-600/50">
+                                  <div className={showQty ? 'md:col-span-5' : 'md:col-span-9'}>
+                                    <label className="block text-gray-300 text-xs mb-1">工作內容 *</label>
+                                    <input
+                                      type="text"
+                                      value={row.workContent ?? ''}
+                                      onChange={(e) => handleContentRowChange(index, rowIndex, 'workContent', e.target.value)}
+                                      placeholder="請輸入工作內容"
+                                      className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                      disabled={plannedLocked}
+                                    />
+                                  </div>
+                                  {showQty && (
+                                    <>
+                                      <div className="md:col-span-2">
+                                        <label className="block text-gray-300 text-xs mb-1">{item.isCollaborative && collabShared ? '共同目標' : '目標數量'}</label>
+                                        <input
+                                          type="number"
+                                          value={row.targetQuantity ?? ''}
+                                          onChange={(e) => handleContentRowChange(index, rowIndex, 'targetQuantity', e.target.value)}
+                                          placeholder="目標"
+                                          className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                          min="0"
+                                          step="0.01"
+                                          disabled={plannedLocked}
+                                        />
+                                      </div>
+                                      <div className="md:col-span-2">
+                                        <label className="block text-gray-300 text-xs mb-1">{item.isCollaborative && collabShared ? '共同實際' : '實際達成數量'}</label>
+                                        <input
+                                          type="number"
+                                          value={row.actualQuantity ?? ''}
+                                          onChange={(e) => handleContentRowChange(index, rowIndex, 'actualQuantity', e.target.value)}
+                                          placeholder="實際"
+                                          className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                          min="0"
+                                          step="0.01"
+                                          disabled={plannedLocked}
+                                        />
+                                      </div>
+                                    </>
+                                  )}
+                                  <div className="md:col-span-2 flex items-end">
+                                    <button type="button" onClick={() => handleRemoveContentRow(index, rowIndex)} className="text-red-400 hover:text-red-500 text-sm py-2" disabled={plannedLocked}>刪除本項</button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            {item.isCollaborative && getWorkItemCollabMode(item) === 'separate' && (getWorkItemCollaborators(item) || []).length > 0 && (
+                              <div className="md:col-span-2 space-y-2 border border-gray-600 rounded p-2 bg-gray-600/30">
+                                <div className="text-gray-300 text-xs">分開完成：每位負責人目標/實際（整張卡一組）</div>
+                                {getWorkItemCollaborators(item).map((c) => (
+                                  <div key={c.name} className="grid grid-cols-3 gap-2 items-center">
+                                    <span className="text-gray-200 text-xs truncate">{c.name}</span>
+                                    <input type="number" value={c.targetQuantity ?? ''} onChange={(e) => { const prev = getWorkItemCollaborators(item); const next = prev.map((x) => String(x.name).trim() === String(c.name).trim() ? { ...x, targetQuantity: e.target.value } : x); handleWorkItemChange(index, 'collaborators', next) }} placeholder="目標" className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" min="0" step="0.01" disabled={plannedLocked} />
+                                    <input type="number" value={c.actualQuantity ?? ''} onChange={(e) => { const prev = getWorkItemCollaborators(item); const next = prev.map((x) => String(x.name).trim() === String(c.name).trim() ? { ...x, actualQuantity: e.target.value } : x); handleWorkItemChange(index, 'collaborators', next) }} placeholder="實際" className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" min="0" step="0.01" disabled={plannedLocked} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             {!plannedLocked && (
                               <div className="md:col-span-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleAddContentRow(index)}
-                                  className="text-green-400 hover:text-green-300 text-sm py-1"
-                                >
-                                  + 新增同一負責人的項目
+                                <button type="button" onClick={() => handleAddContentRow(index)} className="text-green-400 hover:text-green-300 text-sm py-1">
+                                  {item.isCollaborative ? '+ 新增同一張卡的工作內容' : '+ 新增同一負責人的項目'}
                                 </button>
                               </div>
                             )}
@@ -3977,14 +4073,14 @@ function Calendar() {
                             />
                           )}
                         </div>
-                        {!item.isCollaborative && !plannedLocked && (
+                        {!plannedLocked && (
                           <div className="md:col-span-2">
                             <button
                               type="button"
                               onClick={() => handleAddContentRow(index)}
                               className="text-green-400 hover:text-green-300 text-sm py-1"
                             >
-                              + 新增同一負責人的項目
+                              {item.isCollaborative ? '+ 新增同一張卡的工作內容' : '+ 新增同一負責人的項目'}
                             </button>
                           </div>
                         )}
