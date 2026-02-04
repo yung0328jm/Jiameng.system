@@ -10,7 +10,6 @@ export function SyncProvider({ children, syncReady = false }) {
   const unsubRef = useRef(null)
   const pollRef = useRef(null)
   const lastLbUpdatedAtRef = useRef('')
-  const lastTodosUpdatedAtRef = useRef('')
   const resumeRefreshInFlightRef = useRef(false)
 
   const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
@@ -21,36 +20,9 @@ export function SyncProvider({ children, syncReady = false }) {
       .maybeSingle()
     const updatedAt = String(data?.updated_at || '')
     if (!updatedAt || updatedAt === lastUpdatedAtRef.current) return false
-    // 待辦：本地剛寫入時不讓雲端舊資料蓋回（避免刪除/勾選後一瞬間又還原）
-    if (key === 'jiameng_todos') {
-      try {
-        const localAt = parseInt(localStorage.getItem('jiameng_todos_local_write_at') || '', 10)
-        const cloudTs = Date.parse(updatedAt) || 0
-        const protectMs = 60000
-        const now = Date.now()
-        if (localAt && (now - localAt < protectMs)) {
-          if (localAt > cloudTs) {
-            flushSyncOutbox().catch(() => {})
-            return false
-          }
-          const cloudList = Array.isArray(data?.data) ? data.data : (() => {
-            try { return typeof data?.data === 'string' ? JSON.parse(data.data || '[]') : [] } catch (_) { return [] }
-          })()
-          const currentRaw = localStorage.getItem('jiameng_todos')
-          let currentLen = 0
-          try { currentLen = (currentRaw ? JSON.parse(currentRaw) : []).length } catch (_) {}
-          if (cloudList.length > currentLen) {
-            return false
-          }
-        }
-      } catch (_) {}
-    }
     lastUpdatedAtRef.current = updatedAt
     const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? defaultValue)
     localStorage.setItem(key, val)
-    if (key === 'jiameng_todos') {
-      try { localStorage.removeItem('jiameng_todos_local_write_at') } catch (_) {}
-    }
     window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
     setRevision((r) => r + 1)
     return true
@@ -66,12 +38,9 @@ export function SyncProvider({ children, syncReady = false }) {
     if (sb) {
       pollRef.current = setInterval(async () => {
         try {
-          // 0) 先補送 outbox（避免一次中斷就永遠不同步）
           await flushSyncOutbox()
-          // 1) 排行榜面板
           await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
-          // 2) 待辦事項
-          await refreshAppDataKey(sb, 'jiameng_todos', lastTodosUpdatedAtRef, [])
+          // 待辦與交流區一樣：只靠 Realtime 更新，不輪詢，避免覆寫造成狀態亂跳
         } catch (_) {}
       }, 8000)
     }
@@ -80,13 +49,10 @@ export function SyncProvider({ children, syncReady = false }) {
     const onResume = async () => {
       if (!isSupabaseEnabled()) return
       if (document.visibilityState && document.visibilityState !== 'visible') return
-      const sb2 = getSupabaseClient()
-      if (!sb2) return
       if (resumeRefreshInFlightRef.current) return
       resumeRefreshInFlightRef.current = true
       try {
         await flushSyncOutbox()
-        await refreshAppDataKey(sb2, 'jiameng_todos', lastTodosUpdatedAtRef, [])
       } catch (_) {
       } finally {
         resumeRefreshInFlightRef.current = false
