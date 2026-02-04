@@ -13,11 +13,16 @@ export const getTodos = () => {
   }
 }
 
+const TODO_LOCAL_WRITE_AT_KEY = 'jiameng_todos_local_write_at'
+
 // 保存待辦事項
 export const saveTodos = (todos) => {
   try {
     const val = JSON.stringify(todos)
     localStorage.setItem(TODO_STORAGE_KEY, val)
+    try {
+      localStorage.setItem(TODO_LOCAL_WRITE_AT_KEY, String(Date.now()))
+    } catch (_) {}
     syncKeyToSupabase(TODO_STORAGE_KEY, val)
     return { success: true }
   } catch (error) {
