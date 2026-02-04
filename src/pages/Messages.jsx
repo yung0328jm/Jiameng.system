@@ -2,15 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { touchLastSeen } from '../utils/lastSeenStorage'
 import {
   addUserMessage,
   addAdminReply,
+  addAdminToUserMessage,
   getAdminInbox,
   getAdminUnreadCount,
   getUserMessages,
   setAdminRead,
   setAdminResolved
 } from '../utils/messageStorage'
+import { getUsers } from '../utils/storage'
+import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 
 function formatTime(iso) {
   try { return new Date(iso).toLocaleString('zh-TW') } catch (_) { return iso || '' }
@@ -24,6 +28,8 @@ function Messages() {
   const [compose, setCompose] = useState({ subject: '', body: '' })
   const [adminFilter, setAdminFilter] = useState({ q: '', status: 'all', showResolved: false })
   const [replyDrafts, setReplyDrafts] = useState({}) // { [msgId]: string }
+  const [adminSend, setAdminSend] = useState({ to: '__all__', targetAccount: '', subject: '', body: '' })
+  const [recipients, setRecipients] = useState([]) // { account, name }[]
 
   const refetch = () => setRevision((r) => r + 1)
   useRealtimeKeys(['jiameng_messages'], refetch)
@@ -32,6 +38,33 @@ function Messages() {
     setRole(getCurrentUserRole())
     setMe(getCurrentUser() || '')
   }, [])
+
+  useEffect(() => {
+    if (role !== 'admin') return
+    let mounted = true
+    const load = async () => {
+      if (isAuthSupabase()) {
+        try {
+          const profiles = await getPublicProfiles()
+          if (mounted && Array.isArray(profiles)) {
+            setRecipients(profiles.filter((p) => !p?.is_admin).map((p) => ({ account: p?.account || '', name: p?.display_name || p?.account || '' })))
+          }
+        } catch (_) {}
+      } else {
+        const users = (getUsers() || []).filter((u) => u?.role !== 'admin')
+        setRecipients(users.map((u) => ({ account: u?.account || '', name: u?.name || u?.account || '' })))
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [role])
+
+  // 使用者端：進入站內信就視為「已查看回覆」
+  useEffect(() => {
+    if (!me) return
+    if (role === 'admin') return
+    touchLastSeen(me, 'messages')
+  }, [me, role])
 
   const myName = useMemo(() => getDisplayNameForAccount(me), [me])
 
@@ -110,7 +143,81 @@ function Messages() {
       )}
 
       {isAdmin ? (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+        <>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-6">
+            <h3 className="text-white font-semibold mb-3">發送訊息給用戶</h3>
+            <div className="grid gap-3">
+              <div className="flex flex-wrap gap-4 items-center">
+                <label className="text-gray-300 text-sm">發送給</label>
+                <label className="text-gray-300 text-sm flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="adminSendTo"
+                    checked={adminSend.to === '__all__'}
+                    onChange={() => setAdminSend((p) => ({ ...p, to: '__all__', targetAccount: '' }))}
+                  />
+                  全體用戶
+                </label>
+                <label className="text-gray-300 text-sm flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="adminSendTo"
+                    checked={adminSend.to === 'user'}
+                    onChange={() => setAdminSend((p) => ({ ...p, to: 'user' }))}
+                  />
+                  指定用戶
+                </label>
+                {adminSend.to === 'user' && (
+                  <select
+                    value={adminSend.targetAccount}
+                    onChange={(e) => setAdminSend((p) => ({ ...p, targetAccount: e.target.value }))}
+                    className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                  >
+                    <option value="">請選擇用戶</option>
+                    {recipients.map((r) => (
+                      <option key={r.account} value={r.account}>{r.name}（{r.account}）</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <input
+                value={adminSend.subject}
+                onChange={(e) => setAdminSend((p) => ({ ...p, subject: e.target.value }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                placeholder="主旨（可選）"
+              />
+              <textarea
+                value={adminSend.body}
+                onChange={(e) => setAdminSend((p) => ({ ...p, body: e.target.value }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400 min-h-[100px]"
+                placeholder="內容"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const toVal = adminSend.to === '__all__' ? '__all__' : (adminSend.targetAccount || '').trim()
+                    if (adminSend.to === 'user' && !toVal) return alert('請選擇指定用戶')
+                    const r = addAdminToUserMessage({
+                      fromAdminAccount: me,
+                      to: toVal,
+                      subject: adminSend.subject,
+                      body: adminSend.body
+                    })
+                    if (!r?.success) return alert(r?.message || '送出失敗')
+                    setAdminSend((p) => ({ ...p, subject: '', body: '', targetAccount: '' }))
+                    refetch()
+                    alert('已送出')
+                  }}
+                  className="bg-yellow-400 text-gray-900 px-4 py-2 rounded font-semibold hover:bg-yellow-500"
+                >
+                  送出
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
           <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
             <h3 className="text-white font-semibold">收件匣</h3>
             <div className="flex flex-wrap gap-2">
@@ -224,6 +331,7 @@ function Messages() {
             </div>
           )}
         </div>
+        </>
       ) : (
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
           <h3 className="text-white font-semibold mb-4">我的訊息</h3>
@@ -232,6 +340,22 @@ function Messages() {
           ) : (
             <div className="space-y-3">
               {userList.map((m) => {
+                if (m?.type === 'admin_to_user') {
+                  return (
+                    <div key={m.id} className="rounded-lg border border-yellow-400/50 bg-gray-900/60 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-yellow-300 text-xs font-medium">管理員發送</div>
+                          <div className="text-white font-semibold truncate mt-1">{m.subject || '（無主旨）'}</div>
+                          <div className="text-gray-400 text-xs mt-1">
+                            {m?.fromName || m?.from || '管理員'}｜發送給：{m?.to === '__all__' ? '全體用戶' : (m?.to || '')}｜{formatTime(m?.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-gray-200 text-sm mt-3 whitespace-pre-wrap">{m?.body || ''}</div>
+                    </div>
+                  )
+                }
                 const replies = Array.isArray(m?.replies) ? m.replies : []
                 return (
                   <div key={m.id} className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
