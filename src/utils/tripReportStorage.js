@@ -53,18 +53,27 @@ export const getTripReportsByProject = (projectId, todayYmd = '') => {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 }
 
-/** 新增一筆行程回報 */
+/** 新增一筆行程回報（同一案場、同一日期、同一動作只保留第一次紀錄，其他裝置再點不會覆蓋） */
 export const addTripReport = ({ projectId, projectName, actionType, userId, userName, ymd }) => {
   if (!actionTypes.includes(actionType)) return { success: false, message: '無效的類型' }
   const list = loadAll()
+  const pid = String(projectId || '').trim()
+  const dateYmd = String(ymd || '').trim() || ymdLocal(new Date().toISOString())
+  // 已存在同一案場、同一日期、同一動作的紀錄 → 不再新增，保留第一次時間
+  const already = list.some(
+    (r) => r.projectId === pid && (r.ymd || ymdLocal(r?.createdAt || '')) === dateYmd && r.actionType === actionType
+  )
+  if (already) {
+    return { success: true, message: '該步驟已紀錄過，時間以第一次為準' }
+  }
   const record = {
     id: `tr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-    projectId: projectId || '',
-    projectName: projectName || '',
+    projectId: pid,
+    projectName: projectName || pid,
     actionType,
     userId: userId || '',
     userName: userName || userId || '',
-    ymd: String(ymd || '').trim() || ymdLocal(new Date().toISOString()),
+    ymd: dateYmd,
     createdAt: new Date().toISOString()
   }
   list.push(record)
