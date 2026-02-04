@@ -27,22 +27,25 @@ export function getMessages() {
   return safeParseArray(localStorage.getItem(STORAGE_KEY))
 }
 
+/** 使用者看到的訊息：自己發給管理員的對話 + 管理員發給自己或全體的訊息 */
 export function getUserMessages(account) {
   const acc = String(account || '').trim()
   if (!acc) return []
-  return getMessages()
-    .filter((m) => String(m?.from || '').trim() === acc)
-    .sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+  const list = getMessages()
+  const fromMe = list.filter((m) => !m?.type && String(m?.from || '').trim() === acc)
+  const toMe = list.filter((m) => m?.type === 'admin_to_user' && (String(m?.to || '').trim() === acc || String(m?.to || '').trim() === '__all__'))
+  return [...fromMe, ...toMe].sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
 }
 
 export function getAdminInbox() {
   return getMessages()
+    .filter((m) => !m?.type || m.type !== 'admin_to_user')
     .slice()
     .sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
 }
 
 export function getAdminUnreadCount() {
-  return getMessages().filter((m) => (m?.status || 'unread') === 'unread' && !m?.resolved).length
+  return getMessages().filter((m) => !m?.type && (m?.status || 'unread') === 'unread' && !m?.resolved).length
 }
 
 export function addUserMessage({ from, subject, body }) {
@@ -100,6 +103,31 @@ export function setAdminResolved(messageId, resolved = true) {
   }
   persist(list)
   return { success: true }
+}
+
+/** 管理員發送給指定用戶或全體（to = 帳號 或 '__all__'） */
+export function addAdminToUserMessage({ fromAdminAccount, to, subject, body }) {
+  const adminAcc = String(fromAdminAccount || '').trim()
+  const toVal = String(to || '').trim()
+  const b = String(body || '').trim()
+  if (!adminAcc) return { success: false, message: '未登入' }
+  if (!toVal) return { success: false, message: '請選擇發送對象' }
+  if (!b) return { success: false, message: '請輸入內容' }
+
+  const list = getMessages()
+  const msg = {
+    id: newId('msg'),
+    type: 'admin_to_user',
+    from: adminAcc,
+    fromName: getDisplayNameForAccount(adminAcc),
+    to: toVal,
+    subject: String(subject || '').trim(),
+    body: b,
+    createdAt: new Date().toISOString()
+  }
+  list.push(msg)
+  persist(list)
+  return { success: true, message: '已送出', item: msg }
 }
 
 export function addAdminReply(messageId, { fromAdminAccount, body }) {
