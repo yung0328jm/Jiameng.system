@@ -1,6 +1,7 @@
 // 本地存储工具函数
 import { syncKeyToSupabase } from './supabaseSync'
 const STORAGE_KEY = 'jiameng_users'
+const ADVANCE_KEY = 'jiameng_advances'
 
 /** 寫入本地並同步到 Supabase；回傳 sync 的 Promise，呼叫方可 await 以確保刷新前已寫入雲端 */
 const setUsersAndSync = (users) => {
@@ -143,4 +144,108 @@ export const verifyUser = (account, password) => {
     console.error('Error verifying user:', error)
     return { success: false, message: '登錄失敗，請稍後再試' }
   }
+}
+
+// ---------- 預支申請（與 advanceStorage 同邏輯，集中於此避免部署時模組找不到） ----------
+function getAdvanceList() {
+  try {
+    const raw = localStorage.getItem(ADVANCE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch (e) {
+    return []
+  }
+}
+function saveAdvanceList(list) {
+  try {
+    const data = Array.isArray(list) ? list : []
+    localStorage.setItem(ADVANCE_KEY, JSON.stringify(data))
+    syncKeyToSupabase(ADVANCE_KEY, JSON.stringify(data))
+  } catch (e) {}
+}
+export function getAllAdvances() {
+  return getAdvanceList()
+}
+export function getAdvancesByAccount(account) {
+  const list = getAdvanceList()
+  const acc = String(account || '').trim()
+  return list
+    .filter((r) => String(r?.account || '').trim() === acc)
+    .sort((a, b) => (new Date(b.createdAt || 0)).getTime() - (new Date(a.createdAt || 0)).getTime())
+}
+export function getPendingAdvances() {
+  return getAdvanceList().filter((r) => (r.status || 'pending') === 'pending')
+}
+export function addAdvance({ account, amount, reason }) {
+  try {
+    const list = getAdvanceList()
+    const id = `adv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    const rec = {
+      id,
+      account: String(account || '').trim(),
+      amount: Math.max(0, Number(amount) || 0),
+      reason: String(reason || '').trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      reviewedBy: '',
+      reviewedAt: null,
+      transferredAt: null
+    }
+    list.push(rec)
+    saveAdvanceList(list)
+    return { success: true, id, record: rec }
+  } catch (e) {
+    return { success: false, message: '儲存失敗' }
+  }
+}
+export function rejectAdvance(id, reviewedBy = '') {
+  try {
+    const list = getAdvanceList()
+    const idx = list.findIndex((r) => r.id === id)
+    if (idx === -1) return { success: false, message: '找不到該申請' }
+    list[idx] = { ...list[idx], status: 'rejected', reviewedBy: String(reviewedBy || '').trim(), reviewedAt: new Date().toISOString() }
+    saveAdvanceList(list)
+    return { success: true, record: list[idx] }
+  } catch (e) {
+    return { success: false, message: '更新失敗' }
+  }
+}
+export function markTransferred(id, reviewedBy = '') {
+  try {
+    const list = getAdvanceList()
+    const idx = list.findIndex((r) => r.id === id)
+    if (idx === -1) return { success: false, message: '找不到該申請' }
+    const now = new Date().toISOString()
+    list[idx] = { ...list[idx], status: 'transferred', reviewedBy: String(reviewedBy || '').trim(), reviewedAt: list[idx].reviewedAt || now, transferredAt: now }
+    saveAdvanceList(list)
+    return { success: true, record: list[idx] }
+  } catch (e) {
+    return { success: false, message: '更新失敗' }
+  }
+}
+export function getTotalTransferredByAccount(account) {
+  const list = getAdvanceList()
+  const acc = String(account || '').trim()
+  return list
+    .filter((r) => String(r?.account || '').trim() === acc && (r.status || '') === 'transferred')
+    .reduce((sum, r) => sum + (Number(r.amount) || 0), 0)
+}
+export function getPendingCountByAccount(account) {
+  const acc = String(account || '').trim()
+  return getAdvanceList().filter((r) => String(r?.account || '').trim() === acc && (r.status || '') === 'pending').length
+}
+export function getTransferredCountByAccount(account) {
+  const acc = String(account || '').trim()
+  return getAdvanceList().filter((r) => String(r?.account || '').trim() === acc && (r.status || '') === 'transferred').length
+}
+export function getMonthlyTransferredByAccount(account) {
+  const list = getAdvanceList()
+  const acc = String(account || '').trim()
+  const byMonth = {}
+  list
+    .filter((r) => String(r?.account || '').trim() === acc && (r.status || '') === 'transferred')
+    .forEach((r) => {
+      const dateStr = (r.transferredAt || r.reviewedAt || r.createdAt || '').slice(0, 7)
+      if (dateStr) byMonth[dateStr] = (byMonth[dateStr] || 0) + (Number(r.amount) || 0)
+    })
+  return byMonth
 }
