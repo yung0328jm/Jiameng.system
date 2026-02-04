@@ -14,14 +14,17 @@ export const getTodos = () => {
 }
 
 const TODO_LOCAL_WRITE_AT_KEY = 'jiameng_todos_local_write_at'
+const TODO_LOCAL_IDS_KEY = 'jiameng_todos_local_ids' // 本次寫入時的 id 列表，用來合併時不把「已刪」的項目加回
 
 // 保存待辦事項（會等雲端寫入完成再回傳，避免輪詢用舊資料蓋回）
 export async function saveTodos(todos) {
   try {
     const val = JSON.stringify(todos)
+    const ids = (Array.isArray(todos) ? todos : []).map((t) => String(t?.id || '').trim()).filter(Boolean)
     localStorage.setItem(TODO_STORAGE_KEY, val)
     try {
       localStorage.setItem(TODO_LOCAL_WRITE_AT_KEY, String(Date.now()))
+      localStorage.setItem(TODO_LOCAL_IDS_KEY, JSON.stringify(ids))
     } catch (_) {}
     try {
       await syncKeyToSupabase(TODO_STORAGE_KEY, val)
