@@ -13,6 +13,42 @@ import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameFo
 import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
+import {
+  getTotalTransferredByAccount,
+  getPendingCountByAccount,
+  getTransferredCountByAccount,
+  getMonthlyTransferredByAccount
+} from '../utils/advanceStorage'
+
+function UserAdvanceCell({ account }) {
+  const pending = getPendingCountByAccount(account)
+  const transferred = getTransferredCountByAccount(account)
+  const total = getTotalTransferredByAccount(account)
+  const monthly = getMonthlyTransferredByAccount(account)
+  const monthlyEntries = Object.entries(monthly).sort(([a], [b]) => b.localeCompare(a))
+  if (pending === 0 && transferred === 0) {
+    return <span className="text-gray-500">-</span>
+  }
+  return (
+    <div className="flex flex-col gap-0.5" title={monthlyEntries.length > 0 ? `每月：${monthlyEntries.map(([ym, amt]) => `${ym} ${Number(amt).toLocaleString()}元`).join('、')}` : ''}>
+      <div className="flex flex-wrap gap-x-2 gap-y-0 text-xs">
+        {pending > 0 && <span className="text-yellow-400">審核中 {pending}</span>}
+        {transferred > 0 && <span className="text-green-400">已匯款 {transferred}</span>}
+      </div>
+      {total > 0 && (
+        <div className="text-yellow-400 font-medium text-sm">
+          總額 {Number(total).toLocaleString()} 元
+        </div>
+      )}
+      {monthlyEntries.length > 0 && (
+        <div className="text-gray-400 text-xs">
+          {monthlyEntries.slice(0, 3).map(([ym, amt]) => `${ym} ${Number(amt).toLocaleString()}元`).join(' · ')}
+          {monthlyEntries.length > 3 && ` +${monthlyEntries.length - 3}月`}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function UserManagement() {
   const [users, setUsers] = useState([])
@@ -24,6 +60,7 @@ function UserManagement() {
   const [registrationPasswordMessage, setRegistrationPasswordMessage] = useState('')
   const [perfRevision, setPerfRevision] = useState(0)
   const [assetsRevision, setAssetsRevision] = useState(0)
+  const [advanceRevision, setAdvanceRevision] = useState(0)
   const [showUserAssets, setShowUserAssets] = useState(false)
   const [selectedAssetsUser, setSelectedAssetsUser] = useState(null) // { account, name }
   const [selectedAssetsData, setSelectedAssetsData] = useState({ balance: 0, inventory: [] })
@@ -66,6 +103,8 @@ function UserManagement() {
   )
   // 背包/佳盟幣：跟隨資料變動即時更新
   useRealtimeKeys(['jiameng_wallets', 'jiameng_inventories', 'jiameng_items'], () => setAssetsRevision((v) => v + 1))
+  // 預支：審核/匯款後列表即時更新
+  useRealtimeKeys(['jiameng_advances'], () => setAdvanceRevision((v) => v + 1))
 
   const buildUserAssetsData = (account) => {
     const balance = getWalletBalance(account || '')
@@ -421,6 +460,9 @@ function UserManagement() {
                     註冊時間
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    預支
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     角色管理
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -493,6 +535,9 @@ function UserManagement() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                         {formatDate(user.createdAt)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <UserAdvanceCell account={user.account} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <select
