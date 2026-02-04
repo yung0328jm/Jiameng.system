@@ -1,4 +1,6 @@
 // 預支申請儲存：使用者申請借支金額與事由，管理員審核後可標記已匯款
+import { syncKeyToSupabase } from './supabaseSync'
+
 const ADVANCE_KEY = 'jiameng_advances'
 
 function getStorage() {
@@ -13,7 +15,9 @@ function getStorage() {
 
 function saveStorage(list) {
   try {
-    localStorage.setItem(ADVANCE_KEY, JSON.stringify(Array.isArray(list) ? list : []))
+    const data = Array.isArray(list) ? list : []
+    localStorage.setItem(ADVANCE_KEY, JSON.stringify(data))
+    syncKeyToSupabase(ADVANCE_KEY, JSON.stringify(data))
   } catch (e) {
     console.error('advanceStorage saveStorage:', e)
   }
