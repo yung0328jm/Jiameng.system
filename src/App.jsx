@@ -19,6 +19,7 @@ import MyBackpack from './pages/MyBackpack'
 import CheckIn from './pages/CheckIn'
 import TripReport from './pages/TripReport'
 import LeaveApplication from './pages/LeaveApplication'
+import Advance from './pages/Advance'
 import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole } from './utils/authStorage'
 import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
@@ -97,7 +98,7 @@ function App() {
   }
 
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <SyncProvider syncReady={syncReady}>
       <Routes>
         <Route 
@@ -145,6 +146,7 @@ function App() {
         <Route path="/trip-report" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="trip-report" />) : <Navigate to="/login" replace />} />
         <Route path="/messages" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="messages" />) : <Navigate to="/login" replace />} />
         <Route path="/leave-application" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="leave-application" />) : <Navigate to="/login" replace />} />
+        <Route path="/advance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="advance" />) : <Navigate to="/login" replace />} />
       </Routes>
       </SyncProvider>
     </Router>
