@@ -877,9 +877,14 @@ function Home() {
         
         if (schedule.workItems && schedule.workItems.length > 0) {
           schedule.workItems.forEach(item => {
-            // 如果指定了工作項目類型，只計算匹配的項目
-            if (leaderboardItem.workContent && item.workContent !== leaderboardItem.workContent) {
-              return
+            // 只計算「與此排行榜相關」的工作項目，避免有名稱但未填工作內容時誤計全部
+            const workContentFilter = (leaderboardItem.workContent && String(leaderboardItem.workContent).trim()) || ''
+            const nameOrTitleFilter = (leaderboardItem.title && String(leaderboardItem.title).trim()) || (leaderboardItem.name && String(leaderboardItem.name).trim()) || ''
+            if (workContentFilter) {
+              if (item.workContent !== leaderboardItem.workContent) return
+            } else if (nameOrTitleFilter) {
+              const wc = String(item.workContent || '').trim()
+              if (!wc || (!wc.includes(nameOrTitleFilter) && !nameOrTitleFilter.includes(wc))) return
             }
 
             // 協作：每位協作人員都計入排行榜；單人：只計負責人
