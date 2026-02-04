@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getUsers, updateUserRole, deleteUser } from '../utils/storage'
+import { getUsers, updateUserRole, deleteUser, getTotalTransferredByAccount, getPendingCountByAccount, getTransferredCountByAccount, getMonthlyTransferredByAccount } from '../utils/storage'
 import { getCurrentUserRole, getCurrentUser, saveCurrentUser } from '../utils/authStorage'
 import { getUserAttendanceRecords, getUserPerformanceRecords, getUserLateRecords } from '../utils/performanceStorage'
 import { getSchedules } from '../utils/scheduleStorage'
@@ -13,12 +13,6 @@ import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameFo
 import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
-import {
-  getTotalTransferredByAccount,
-  getPendingCountByAccount,
-  getTransferredCountByAccount,
-  getMonthlyTransferredByAccount
-} from '../utils/advanceStorage.js'
 
 function UserAdvanceCell({ account }) {
   const pending = getPendingCountByAccount(account)

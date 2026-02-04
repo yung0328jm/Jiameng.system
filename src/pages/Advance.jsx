@@ -9,10 +9,8 @@ import {
   rejectAdvance,
   markTransferred,
   getTotalTransferredByAccount,
-  getPendingCountByAccount,
-  getTransferredCountByAccount,
   getMonthlyTransferredByAccount
-} from '../utils/advanceStorage.js'
+} from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 const STATUS_LABEL = {
