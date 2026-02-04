@@ -21,16 +21,50 @@ export function SyncProvider({ children, syncReady = false }) {
       .maybeSingle()
     const updatedAt = String(data?.updated_at || '')
     if (!updatedAt || updatedAt === lastUpdatedAtRef.current) return false
-    // 待辦：若本地剛寫入（勾選/刪除/新增），短時間內不讓雲端舊資料覆寫，避免「一勾選又回復」
+    // 待辦：若本地剛寫入，短時間內不讓舊雲端覆寫；且合併時絕不把「本地已刪」的 id 加回
     if (key === 'jiameng_todos') {
       try {
         const localAt = parseInt(localStorage.getItem('jiameng_todos_local_write_at') || '', 10)
         const cloudTs = Date.parse(updatedAt) || 0
-        const protectMs = 30000 // 30 秒內不讓舊雲端資料覆寫，給即時同步時間
+        const protectMs = 60000
         if (localAt && (Date.now() - localAt < protectMs) && localAt > cloudTs) {
-          // 主動推送 outbox，讓待辦變更盡快上傳，下次輪詢就能拿到新資料
           flushSyncOutbox().catch(() => {})
           return false
+        }
+        // 合併：雲端有、但「上次本地寫入時有、現在本地沒有」的 id = 我們刪掉的，不要加回
+        const localIdsRaw = localStorage.getItem('jiameng_todos_local_ids')
+        const currentRaw = localStorage.getItem('jiameng_todos')
+        const cloudList = (() => {
+          const d = data?.data
+          if (Array.isArray(d)) return d
+          try { return typeof d === 'string' ? JSON.parse(d || '[]') : [] } catch (_) { return [] }
+        })()
+        let localIds = []
+        try { localIds = localIdsRaw ? JSON.parse(localIdsRaw) : [] } catch (_) {}
+        if (!Array.isArray(localIds)) localIds = []
+        let currentLocal = []
+        try { currentLocal = currentRaw ? JSON.parse(currentRaw) : [] } catch (_) {}
+        if (!Array.isArray(currentLocal)) currentLocal = []
+        const currentIds = new Set(currentLocal.map((t) => String(t?.id || '').trim()).filter(Boolean))
+        const deletedByUs = new Set(localIds.filter((id) => !currentIds.has(id)))
+        if (deletedByUs.size > 0) {
+          const merged = cloudList.filter((item) => !deletedByUs.has(String(item?.id || '').trim()))
+          const mergedIds = new Set(merged.map((t) => String(t?.id || '').trim()))
+          currentLocal.forEach((t) => {
+            const id = String(t?.id || '').trim()
+            if (id && !mergedIds.has(id)) { merged.push(t); mergedIds.add(id) }
+          })
+          merged.sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+          lastUpdatedAtRef.current = updatedAt
+          const val = JSON.stringify(merged)
+          localStorage.setItem(key, val)
+          try {
+            localStorage.setItem('jiameng_todos_local_write_at', String(Date.now()))
+            localStorage.setItem('jiameng_todos_local_ids', JSON.stringify(merged.map((t) => String(t?.id || '').trim()).filter(Boolean)))
+          } catch (_) {}
+          window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
+          setRevision((r) => r + 1)
+          return true
         }
       } catch (_) {}
     }
@@ -38,7 +72,10 @@ export function SyncProvider({ children, syncReady = false }) {
     const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? defaultValue)
     localStorage.setItem(key, val)
     if (key === 'jiameng_todos') {
-      try { localStorage.removeItem('jiameng_todos_local_write_at') } catch (_) {}
+      try {
+        localStorage.removeItem('jiameng_todos_local_write_at')
+        localStorage.removeItem('jiameng_todos_local_ids')
+      } catch (_) {}
     }
     window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
     setRevision((r) => r + 1)
