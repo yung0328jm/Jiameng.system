@@ -297,12 +297,15 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       }).length
       const lastSeenChat = getLastSeen(account, 'memo_chat')
       const lastTsChat = Date.parse(lastSeenChat || '') || 0
-      const chatMsgs = getGlobalMessages() || []
-      const chatUnread = chatMsgs.filter((m) => {
-        const t = Date.parse(m?.createdAt || '') || 0
-        if (!(t > lastTsChat)) return false
-        return String(m?.author || '').trim() !== account
-      }).length
+      let chatUnread = 0
+      try {
+        const chatMsgs = getGlobalMessages() || []
+        chatUnread = chatMsgs.filter((m) => {
+          const t = Date.parse(m?.createdAt || '') || 0
+          if (!(t > lastTsChat)) return false
+          return String(m?.author || '').trim() !== account
+        }).length
+      } catch (_) { /* getGlobalMessages 可能尚未有資料 */ }
       memoBadge = annUnread + chatUnread
     }
 
@@ -434,7 +437,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   useRealtimeKeys(
     [
       'jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests',
-      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_last_seen_v1'
+      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_memos', 'jiameng_last_seen_v1'
     ],
     refetchDashboard
   )
@@ -466,6 +469,15 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       window.removeEventListener('focus', onVisible)
     }
   }, [])
+
+  // 切換分頁時立即重算徽章（例如從交流區切到其他頁時，交流區未讀要即時顯示）
+  const pathname = location?.pathname || ''
+  useEffect(() => {
+    const user = getCurrentUser()
+    const role = getCurrentUserRole()
+    setNavBadges(calcNavBadges(user, role))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
 
   const handleApproveExchange = (requestId) => {
     if (!window.confirm('確定要確認此兌換請求嗎？確認後道具將從用戶背包中移除。')) {
@@ -668,7 +680,10 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       if (tab === 'messages') touchLastSeen(me, 'messages')
       if (tab === 'leave-application') touchLastSeen(me, 'leave')
       if (tab === 'advance') touchLastSeen(me, 'advance')
-      if (tab === 'memo') touchLastSeen(me, 'memo_announcements')
+      if (tab === 'memo') {
+        touchLastSeen(me, 'memo_announcements')
+        touchLastSeen(me, 'memo_chat')
+      }
       setNavBadges(calcNavBadges(me, role))
     }
   }
