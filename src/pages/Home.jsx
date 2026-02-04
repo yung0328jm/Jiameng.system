@@ -21,6 +21,7 @@ import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
+import { getWorkItemCollaborators, getWorkItemActualForNameForPerformance, getWorkItemTargetForNameForPerformance } from '../utils/workItemCollaboration'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -881,16 +882,21 @@ function Home() {
               return
             }
 
-            // 將負責人名稱轉換為帳號
-            const responsiblePerson = item.responsiblePerson
-            const responsiblePersonAccount = getNameToAccount(responsiblePerson)
-            if (responsiblePersonAccount) {
-              const s = ensureUser(responsiblePersonAccount, responsiblePerson)
+            // 協作：每位協作人員都計入排行榜；單人：只計負責人
+            const collabs = getWorkItemCollaborators(item)
+            const personsToCredit = collabs.length > 0
+              ? collabs.map((c) => String(c?.name || '').trim()).filter(Boolean)
+              : (item.responsiblePerson ? [String(item.responsiblePerson).trim()] : [])
+
+            personsToCredit.forEach((personName) => {
+              const acc = getNameToAccount(personName)
+              if (!acc) return
+              const s = ensureUser(acc, personName)
               if (!s) return
-              const target = parseFloat(item.targetQuantity) || 0
-              const actual = parseFloat(item.actualQuantity) || 0
+              const target = getWorkItemTargetForNameForPerformance(item, personName) || 0
+              const actual = getWorkItemActualForNameForPerformance(item, personName) || 0
               const completionRate = target > 0 ? (actual / target * 100) : 0
-              
+
               s.totalWorkItems++
               s.totalCompletionRate += completionRate
               s.itemsWithRate++
@@ -898,7 +904,7 @@ function Home() {
               if (completionRate >= 100) {
                 s.completedItems++
               }
-            }
+            })
           })
         }
       })

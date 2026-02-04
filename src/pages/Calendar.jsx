@@ -1223,9 +1223,13 @@ function Calendar() {
           contributors.forEach((c) => {
             const name = String(c?.name || '').trim()
             if (!name) return
-            // shared：按目標比例/人數分配共同實際，避免多人重複累加
-            // separate：各自累加
-            const quantity = getWorkItemActualForNameForPerformance(workItem, name)
+            // shared 共同完成：總數量/人數，每人累加一份，總和=總數量不重複
+            // separate：各自累加自己的實際數量
+            const isShared = getWorkItemCollabMode(workItem) === 'shared'
+            const rawQty = getWorkItemActualForNameForPerformance(workItem, name)
+            const quantity = isShared && contributors.length > 0
+              ? rawQty / contributors.length
+              : rawQty
             if (!(quantity > 0)) return
 
             const lastAccumulatedAt = lastBy?.[name] ? new Date(lastBy[name]) : null
