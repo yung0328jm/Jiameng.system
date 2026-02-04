@@ -877,14 +877,18 @@ function Home() {
         
         if (schedule.workItems && schedule.workItems.length > 0) {
           schedule.workItems.forEach(item => {
-            // 只計算「與此排行榜相關」的工作項目，避免有名稱但未填工作內容時誤計全部
+            // 只計算「與此排行榜相關」的工作項目。支援逗號分隔多關鍵字，任一個符合即計入（例：RJ,RJ45,水晶頭）
             const workContentFilter = (leaderboardItem.workContent && String(leaderboardItem.workContent).trim()) || ''
             const nameOrTitleFilter = (leaderboardItem.title && String(leaderboardItem.title).trim()) || (leaderboardItem.name && String(leaderboardItem.name).trim()) || ''
+            const wc = String(item.workContent || '').trim()
             if (workContentFilter) {
-              if (item.workContent !== leaderboardItem.workContent) return
+              const keywords = workContentFilter.split(',').map((k) => String(k).trim()).filter(Boolean)
+              const match = keywords.length === 0 || keywords.some((k) => wc.includes(k) || k.includes(wc))
+              if (!match) return
             } else if (nameOrTitleFilter) {
-              const wc = String(item.workContent || '').trim()
-              if (!wc || (!wc.includes(nameOrTitleFilter) && !nameOrTitleFilter.includes(wc))) return
+              const keywords = nameOrTitleFilter.split(',').map((k) => String(k).trim()).filter(Boolean)
+              const match = wc && keywords.length > 0 && keywords.some((k) => wc.includes(k) || k.includes(wc))
+              if (!match) return
             }
 
             // 協作：每位協作人員都計入排行榜；單人：只計負責人

@@ -1191,22 +1191,21 @@ function Calendar() {
 
         if (contributors.length === 0) return
         
-        // 查找匹配的排行榜項目
+        // 查找匹配的排行榜項目。支援逗號分隔多關鍵字，任一個符合即匹配（例：RJ,RJ45,水晶頭）
+        const matchKeywords = (itemContent, filterStr) => {
+          if (!filterStr || !itemContent) return false
+          const keywords = String(filterStr).split(',').map((k) => String(k).trim()).filter(Boolean)
+          return keywords.some((k) => itemContent.includes(k) || k.includes(itemContent))
+        }
         const matchedLeaderboard = leaderboardItems.find(lb => {
-          // 優先檢查 workContent 字段
           if (lb.workContent && lb.workContent.trim() !== '') {
-            const workContentMatch = workItem.workContent.includes(lb.workContent) || lb.workContent.includes(workItem.workContent)
-            if (workContentMatch) return true
+            if (matchKeywords(workItem.workContent, lb.workContent)) return true
           }
-          // 如果 workContent 為空或不匹配，檢查 title 字段（排行榜標題）
           if (lb.title && lb.title.trim() !== '') {
-            const titleMatch = workItem.workContent.includes(lb.title) || lb.title.includes(workItem.workContent)
-            if (titleMatch) return true
+            if (matchKeywords(workItem.workContent, lb.title)) return true
           }
-          // 如果 title 也不匹配，檢查 name 字段（排行榜名稱）
           if (lb.name && lb.name.trim() !== '') {
-            const nameMatch = workItem.workContent.includes(lb.name) || lb.name.includes(workItem.workContent)
-            if (nameMatch) return true
+            if (matchKeywords(workItem.workContent, lb.name)) return true
           }
           return false
         })
@@ -1424,22 +1423,21 @@ function Calendar() {
           return // 已經累加過，不重複計算
         }
         
-        // 查找匹配的排行榜項目
+        // 查找匹配的排行榜項目。支援逗號分隔多關鍵字，任一個符合即匹配（例：RJ,RJ45,水晶頭）
+        const matchKeywords = (itemContent, filterStr) => {
+          if (!filterStr || !itemContent) return false
+          const keywords = String(filterStr).split(',').map((k) => String(k).trim()).filter(Boolean)
+          return keywords.some((k) => itemContent.includes(k) || k.includes(itemContent))
+        }
         const matchedLeaderboard = leaderboardItems.find(lb => {
-          // 優先檢查 workContent 字段
           if (lb.workContent && lb.workContent.trim() !== '') {
-            const workContentMatch = workItem.workContent.includes(lb.workContent) || lb.workContent.includes(workItem.workContent)
-            if (workContentMatch) return true
+            if (matchKeywords(workItem.workContent, lb.workContent)) return true
           }
-          // 如果 workContent 為空或不匹配，檢查 title 字段（排行榜標題）
           if (lb.title && lb.title.trim() !== '') {
-            const titleMatch = workItem.workContent.includes(lb.title) || lb.title.includes(workItem.workContent)
-            if (titleMatch) return true
+            if (matchKeywords(workItem.workContent, lb.title)) return true
           }
-          // 如果 title 也不匹配，檢查 name 字段（排行榜名稱）
           if (lb.name && lb.name.trim() !== '') {
-            const nameMatch = workItem.workContent.includes(lb.name) || lb.name.includes(workItem.workContent)
-            if (nameMatch) return true
+            if (matchKeywords(workItem.workContent, lb.name)) return true
           }
           return false
         })
