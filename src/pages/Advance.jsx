@@ -12,7 +12,7 @@ import {
   getPendingCountByAccount,
   getTransferredCountByAccount,
   getMonthlyTransferredByAccount
-} from '../utils/advanceStorage'
+} from '../utils/advanceStorage.js'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 const STATUS_LABEL = {

@@ -18,7 +18,7 @@ import {
   getPendingCountByAccount,
   getTransferredCountByAccount,
   getMonthlyTransferredByAccount
-} from '../utils/advanceStorage'
+} from '../utils/advanceStorage.js'
 
 function UserAdvanceCell({ account }) {
   const pending = getPendingCountByAccount(account)
