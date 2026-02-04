@@ -52,7 +52,8 @@ function Calendar() {
     proposedIsCollaborative: false,
     proposedCollabMode: 'shared',
     proposedTargetQuantity: '',
-    proposedCollaborators: [] // [{ name, targetQuantity }]
+    proposedCollaborators: [], // [{ name, targetQuantity }]
+    proposedContentRows: [] // 多列工作內容（申請改為）[{ id, workContent, targetQuantity, actualQuantity }]
   })
   const [topicFormData, setTopicFormData] = useState({
     title: '',
@@ -203,6 +204,20 @@ function Calendar() {
   const openChangeRequest = (scheduleId, item) => {
     const it = normalizeWorkItem(item)
     const collabs = getWorkItemCollaborators(it)
+    const hasContentRows = Array.isArray(item?.contentRows) && item.contentRows.length > 0
+    const proposedContentRows = hasContentRows
+      ? item.contentRows.map((r, i) => ({
+          id: r.id || `row-${Date.now()}-${i}`,
+          workContent: r.workContent ?? '',
+          targetQuantity: r.targetQuantity ?? '',
+          actualQuantity: r.actualQuantity ?? ''
+        }))
+      : [{
+          id: `row-${Date.now()}`,
+          workContent: it.workContent || '',
+          targetQuantity: it.targetQuantity ?? '',
+          actualQuantity: it.actualQuantity ?? it.sharedActualQuantity ?? ''
+        }]
     setChangeReq({
       open: true,
       scheduleId: String(scheduleId || ''),
@@ -216,7 +231,8 @@ function Calendar() {
       proposedCollaborators: collabs.map((c) => ({
         name: String(c?.name || '').trim(),
         targetQuantity: c?.targetQuantity ?? ''
-      }))
+      })),
+      proposedContentRows
     })
   }
 
@@ -232,15 +248,18 @@ function Calendar() {
       return
     }
 
+    const proposedContentRows = Array.isArray(changeReq.proposedContentRows) ? changeReq.proposedContentRows : []
+    const firstRow = proposedContentRows[0]
     const proposed = {
-      workContent: changeReq.proposedWorkContent,
+      workContent: firstRow?.workContent ?? changeReq.proposedWorkContent,
       responsiblePerson: changeReq.proposedResponsiblePerson,
       isCollaborative: !!changeReq.proposedIsCollaborative,
       collabMode: changeReq.proposedCollabMode,
-      targetQuantity: changeReq.proposedTargetQuantity,
+      targetQuantity: firstRow?.targetQuantity ?? changeReq.proposedTargetQuantity,
       collaborators: (Array.isArray(changeReq.proposedCollaborators) ? changeReq.proposedCollaborators : [])
         .map((c) => ({ name: String(c?.name || '').trim(), targetQuantity: c?.targetQuantity ?? '' }))
-        .filter((c) => !!c.name)
+        .filter((c) => !!c.name),
+      ...(proposedContentRows.length > 0 ? { contentRows: proposedContentRows } : {})
     }
 
     const baseItems = (editingScheduleId === scheduleId)
@@ -300,14 +319,18 @@ function Calendar() {
         }
       }
       if (!p) return wi
+      const firstContentRow = Array.isArray(p.contentRows) && p.contentRows.length > 0 ? p.contentRows[0] : null
       return {
         ...wi,
-        workContent: p.workContent,
+        workContent: firstContentRow?.workContent ?? p.workContent,
         responsiblePerson: p.responsiblePerson,
         isCollaborative: !!p.isCollaborative,
         collabMode: p.collabMode,
-        targetQuantity: p.targetQuantity,
+        targetQuantity: firstContentRow?.targetQuantity ?? p.targetQuantity,
+        sharedActualQuantity: firstContentRow?.actualQuantity ?? wi.sharedActualQuantity,
+        actualQuantity: firstContentRow?.actualQuantity ?? wi.actualQuantity,
         collaborators: p.collaborators,
+        contentRows: Array.isArray(p.contentRows) && p.contentRows.length > 0 ? p.contentRows : undefined,
         changeRequest: {
           ...cr,
           kind: 'change',
@@ -2527,22 +2550,41 @@ function Calendar() {
                                   </div>
                                   {crKind !== 'cancel' && (
                                     <div className="mt-1 text-blue-200 text-xs space-y-1">
-                                      <div>工作內容：{String(it?.workContent || '').trim() || '—'} → {String(it?.changeRequest?.proposed?.workContent || '').trim() || '—'}</div>
-                                      <div>模式：{it?.changeRequest?.proposed?.isCollaborative ? '協作' : '單人'}</div>
-                                      {!it?.changeRequest?.proposed?.isCollaborative ? (
+                                      {Array.isArray(it?.changeRequest?.proposed?.contentRows) && it.changeRequest.proposed.contentRows.length > 0 ? (
                                         <>
-                                          <div>負責人：{String(it?.responsiblePerson || '').trim() || '—'} → {String(it?.changeRequest?.proposed?.responsiblePerson || '').trim() || '—'}</div>
-                                          <div>目標：{String(it?.targetQuantity ?? '').trim() || '—'} → {String(it?.changeRequest?.proposed?.targetQuantity ?? '').trim() || '—'}</div>
+                                          <div>模式：{it?.changeRequest?.proposed?.isCollaborative ? '協作' : '單人'}</div>
+                                          <div className="mt-1">多列工作內容（申請改為）：</div>
+                                          {it.changeRequest.proposed.contentRows.map((row, ri) => (
+                                            <div key={ri} className="pl-2 border-l border-gray-500">
+                                              • {String(row?.workContent || '').trim() || '—'} 目標 {row?.targetQuantity ?? '—'} / 實際 {row?.actualQuantity ?? '—'}
+                                            </div>
+                                          ))}
+                                          {!it?.changeRequest?.proposed?.isCollaborative && (
+                                            <div>負責人：{String(it?.responsiblePerson || '').trim() || '—'} → {String(it?.changeRequest?.proposed?.responsiblePerson || '').trim() || '—'}</div>
+                                          )}
+                                          {it?.changeRequest?.proposed?.isCollaborative && (
+                                            <div>協作人員：{(Array.isArray(it?.changeRequest?.proposed?.collaborators) ? it.changeRequest.proposed.collaborators : []).map((c) => c?.name).filter(Boolean).join('、') || '—'}</div>
+                                          )}
                                         </>
                                       ) : (
                                         <>
-                                          <div>協作方式：{String(it?.changeRequest?.proposed?.collabMode || 'shared')}</div>
-                                          <div>
-                                            協作人員/目標：{(Array.isArray(it?.changeRequest?.proposed?.collaborators) ? it.changeRequest.proposed.collaborators : [])
-                                              .map((c) => `${String(c?.name || '').trim()}(${String(c?.targetQuantity ?? '').trim() || '—'})`)
-                                              .filter(Boolean)
-                                              .join('、') || '—'}
-                                          </div>
+                                          <div>工作內容：{String(it?.workContent || '').trim() || '—'} → {String(it?.changeRequest?.proposed?.workContent || '').trim() || '—'}</div>
+                                          <div>模式：{it?.changeRequest?.proposed?.isCollaborative ? '協作' : '單人'}</div>
+                                          {!it?.changeRequest?.proposed?.isCollaborative ? (
+                                            <>
+                                              <div>負責人：{String(it?.responsiblePerson || '').trim() || '—'} → {String(it?.changeRequest?.proposed?.responsiblePerson || '').trim() || '—'}</div>
+                                              <div>目標：{String(it?.targetQuantity ?? '').trim() || '—'} → {String(it?.changeRequest?.proposed?.targetQuantity ?? '').trim() || '—'}</div>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <div>協作方式：{String(it?.changeRequest?.proposed?.collabMode || 'shared')}</div>
+                                              <div>協作人員/目標：{(Array.isArray(it?.changeRequest?.proposed?.collaborators) ? it.changeRequest.proposed.collaborators : [])
+                                                .map((c) => `${String(c?.name || '').trim()}(${String(c?.targetQuantity ?? '').trim() || '—'})`)
+                                                .filter(Boolean)
+                                                .join('、') || '—'}
+                                              </div>
+                                            </>
+                                          )}
                                         </>
                                       )}
                                     </div>
@@ -2900,16 +2942,6 @@ function Calendar() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-300 text-sm mb-1">工作內容（申請改為）</label>
-                  <input
-                    type="text"
-                    value={changeReq.proposedWorkContent}
-                    onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedWorkContent: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
-                    placeholder="工作內容"
-                  />
-                </div>
-                <div>
                   <label className="block text-gray-300 text-sm mb-1">模式</label>
                   <select
                     value={changeReq.proposedIsCollaborative ? 'collab' : 'single'}
@@ -2928,6 +2960,93 @@ function Calendar() {
                   </select>
                 </div>
               </div>
+
+              {/* 多列工作內容（申請改為）：單人 或 協作一起完成 時顯示 */}
+              {(!changeReq.proposedIsCollaborative || changeReq.proposedCollabMode === 'shared') && (
+                <div className="space-y-2">
+                  <label className="block text-gray-300 text-sm mb-1">工作內容多列（申請改為）</label>
+                  {(Array.isArray(changeReq.proposedContentRows) ? changeReq.proposedContentRows : []).map((row, rowIndex) => (
+                    <div key={row.id || rowIndex} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border border-gray-600 rounded p-2 bg-gray-800/50">
+                      <div className="md:col-span-5">
+                        <input
+                          type="text"
+                          value={row.workContent ?? ''}
+                          onChange={(e) => {
+                            const next = (changeReq.proposedContentRows || []).map((r, i) => (i === rowIndex ? { ...r, workContent: e.target.value } : r))
+                            setChangeReq((prev) => ({ ...prev, proposedContentRows: next }))
+                          }}
+                          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                          placeholder="工作內容"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <input
+                          type="number"
+                          value={row.targetQuantity ?? ''}
+                          onChange={(e) => {
+                            const next = (changeReq.proposedContentRows || []).map((r, i) => (i === rowIndex ? { ...r, targetQuantity: e.target.value } : r))
+                            setChangeReq((prev) => ({ ...prev, proposedContentRows: next }))
+                          }}
+                          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                          min="0"
+                          step="0.01"
+                          placeholder={changeReq.proposedIsCollaborative ? '共同目標' : '目標'}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <input
+                          type="number"
+                          value={row.actualQuantity ?? ''}
+                          onChange={(e) => {
+                            const next = (changeReq.proposedContentRows || []).map((r, i) => (i === rowIndex ? { ...r, actualQuantity: e.target.value } : r))
+                            setChangeReq((prev) => ({ ...prev, proposedContentRows: next }))
+                          }}
+                          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                          min="0"
+                          step="0.01"
+                          placeholder="實際"
+                        />
+                      </div>
+                      <div className="md:col-span-2 flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = (changeReq.proposedContentRows || []).filter((_, i) => i !== rowIndex)
+                            setChangeReq((prev) => ({ ...prev, proposedContentRows: next.length > 0 ? next : [{ id: `row-${Date.now()}`, workContent: '', targetQuantity: '', actualQuantity: '' }] }))
+                          }}
+                          className="text-red-400 hover:text-red-500 text-sm py-2"
+                        >
+                          刪除本項
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setChangeReq((prev) => ({
+                      ...prev,
+                      proposedContentRows: [...(prev.proposedContentRows || []), { id: `row-${Date.now()}`, workContent: '', targetQuantity: '', actualQuantity: '' }]
+                    }))}
+                    className="text-green-400 hover:text-green-300 text-sm py-1"
+                  >
+                    + 新增一列
+                  </button>
+                </div>
+              )}
+
+              {/* 協作分開完成：單一工作內容欄位 */}
+              {changeReq.proposedIsCollaborative && changeReq.proposedCollabMode === 'separate' && (
+                <div>
+                  <label className="block text-gray-300 text-sm mb-1">工作內容（申請改為）</label>
+                  <input
+                    type="text"
+                    value={changeReq.proposedWorkContent}
+                    onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedWorkContent: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                    placeholder="工作內容"
+                  />
+                </div>
+              )}
 
               {!changeReq.proposedIsCollaborative ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
