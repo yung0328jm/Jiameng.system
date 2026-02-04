@@ -1326,7 +1326,7 @@ function NavItem({ icon, label, isActive, onClick, badge }) {
       type="button"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick?.() }}
       className={`
-        flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base shrink-0
+        flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base shrink-0 overflow-visible
         ${isActive 
           ? 'bg-yellow-400 text-gray-800 font-semibold' 
           : 'text-white hover:bg-gray-600 active:bg-gray-600'
@@ -1335,11 +1335,11 @@ function NavItem({ icon, label, isActive, onClick, badge }) {
     >
       {icon}
       <span>{label}</span>
-      {badge && badge > 0 && (
-        <span className={`absolute top-0.5 right-0.5 sm:-top-1 sm:-right-1 bg-yellow-400 text-gray-800 rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-bold ${
-          isActive ? 'bg-gray-800 text-yellow-400' : ''
+      {badge != null && badge > 0 && (
+        <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${
+          isActive ? 'bg-gray-800 text-yellow-400' : 'bg-yellow-400 text-gray-800'
         }`}>
-          {badge}
+          {badge > 99 ? '99+' : badge}
         </span>
       )}
     </button>
