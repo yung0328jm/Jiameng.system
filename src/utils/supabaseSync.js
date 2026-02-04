@@ -140,7 +140,9 @@ export const APP_DATA_KEYS = [
   // 未讀/通知（每帳號最後查看時間）
   'jiameng_last_seen_v1',
   // 請假代填人（管理員指派一人可代他人填寫請假）
-  'jiameng_leave_filler_account'
+  'jiameng_leave_filler_account',
+  // 預支申請（借支金額、事由、審核／已匯款）
+  'jiameng_advances'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
@@ -373,7 +375,13 @@ export async function syncFromSupabase() {
 
     ;(appRes.data || []).forEach((r) => {
       try {
-        localStorage.setItem(r.key, typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}))
+        const key = r.key
+        // 待辦與交流區一致：不讓初始同步蓋掉本機已有資料（避免登入/重整後狀態被洗掉）
+        if (key === 'jiameng_todos' || key === 'jiameng_memos') {
+          const existing = localStorage.getItem(key)
+          if (existing != null && existing !== '' && existing !== '[]' && existing !== '{}') return
+        }
+        localStorage.setItem(key, typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}))
       } catch (_) {}
     })
 
