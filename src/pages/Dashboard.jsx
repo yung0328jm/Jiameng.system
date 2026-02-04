@@ -16,6 +16,7 @@ import MyBackpack from './MyBackpack'
 import CheckIn from './CheckIn'
 import TripReport from './TripReport'
 import LeaveApplication from './LeaveApplication'
+import Advance from './Advance'
 import Messages from './Messages'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
@@ -142,6 +143,14 @@ function LeaveIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  )
+}
+
+function AdvanceIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }
@@ -588,6 +597,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('check-in')) return 'check-in'
     if (path.includes('trip-report')) return 'trip-report'
     if (path.includes('leave-application')) return 'leave-application'
+    if (path.includes('advance')) return 'advance'
     if (path.includes('messages')) return 'messages'
     return 'home'
   }
@@ -624,6 +634,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'my-backpack': '我的背包',
       'check-in': '每日簽到',
       'leave-application': '請假申請',
+      'advance': '預支',
       'user-management': '用戶管理'
     }
     return titles[tab] || '佳盟事業群'
@@ -683,6 +694,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <TripReport />
       case 'leave-application':
         return <LeaveApplication />
+      case 'advance':
+        return <Advance />
       default:
         return <Home />
     }
@@ -704,7 +717,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           <h1 className="text-sm sm:text-lg font-bold text-yellow-400 truncate w-full text-center">
             {getTabTitle(activeTab)}
           </h1>
-          <div className="flex items-center gap-0.5 text-gray-400 text-[10px] sm:text-xs mt-0.5 truncate">
+          <div className="flex items-center gap-0.5 text-gray-400 text-[10px] sm:text-xs mt-0.5 truncate" suppressHydrationWarning>
             <span className="truncate">{dateTimeStr}</span>
           </div>
         </div>
@@ -1177,7 +1190,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base
-                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'messages'].includes(activeTab)
+                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab)
                   ? 'bg-yellow-400 text-gray-800 font-semibold'
                   : 'text-white hover:bg-gray-600 active:bg-gray-600'
                 }
@@ -1209,6 +1222,13 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   <button type="button" onClick={() => { handleTabClick('exchange', '/exchange'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <ExchangeIcon /> 交易所
                   </button>
+                  <button type="button" onClick={() => { handleTabClick('leave-application', '/leave-application'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <LeaveIcon /> 請假申請
+                    {navBadges.leave > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.leave}</span>}
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('advance', '/advance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <AdvanceIcon /> 預支
+                  </button>
                   <button type="button" onClick={() => { handleTabClick('messages', '/messages'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
                     <MailIcon /> 站內信
                     {navBadges.messages > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.messages}</span>}
@@ -1218,13 +1238,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               document.body
             )}
           </div>
-          <NavItem
-            icon={<LeaveIcon />}
-            label="請假申請"
-            isActive={activeTab === 'leave-application'}
-            onClick={() => handleTabClick('leave-application', '/leave-application')}
-            badge={navBadges.leave > 0 ? navBadges.leave : null}
-          />
           <NavItem
             icon={<CheckInIcon />}
             label="每日簽到"

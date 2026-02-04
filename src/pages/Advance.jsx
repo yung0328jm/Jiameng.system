@@ -109,7 +109,7 @@ function Advance() {
   const monthlyEntries = Object.entries(monthlyData).sort(([a], [b]) => b.localeCompare(a))
 
   return (
-    <div className="bg-charcoal rounded-lg p-4 sm:p-6 max-w-4xl mx-auto">
+    <div className="bg-charcoal rounded-lg p-4 sm:p-6 max-w-4xl mx-auto" suppressHydrationWarning>
       <h2 className="text-2xl font-bold text-yellow-400 mb-4">預支申請</h2>
 
       {/* 使用者：申請表單 */}
