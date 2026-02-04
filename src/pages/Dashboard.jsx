@@ -21,7 +21,7 @@ import Messages from './Messages'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
-import { getUsers } from '../utils/storage'
+import { getUsers, getPendingAdvances, getAdvancesByAccount } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getUserInventory, addItemToInventory } from '../utils/inventoryStorage'
 import { getPendingExchangeRequests, approveExchangeRequest, rejectExchangeRequest, deleteExchangeRequest } from '../utils/exchangeRequestStorage'
@@ -215,7 +215,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
   const personalServiceButtonRef = useRef(null)
   const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
-  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0 })
+  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0 })
 
   const calcNavBadges = (me, role) => {
     const account = String(me || '').trim()
@@ -256,6 +256,23 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       }).length
     }
 
+    // 預支
+    let advanceBadge = 0
+    if (r === 'admin') {
+      advanceBadge = (getPendingAdvances() || []).length
+    } else if (account) {
+      const lastSeen = getLastSeen(account, 'advance')
+      const lastTs = Date.parse(lastSeen || '') || 0
+      const mine = getAdvancesByAccount(account) || []
+      // 使用者端：有「審核結果」且更新時間在 lastSeen 之後的筆數
+      advanceBadge = mine.filter((x) => {
+        const status = String(x?.status || 'pending')
+        if (status === 'pending') return false
+        const t = Date.parse(x?.transferredAt || x?.reviewedAt || x?.createdAt || '') || 0
+        return t > lastTs
+      }).length
+    }
+
     // 交流區（公佈欄更新）
     let memoBadge = 0
     if (account) {
@@ -270,7 +287,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       }).length
     }
 
-    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge }
+    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge }
   }
 
   const loadAllUsersForAdmin = async () => {
@@ -398,7 +415,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   useRealtimeKeys(
     [
       'jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests',
-      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_announcements', 'jiameng_last_seen_v1'
+      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_last_seen_v1'
     ],
     refetchDashboard
   )
@@ -611,6 +628,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (me && role !== 'admin') {
       if (tab === 'messages') touchLastSeen(me, 'messages')
       if (tab === 'leave-application') touchLastSeen(me, 'leave')
+      if (tab === 'advance') touchLastSeen(me, 'advance')
       if (tab === 'memo') touchLastSeen(me, 'memo_announcements')
       setNavBadges(calcNavBadges(me, role))
     }
@@ -1228,6 +1246,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   </button>
                   <button type="button" onClick={() => { handleTabClick('advance', '/advance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <AdvanceIcon /> 預支
+                    {navBadges.advance > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.advance}</span>}
                   </button>
                   <button type="button" onClick={() => { handleTabClick('messages', '/messages'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
                     <MailIcon /> 站內信
