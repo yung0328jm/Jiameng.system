@@ -46,7 +46,23 @@ const applyApprovedProposedToPlanned = (baseItem, proposed) => {
   const p = (proposed && typeof proposed === 'object') ? proposed : {}
 
   const next = { ...base }
-  // 基本欄位
+  // 多列工作內容：優先套用 contentRows，再以第一列同步單欄位
+  if (Array.isArray(p.contentRows) && p.contentRows.length > 0) {
+    next.contentRows = p.contentRows.map((r) => ({
+      id: r.id,
+      workContent: r?.workContent ?? '',
+      targetQuantity: r?.targetQuantity ?? '',
+      actualQuantity: r?.actualQuantity ?? ''
+    }))
+    const first = next.contentRows[0]
+    next.workContent = first?.workContent ?? p.workContent
+    next.targetQuantity = first?.targetQuantity ?? p.targetQuantity
+    next.actualQuantity = first?.actualQuantity ?? next.actualQuantity
+    if (next.isCollaborative && next.collabMode === 'shared') {
+      next.sharedActualQuantity = first?.actualQuantity ?? next.sharedActualQuantity
+    }
+  }
+  // 基本欄位（無 contentRows 時或補齊）
   if (p.workContent != null) next.workContent = p.workContent
   if (p.isCollaborative != null) next.isCollaborative = !!p.isCollaborative
   if (p.collabMode === 'shared' || p.collabMode === 'separate') next.collabMode = p.collabMode
@@ -81,8 +97,8 @@ const applyApprovedProposedToPlanned = (baseItem, proposed) => {
       .filter((c) => !!c.name)
   }
 
-  // shared 模式的總目標用 item.targetQuantity（績效用）
-  if (next.collabMode === 'shared' && p.targetQuantity != null) {
+  // shared 模式的總目標用 item.targetQuantity（績效用）；有 contentRows 時已在上方設過
+  if (next.collabMode === 'shared' && p.targetQuantity != null && !(Array.isArray(p.contentRows) && p.contentRows.length > 0)) {
     next.targetQuantity = p.targetQuantity
   }
 
