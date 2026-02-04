@@ -3163,18 +3163,7 @@ function Calendar() {
                   </div>
 
                   {changeReq.proposedCollabMode === 'shared' ? (
-                    <div>
-                      <label className="block text-gray-300 text-sm mb-1">總目標數量（申請改為）</label>
-                      <input
-                        type="number"
-                        value={changeReq.proposedTargetQuantity}
-                        onChange={(e) => setChangeReq((prev) => ({ ...prev, proposedTargetQuantity: e.target.value }))}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
-                        min="0"
-                        step="0.01"
-                        placeholder="總目標"
-                      />
-                    </div>
+                    <p className="text-gray-500 text-xs">一起完成時，目標／實際請在上方「工作內容多列」各列填寫即可，不需再填總數量。</p>
                   ) : (
                     <div className="space-y-2">
                       <div className="text-gray-300 text-sm">每人目標（申請改為）</div>
