@@ -494,14 +494,13 @@ export function subscribeRealtime(onUpdate) {
                   notifyKey(key)
                 }
               } else if (key === 'jiameng_todos') {
-                // 待辦：剛寫入後幾秒內不讓 Realtime 覆寫，避免自己 sync 完成觸發事件時把狀態打亂
-                try {
-                  const lastWrite = parseInt(localStorage.getItem('jiameng_todos_last_write') || '', 10)
-                  if (lastWrite && (Date.now() - lastWrite < 3000)) return
-                } catch (_) {}
+                // 待辦：與交流區一樣，Realtime 收到就寫入；只有內容與本機相同時才跳過（避免同裝置回聲造成閃爍）
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                try {
+                  const current = localStorage.getItem(key)
+                  if (current === val) return
+                } catch (_) {}
                 localStorage.setItem(key, val)
-                try { localStorage.removeItem('jiameng_todos_last_write') } catch (_) {}
                 notifyKey(key)
               } else {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
