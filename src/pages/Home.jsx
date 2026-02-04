@@ -499,7 +499,7 @@ function Home() {
       rank: rankings.length + 1,
       name: '',
       department: uiConfig.defaultDepartment,
-      time: '',
+      time: leaderboardItem?.type === 'totalQuantity' ? '-' : '', // 數量型排行榜不需計時，預設為 -
       quantity: '',
       weekQuantity: '0', // 初始化本輪累計為0
       createdAt: new Date().toISOString()
@@ -2506,9 +2506,11 @@ function Home() {
                                             )}
                                           </div>
                                           
-                                          {/* 時間 */}
+                                          {/* 時間：數量型排行榜顯示 -，不計時 */}
                                           <div className="col-span-2 sm:col-span-3 flex items-center justify-center">
-                                            {isAutoRow ? (
+                                            {item.type === 'totalQuantity' ? (
+                                              <span className="text-gray-400 text-xs sm:text-sm">-</span>
+                                            ) : isAutoRow ? (
                                               <span className="text-gray-400 text-xs sm:text-sm">{ranking.time || ''}</span>
                                             ) : (
                                               <input
@@ -3188,9 +3190,11 @@ function Home() {
                                       )}
                                     </div>
                                     
-                                    {/* 時間列 */}
+                                    {/* 時間列：數量型排行榜顯示 -，不計時 */}
                                     <div className="col-span-2 sm:col-span-3 text-white text-xs sm:text-sm flex items-center justify-center">
-                                      {isManual && userRole === 'admin' ? (
+                                      {item.type === 'totalQuantity' ? (
+                                        <span className="text-center w-full text-gray-400">-</span>
+                                      ) : isManual && userRole === 'admin' ? (
                                         <input
                                           type="text"
                                           value={ranking.time || ''}
