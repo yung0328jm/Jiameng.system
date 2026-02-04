@@ -143,7 +143,7 @@ function TripReport() {
     })
     if (result.success) {
       setRecords(getTripReportsByProject(selectedSiteName, getTodayStr()))
-      setMessage({ type: 'success', text: `已紀錄：${actionType}` })
+      setMessage({ type: 'success', text: result.message || `已紀錄：${actionType}` })
     } else {
       setMessage({ type: 'error', text: result.message || '紀錄失敗' })
     }
