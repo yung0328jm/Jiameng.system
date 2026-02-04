@@ -154,6 +154,14 @@ function TripReportIcon() {
   )
 }
 
+function PersonalServiceIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  )
+}
+
 function Dashboard({ onLogout, activeTab: initialTab }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -195,6 +203,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [showTopMenu, setShowTopMenu] = useState(false) // 手機版「更多」選單
   const topMenuButtonRef = useRef(null)
   const [topMenuPosition, setTopMenuPosition] = useState({ top: 0, right: 0 })
+  const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
+  const personalServiceButtonRef = useRef(null)
+  const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
   const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0 })
 
   const calcNavBadges = (me, role) => {
@@ -1152,38 +1163,61 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               onClick={() => handleTabClick('management', '/dropdown-management')}
             />
           )}
-          <NavItem
-            icon={<PerformanceIcon />}
-            label="個人績效"
-            isActive={activeTab === 'performance'}
-            onClick={() => handleTabClick('performance', '/personal-performance')}
-          />
-          <NavItem
-            icon={<ShopIcon />}
-            label="兌換商城"
-            isActive={activeTab === 'exchange-shop'}
-            onClick={() => handleTabClick('exchange-shop', '/exchange-shop')}
-          />
-          <NavItem
-            icon={<ExchangeIcon />}
-            label="交易所"
-            isActive={activeTab === 'exchange'}
-            onClick={() => handleTabClick('exchange', '/exchange')}
-          />
-          <NavItem
-            icon={<BackpackIcon />}
-            label="我的背包"
-            isActive={activeTab === 'my-backpack'}
-            onClick={() => handleTabClick('my-backpack', '/my-backpack')}
-            badge={backpackItemCount > 0 ? backpackItemCount : null}
-          />
-          <NavItem
-            icon={<MailIcon />}
-            label="站內信"
-            isActive={activeTab === 'messages'}
-            onClick={() => handleTabClick('messages', '/messages')}
-            badge={navBadges.messages > 0 ? navBadges.messages : null}
-          />
+          <div className="relative shrink-0">
+            <button
+              ref={personalServiceButtonRef}
+              type="button"
+              onClick={() => {
+                const open = !showPersonalServiceMenu
+                if (open && personalServiceButtonRef.current) {
+                  const rect = personalServiceButtonRef.current.getBoundingClientRect()
+                  setPersonalServiceMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                }
+                setShowPersonalServiceMenu(open)
+              }}
+              className={`
+                flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base
+                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'messages'].includes(activeTab)
+                  ? 'bg-yellow-400 text-gray-800 font-semibold'
+                  : 'text-white hover:bg-gray-600 active:bg-gray-600'
+                }
+              `}
+            >
+              <PersonalServiceIcon />
+              <span>個人服務</span>
+              <svg className="w-4 h-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showPersonalServiceMenu && typeof document !== 'undefined' && createPortal(
+              <>
+                <div className="fixed inset-0 z-[9998]" onClick={() => setShowPersonalServiceMenu(false)} aria-hidden style={{ touchAction: 'none' }} />
+                <div
+                  className="fixed z-[9999] py-1 min-w-[160px] bg-gray-800 border border-gray-600 rounded-lg shadow-xl"
+                  style={{ top: personalServiceMenuPosition.top, left: personalServiceMenuPosition.left, touchAction: 'manipulation' }}
+                >
+                  <button type="button" onClick={() => { handleTabClick('performance', '/personal-performance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation">
+                    <PerformanceIcon /> 個人績效
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('my-backpack', '/my-backpack'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <BackpackIcon /> 我的背包
+                    {backpackItemCount > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{backpackItemCount}</span>}
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('exchange-shop', '/exchange-shop'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <ShopIcon /> 兌換商城
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('exchange', '/exchange'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <ExchangeIcon /> 交易所
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('messages', '/messages'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                    <MailIcon /> 站內信
+                    {navBadges.messages > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.messages}</span>}
+                  </button>
+                </div>
+              </>,
+              document.body
+            )}
+          </div>
           <NavItem
             icon={<LeaveIcon />}
             label="請假申請"
