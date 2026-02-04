@@ -17,7 +17,7 @@ import { getEffectDisplayConfig, saveEffectDisplayConfig, getStyleForPreset, get
 import { getLeaderboardTypes, addLeaderboardType, updateLeaderboardType, deleteLeaderboardType, getPresetIdByRank } from '../utils/leaderboardTypeStorage'
 import { getEquippedEffects } from '../utils/effectStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { syncKeyToSupabase } from '../utils/supabaseSync'
+import { syncKeyToSupabase, flushSyncOutbox } from '../utils/supabaseSync'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
@@ -339,6 +339,7 @@ function Home() {
     if (result.success) {
       setNewTodoText('')
       loadTodos()
+      flushSyncOutbox().catch(() => {})
     } else {
       alert(result.message || '新增失敗')
     }
@@ -348,6 +349,7 @@ function Home() {
     const result = toggleTodo(id)
     if (result.success) {
       loadTodos()
+      flushSyncOutbox().catch(() => {})
     }
   }
 
@@ -356,6 +358,7 @@ function Home() {
       const result = deleteTodo(id)
       if (result.success) {
         loadTodos()
+        flushSyncOutbox().catch(() => {})
       }
     }
   }
@@ -368,6 +371,7 @@ function Home() {
     const result = updateTodo(id, { text: text.trim() })
     if (result.success) {
       loadTodos()
+      flushSyncOutbox().catch(() => {})
     }
   }
 
