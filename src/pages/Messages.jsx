@@ -7,6 +7,7 @@ import {
   addUserMessage,
   addAdminReply,
   addAdminToUserMessage,
+  addUserToUserMessage,
   getAdminInbox,
   getAdminUnreadCount,
   getUserMessages,
@@ -30,6 +31,8 @@ function Messages() {
   const [replyDrafts, setReplyDrafts] = useState({}) // { [msgId]: string }
   const [adminSend, setAdminSend] = useState({ to: '__all__', targetAccount: '', subject: '', body: '' })
   const [recipients, setRecipients] = useState([]) // { account, name }[]
+  const [userRecipients, setUserRecipients] = useState([]) // 用戶可發送的對象（排除自己）
+  const [userCompose, setUserCompose] = useState({ to: '', subject: '', body: '' }) // 發送給用戶
 
   const refetch = () => setRevision((r) => r + 1)
   useRealtimeKeys(['jiameng_messages'], refetch)
@@ -58,6 +61,27 @@ function Messages() {
     load()
     return () => { mounted = false }
   }, [role])
+
+  // 一般用戶：可發送對象（排除自己與管理員）
+  useEffect(() => {
+    if (role === 'admin' || !me) return
+    let mounted = true
+    const load = async () => {
+      if (isAuthSupabase()) {
+        try {
+          const profiles = await getPublicProfiles()
+          if (mounted && Array.isArray(profiles)) {
+            setUserRecipients(profiles.filter((p) => !p?.is_admin && (p?.account || '') !== me).map((p) => ({ account: p?.account || '', name: p?.display_name || p?.account || '' })))
+          }
+        } catch (_) {}
+      } else {
+        const users = (getUsers() || []).filter((u) => u?.role !== 'admin' && (u?.account || '') !== me)
+        setUserRecipients(users.map((u) => ({ account: u?.account || '', name: u?.name || u?.account || '' })))
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [role, me])
 
   // 使用者端：進入站內信就視為「已查看回覆」
   useEffect(() => {
@@ -108,38 +132,82 @@ function Messages() {
       </div>
 
       {!isAdmin && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-6">
-          <h3 className="text-white font-semibold mb-3">新增訊息</h3>
-          <div className="grid gap-3">
-            <input
-              value={compose.subject}
-              onChange={(e) => setCompose((p) => ({ ...p, subject: e.target.value }))}
-              className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
-              placeholder="主旨（可選）"
-            />
-            <textarea
-              value={compose.body}
-              onChange={(e) => setCompose((p) => ({ ...p, body: e.target.value }))}
-              className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400 min-h-[120px]"
-              placeholder="內容（例如：需要協助、陳情、建議…）"
-            />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  const r = addUserMessage({ from: me, subject: compose.subject, body: compose.body })
-                  if (!r?.success) return alert(r?.message || '送出失敗')
-                  setCompose({ subject: '', body: '' })
-                  refetch()
-                  alert('已送出')
-                }}
-                className="bg-yellow-400 text-gray-900 px-4 py-2 rounded font-semibold hover:bg-yellow-500"
-              >
-                送出
-              </button>
+        <>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+            <h3 className="text-white font-semibold mb-3">發送給管理員</h3>
+            <div className="grid gap-3">
+              <input
+                value={compose.subject}
+                onChange={(e) => setCompose((p) => ({ ...p, subject: e.target.value }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                placeholder="主旨（可選）"
+              />
+              <textarea
+                value={compose.body}
+                onChange={(e) => setCompose((p) => ({ ...p, body: e.target.value }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400 min-h-[120px]"
+                placeholder="內容（例如：需要協助、陳情、建議…）"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = addUserMessage({ from: me, subject: compose.subject, body: compose.body })
+                    if (!r?.success) return alert(r?.message || '送出失敗')
+                    setCompose({ subject: '', body: '' })
+                    refetch()
+                    alert('已送出')
+                  }}
+                  className="bg-yellow-400 text-gray-900 px-4 py-2 rounded font-semibold hover:bg-yellow-500"
+                >
+                  送出
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-6">
+            <h3 className="text-white font-semibold mb-3">發送給用戶</h3>
+            <div className="grid gap-3">
+              <select
+                value={userCompose.to}
+                onChange={(e) => setUserCompose((p) => ({ ...p, to: e.target.value }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+              >
+                <option value="">請選擇收件人</option>
+                {userRecipients.map((r) => (
+                  <option key={r.account} value={r.account}>{r.name}（{r.account}）</option>
+                ))}
+              </select>
+              <input
+                value={userCompose.subject}
+                onChange={(e) => setUserCompose((p) => ({ ...p, subject: e.target.value }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
+                placeholder="主旨（可選）"
+              />
+              <textarea
+                value={userCompose.body}
+                onChange={(e) => setUserCompose((p) => ({ ...p, body: e.target.value }))}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400 min-h-[100px]"
+                placeholder="內容"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = addUserToUserMessage({ from: me, to: userCompose.to, subject: userCompose.subject, body: userCompose.body })
+                    if (!r?.success) return alert(r?.message || '送出失敗')
+                    setUserCompose({ to: '', subject: '', body: '' })
+                    refetch()
+                    alert('已送出')
+                  }}
+                  className="bg-yellow-400 text-gray-900 px-4 py-2 rounded font-semibold hover:bg-yellow-500"
+                >
+                  送出
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {isAdmin ? (
@@ -350,6 +418,23 @@ function Messages() {
                           <div className="text-gray-400 text-xs mt-1">
                             {m?.fromName || m?.from || '管理員'}｜發送給：{m?.to === '__all__' ? '全體用戶' : (m?.to || '')}｜{formatTime(m?.createdAt)}
                           </div>
+                        </div>
+                      </div>
+                      <div className="text-gray-200 text-sm mt-3 whitespace-pre-wrap">{m?.body || ''}</div>
+                    </div>
+                  )
+                }
+                if (m?.type === 'user_to_user') {
+                  const isSent = String(m?.from || '').trim() === me
+                  return (
+                    <div key={m.id} className={`rounded-lg border p-4 ${isSent ? 'border-gray-600 bg-gray-900/40' : 'border-blue-400/40 bg-gray-900/60'}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className={`text-xs font-medium ${isSent ? 'text-gray-400' : 'text-blue-300'}`}>
+                            {isSent ? `發送給 ${m?.toName || m?.to || '用戶'}` : `來自 ${m?.fromName || m?.from || '用戶'}`}
+                          </div>
+                          <div className="text-white font-semibold truncate mt-1">{m.subject || '（無主旨）'}</div>
+                          <div className="text-gray-400 text-xs mt-1">{formatTime(m?.createdAt)}</div>
                         </div>
                       </div>
                       <div className="text-gray-200 text-sm mt-3 whitespace-pre-wrap">{m?.body || ''}</div>
