@@ -3869,7 +3869,6 @@ function Calendar() {
                                           className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                                           min="0"
                                           step="0.01"
-                                          disabled={plannedLocked}
                                         />
                                       </div>
                                     </>
@@ -3887,7 +3886,7 @@ function Calendar() {
                                   <div key={c.name} className="grid grid-cols-3 gap-2 items-center">
                                     <span className="text-gray-200 text-xs truncate">{c.name}</span>
                                     <input type="number" value={c.targetQuantity ?? ''} onChange={(e) => { const prev = getWorkItemCollaborators(item); const next = prev.map((x) => String(x.name).trim() === String(c.name).trim() ? { ...x, targetQuantity: e.target.value } : x); handleWorkItemChange(index, 'collaborators', next) }} placeholder="目標" className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" min="0" step="0.01" disabled={plannedLocked} />
-                                    <input type="number" value={c.actualQuantity ?? ''} onChange={(e) => { const prev = getWorkItemCollaborators(item); const next = prev.map((x) => String(x.name).trim() === String(c.name).trim() ? { ...x, actualQuantity: e.target.value } : x); handleWorkItemChange(index, 'collaborators', next) }} placeholder="實際" className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" min="0" step="0.01" disabled={plannedLocked} />
+                                    <input type="number" value={c.actualQuantity ?? ''} onChange={(e) => { const prev = getWorkItemCollaborators(item); const next = prev.map((x) => String(x.name).trim() === String(c.name).trim() ? { ...x, actualQuantity: e.target.value } : x); handleWorkItemChange(index, 'collaborators', next) }} placeholder="實際" className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" min="0" step="0.01" />
                                   </div>
                                 ))}
                               </div>
