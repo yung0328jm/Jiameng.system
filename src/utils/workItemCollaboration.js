@@ -248,15 +248,18 @@ export const upsertCollaboratorTarget = (item, name, targetQuantity) => {
   return { ...it, collaborators: next, isCollaborative: (it?.isCollaborative || next.length > 1) }
 }
 
-// 獨立負責時，一個工作項目可含多筆「工作內容/目標/實際」（contentRows）。
-// 此函數將含 contentRows 的項目展開成多筆邏輯工項（同一負責人、不同 workContent/target/actual），
-// 供排行榜、績效等處迭代使用。
+// 獨立負責或協作（一起完成）時，一張卡可含多筆「工作內容/目標/實際」（contentRows）。
+// 此函數將含 contentRows 的項目展開成多筆邏輯工項，供排行榜、績效等處迭代使用。
+// - 獨立負責：每列展開為一筆（同一負責人）
+// - 協作一起完成：每列展開為一筆（同一組協作、該列的共同目標/實際）
+// - 協作分開完成 + contentRows：不展開，視為一筆（多項工作內容、一組目標/實際）
 export const expandWorkItemsToLogical = (workItems) => {
   if (!Array.isArray(workItems)) return []
   const out = []
   workItems.forEach((item) => {
     const rows = item?.contentRows
     const isCollab = !!item?.isCollaborative
+    const collabMode = (item?.collabMode === 'separate') ? 'separate' : 'shared'
     if (!isCollab && Array.isArray(rows) && rows.length > 0) {
       rows.forEach((row) => {
         out.push({
@@ -268,6 +271,27 @@ export const expandWorkItemsToLogical = (workItems) => {
           contentRows: undefined,
           _parentItem: item
         })
+      })
+    } else if (isCollab && collabMode === 'shared' && Array.isArray(rows) && rows.length > 0) {
+      rows.forEach((row) => {
+        out.push({
+          ...item,
+          id: (item.id || '') + (row.id ? '-' + row.id : ''),
+          workContent: row.workContent ?? item.workContent,
+          targetQuantity: row.targetQuantity ?? item.targetQuantity,
+          sharedActualQuantity: row.actualQuantity ?? row.sharedActualQuantity ?? item.sharedActualQuantity ?? item.actualQuantity,
+          actualQuantity: row.actualQuantity ?? item.actualQuantity,
+          contentRows: undefined,
+          _parentItem: item
+        })
+      })
+    } else if (isCollab && collabMode === 'separate' && Array.isArray(rows) && rows.length > 0) {
+      // 分開完成 + 多項內容：不展開，一筆邏輯項，workContent 用第一列或合併
+      const first = rows[0]
+      out.push({
+        ...item,
+        workContent: (first?.workContent ?? item.workContent) || rows.map((r) => r?.workContent).filter(Boolean).join('、') || item.workContent,
+        contentRows: undefined
       })
     } else {
       out.push({ ...item })
