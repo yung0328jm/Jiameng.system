@@ -26,7 +26,12 @@ export function SyncProvider({ children, syncReady = false }) {
       try {
         const localAt = parseInt(localStorage.getItem('jiameng_todos_local_write_at') || '', 10)
         const cloudTs = Date.parse(updatedAt) || 0
-        if (localAt && (Date.now() - localAt < 15000) && localAt > cloudTs) return false
+        const protectMs = 30000 // 30 秒內不讓舊雲端資料覆寫，給即時同步時間
+        if (localAt && (Date.now() - localAt < protectMs) && localAt > cloudTs) {
+          // 主動推送 outbox，讓待辦變更盡快上傳，下次輪詢就能拿到新資料
+          flushSyncOutbox().catch(() => {})
+          return false
+        }
       } catch (_) {}
     }
     lastUpdatedAtRef.current = updatedAt
