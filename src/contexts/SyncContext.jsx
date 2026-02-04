@@ -21,9 +21,20 @@ export function SyncProvider({ children, syncReady = false }) {
       .maybeSingle()
     const updatedAt = String(data?.updated_at || '')
     if (!updatedAt || updatedAt === lastUpdatedAtRef.current) return false
+    // 待辦：若本地剛寫入（勾選/刪除/新增），短時間內不讓雲端舊資料覆寫，避免「一勾選又回復」
+    if (key === 'jiameng_todos') {
+      try {
+        const localAt = parseInt(localStorage.getItem('jiameng_todos_local_write_at') || '', 10)
+        const cloudTs = Date.parse(updatedAt) || 0
+        if (localAt && (Date.now() - localAt < 15000) && localAt > cloudTs) return false
+      } catch (_) {}
+    }
     lastUpdatedAtRef.current = updatedAt
     const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? defaultValue)
     localStorage.setItem(key, val)
+    if (key === 'jiameng_todos') {
+      try { localStorage.removeItem('jiameng_todos_local_write_at') } catch (_) {}
+    }
     window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
     setRevision((r) => r + 1)
     return true
