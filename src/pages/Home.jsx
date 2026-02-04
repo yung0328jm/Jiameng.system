@@ -17,7 +17,7 @@ import { getEffectDisplayConfig, saveEffectDisplayConfig, getStyleForPreset, get
 import { getLeaderboardTypes, addLeaderboardType, updateLeaderboardType, deleteLeaderboardType, getPresetIdByRank } from '../utils/leaderboardTypeStorage'
 import { getEquippedEffects } from '../utils/effectStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { syncKeyToSupabase, flushSyncOutbox } from '../utils/supabaseSync'
+import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
@@ -272,10 +272,9 @@ function Home() {
   // 待辦事項相關函數
   const loadTodos = () => {
     const allTodos = getTodos()
-    // 按創建時間降序排序（最新的在前），未完成的在前
-    const sorted = allTodos.sort((a, b) => {
+    const sorted = [...allTodos].sort((a, b) => {
       if (a.completed !== b.completed) {
-        return a.completed ? 1 : -1 // 未完成的在前
+        return a.completed ? 1 : -1
       }
       return new Date(b.createdAt) - new Date(a.createdAt)
     })
@@ -327,12 +326,12 @@ function Home() {
     setAwardClaims(c)
   }
 
-  const handleAddTodo = async () => {
+  const handleAddTodo = () => {
     if (!newTodoText.trim()) {
       alert('請輸入待辦事項')
       return
     }
-    const result = await addTodo({
+    const result = addTodo({
       text: newTodoText.trim(),
       createdBy: currentUser
     })
@@ -344,23 +343,23 @@ function Home() {
     }
   }
 
-  const handleToggleTodo = async (id) => {
-    const result = await toggleTodo(id)
+  const handleToggleTodo = (id) => {
+    const result = toggleTodo(id)
     if (result.success) loadTodos()
   }
 
-  const handleDeleteTodo = async (id) => {
+  const handleDeleteTodo = (id) => {
     if (!window.confirm('確定要刪除此待辦事項嗎？')) return
-    const result = await deleteTodo(id)
+    const result = deleteTodo(id)
     if (result.success) loadTodos()
   }
 
-  const handleUpdateTodo = async (id, text) => {
+  const handleUpdateTodo = (id, text) => {
     if (!text.trim()) {
       alert('待辦事項不能為空')
       return
     }
-    const result = await updateTodo(id, { text: text.trim() })
+    const result = updateTodo(id, { text: text.trim() })
     if (result.success) loadTodos()
   }
 
