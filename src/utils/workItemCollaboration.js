@@ -248,3 +248,31 @@ export const upsertCollaboratorTarget = (item, name, targetQuantity) => {
   return { ...it, collaborators: next, isCollaborative: (it?.isCollaborative || next.length > 1) }
 }
 
+// 獨立負責時，一個工作項目可含多筆「工作內容/目標/實際」（contentRows）。
+// 此函數將含 contentRows 的項目展開成多筆邏輯工項（同一負責人、不同 workContent/target/actual），
+// 供排行榜、績效等處迭代使用。
+export const expandWorkItemsToLogical = (workItems) => {
+  if (!Array.isArray(workItems)) return []
+  const out = []
+  workItems.forEach((item) => {
+    const rows = item?.contentRows
+    const isCollab = !!item?.isCollaborative
+    if (!isCollab && Array.isArray(rows) && rows.length > 0) {
+      rows.forEach((row) => {
+        out.push({
+          ...item,
+          id: (item.id || '') + (row.id ? '-' + row.id : ''),
+          workContent: row.workContent ?? item.workContent,
+          targetQuantity: row.targetQuantity ?? item.targetQuantity,
+          actualQuantity: row.actualQuantity ?? item.actualQuantity,
+          contentRows: undefined,
+          _parentItem: item
+        })
+      })
+    } else {
+      out.push({ ...item })
+    }
+  })
+  return out
+}
+
