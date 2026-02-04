@@ -2283,10 +2283,11 @@ function Calendar() {
                                           const names = collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ')
                                           const sharedT = t
                                           const sharedA = getWorkItemSharedActual(it)
+                                          const hasContentRows = !!(item?.contentRows?.length || item?._parentItem?.contentRows?.length)
                                           return (
                                             <>
                                               {names ? ` (${names})` : ''}
-                                              {mode === 'shared' && (
+                                              {mode === 'shared' && !hasContentRows && (
                                                 <div className="text-blue-200 text-xs mt-1">
                                                   共同：目標 {sharedT > 0 ? sharedT : 'N/A'} / 實際 {sharedA > 0 ? sharedA : 'N/A'}
                                                 </div>
@@ -2515,7 +2516,7 @@ function Calendar() {
                                       負責人: {collabs.map((c) => String(c?.name || '').trim()).filter(Boolean).join(', ') || '—'}
                                     </div>
                                   )}
-                                  {isCollab && mode === 'shared' && (
+                                  {isCollab && mode === 'shared' && !hasContentRows && (
                                     <div className="text-blue-200 text-sm mt-1">
                                       共同：目標 {sharedT > 0 ? sharedT : 'N/A'} / 實際 {sharedA > 0 ? sharedA : 'N/A'}
                                     </div>
