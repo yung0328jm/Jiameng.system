@@ -428,6 +428,26 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 定期＋回到頁面時重算徽章，讓管理員回覆後用戶端能在「個人服務」看到未讀
+  useEffect(() => {
+    const recalc = () => {
+      const user = getCurrentUser()
+      const role = getCurrentUserRole()
+      setNavBadges(calcNavBadges(user, role))
+    }
+    const t = setInterval(recalc, 20000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') recalc()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [])
+
   const handleApproveExchange = (requestId) => {
     if (!window.confirm('確定要確認此兌換請求嗎？確認後道具將從用戶背包中移除。')) {
       return
