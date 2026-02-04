@@ -13,6 +13,7 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getDisplayNameForAccount as getPreferredName } from '../utils/displayName'
 import { addWalletBalance, addTransaction } from '../utils/walletStorage'
+import { touchLastSeen } from '../utils/lastSeenStorage'
 import {
   getKeywordRewardRules,
   addKeywordRewardRule,
@@ -159,6 +160,13 @@ function Memo() {
     loadDanmus()
     checkDanmuItem()
     loadInventory()
+  }, [currentUser])
+
+  // 進入交流區就視為「已查看公佈欄 + 對話框」
+  useEffect(() => {
+    if (!currentUser) return
+    touchLastSeen(currentUser, 'memo_announcements')
+    touchLastSeen(currentUser, 'memo_chat')
   }, [currentUser])
 
   // 交流區：記住捲動位置，避免切換分頁回來跳到最上面

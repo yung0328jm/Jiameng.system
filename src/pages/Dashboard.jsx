@@ -31,6 +31,7 @@ import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils
 import { getAdminUnreadCount, getUserMessages } from '../utils/messageStorage'
 import { getPendingLeaveApplications, getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getAnnouncements } from '../utils/announcementStorage'
+import { getGlobalMessages } from '../utils/memoStorage'
 import { getLastSeen, touchLastSeen } from '../utils/lastSeenStorage'
 
 // 图标组件
@@ -283,18 +284,26 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       }).length
     }
 
-    // 交流區（公佈欄更新）
+    // 交流區：公佈欄更新 + 對話框有人發話
     let memoBadge = 0
     if (account) {
-      const lastSeen = getLastSeen(account, 'memo_announcements')
-      const lastTs = Date.parse(lastSeen || '') || 0
+      const lastSeenAnn = getLastSeen(account, 'memo_announcements')
+      const lastTsAnn = Date.parse(lastSeenAnn || '') || 0
       const anns = getAnnouncements() || []
-      memoBadge = anns.filter((a) => {
+      const annUnread = anns.filter((a) => {
         const t = Date.parse(a?.createdAt || '') || 0
-        if (!(t > lastTs)) return false
-        // 自己發的公告不算未讀
+        if (!(t > lastTsAnn)) return false
         return String(a?.createdBy || '').trim() !== account
       }).length
+      const lastSeenChat = getLastSeen(account, 'memo_chat')
+      const lastTsChat = Date.parse(lastSeenChat || '') || 0
+      const chatMsgs = getGlobalMessages() || []
+      const chatUnread = chatMsgs.filter((m) => {
+        const t = Date.parse(m?.createdAt || '') || 0
+        if (!(t > lastTsChat)) return false
+        return String(m?.author || '').trim() !== account
+      }).length
+      memoBadge = annUnread + chatUnread
     }
 
     return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge }
