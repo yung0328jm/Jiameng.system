@@ -21,7 +21,7 @@ import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
-import { getWorkItemCollaborators, getWorkItemActualForNameForPerformance, getWorkItemTargetForNameForPerformance } from '../utils/workItemCollaboration'
+import { getWorkItemCollaborators, getWorkItemActualForNameForPerformance, getWorkItemTargetForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -876,7 +876,8 @@ function Home() {
         }
         
         if (schedule.workItems && schedule.workItems.length > 0) {
-          schedule.workItems.forEach(item => {
+          const logicalItems = expandWorkItemsToLogical(schedule.workItems)
+          logicalItems.forEach(item => {
             // 只計算「與此排行榜相關」的工作項目。支援逗號分隔多關鍵字，任一個符合即計入（例：RJ,RJ45,水晶頭）
             const workContentFilter = (leaderboardItem.workContent && String(leaderboardItem.workContent).trim()) || ''
             const nameOrTitleFilter = (leaderboardItem.title && String(leaderboardItem.title).trim()) || (leaderboardItem.name && String(leaderboardItem.name).trim()) || ''

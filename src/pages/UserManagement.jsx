@@ -9,7 +9,7 @@ import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, setProfileAdmin } 
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { calculateCompletionRateAdjustment } from '../utils/completionRateConfigStorage'
 import { getLatePerformanceConfig, calculateLateCountAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
-import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance } from '../utils/workItemCollaboration'
+import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
@@ -177,7 +177,8 @@ function UserManagement() {
         if (schedule.date && schedule.date > effectiveEndDate) return
 
         if (!schedule.workItems || schedule.workItems.length === 0) return
-        schedule.workItems.forEach(item => {
+        const logicalItems = expandWorkItemsToLogical(schedule.workItems)
+        logicalItems.forEach(item => {
           const it = normalizeWorkItem(item)
           const collabs = it.isCollaborative
             ? getWorkItemCollaborators(it)

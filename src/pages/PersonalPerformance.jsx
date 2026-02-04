@@ -11,7 +11,7 @@ import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCount
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
-import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance } from '../utils/workItemCollaboration'
+import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -215,7 +215,8 @@ function PersonalPerformance() {
 
       if (!schedule.workItems || schedule.workItems.length === 0) return
 
-      schedule.workItems.forEach(item => {
+      const logicalItems = expandWorkItemsToLogical(schedule.workItems)
+      logicalItems.forEach(item => {
         // 有異動申請待審：暫不列入績效評分
         if (String(item?.changeRequest?.status || '') === 'pending') return
         const it = normalizeWorkItem(item)
@@ -607,12 +608,13 @@ function PersonalPerformance() {
       let dailyItemsWithRate = 0
       let dailyTotalCompletionRateAdjustment = 0 // 當日每條工項依完成率查表加減分後加總
       
-      // 統計當日工作項目
+      // 統計當日工作項目（含獨立負責的 contentRows 展開）
       schedules.forEach(schedule => {
         if (schedule.date !== dateStr) return
         if (!schedule.workItems || schedule.workItems.length === 0) return
         
-        schedule.workItems.forEach(item => {
+        const logicalItems = expandWorkItemsToLogical(schedule.workItems)
+        logicalItems.forEach(item => {
           // 有異動申請待審：暫不列入績效評分
           if (String(item?.changeRequest?.status || '') === 'pending') return
           const it = normalizeWorkItem(item)

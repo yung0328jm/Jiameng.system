@@ -21,7 +21,8 @@ import {
   getWorkItemTotalActual,
   getWorkItemActualForNameForPerformance,
   parseCollaboratorsCsv,
-  toCollaboratorsCsv
+  toCollaboratorsCsv,
+  expandWorkItemsToLogical
 } from '../utils/workItemCollaboration'
 
 function Calendar() {
@@ -1109,6 +1110,60 @@ function Calendar() {
     })
   }
 
+  // 獨立負責時：新增同一負責人的第二項、第三項（contentRows）
+  const handleAddContentRow = (itemIndex) => {
+    setScheduleFormData((prev) => {
+      const list = Array.isArray(prev.workItems) ? prev.workItems : []
+      if (itemIndex < 0 || itemIndex >= list.length) return prev
+      const item = list[itemIndex]
+      const rows = Array.isArray(item.contentRows) ? [...item.contentRows] : []
+      if (rows.length === 0) {
+        rows.push(
+          { id: `row-${Date.now()}-1`, workContent: item.workContent || '', targetQuantity: item.targetQuantity ?? '', actualQuantity: item.actualQuantity ?? '' },
+          { id: `row-${Date.now()}-2`, workContent: '', targetQuantity: '', actualQuantity: '' }
+        )
+      } else {
+        rows.push({ id: `row-${Date.now()}`, workContent: '', targetQuantity: '', actualQuantity: '' })
+      }
+      const newWorkItems = [...list]
+      newWorkItems[itemIndex] = { ...item, contentRows: rows }
+      return { ...prev, workItems: newWorkItems }
+    })
+  }
+
+  const handleRemoveContentRow = (itemIndex, rowIndex) => {
+    setScheduleFormData((prev) => {
+      const list = Array.isArray(prev.workItems) ? prev.workItems : []
+      if (itemIndex < 0 || itemIndex >= list.length) return prev
+      const item = list[itemIndex]
+      const rows = Array.isArray(item.contentRows) ? [...item.contentRows] : []
+      if (rowIndex < 0 || rowIndex >= rows.length) return prev
+      const removed = rows[rowIndex]
+      const newRows = rows.filter((_, i) => i !== rowIndex)
+      const newWorkItems = [...list]
+      if (newRows.length === 0) {
+        newWorkItems[itemIndex] = { ...item, contentRows: undefined, workContent: removed.workContent ?? '', targetQuantity: removed.targetQuantity ?? '', actualQuantity: removed.actualQuantity ?? '' }
+      } else {
+        newWorkItems[itemIndex] = { ...item, contentRows: newRows }
+      }
+      return { ...prev, workItems: newWorkItems }
+    })
+  }
+
+  const handleContentRowChange = (itemIndex, rowIndex, field, value) => {
+    setScheduleFormData((prev) => {
+      const list = Array.isArray(prev.workItems) ? prev.workItems : []
+      if (itemIndex < 0 || itemIndex >= list.length) return prev
+      const item = list[itemIndex]
+      const rows = Array.isArray(item.contentRows) ? [...item.contentRows] : []
+      if (rowIndex < 0 || rowIndex >= rows.length) return prev
+      const newRows = rows.map((r, i) => (i === rowIndex ? { ...r, [field]: value } : r))
+      const newWorkItems = [...list]
+      newWorkItems[itemIndex] = { ...item, contentRows: newRows }
+      return { ...prev, workItems: newWorkItems }
+    })
+  }
+
   const handleAddWorkItem = () => {
     const now = new Date().toISOString()
     setScheduleFormData(prev => ({
@@ -1177,8 +1232,9 @@ function Calendar() {
     } else {
       // 今天當天的排程（在24:00前）或之後的排程，都會執行累加邏輯
       // 只有當天或之後的排程才會執行累加邏輯
-      // 遍歷所有工作項目
-      scheduleFormData.workItems.forEach(rawItem => {
+      // 遍歷所有工作項目（含獨立負責的 contentRows 展開為多筆）
+      const logicalItems = expandWorkItemsToLogical(scheduleFormData.workItems)
+      logicalItems.forEach(rawItem => {
         const workItem = normalizeWorkItem(rawItem)
         if (!workItem.workContent) return
 
@@ -1268,8 +1324,9 @@ function Calendar() {
             updatedRankings.forEach((r, index) => { r.rank = index + 1 })
             saveManualRankings(matchedLeaderboard.id, updatedRankings)
 
-            rawItem.lastAccumulatedBy = lastBy
-            rawItem.lastAccumulatedAt = scheduleDate.toISOString()
+            const target = rawItem._parentItem || rawItem
+            target.lastAccumulatedBy = lastBy
+            target.lastAccumulatedAt = scheduleDate.toISOString()
           }
         }
       })
@@ -1409,9 +1466,9 @@ function Calendar() {
       // 如果是今天以前的排程，直接跳過累加邏輯
       // 注意：這裡不能直接 return，因為還需要保存排程，只是不累加到排行榜
     } else {
-      // 只有當天或之後的排程才會執行累加邏輯
-      // 遍歷所有工作項目
-      scheduleFormData.workItems.forEach(workItem => {
+      // 只有當天或之後的排程才會執行累加邏輯；遍歷所有工作項目（含 contentRows 展開）
+      const logicalItems = expandWorkItemsToLogical(scheduleFormData.workItems)
+      logicalItems.forEach(workItem => {
         if (!workItem.workContent || !workItem.responsiblePerson) return
         
         // 檢查該工作項目是否已經在排程日期當天或之後累加過
@@ -1492,8 +1549,9 @@ function Calendar() {
             
             saveManualRankings(matchedLeaderboard.id, updatedRankings)
             
-            // 標記該工作項目已經累加過（使用排程日期）
-            workItem.lastAccumulatedAt = scheduleDate.toISOString()
+            // 標記該工作項目已經累加過（使用排程日期）；若有 _parentItem 則寫回父項
+            const targetItem = workItem._parentItem || workItem
+            targetItem.lastAccumulatedAt = scheduleDate.toISOString()
           }
         }
       })
@@ -2146,8 +2204,8 @@ function Calendar() {
                                 <div className="text-blue-200 text-sm">
                                   <span className="text-blue-300">工作項目:</span>
                                   <div className="mt-1 space-y-1 pl-4">
-                                    {schedule.workItems.map((item, idx) => (
-                                      <div key={idx} className="text-blue-100">
+                                    {expandWorkItemsToLogical(schedule.workItems).map((item, idx) => (
+                                      <div key={item.id || idx} className="text-blue-100">
                                         • {item.workContent || item.content || '未命名工作項目'}
                                         {(() => {
                                           const it = normalizeWorkItem(item)
@@ -2338,7 +2396,18 @@ function Calendar() {
                           <div key={idx} className="bg-blue-800 rounded-lg p-3">
                             <div className="flex items-start justify-between gap-2">
                               <div className="text-white">
-                                {item.workContent || item.content || `工作項目 ${idx + 1}`}
+                                {item.contentRows && item.contentRows.length > 0 ? (
+                                  <>
+                                    <div className="text-blue-200 text-sm">負責人: {item.responsiblePerson || '—'}</div>
+                                    {item.contentRows.map((row, ri) => (
+                                      <div key={row.id || ri} className="text-sm mt-1">
+                                        • {row.workContent || '未填'} — 目標 {row.targetQuantity ?? '—'} / 實際 {row.actualQuantity ?? '—'}
+                                      </div>
+                                    ))}
+                                  </>
+                                ) : (
+                                  item.workContent || item.content || `工作項目 ${idx + 1}`
+                                )}
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 {isPendingChange && (
@@ -2361,6 +2430,7 @@ function Calendar() {
                               建立者：{displayCreator(it?.createdBy || selectedDetailItem?.createdBy)}
                             </div>
                             {(() => {
+                              const hasContentRows = item.contentRows && item.contentRows.length > 0
                               const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
                               const name = String(it?.responsiblePerson || '').trim()
                               const t = parseFloat(it?.targetQuantity) || 0
@@ -2369,12 +2439,12 @@ function Calendar() {
                               const sharedA = getWorkItemSharedActual(it)
                               return (
                                 <>
-                                  {!isCollab && name && (
+                                  {!isCollab && !hasContentRows && name && (
                                     <div className="text-blue-200 text-sm mt-1">
                                       負責人: {name}
                                     </div>
                                   )}
-                                  {!isCollab && (t > 0 || a > 0) && (
+                                  {!isCollab && !hasContentRows && (t > 0 || a > 0) && (
                                     <div className="text-blue-200 text-sm mt-1">
                                       目標: {t > 0 ? t : 'N/A'} / 實際: {a > 0 ? a : 'N/A'}
                                     </div>
@@ -2677,8 +2747,8 @@ function Calendar() {
                           </div>
                           {isWorkItemsExpanded && (
                             <div className="mt-2 pl-4 space-y-1">
-                              {schedule.workItems.map((item, idx) => (
-                                <div key={idx} className="text-blue-100">
+                              {expandWorkItemsToLogical(schedule.workItems).map((item, idx) => (
+                                <div key={item.id || idx} className="text-blue-100">
                                   • {item.workContent || item.content || '未命名工作項目'} 
                                   {item.responsiblePerson && ` (${item.responsiblePerson})`}
                                   {item.targetQuantity && ` - 目標: ${item.targetQuantity}`}
@@ -3530,6 +3600,103 @@ function Calendar() {
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* 獨立負責且已展開多項：只顯示負責人 + 多筆工作內容/目標/實際 */}
+                        {!item.isCollaborative && item.contentRows && item.contentRows.length > 0 ? (
+                          <>
+                            <div
+                              className="md:col-span-2 relative"
+                              ref={(el) => { if (el) responsiblePersonDropdownRefs.current[item.id] = el }}
+                            >
+                              <label className="block text-gray-300 text-xs mb-1">負責人 *</label>
+                              <input
+                                type="text"
+                                value={item.responsiblePerson || ''}
+                                onChange={(e) => handleResponsiblePersonInput(item.id, e.target.value)}
+                                onFocus={() => setShowResponsiblePersonDropdown(prev => ({ ...prev, [item.id]: true }))}
+                                placeholder="請輸入負責人"
+                                className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                required
+                                disabled={plannedLocked}
+                              />
+                              {showResponsiblePersonDropdown[item.id] && responsiblePersonOptions.length > 0 && (
+                                <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                  {responsiblePersonOptions.map((option, optIndex) => (
+                                    <div
+                                      key={optIndex}
+                                      onClick={() => handleResponsiblePersonSelect(item.id, option)}
+                                      className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm"
+                                    >
+                                      {option}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {item.contentRows.map((row, rowIndex) => (
+                              <div key={row.id || rowIndex} className="md:col-span-2 grid grid-cols-1 md:grid-cols-12 gap-2 items-end border border-gray-600 rounded p-2 bg-gray-600/50">
+                                <div className="md:col-span-5">
+                                  <label className="block text-gray-300 text-xs mb-1">工作內容 *</label>
+                                  <input
+                                    type="text"
+                                    value={row.workContent ?? ''}
+                                    onChange={(e) => handleContentRowChange(index, rowIndex, 'workContent', e.target.value)}
+                                    placeholder="請輸入工作內容"
+                                    className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                    disabled={plannedLocked}
+                                  />
+                                </div>
+                                <div className="md:col-span-2">
+                                  <label className="block text-gray-300 text-xs mb-1">目標數量</label>
+                                  <input
+                                    type="number"
+                                    value={row.targetQuantity ?? ''}
+                                    onChange={(e) => handleContentRowChange(index, rowIndex, 'targetQuantity', e.target.value)}
+                                    placeholder="目標"
+                                    className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                    min="0"
+                                    step="0.01"
+                                    disabled={plannedLocked}
+                                  />
+                                </div>
+                                <div className="md:col-span-2">
+                                  <label className="block text-gray-300 text-xs mb-1">實際達成數量</label>
+                                  <input
+                                    type="number"
+                                    value={row.actualQuantity ?? ''}
+                                    onChange={(e) => handleContentRowChange(index, rowIndex, 'actualQuantity', e.target.value)}
+                                    placeholder="實際"
+                                    className="w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                                    min="0"
+                                    step="0.01"
+                                    disabled={plannedLocked}
+                                  />
+                                </div>
+                                <div className="md:col-span-2 flex items-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveContentRow(index, rowIndex)}
+                                    className="text-red-400 hover:text-red-500 text-sm py-2"
+                                    disabled={plannedLocked}
+                                  >
+                                    刪除本項
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            {!plannedLocked && (
+                              <div className="md:col-span-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddContentRow(index)}
+                                  className="text-green-400 hover:text-green-300 text-sm py-1"
+                                >
+                                  + 新增同一負責人的項目
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
                         <div>
                           <label className="block text-gray-300 text-xs mb-1">工作內容 *</label>
                           <input
@@ -3810,6 +3977,19 @@ function Calendar() {
                             />
                           )}
                         </div>
+                        {!item.isCollaborative && !plannedLocked && (
+                          <div className="md:col-span-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAddContentRow(index)}
+                              className="text-green-400 hover:text-green-300 text-sm py-1"
+                            >
+                              + 新增同一負責人的項目
+                            </button>
+                          </div>
+                        )}
+                          </>
+                        )}
                       </div>
                     </div>
                     )
