@@ -27,19 +27,24 @@ export function getMessages() {
   return safeParseArray(localStorage.getItem(STORAGE_KEY))
 }
 
-/** 使用者看到的訊息：自己發給管理員的對話 + 管理員發給自己或全體的訊息 */
+/** 使用者看到的訊息：自己發給管理員的對話 + 管理員發給自己或全體的訊息 + 用戶對用戶的收發 */
 export function getUserMessages(account) {
   const acc = String(account || '').trim()
   if (!acc) return []
   const list = getMessages()
-  const fromMe = list.filter((m) => !m?.type && String(m?.from || '').trim() === acc)
-  const toMe = list.filter((m) => m?.type === 'admin_to_user' && (String(m?.to || '').trim() === acc || String(m?.to || '').trim() === '__all__'))
-  return [...fromMe, ...toMe].sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+  const fromMeToAdmin = list.filter((m) => !m?.type && String(m?.from || '').trim() === acc)
+  const toMeFromAdmin = list.filter((m) => m?.type === 'admin_to_user' && (String(m?.to || '').trim() === acc || String(m?.to || '').trim() === '__all__'))
+  const userToUserSent = list.filter((m) => m?.type === 'user_to_user' && String(m?.from || '').trim() === acc)
+  const userToUserReceived = list.filter((m) => m?.type === 'user_to_user' && String(m?.to || '').trim() === acc)
+  return [...fromMeToAdmin, ...toMeFromAdmin, ...userToUserSent, ...userToUserReceived].sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
 }
 
 export function getAdminInbox() {
   return getMessages()
-    .filter((m) => !m?.type || m.type !== 'admin_to_user')
+    .filter((m) => {
+      if (m?.type === 'admin_to_user' || m?.type === 'user_to_user') return false
+      return true
+    })
     .slice()
     .sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
 }
@@ -121,6 +126,33 @@ export function addAdminToUserMessage({ fromAdminAccount, to, subject, body }) {
     from: adminAcc,
     fromName: getDisplayNameForAccount(adminAcc),
     to: toVal,
+    subject: String(subject || '').trim(),
+    body: b,
+    createdAt: new Date().toISOString()
+  }
+  list.push(msg)
+  persist(list)
+  return { success: true, message: '已送出', item: msg }
+}
+
+/** 用戶發送給指定用戶 */
+export function addUserToUserMessage({ from, to, subject, body }) {
+  const fromAcc = String(from || '').trim()
+  const toAcc = String(to || '').trim()
+  const b = String(body || '').trim()
+  if (!fromAcc) return { success: false, message: '未登入' }
+  if (!toAcc) return { success: false, message: '請選擇收件人' }
+  if (fromAcc === toAcc) return { success: false, message: '無法發送給自己' }
+  if (!b) return { success: false, message: '請輸入內容' }
+
+  const list = getMessages()
+  const msg = {
+    id: newId('msg'),
+    type: 'user_to_user',
+    from: fromAcc,
+    fromName: getDisplayNameForAccount(fromAcc),
+    to: toAcc,
+    toName: getDisplayNameForAccount(toAcc),
     subject: String(subject || '').trim(),
     body: b,
     createdAt: new Date().toISOString()
