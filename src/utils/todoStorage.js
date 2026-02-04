@@ -15,15 +15,20 @@ export const getTodos = () => {
 
 const TODO_LOCAL_WRITE_AT_KEY = 'jiameng_todos_local_write_at'
 
-// 保存待辦事項
-export const saveTodos = (todos) => {
+// 保存待辦事項（會等雲端寫入完成再回傳，避免輪詢用舊資料蓋回）
+export async function saveTodos(todos) {
   try {
     const val = JSON.stringify(todos)
     localStorage.setItem(TODO_STORAGE_KEY, val)
     try {
       localStorage.setItem(TODO_LOCAL_WRITE_AT_KEY, String(Date.now()))
     } catch (_) {}
-    syncKeyToSupabase(TODO_STORAGE_KEY, val)
+    try {
+      await syncKeyToSupabase(TODO_STORAGE_KEY, val)
+    } catch (syncErr) {
+      // 本地已寫入，雲端失敗會進 outbox 重試；仍回傳成功，避免畫面被蓋回
+      console.warn('Todo sync to cloud failed, will retry via outbox:', syncErr)
+    }
     return { success: true }
   } catch (error) {
     console.error('Error saving todos:', error)
@@ -32,7 +37,7 @@ export const saveTodos = (todos) => {
 }
 
 // 新增待辦事項
-export const addTodo = (todo) => {
+export async function addTodo(todo) {
   try {
     const todos = getTodos()
     const newTodo = {
@@ -44,8 +49,7 @@ export const addTodo = (todo) => {
       ...todo
     }
     todos.push(newTodo)
-    saveTodos(todos)
-    return { success: true, todo: newTodo }
+    return await saveTodos(todos).then((r) => (r.success ? { success: true, todo: newTodo } : r))
   } catch (error) {
     console.error('Error adding todo:', error)
     return { success: false, message: '新增失敗' }
@@ -53,7 +57,7 @@ export const addTodo = (todo) => {
 }
 
 // 更新待辦事項
-export const updateTodo = (id, updates) => {
+export async function updateTodo(id, updates) {
   try {
     const todos = getTodos()
     const index = todos.findIndex(t => t.id === id)
@@ -61,8 +65,7 @@ export const updateTodo = (id, updates) => {
       return { success: false, message: '找不到待辦事項' }
     }
     todos[index] = { ...todos[index], ...updates }
-    saveTodos(todos)
-    return { success: true }
+    return await saveTodos(todos)
   } catch (error) {
     console.error('Error updating todo:', error)
     return { success: false, message: '更新失敗' }
@@ -70,12 +73,11 @@ export const updateTodo = (id, updates) => {
 }
 
 // 刪除待辦事項
-export const deleteTodo = (id) => {
+export async function deleteTodo(id) {
   try {
     const todos = getTodos()
     const filtered = todos.filter(t => t.id !== id)
-    saveTodos(filtered)
-    return { success: true }
+    return await saveTodos(filtered)
   } catch (error) {
     console.error('Error deleting todo:', error)
     return { success: false, message: '刪除失敗' }
@@ -83,7 +85,7 @@ export const deleteTodo = (id) => {
 }
 
 // 切換完成狀態
-export const toggleTodo = (id) => {
+export async function toggleTodo(id) {
   try {
     const todos = getTodos()
     const index = todos.findIndex(t => t.id === id)
@@ -96,8 +98,7 @@ export const toggleTodo = (id) => {
     } else {
       delete todos[index].completedAt
     }
-    saveTodos(todos)
-    return { success: true }
+    return await saveTodos(todos)
   } catch (error) {
     console.error('Error toggling todo:', error)
     return { success: false, message: '更新失敗' }
