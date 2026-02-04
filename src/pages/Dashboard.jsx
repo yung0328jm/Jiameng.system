@@ -226,10 +226,20 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (r === 'admin') {
       messagesBadge = getAdminUnreadCount()
     } else if (account) {
-      const lastSeen = getLastSeen(account, 'messages') // 使用者端：看「管理員回覆是否有新」
+      const lastSeen = getLastSeen(account, 'messages')
       const lastTs = Date.parse(lastSeen || '') || 0
       const threads = getUserMessages(account)
       messagesBadge = threads.filter((m) => {
+        // 管理員發給指定用戶或全體：以訊息建立時間為準
+        if (m?.type === 'admin_to_user') {
+          return (Date.parse(m?.createdAt || '') || 0) > lastTs
+        }
+        // 用戶發給我的：以訊息建立時間為準（我發給別人的不算未讀）
+        if (m?.type === 'user_to_user') {
+          if (String(m?.to || '').trim() !== account) return false
+          return (Date.parse(m?.createdAt || '') || 0) > lastTs
+        }
+        // 我發給管理員的對話：看管理員回覆是否在 lastSeen 之後
         const replies = Array.isArray(m?.replies) ? m.replies : []
         const lastReplyTs = replies.reduce((mx, rep) => {
           const t = Date.parse(rep?.createdAt || '') || 0
