@@ -327,52 +327,41 @@ function Home() {
     setAwardClaims(c)
   }
 
-  const handleAddTodo = () => {
+  const handleAddTodo = async () => {
     if (!newTodoText.trim()) {
       alert('請輸入待辦事項')
       return
     }
-    const result = addTodo({
+    const result = await addTodo({
       text: newTodoText.trim(),
       createdBy: currentUser
     })
     if (result.success) {
       setNewTodoText('')
       loadTodos()
-      flushSyncOutbox().catch(() => {})
     } else {
       alert(result.message || '新增失敗')
     }
   }
 
-  const handleToggleTodo = (id) => {
-    const result = toggleTodo(id)
-    if (result.success) {
-      loadTodos()
-      flushSyncOutbox().catch(() => {})
-    }
+  const handleToggleTodo = async (id) => {
+    const result = await toggleTodo(id)
+    if (result.success) loadTodos()
   }
 
-  const handleDeleteTodo = (id) => {
-    if (window.confirm('確定要刪除此待辦事項嗎？')) {
-      const result = deleteTodo(id)
-      if (result.success) {
-        loadTodos()
-        flushSyncOutbox().catch(() => {})
-      }
-    }
+  const handleDeleteTodo = async (id) => {
+    if (!window.confirm('確定要刪除此待辦事項嗎？')) return
+    const result = await deleteTodo(id)
+    if (result.success) loadTodos()
   }
 
-  const handleUpdateTodo = (id, text) => {
+  const handleUpdateTodo = async (id, text) => {
     if (!text.trim()) {
       alert('待辦事項不能為空')
       return
     }
-    const result = updateTodo(id, { text: text.trim() })
-    if (result.success) {
-      loadTodos()
-      flushSyncOutbox().catch(() => {})
-    }
+    const result = await updateTodo(id, { text: text.trim() })
+    if (result.success) loadTodos()
   }
 
   // 待辦建立者名稱套用名子特效（僅第一名有名子特效，無則白字）
