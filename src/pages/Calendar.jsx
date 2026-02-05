@@ -91,6 +91,7 @@ function Calendar() {
   const siteDropdownRef = useRef(null)
   const responsiblePersonDropdownRefs = useRef({})
   const scheduleModalBodyRef = useRef(null)
+  const changeReqScrollYRef = useRef(0) // 異動申請 Modal 關閉時還原捲動用
   const emptyVehicleEntry = () => ({
     vehicle: '',
     departureDriver: '',
@@ -236,7 +237,31 @@ function Calendar() {
     })
   }
 
-  const closeChangeRequest = () => setChangeReq((p) => ({ ...p, open: false }))
+  const closeChangeRequest = () => {
+    if (typeof document !== 'undefined' && document.activeElement?.blur) document.activeElement.blur()
+    setChangeReq((p) => ({ ...p, open: false }))
+  }
+
+  // 手機板：異動申請 Modal 開啟時鎖住背景捲動，關閉時還原，避免關閉後無法滑動
+  useEffect(() => {
+    if (!changeReq.open) return
+    changeReqScrollYRef.current = window.scrollY ?? window.pageYOffset
+    const body = document.body
+    body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${changeReqScrollYRef.current}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    return () => {
+      const y = changeReqScrollYRef.current
+      body.style.overflow = ''
+      body.style.position = ''
+      body.style.top = ''
+      body.style.left = ''
+      body.style.right = ''
+      requestAnimationFrame(() => { window.scrollTo(0, y) })
+    }
+  }, [changeReq.open])
 
   const submitChangeRequest = () => {
     const scheduleId = String(changeReq.scheduleId || '')
@@ -2916,8 +2941,8 @@ function Calendar() {
 
       {/* 異動申請 Modal（行事曆） */}
       {changeReq.open && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4">
-          <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-lg p-5">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-5 overscroll-contain">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">工作項目異動申請</h3>
               <button

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getSchedules, saveSchedule, deleteSchedule, updateSchedule } from '../utils/scheduleStorage'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
@@ -20,6 +20,7 @@ function EngineeringSchedule() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [expandedSchedule, setExpandedSchedule] = useState(null) // 展开的排程ID
+  const changeReqScrollYRef = useRef(0) // 異動申請 Modal 關閉時還原捲動用
   const [changeReq, setChangeReq] = useState({
     open: false,
     scheduleId: '',
@@ -414,8 +415,30 @@ function EngineeringSchedule() {
   }
 
   const closeChangeRequest = () => {
+    if (typeof document !== 'undefined' && document.activeElement?.blur) document.activeElement.blur()
     setChangeReq((prev) => ({ ...prev, open: false }))
   }
+
+  // 手機板：異動申請 Modal 開啟時鎖住背景捲動，關閉時還原，避免關閉後無法滑動
+  useEffect(() => {
+    if (!changeReq.open) return
+    changeReqScrollYRef.current = window.scrollY ?? window.pageYOffset
+    const body = document.body
+    body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${changeReqScrollYRef.current}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    return () => {
+      const y = changeReqScrollYRef.current
+      body.style.overflow = ''
+      body.style.position = ''
+      body.style.top = ''
+      body.style.left = ''
+      body.style.right = ''
+      requestAnimationFrame(() => { window.scrollTo(0, y) })
+    }
+  }, [changeReq.open])
 
   const submitChangeRequest = () => {
     if (!changeReq.scheduleId || !changeReq.itemId) return
@@ -1298,8 +1321,8 @@ function EngineeringSchedule() {
 
       {/* 異動申請 Modal */}
       {changeReq.open && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-lg p-5">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-5 overscroll-contain">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">工作項目異動申請</h3>
               <button
