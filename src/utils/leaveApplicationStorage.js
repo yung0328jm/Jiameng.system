@@ -89,6 +89,32 @@ export const updateLeaveApplicationStatus = (id, status, approvedBy = '') => {
   }
 }
 
+/** 管理員更新請假紀錄（日期、事由、狀態等）；核准後由呼叫方負責更新行事曆 */
+export const updateLeaveApplication = (id, updates) => {
+  try {
+    const list = getLeaveApplications()
+    const idx = list.findIndex((r) => r.id === id)
+    if (idx === -1) return { success: false, message: '找不到該申請' }
+    const prev = list[idx]
+    const next = { ...prev }
+    if (updates.startDate != null) next.startDate = String(updates.startDate).trim()
+    if (updates.endDate != null) next.endDate = String(updates.endDate).trim()
+    if (updates.reason != null) next.reason = String(updates.reason).trim()
+    if (updates.status === 'approved' || updates.status === 'rejected') {
+      next.status = updates.status
+      next.approvedBy = updates.approvedBy != null ? String(updates.approvedBy).trim() : (prev.approvedBy || '')
+      next.approvedAt = new Date().toISOString()
+    }
+    list[idx] = next
+    localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(list))
+    syncLeaveToSupabase(next)
+    return { success: true, record: next }
+  } catch (e) {
+    console.error('updateLeaveApplication:', e)
+    return { success: false, message: '更新失敗' }
+  }
+}
+
 /** 依 id 取單筆（供核准時寫入行事曆用） */
 export const getLeaveApplicationById = (id) => {
   return getLeaveApplications().find((r) => r.id === id) || null
