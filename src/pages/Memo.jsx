@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages } from '../utils/memoStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
-import { getAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement } from '../utils/announcementStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
 import { getUserInventory, hasItem, useItem, getItemQuantity, addItemToInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getDanmus, addDanmu, deleteDanmu, clearAllDanmus, getActiveDanmus, cleanExpiredDanmus } from '../utils/danmuStorage'
@@ -11,7 +10,6 @@ import { getEffectDisplayConfig, getStyleForPreset, getDecorationForPreset, getD
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
-import { getDisplayNameForAccount as getPreferredName } from '../utils/displayName'
 import { addWalletBalance, addTransaction } from '../utils/walletStorage'
 import { touchLastSeen } from '../utils/lastSeenStorage'
 import {
@@ -30,17 +28,7 @@ function Memo() {
   const [userRole, setUserRole] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
   
-  // 公佈欄狀態
-  const [announcements, setAnnouncements] = useState([])
-  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false)
-  const [announcementForm, setAnnouncementForm] = useState({
-    title: '',
-    content: '',
-    priority: 'normal'
-  })
-  const [editingAnnouncementId, setEditingAnnouncementId] = useState(null)
-  
-  // 交流區狀態（單一對話框，所有用戶直接發話）
+  // 交流區狀態（單一對話框，所有用戶直接發話；公佈欄已移至首頁）
   const [messages, setMessages] = useState([])
   const [messageContent, setMessageContent] = useState('')
   const [author, setAuthor] = useState('')
@@ -110,12 +98,6 @@ function Memo() {
 
 
 
-  // 公佈欄相關函數
-  const loadAnnouncements = () => {
-    const allAnnouncements = getAnnouncements()
-    setAnnouncements(allAnnouncements)
-  }
-
   const loadKeywordRewardRules = () => {
     try {
       setKeywordRewardRules(getKeywordRewardRules())
@@ -154,7 +136,6 @@ function Memo() {
     } else {
       setAuthor('使用者')
     }
-    loadAnnouncements()
     loadMessages()
     loadKeywordRewardRules()
     loadDanmus()
@@ -162,10 +143,9 @@ function Memo() {
     loadInventory()
   }, [currentUser])
 
-  // 進入交流區就視為「已查看公佈欄 + 對話框」
+  // 進入交流區就視為已查看對話框（公佈欄已移至首頁）
   useEffect(() => {
     if (!currentUser) return
-    touchLastSeen(currentUser, 'memo_announcements')
     touchLastSeen(currentUser, 'memo_chat')
   }, [currentUser])
 
@@ -247,9 +227,8 @@ function Memo() {
     }
   }, [messages, isChatCollapsed])
 
-  // 即時同步：公佈欄、交流區、彈幕、道具、用戶、排行榜等變更時重讀
+  // 即時同步：交流區、彈幕、道具、用戶、排行榜等變更時重讀（公佈欄在首頁）
   const refetchMemo = () => {
-    loadAnnouncements()
     loadMessages()
     loadKeywordRewardRules()
     setDanmus(getActiveDanmus())
@@ -260,7 +239,6 @@ function Memo() {
   useRealtimeKeys(
     [
       'jiameng_memos',
-      'jiameng_announcements',
       'jiameng_danmus',
       'jiameng_items',
       'jiameng_inventories',
@@ -285,78 +263,6 @@ function Memo() {
       document.removeEventListener('visibilitychange', refresh)
     }
   }, [])
-
-  const handleAddAnnouncement = () => {
-    if (!announcementForm.title.trim() || !announcementForm.content.trim()) {
-      alert('請輸入標題和內容')
-      return
-    }
-    const result = addAnnouncement({
-      ...announcementForm,
-      createdBy: currentUser
-    })
-    if (result.success) {
-      setAnnouncementForm({ title: '', content: '', priority: 'normal' })
-      setShowAnnouncementForm(false)
-      loadAnnouncements()
-    } else {
-      alert(result.message || '新增失敗')
-    }
-  }
-
-  const handleUpdateAnnouncement = (id, updates) => {
-    const result = updateAnnouncement(id, updates)
-    if (result.success) {
-      loadAnnouncements()
-      setEditingAnnouncementId(null)
-    } else {
-      alert(result.message || '更新失敗')
-    }
-  }
-
-  const handleDeleteAnnouncement = (id) => {
-    if (window.confirm('確定要刪除此公佈欄項目嗎？')) {
-      const result = deleteAnnouncement(id)
-      if (result.success) {
-        loadAnnouncements()
-      } else {
-        alert(result.message || '刪除失敗')
-      }
-    }
-  }
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent':
-        return 'border-red-500 bg-red-900/20'
-      case 'high':
-        return 'border-orange-500 bg-orange-900/20'
-      default:
-        return 'border-gray-600 bg-gray-800'
-    }
-  }
-
-  const getPriorityLabel = (priority) => {
-    switch (priority) {
-      case 'urgent':
-        return '緊急'
-      case 'high':
-        return '重要'
-      default:
-        return '一般'
-    }
-  }
-
-  const formatAnnouncementDate = (dateString) => {
-    const date = new Date(dateString)
-    return date.toLocaleString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
 
   const scrollToBottom = () => {
     // 用 auto 避免「回彈感」；且只在必要時呼叫（發送訊息時）
@@ -905,211 +811,8 @@ function Memo() {
       `}</style>
       <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-0 flex flex-col overflow-y-auto">
       <h2 className="text-2xl font-bold text-yellow-400 mb-6 shrink-0">交流區</h2>
-      
-      {/* 上區塊：公佈欄 */}
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 
-            className="text-lg font-bold text-white text-center"
-            style={{
-              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-              animation: 'premiumGlow 3s ease-in-out infinite, subtlePulse 5s ease-in-out infinite',
-              textShadow: '0 0 20px rgba(255, 255, 255, 0.8), 0 0 40px rgba(255, 255, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4)'
-            }}
-          >
-            公佈欄
-          </h3>
-          {userRole === 'admin' && (
-            <button
-              onClick={() => {
-                setShowAnnouncementForm(!showAnnouncementForm)
-                setEditingAnnouncementId(null)
-                setAnnouncementForm({ title: '', content: '', priority: 'normal' })
-              }}
-              className="bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-sm"
-            >
-              {showAnnouncementForm ? '取消' : '+ 新增公告'}
-            </button>
-          )}
-        </div>
 
-        {/* 新增/編輯公告表單 */}
-        {showAnnouncementForm && userRole === 'admin' && (
-          <div className="mb-6 p-4 bg-gray-900 rounded-lg border border-gray-600">
-            <div className="space-y-3">
-              <div>
-                <label className="block text-gray-400 text-sm mb-1">標題 *</label>
-                <input
-                  type="text"
-                  value={announcementForm.title}
-                  onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
-                  placeholder="輸入公告標題"
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-400 text-sm mb-1">內容 *</label>
-                <textarea
-                  value={announcementForm.content}
-                  onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
-                  placeholder="輸入公告內容"
-                  rows="4"
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 resize-none"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-400 text-sm mb-1">優先級</label>
-                <select
-                  value={announcementForm.priority}
-                  onChange={(e) => setAnnouncementForm({ ...announcementForm, priority: e.target.value })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
-                >
-                  <option value="normal">一般</option>
-                  <option value="high">重要</option>
-                  <option value="urgent">緊急</option>
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleAddAnnouncement}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded transition-colors"
-                >
-                  {editingAnnouncementId ? '更新' : '發布'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAnnouncementForm(false)
-                    setEditingAnnouncementId(null)
-                    setAnnouncementForm({ title: '', content: '', priority: 'normal' })
-                  }}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 rounded transition-colors"
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 公佈欄列表 */}
-        <div className="space-y-4 max-h-96 overflow-y-auto">
-          {announcements.length === 0 ? (
-            <div className="text-gray-400 text-center py-8">
-              <p>尚無公告</p>
-            </div>
-          ) : (
-            announcements.map((announcement) => (
-              <div
-                key={announcement.id}
-                className={`p-4 rounded-lg border ${getPriorityColor(announcement.priority)}`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    {editingAnnouncementId === announcement.id && userRole === 'admin' ? (
-                      <input
-                        type="text"
-                        value={announcementForm.title}
-                        onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-semibold focus:outline-none focus:border-yellow-400 mb-2"
-                      />
-                    ) : (
-                      <h4 
-                        className="text-white font-bold text-xl mb-1"
-                        style={{
-                          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                          animation: 'premiumGlow 3s ease-in-out infinite, subtlePulse 5s ease-in-out infinite',
-                          textShadow: '0 0 20px rgba(255, 255, 255, 0.8), 0 0 40px rgba(255, 255, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4)',
-                          letterSpacing: '0.05em'
-                        }}
-                      >
-                        {announcement.title}
-                      </h4>
-                    )}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-sm sm:text-xs px-3 sm:px-2 py-1.5 sm:py-1 rounded ${
-                        announcement.priority === 'urgent' ? 'bg-red-500 text-white' :
-                        announcement.priority === 'high' ? 'bg-orange-500 text-white' :
-                        'bg-gray-600 text-gray-300'
-                      }`}>
-                        {getPriorityLabel(announcement.priority)}
-                      </span>
-                      <span className="text-gray-400 text-sm sm:text-xs">
-                        {getPreferredName(announcement.createdBy)} · {formatAnnouncementDate(announcement.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                  {userRole === 'admin' && (
-                    <div className="flex gap-3 sm:gap-2 ml-4 flex-shrink-0">
-                      {editingAnnouncementId === announcement.id ? (
-                        <>
-                          <button
-                            onClick={() => handleUpdateAnnouncement(announcement.id, announcementForm)}
-                            className="text-green-400 hover:text-green-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
-                          >
-                            保存
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingAnnouncementId(null)
-                              setAnnouncementForm({ title: '', content: '', priority: 'normal' })
-                            }}
-                            className="text-gray-400 hover:text-gray-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
-                          >
-                            取消
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => {
-                              setEditingAnnouncementId(announcement.id)
-                              setAnnouncementForm({
-                                title: announcement.title,
-                                content: announcement.content,
-                                priority: announcement.priority
-                              })
-                            }}
-                            className="text-yellow-400 hover:text-yellow-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
-                          >
-                            編輯
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAnnouncement(announcement.id)}
-                            className="text-red-400 hover:text-red-300 text-base sm:text-sm px-3 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0"
-                          >
-                            刪除
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {editingAnnouncementId === announcement.id && userRole === 'admin' ? (
-                  <textarea
-                    value={announcementForm.content}
-                    onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
-                    rows="3"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 resize-none"
-                  />
-                ) : (
-                  <p 
-                    className="text-white text-sm whitespace-pre-wrap"
-                    style={{
-                      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                      animation: 'textSparkle 4s ease-in-out infinite, subtlePulse 6s ease-in-out infinite',
-                      textShadow: '0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6), 0 0 30px rgba(255, 255, 255, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3)'
-                    }}
-                  >
-                    {announcement.content}
-                  </p>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* 下區塊：交流區 */}
+      {/* 交流區：對話框 + 彈幕（公佈欄已移至首頁） */}
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 relative" style={{ overflow: 'hidden', position: 'relative' }}>
         
         {/* 彈幕動畫樣式 */}

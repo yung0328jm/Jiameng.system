@@ -6,7 +6,7 @@ import { getSchedules } from '../utils/scheduleStorage'
 import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, addLeaderboardItem, updateLeaderboardItem, deleteLeaderboardItem, getManualRankings, saveManualRankings, addManualRanking, updateManualRanking, deleteManualRanking, clearAllLeaderboards, cleanupOrphanedLeaderboardRewards } from '../utils/leaderboardStorage'
 import { addTestRecord, getTestRecords, deleteTestRecord } from '../utils/testRecordStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
-import { getTodos, addTodo, updateTodo, deleteTodo, toggleTodo } from '../utils/todoStorage'
+import { getAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement } from '../utils/announcementStorage'
 import { getItems, getItem, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory, hasItem, removeItemFromInventory, getUserInventory } from '../utils/inventoryStorage'
 import { getAllEquippedEffects, unequipEffect, equipEffect } from '../utils/effectStorage'
@@ -18,7 +18,7 @@ import { getLeaderboardTypes, addLeaderboardType, updateLeaderboardType, deleteL
 import { getEquippedEffects } from '../utils/effectStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
-import { getDisplayNameForAccount } from '../utils/displayName'
+import { getDisplayNameForAccount } from '../utils/displayName' // 公布欄顯示發佈者名稱用
 import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
 import { getWorkItemCollaborators, getWorkItemActualForNameForPerformance, getWorkItemTargetForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
@@ -85,9 +85,11 @@ function Home() {
   })
   const [typeForm, setTypeForm] = useState({ name: '', titleFirstPlace: '', titleSecondPlace: '', titleThirdPlace: '', nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '', ...emptyRankEffects() })
   const [leaderboardTypes, setLeaderboardTypes] = useState([]) // 排行榜類型列表（供載入類型用）
-  // 待辦事項狀態
-  const [todos, setTodos] = useState([])
-  const [newTodoText, setNewTodoText] = useState('')
+  // 交流區公布欄狀態（首頁顯示）
+  const [announcements, setAnnouncements] = useState([])
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false)
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'normal' })
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
 
   // 固定ID特效道具模板（由「下拉選單管理 → 特效道具庫」建立）
@@ -101,7 +103,7 @@ function Home() {
     const user = getCurrentUser()
     setUserRole(role)
     setCurrentUser(user || '')
-    loadTodos()
+    loadAnnouncements()
     loadLeaderboardItems()
     // 不預設任何排行榜，由使用者自行新增
     // 載入可用道具列表
@@ -269,18 +271,11 @@ function Home() {
     setManualRankings(manualData)
   }
 
-  // 待辦事項相關函數
-  const loadTodos = () => {
-    const allTodos = getTodos()
-    const sorted = [...allTodos].sort((a, b) => {
-      if (a.completed !== b.completed) {
-        return a.completed ? 1 : -1
-      }
-      return new Date(b.createdAt) - new Date(a.createdAt)
-    })
-    setTodos(sorted)
+  // 交流區公布欄相關函數
+  const loadAnnouncements = () => {
+    setAnnouncements(getAnnouncements())
   }
-  useRealtimeKeys(['jiameng_todos'], loadTodos)
+  useRealtimeKeys(['jiameng_announcements'], loadAnnouncements)
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
   useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
     loadLeaderboardItems()
@@ -326,121 +321,61 @@ function Home() {
     setAwardClaims(c)
   }
 
-  const handleAddTodo = () => {
-    if (!newTodoText.trim()) {
-      alert('請輸入待辦事項')
+  const handleAddAnnouncement = () => {
+    if (!announcementForm.title.trim() || !announcementForm.content.trim()) {
+      alert('請輸入標題和內容')
       return
     }
-    const result = addTodo({
-      text: newTodoText.trim(),
+    const result = addAnnouncement({
+      ...announcementForm,
       createdBy: currentUser
     })
     if (result.success) {
-      setNewTodoText('')
-      loadTodos()
+      setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+      setShowAnnouncementForm(false)
+      loadAnnouncements()
     } else {
       alert(result.message || '新增失敗')
     }
   }
 
-  const handleToggleTodo = (id) => {
-    const result = toggleTodo(id)
-    if (result.success) loadTodos()
+  const handleUpdateAnnouncement = (id, updates) => {
+    const result = updateAnnouncement(id, updates)
+    if (result.success) {
+      loadAnnouncements()
+      setEditingAnnouncementId(null)
+    } else {
+      alert(result.message || '更新失敗')
+    }
   }
 
-  const handleDeleteTodo = (id) => {
-    if (!window.confirm('確定要刪除此待辦事項嗎？')) return
-    const result = deleteTodo(id)
-    if (result.success) loadTodos()
+  const handleDeleteAnnouncement = (id) => {
+    if (!window.confirm('確定要刪除此公佈欄項目嗎？')) return
+    const result = deleteAnnouncement(id)
+    if (result.success) loadAnnouncements()
+    else alert(result.message || '刪除失敗')
   }
 
-  const handleUpdateTodo = (id, text) => {
-    if (!text.trim()) {
-      alert('待辦事項不能為空')
-      return
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'urgent': return 'border-red-500 bg-red-900/20'
+      case 'high': return 'border-orange-500 bg-orange-900/20'
+      default: return 'border-gray-600 bg-gray-800'
     }
-    const result = updateTodo(id, { text: text.trim() })
-    if (result.success) loadTodos()
   }
 
-  // 待辦建立者名稱套用名子特效（僅第一名有名子特效，無則白字）
-  const getTodoCreatorNameStyle = (username) => {
-    if (!username) return { color: '#FFFFFF' }
-    const effects = getEquippedEffects(username)
-    if (!effects.nameEffect) return { color: '#FFFFFF' }
-    const effectItem = getItem(effects.nameEffect)
-    if (!effectItem) return { color: '#FFFFFF' }
-    const rank = effectItem.rank ?? 1
-    if (rank !== 1) return { color: '#FFFFFF' }
-    const leaderboardId = effectItem.leaderboardId || ''
-    const leaderboard = leaderboardId ? getLeaderboardItems().find((l) => l.id === leaderboardId) : null
-    const presetId = getPresetIdByRank(leaderboard, 'name', rank)
-    return getStyleForPreset('name', presetId, rank) || { color: '#FFFFFF' }
+  const getPriorityLabel = (priority) => {
+    switch (priority) {
+      case 'urgent': return '緊急'
+      case 'high': return '重要'
+      default: return '一般'
+    }
   }
 
-  // 待辦建立者名子旁裝飾（第 1、2、3 名皆可：有 nameEffect 用其榜＋名次，否則用稱號的榜＋名次）
-  const getTodoCreatorDecoration = (username) => {
-    if (!username) return null
-    const effects = getEquippedEffects(username)
-    const items = getLeaderboardItems()
-    let leaderboardId = ''
-    let rank = 1
-    if (effects.nameEffect) {
-      const effectItem = getItem(effects.nameEffect)
-      if (effectItem) {
-        leaderboardId = effectItem.leaderboardId || ''
-        rank = effectItem.rank ?? 1
-      }
-    }
-    if (!leaderboardId && effects.title) {
-      const titleItem = getItem(effects.title)
-      if (titleItem && titleItem.type === ITEM_TYPES.TITLE) {
-        leaderboardId = titleItem.leaderboardId || ''
-        rank = titleItem.rank ?? 1
-      }
-    }
-    if (!leaderboardId) return null
-    const leaderboard = items.find((l) => l.id === leaderboardId)
-    const decoId = leaderboard?.[`decorationPresetIdRank${rank}`]
-    if (decoId) {
-      const deco = getDecorationById(decoId)
-      if (deco) return deco
-    }
-    const presetId = getPresetIdByRank(leaderboard, 'name', rank)
-    return getDecorationForPreset('name', presetId, rank)
-  }
-
-  // 待辦建立者稱號文字
-  const getTodoCreatorTitle = (username) => {
-    if (!username) return null
-    const effects = getEquippedEffects(username)
-    if (!effects.title) return null
-    const titleItem = getItem(effects.title)
-    if (!titleItem || titleItem.type !== ITEM_TYPES.TITLE) return null
-    return titleItem.name || null
-  }
-
-  // 待辦建立者稱號徽章樣式
-  const getTodoCreatorTitleBadgeStyle = (username) => {
-    if (!username) {
-      const config = getEffectDisplayConfig()
-      return config.titleBadge ? { ...config.titleBadge } : {}
-    }
-    const effects = getEquippedEffects(username)
-    if (!effects.title) {
-      const config = getEffectDisplayConfig()
-      return config.titleBadge ? { ...config.titleBadge } : {}
-    }
-    const titleItem = getItem(effects.title)
-    if (!titleItem || titleItem.type !== ITEM_TYPES.TITLE) {
-      const config = getEffectDisplayConfig()
-      return config.titleBadge ? { ...config.titleBadge } : {}
-    }
-    const leaderboardId = titleItem.leaderboardId || ''
-    const rank = titleItem.rank ?? 1
-    const leaderboard = leaderboardId ? getLeaderboardItems().find((l) => l.id === leaderboardId) : null
-    const presetId = getPresetIdByRank(leaderboard, 'title', rank)
-    return getStyleForPreset('title', presetId, rank) || {}
+  const formatAnnouncementDate = (dateString) => {
+    return new Date(dateString).toLocaleString('zh-TW', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    })
   }
 
   // 保存測試記錄
@@ -1958,47 +1893,6 @@ function Home() {
             filter: brightness(1.2);
           }
         }
-        /* 待辦建立者名子旁裝飾動畫（與交流區一致） */
-        @keyframes decorationBounce1 {
-          0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
-          50% { transform: translateY(-4px) scale(1.2); opacity: 0.9; }
-        }
-        @keyframes decorationBounce2 {
-          0%, 100% { transform: translateY(0) scale(0.9); opacity: 0.9; }
-          50% { transform: translateY(-2px) scale(1); opacity: 1; }
-        }
-        @keyframes decorationBounce3 {
-          0%, 100% { transform: translateY(0); opacity: 0.7; }
-          50% { transform: translateY(-1px); opacity: 0.85; }
-        }
-        @keyframes decorationTwinkle {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.4; transform: scale(0.85); }
-        }
-        @keyframes decorationFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-3px); }
-        }
-        @keyframes decorationPulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.15); opacity: 0.85; }
-        }
-        @keyframes decorationSwing {
-          0%, 100% { transform: rotate(-8deg); }
-          50% { transform: rotate(8deg); }
-        }
-        @keyframes decorationSpin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .decoration-bounce-1 { display: inline-block; animation: decorationBounce1 1s ease-in-out infinite; margin-left: 2px; }
-        .decoration-bounce-2 { display: inline-block; animation: decorationBounce2 1.5s ease-in-out infinite; margin-left: 2px; }
-        .decoration-bounce-3 { display: inline-block; animation: decorationBounce3 2s ease-in-out infinite; margin-left: 2px; }
-        .decoration-twinkle { display: inline-block; animation: decorationTwinkle 0.8s ease-in-out infinite; margin-left: 2px; }
-        .decoration-float { display: inline-block; animation: decorationFloat 1.2s ease-in-out infinite; margin-left: 2px; }
-        .decoration-pulse { display: inline-block; animation: decorationPulse 1s ease-in-out infinite; margin-left: 2px; }
-        .decoration-swing { display: inline-block; animation: decorationSwing 1s ease-in-out infinite; margin-left: 2px; }
-        .decoration-spin { display: inline-block; animation: decorationSpin 2s linear infinite; margin-left: 2px; }
       `}</style>
       <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
       {/* 眉條 - 頂部標題橫幅（手機垂直排列、按鈕整齊不溢出） */}
@@ -2053,110 +1947,182 @@ function Home() {
         </div>
       </div>
 
-      {/* 待辦事項區塊（字體比照行事曆） */}
+      {/* 交流區公布欄（原待辦位置） */}
       <div className="bg-gray-800 rounded-lg p-3 sm:p-5 border border-gray-700 mb-4">
         <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <h3 className="text-sm sm:text-base font-bold text-yellow-400">待辦事項</h3>
-        </div>
-        
-        {/* 新增待辦事項（可換行，字體小一點） */}
-        <div className="mb-3 sm:mb-4 flex flex-wrap gap-2">
-          <input
-            type="text"
-            value={newTodoText}
-            onChange={(e) => setNewTodoText(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleAddTodo()
-              }
+          <h3
+            className="text-sm sm:text-base font-bold text-white text-center"
+            style={{
+              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+              animation: 'premiumGlow 3s ease-in-out infinite, subtlePulse 5s ease-in-out infinite',
+              textShadow: '0 0 20px rgba(255, 255, 255, 0.8), 0 0 40px rgba(255, 255, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4)'
             }}
-            placeholder="輸入待辦事項..."
-            className="flex-1 min-w-[200px] bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-[10px] sm:text-xs focus:outline-none focus:border-yellow-400 min-h-[36px] sm:min-h-0"
-          />
-          <button
-            onClick={handleAddTodo}
-            className="bg-yellow-400 text-gray-900 px-3 py-1.5 rounded hover:bg-yellow-500 transition-colors font-semibold text-[10px] sm:text-xs min-h-[36px] sm:min-h-0 whitespace-nowrap"
           >
-            新增
-          </button>
+            公佈欄
+          </h3>
+          {userRole === 'admin' && (
+            <button
+              onClick={() => {
+                setShowAnnouncementForm(!showAnnouncementForm)
+                setEditingAnnouncementId(null)
+                setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+              }}
+              className="bg-yellow-400 text-gray-900 px-3 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-sm"
+            >
+              {showAnnouncementForm ? '取消' : '+ 新增公告'}
+            </button>
+          )}
         </div>
 
-        {/* 待辦事項列表 */}
-        <div className="space-y-1.5 max-h-64 overflow-y-auto">
-          {todos.length === 0 ? (
-            <div className="text-gray-400 text-center py-6">
-              <p className="text-[10px] sm:text-xs">尚無待辦事項</p>
+        {showAnnouncementForm && userRole === 'admin' && (
+          <div className="mb-4 p-4 bg-gray-900 rounded-lg border border-gray-600">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">標題 *</label>
+                <input
+                  type="text"
+                  value={announcementForm.title}
+                  onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                  placeholder="輸入公告標題"
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">內容 *</label>
+                <textarea
+                  value={announcementForm.content}
+                  onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
+                  placeholder="輸入公告內容"
+                  rows="4"
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">優先級</label>
+                <select
+                  value={announcementForm.priority}
+                  onChange={(e) => setAnnouncementForm({ ...announcementForm, priority: e.target.value })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                >
+                  <option value="normal">一般</option>
+                  <option value="high">重要</option>
+                  <option value="urgent">緊急</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddAnnouncement}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded transition-colors"
+                >
+                  {editingAnnouncementId ? '更新' : '發布'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAnnouncementForm(false)
+                    setEditingAnnouncementId(null)
+                    setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 rounded transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {announcements.length === 0 ? (
+            <div className="text-gray-400 text-center py-8">
+              <p className="text-sm">尚無公告</p>
             </div>
           ) : (
-            todos.map((todo) => (
+            announcements.map((announcement) => (
               <div
-                key={todo.id}
-                className={`flex items-start gap-2 p-2 sm:p-2.5 bg-gray-900 rounded border border-gray-700 hover:bg-gray-850 ${
-                  todo.completed ? 'opacity-60' : ''
-                }`}
+                key={announcement.id}
+                className={`p-4 rounded-lg border ${getPriorityColor(announcement.priority)}`}
               >
-                <input
-                  type="checkbox"
-                  checked={todo.completed}
-                  onChange={() => handleToggleTodo(todo.id)}
-                  className="w-5 h-5 mt-0.5 text-yellow-400 bg-gray-700 border-gray-600 rounded focus:ring-yellow-400 focus:ring-2"
-                />
-                <div className="flex-1 flex items-start gap-1.5 min-w-0">
-                  {todo.completed ? (
-                    <div className="text-gray-500 line-through flex-1 text-xs sm:text-sm break-words whitespace-pre-wrap">
-                      {todo.text}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    {editingAnnouncementId === announcement.id && userRole === 'admin' ? (
+                      <input
+                        type="text"
+                        value={announcementForm.title}
+                        onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-semibold focus:outline-none focus:border-yellow-400 mb-2"
+                      />
+                    ) : (
+                      <h4 className="text-white font-bold text-lg mb-1">{announcement.title}</h4>
+                    )}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        announcement.priority === 'urgent' ? 'bg-red-500 text-white' :
+                        announcement.priority === 'high' ? 'bg-orange-500 text-white' :
+                        'bg-gray-600 text-gray-300'
+                      }`}>
+                        {getPriorityLabel(announcement.priority)}
+                      </span>
+                      <span className="text-gray-400 text-xs">
+                        {getDisplayNameForAccount(announcement.createdBy)} · {formatAnnouncementDate(announcement.createdAt)}
+                      </span>
                     </div>
-                  ) : (
-                    <textarea
-                      rows={1}
-                      value={todo.text}
-                      onChange={(e) => {
-                        // 自動長高，避免文字被截斷
-                        try {
-                          e.target.style.height = 'auto'
-                          e.target.style.height = `${e.target.scrollHeight}px`
-                        } catch (_) {}
-                        handleUpdateTodo(todo.id, e.target.value)
-                      }}
-                      onFocus={(e) => {
-                        try {
-                          e.target.style.height = 'auto'
-                          e.target.style.height = `${e.target.scrollHeight}px`
-                        } catch (_) {}
-                      }}
-                      onBlur={(e) => {
-                        if (e.target.value.trim() !== todo.text) {
-                          handleUpdateTodo(todo.id, e.target.value)
-                        }
-                      }}
-                      className="flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-gray-500 focus:border-yellow-400 text-white text-xs sm:text-sm focus:outline-none resize-none overflow-hidden break-words whitespace-pre-wrap"
-                    />
-                  )}
-                  {todo.createdBy && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-xs flex-wrap flex-shrink-0">
-                      <span style={getTodoCreatorNameStyle(todo.createdBy)}>({getDisplayNameForAccount(todo.createdBy)})</span>
-                      {(() => {
-                        const deco = getTodoCreatorDecoration(todo.createdBy)
-                        return deco ? <span className={deco.className}>{deco.emoji}</span> : null
-                      })()}
-                      {(() => {
-                        const t = getTodoCreatorTitle(todo.createdBy)
-                        return t ? (
-                          <span className="font-bold rounded ml-0.5" style={getTodoCreatorTitleBadgeStyle(todo.createdBy)}>{t}</span>
-                        ) : null
-                      })()}
-                    </span>
+                  </div>
+                  {userRole === 'admin' && (
+                    <div className="flex gap-2 ml-4 flex-shrink-0">
+                      {editingAnnouncementId === announcement.id ? (
+                        <>
+                          <button
+                            onClick={() => handleUpdateAnnouncement(announcement.id, announcementForm)}
+                            className="text-green-400 hover:text-green-300 text-sm px-3 py-1"
+                          >
+                            保存
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingAnnouncementId(null)
+                              setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+                            }}
+                            className="text-gray-400 hover:text-gray-300 text-sm px-3 py-1"
+                          >
+                            取消
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingAnnouncementId(announcement.id)
+                              setAnnouncementForm({
+                                title: announcement.title,
+                                content: announcement.content,
+                                priority: announcement.priority
+                              })
+                            }}
+                            className="text-yellow-400 hover:text-yellow-300 text-sm px-3 py-1"
+                          >
+                            編輯
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAnnouncement(announcement.id)}
+                            className="text-red-400 hover:text-red-300 text-sm px-3 py-1"
+                          >
+                            刪除
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleDeleteTodo(todo.id)}
-                  className="text-red-400 hover:text-red-300 text-xs flex-shrink-0 mt-0.5"
-                  title="刪除"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {editingAnnouncementId === announcement.id && userRole === 'admin' ? (
+                  <textarea
+                    value={announcementForm.content}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
+                    rows="3"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400 resize-none"
+                  />
+                ) : (
+                  <p className="text-white text-sm whitespace-pre-wrap">{announcement.content}</p>
+                )}
               </div>
             ))
           )}
