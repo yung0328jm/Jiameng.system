@@ -128,6 +128,20 @@ const mergeWorkItemWithLock = (prevItem, patchItem, lockAt) => {
     next.collaborators = mergeLockedCollaboratorsActual(prev, patch)
   }
 
+  // 協作/單人多列（contentRows）：只允許更新各列的 actualQuantity，工作內容/目標沿用 prev
+  if (Array.isArray(patch.contentRows) && patch.contentRows.length > 0) {
+    const prevRows = Array.isArray(prev.contentRows) ? prev.contentRows : []
+    next.contentRows = patch.contentRows.map((pRow, i) => {
+      const prevRow = prevRows[i]
+      return {
+        id: pRow.id ?? prevRow?.id ?? `row-${Date.now()}-${i}`,
+        workContent: prevRow?.workContent ?? pRow.workContent ?? '',
+        targetQuantity: prevRow?.targetQuantity ?? pRow.targetQuantity ?? '',
+        actualQuantity: (pRow.actualQuantity != null && pRow.actualQuantity !== '') ? String(pRow.actualQuantity) : (prevRow?.actualQuantity ?? '')
+      }
+    })
+  }
+
   // 若是「核准」的異動：允許套用 proposed 到預計欄位（並維持鎖定）
   if (isApprovedChange(patch, prev)) {
     const proposed = patch?.changeRequest?.proposed
