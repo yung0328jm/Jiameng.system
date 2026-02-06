@@ -1,13 +1,14 @@
 // 開發中介面：小遊戲入口，之後可在此加入多個小遊戲
 import { useState } from 'react'
 import UltimatePassword from './minigames/UltimatePassword'
+import UltimatePasswordMulti from './minigames/UltimatePasswordMulti'
 
 export default function MiniGames() {
   const [selectedGame, setSelectedGame] = useState(null)
 
   const gameSlots = [
     { id: 'slot1', name: '終極密碼', description: '1～100 猜數字', comingSoon: false },
-    { id: 'slot2', name: '小遊戲 2', description: '敬請期待', comingSoon: true },
+    { id: 'slot2', name: '終極密碼多人', description: '多人輪流猜 1～100，猜到的人輸', comingSoon: false },
     { id: 'slot3', name: '小遊戲 3', description: '敬請期待', comingSoon: true }
   ]
 
@@ -46,7 +47,12 @@ export default function MiniGames() {
           <UltimatePassword onBack={() => setSelectedGame(null)} />
         </div>
       )}
-      {selectedGame && selectedGame !== 'slot1' && (
+      {selectedGame === 'slot2' && (
+        <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
+          <UltimatePasswordMulti onBack={() => setSelectedGame(null)} />
+        </div>
+      )}
+      {selectedGame && selectedGame !== 'slot1' && selectedGame !== 'slot2' && (
         <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
           <p className="text-gray-300 text-sm">遊戲內容可在此區塊擴充。</p>
           <button type="button" onClick={() => setSelectedGame(null)} className="mt-3 text-yellow-400 text-sm hover:underline">
