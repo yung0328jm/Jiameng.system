@@ -483,8 +483,8 @@ function LeaveApplication() {
           <p className="mt-4 text-gray-500 text-sm">請先登入後再使用。</p>
         )}
 
-        {/* 特休天數：可休 / 已休 / 剩餘（非管理員看自己的） */}
-        {currentUser && userRole !== 'admin' && (
+        {/* 特休天數：可休 / 已休 / 剩餘（非管理員且非代理人時只看自己的） */}
+        {currentUser && userRole !== 'admin' && !isFiller && (
           <div className="mt-4 sm:mt-6 p-4 bg-gray-800 border border-gray-600 rounded-xl">
             <h2 className="text-base sm:text-lg font-bold text-yellow-400 mb-3">特休</h2>
             <div className="grid grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
@@ -502,6 +502,34 @@ function LeaveApplication() {
               </div>
             </div>
             <p className="text-gray-500 text-xs mt-2">事由填「特休」並經核准後，將自動計入已休天數。</p>
+          </div>
+        )}
+
+        {/* 請假代理人：各用戶特休天數（僅供查看，無法變更） */}
+        {isFiller && (
+          <div className="mt-4 sm:mt-6">
+            <h2 className="text-lg sm:text-xl font-bold text-yellow-400 mb-2 sm:mb-3">各用戶特休天數（僅供查看）</h2>
+            <p className="text-gray-400 text-xs sm:text-sm mb-2 sm:mb-3">可查看代填名單內用戶的可休、已休、剩餘天數；僅管理員可修改。</p>
+            <div className="space-y-2 max-h-48 overflow-y-auto overflow-x-hidden">
+              {quotaUsers
+                .filter((u) => u.role !== 'admin')
+                .map((u) => (
+                  <div
+                    key={u.account}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-3 px-3 sm:py-2 bg-gray-800 border border-gray-600 rounded-lg"
+                  >
+                    <span className="text-white flex-1 min-w-0 truncate text-sm sm:text-base">{u.name || u.account}</span>
+                    <div className="flex items-center gap-4 sm:gap-6 flex-wrap text-sm">
+                      <span className="text-gray-400">可休 <span className="text-white font-medium">{getSpecialLeaveQuota(u.account)} 天</span></span>
+                      <span className="text-gray-400">已休 <span className="text-white font-medium">{getSpecialLeaveUsed(u.account)} 天</span></span>
+                      <span className="text-gray-400">剩餘 <span className="text-yellow-300 font-medium">{getSpecialLeaveRemaining(u.account)} 天</span></span>
+                    </div>
+                  </div>
+                ))}
+              {quotaUsers.filter((u) => u.role !== 'admin').length === 0 && (
+                <p className="text-gray-500 text-sm">目前無可代填用戶。</p>
+              )}
+            </div>
           </div>
         )}
 
@@ -617,6 +645,45 @@ function LeaveApplication() {
                         刪除
                       </button>
                     </div>
+                  </div>
+                ))}
+              {applications.length === 0 && (
+                <p className="text-gray-500 text-sm py-4">尚無請假紀錄。</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 請假代理人：請假紀錄（僅供查看，無法編輯或刪除） */}
+        {isFiller && (
+          <div className="mt-6 sm:mt-8">
+            <h2 className="text-lg sm:text-xl font-bold text-yellow-400 mb-2 sm:mb-3">請假紀錄（僅供查看）</h2>
+            <p className="text-gray-400 text-xs sm:text-sm mb-3">可查看每位用戶的請假與特休紀錄；僅管理員可編輯或刪除。</p>
+            <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden -mr-1 pr-1">
+              {[...applications]
+                .sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''))
+                .map((r) => (
+                  <div
+                    key={r.id}
+                    className="bg-gray-800 border border-gray-600 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-2 min-h-[44px]"
+                  >
+                    <div className="text-xs sm:text-sm min-w-0 flex-1">
+                      <span className="font-semibold text-white">{getDisplayNameForAccount(r.userId || r.userName || '')}</span>
+                      <span className="text-gray-400 mx-2">｜</span>
+                      <span className="text-gray-300">{r.startDate} ~ {r.endDate}</span>
+                      {r.reason && <span className="text-gray-500 sm:ml-2">（{r.reason}）</span>}
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 rounded text-xs font-medium shrink-0 ${
+                        (r.status || 'pending') === 'approved'
+                          ? 'bg-green-900/50 text-green-300'
+                          : (r.status || 'pending') === 'rejected'
+                            ? 'bg-red-900/50 text-red-300'
+                            : 'bg-yellow-900/50 text-yellow-300'
+                      }`}
+                    >
+                      {(r.status || 'pending') === 'approved' ? '已核准' : (r.status || 'pending') === 'rejected' ? '已駁回' : '待審核'}
+                    </span>
                   </div>
                 ))}
               {applications.length === 0 && (
