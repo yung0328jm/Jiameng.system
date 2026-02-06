@@ -184,3 +184,23 @@ export function processLastGuess(roomId, secret, currentRoom) {
   save(rooms)
   return { ok: true, room: r }
 }
+
+/** 結束後再來一局：同一房間重置為等待中，房主可再按開始 */
+export function resetRoomForNewRound(roomId) {
+  const id = String(roomId || '').trim()
+  const rooms = load()
+  const idx = rooms.findIndex((r) => r.id === id)
+  if (idx === -1) return { ok: false, error: '找不到房間' }
+  const r = rooms[idx]
+  if (r.status !== 'ended') return { ok: false, error: '僅能於遊戲結束後再來一局' }
+  r.status = 'waiting'
+  r.low = 1
+  r.high = 100
+  r.currentIndex = 0
+  r.history = []
+  r.lastGuess = null
+  r.loser = null
+  r.updatedAt = new Date().toISOString()
+  save(rooms)
+  return { ok: true, room: r }
+}
