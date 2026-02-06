@@ -1,12 +1,12 @@
 // 開發中介面：小遊戲入口，之後可在此加入多個小遊戲
 import { useState } from 'react'
+import Snake from './minigames/Snake'
 
 export default function MiniGames() {
   const [selectedGame, setSelectedGame] = useState(null)
 
-  // 之後可擴充：每個遊戲一個 { id, name, description, component }
   const gameSlots = [
-    { id: 'slot1', name: '小遊戲 1', description: '敬請期待', comingSoon: true },
+    { id: 'slot1', name: '貪食蛇', description: '吃到食物變長，別撞到自己', comingSoon: false },
     { id: 'slot2', name: '小遊戲 2', description: '敬請期待', comingSoon: true },
     { id: 'slot3', name: '小遊戲 3', description: '敬請期待', comingSoon: true }
   ]
@@ -41,14 +41,15 @@ export default function MiniGames() {
         ))}
       </div>
 
-      {selectedGame && (
+      {selectedGame === 'slot1' && (
         <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
-          <p className="text-gray-300 text-sm">遊戲內容可在此區塊或新頁面中擴充。</p>
-          <button
-            type="button"
-            onClick={() => setSelectedGame(null)}
-            className="mt-3 text-yellow-400 text-sm hover:underline"
-          >
+          <Snake onBack={() => setSelectedGame(null)} />
+        </div>
+      )}
+      {selectedGame && selectedGame !== 'slot1' && (
+        <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
+          <p className="text-gray-300 text-sm">遊戲內容可在此區塊擴充。</p>
+          <button type="button" onClick={() => setSelectedGame(null)} className="mt-3 text-yellow-400 text-sm hover:underline">
             返回
           </button>
         </div>

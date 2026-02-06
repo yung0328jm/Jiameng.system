@@ -18,6 +18,7 @@ import TripReport from './TripReport'
 import LeaveApplication from './LeaveApplication'
 import Advance from './Advance'
 import Messages from './Messages'
+import MiniGames from './MiniGames'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
@@ -161,6 +162,15 @@ function TripReportIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7M3 12h18M12 3v18" />
+    </svg>
+  )
+}
+
+function GameIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }
@@ -683,6 +693,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('leave-application')) return 'leave-application'
     if (path.includes('advance')) return 'advance'
     if (path.includes('messages')) return 'messages'
+    if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
   }
 
@@ -725,7 +736,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'check-in': '每日簽到',
       'leave-application': '請假申請',
       'advance': '預支',
-      'user-management': '用戶管理'
+      'user-management': '用戶管理',
+      'developing': '開發中'
     }
     return titles[tab] || '佳盟事業群'
   }
@@ -786,6 +798,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <LeaveApplication />
       case 'advance':
         return <Advance />
+      case 'developing':
+        return <MiniGames />
       default:
         return <Home />
     }
@@ -1257,6 +1271,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="公司活動"
             isActive={activeTab === 'activities'}
             onClick={() => handleTabClick('activities', '/company-activities')}
+          />
+          <NavItem
+            icon={<GameIcon />}
+            label="開發中"
+            isActive={activeTab === 'developing'}
+            onClick={() => handleTabClick('developing', '/developing')}
           />
           {userRole === 'admin' && (
             <NavItem
