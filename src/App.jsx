@@ -20,7 +20,7 @@ import CheckIn from './pages/CheckIn'
 import TripReport from './pages/TripReport'
 import LeaveApplication from './pages/LeaveApplication'
 import Advance from './pages/Advance'
-import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole } from './utils/authStorage'
+import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole, getCurrentUser } from './utils/authStorage'
 import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
@@ -65,6 +65,34 @@ function App() {
     } else {
       setSyncReady(true)
     }
+  }, [isAuthenticated])
+
+  // 後端推播：在 Android/iOS 上註冊 FCM token 並寫入 Supabase（僅 native，需 Firebase google-services.json）
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+    const account = getCurrentUser()
+    if (!account) return
+    const initPush = async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core')
+        if (Capacitor.getPlatform() === 'web') return
+        const { PushNotifications } = await import('@capacitor/push-notifications')
+        const perm = await PushNotifications.requestPermissions()
+        if (perm.receive !== 'granted') return
+        PushNotifications.addListener('registration', async (token) => {
+          if (cancelled) return
+          const { savePushToken } = await import('./utils/pushTokenStorage')
+          await savePushToken(account, token.value)
+        })
+        PushNotifications.addListener('registrationError', (err) => console.warn('Push registration error', err))
+        await PushNotifications.register()
+      } catch (e) {
+        console.warn('Push init failed', e)
+      }
+    }
+    initPush()
+    return () => { cancelled = true }
   }, [isAuthenticated])
 
   const syncLoading = (
@@ -135,6 +163,7 @@ function App() {
         <Route path="/vehicle-info" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="vehicle" />) : <Navigate to="/login" replace />} />
         <Route path="/memo" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="memo" />) : <Navigate to="/login" replace />} />
         <Route path="/company-activities" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="activities" />) : <Navigate to="/login" replace />} />
+        <Route path="/developing" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="developing" />) : <Navigate to="/login" replace />} />
         <Route path="/dropdown-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/user-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="user-management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/project-deficiency" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="deficiency" />) : <Navigate to="/login" replace />} />
