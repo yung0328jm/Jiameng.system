@@ -1,12 +1,12 @@
 // 開發中介面：小遊戲入口，之後可在此加入多個小遊戲
 import { useState } from 'react'
-import Snake from './minigames/Snake'
+import UltimatePassword from './minigames/UltimatePassword'
 
 export default function MiniGames() {
   const [selectedGame, setSelectedGame] = useState(null)
 
   const gameSlots = [
-    { id: 'slot1', name: '貪食蛇', description: '吃到食物變長，別撞到自己', comingSoon: false },
+    { id: 'slot1', name: '終極密碼', description: '1～100 猜數字', comingSoon: false },
     { id: 'slot2', name: '小遊戲 2', description: '敬請期待', comingSoon: true },
     { id: 'slot3', name: '小遊戲 3', description: '敬請期待', comingSoon: true }
   ]
@@ -43,7 +43,7 @@ export default function MiniGames() {
 
       {selectedGame === 'slot1' && (
         <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
-          <Snake onBack={() => setSelectedGame(null)} />
+          <UltimatePassword onBack={() => setSelectedGame(null)} />
         </div>
       )}
       {selectedGame && selectedGame !== 'slot1' && (
