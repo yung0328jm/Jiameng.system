@@ -8,7 +8,9 @@ import {
   joinRoom,
   startRoom,
   submitGuess,
-  processLastGuess
+  processLastGuess,
+  getLastJoined,
+  saveLastJoined
 } from '../../utils/ultimatePasswordRoomsStorage'
 import { getCurrentUser } from '../../utils/authStorage'
 
@@ -25,6 +27,7 @@ export default function UltimatePasswordMulti({ onBack }) {
   const [guessInput, setGuessInput] = useState('')
   const [message, setMessage] = useState('')
   const [refresh, setRefresh] = useState(0)
+  const [showExplosion, setShowExplosion] = useState(false)
   const revision = useSyncRevision()
   const secretRef = useRef(null)
   const account = getCurrentUser() || ''
@@ -35,6 +38,15 @@ export default function UltimatePasswordMulti({ onBack }) {
   const currentPlayer = room?.players?.[room.currentIndex]
   const isMyTurn = currentPlayer?.account === account
   const hasPendingGuess = !!room?.lastGuess
+
+  // 猜中密碼時觸發爆炸特效，約 2.5 秒後收掉
+  useEffect(() => {
+    if (room?.status === 'ended' && room?.loser) {
+      setShowExplosion(true)
+      const t = setTimeout(() => setShowExplosion(false), 2600)
+      return () => clearTimeout(t)
+    }
+  }, [room?.status, room?.loser])
 
   // 房主：有 lastGuess 時立即處理（含自己猜的），處理完會清掉 lastGuess 並 sync
   useEffect(() => {
@@ -59,12 +71,24 @@ export default function UltimatePasswordMulti({ onBack }) {
 
   if (!roomId) {
     const waitingRooms = rooms.filter((r) => r.status === 'waiting')
+    const lastJoined = getLastJoined()
+    const lastRoom = lastJoined ? getRoom(lastJoined.roomId) : null
+    const canContinue = lastRoom && (lastRoom.status === 'waiting' || lastRoom.status === 'playing')
     return (
       <div className="flex flex-col items-center">
         <div className="flex items-center justify-between w-full max-w-[320px] mb-3">
           <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline touch-manipulation">← 返回</button>
         </div>
         <p className="text-gray-400 text-sm mb-3">房主設密碼 1～100，大家輪流猜；猜到密碼的人輸。</p>
+        {canContinue && (
+          <button
+            type="button"
+            onClick={() => { setRoomId(lastJoined.roomId); setMessage('') }}
+            className="w-full max-w-[280px] py-3 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg touch-manipulation mb-2"
+          >
+            繼續上次房間 ({(lastRoom?.shortCode || lastJoined.shortCode) || '…'})
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -113,7 +137,7 @@ export default function UltimatePasswordMulti({ onBack }) {
               <button
                 key={r.id}
                 type="button"
-                onClick={() => { setRoomId(r.id); setMessage('') }}
+                onClick={() => { saveLastJoined(r.id, r.shortCode); setRoomId(r.id); setMessage('') }}
                 className="w-full text-left px-3 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm mb-1"
               >
                 {(r.shortCode || r.id)} · {r.hostName} ({r.players?.length || 0} 人)
@@ -217,7 +241,43 @@ export default function UltimatePasswordMulti({ onBack }) {
           </>
         )}
         {room.status === 'ended' && (
-          <div className="text-center py-2">
+          <div className="text-center py-2 relative">
+            {showExplosion && (
+              <>
+                <style>{`
+                  @keyframes up-explode-ring {
+                    0% { transform: scale(0.2); opacity: 1; }
+                    100% { transform: scale(3); opacity: 0; }
+                  }
+                  @keyframes up-explode-flash {
+                    0% { opacity: 1; transform: scale(0.5); }
+                    30% { opacity: 1; transform: scale(1.5); }
+                    100% { opacity: 0; transform: scale(4); }
+                  }
+                  @keyframes up-explode-text {
+                    0% { transform: scale(0.3); opacity: 0; }
+                    15% { transform: scale(1.8); opacity: 1; }
+                    25% { transform: scale(2) rotate(-5deg); }
+                    35% { transform: scale(2) rotate(5deg); }
+                    45% { transform: scale(2) rotate(-3deg); }
+                    100% { transform: scale(2.2) rotate(0deg); opacity: 0.9; }
+                  }
+                `}</style>
+                <div className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center">
+                  <div className="absolute inset-0 bg-orange-400/30 animate-[up-explode-flash_0.4s_ease-out_forwards]" />
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="absolute w-32 h-32 rounded-full border-4 border-orange-500 bg-orange-400/20"
+                      style={{ animation: `up-explode-ring 0.8s ease-out ${i * 0.15}s forwards` }}
+                    />
+                  ))}
+                  <div className="relative text-[4rem] sm:text-[5rem] font-black text-orange-500 drop-shadow-lg animate-[up-explode-text_0.6s_ease-out_forwards]" style={{ textShadow: '0 0 20px #fff, 0 0 40px #f97316' }}>
+                    爆！！
+                  </div>
+                </div>
+              </>
+            )}
             <p className="text-yellow-400 font-semibold">遊戲結束</p>
             <p className="text-gray-400 text-sm">踩到密碼的是：{room.players?.find((p) => p.account === room.loser)?.name || room.loser}</p>
             <button type="button" onClick={() => setRoomId(null)} className="mt-2 text-yellow-400 text-sm hover:underline">回列表</button>
