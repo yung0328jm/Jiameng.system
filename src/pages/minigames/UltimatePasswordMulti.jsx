@@ -14,6 +14,7 @@ import {
   resetRoomForNewRound
 } from '../../utils/ultimatePasswordRoomsStorage'
 import { getCurrentUser } from '../../utils/authStorage'
+import { getWalletBalance } from '../../utils/walletStorage'
 
 const MIN = 1
 const MAX = 100
@@ -42,12 +43,12 @@ export default function UltimatePasswordMulti({ onBack }) {
 
   // 猜中密碼時觸發爆炸特效，約 2.5 秒後收掉
   useEffect(() => {
-    if (room?.status === 'ended' && room?.loser) {
+    if (room?.status === 'ended' && (room?.winner || room?.loser)) {
       setShowExplosion(true)
       const t = setTimeout(() => setShowExplosion(false), 2600)
       return () => clearTimeout(t)
     }
-  }, [room?.status, room?.loser])
+  }, [room?.status, room?.winner, room?.loser])
 
   // 房主：有 lastGuess 時立即處理（含自己猜的），處理完會清掉 lastGuess 並 sync
   useEffect(() => {
@@ -80,7 +81,8 @@ export default function UltimatePasswordMulti({ onBack }) {
         <div className="flex items-center justify-between w-full max-w-[320px] mb-3">
           <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline touch-manipulation">← 返回</button>
         </div>
-        <p className="text-gray-400 text-sm mb-3">房主設密碼 1～100，大家輪流猜；猜到密碼的人輸。</p>
+        <p className="text-gray-400 text-sm mb-2">房主設密碼 1～100，大家輪流猜；猜中密碼的人贏得全部獎池。</p>
+        <p className="text-yellow-400/90 text-xs mb-3">參與者每人支付 1 佳盟幣，猜中密碼的人全部拿走獎池。我的佳盟幣：{getWalletBalance(account).toLocaleString()}</p>
         {canContinue && (
           <button
             type="button"
@@ -219,7 +221,7 @@ export default function UltimatePasswordMulti({ onBack }) {
             {room.history?.length > 0 && (
               <div className="text-gray-500 text-xs space-y-0.5 max-h-24 overflow-y-auto">
                 {room.history.slice(-8).map((h, i) => (
-                  <div key={i}>{h.name} 猜 {h.number} → {h.result === 'too_small' ? '太小' : h.result === 'too_big' ? '太大' : '中了（輸）'}</div>
+                  <div key={i}>{h.name} 猜 {h.number} → {h.result === 'too_small' ? '太小' : h.result === 'too_big' ? '太大' : '中了（全拿）'}</div>
                 ))}
               </div>
             )}
@@ -274,13 +276,13 @@ export default function UltimatePasswordMulti({ onBack }) {
                     />
                   ))}
                   <div className="relative text-[4rem] sm:text-[5rem] font-black text-orange-500 drop-shadow-lg animate-[up-explode-text_0.6s_ease-out_forwards]" style={{ textShadow: '0 0 20px #fff, 0 0 40px #f97316' }}>
-                    爆！！
+                    全拿！！
                   </div>
                 </div>
               </>
             )}
             <p className="text-yellow-400 font-semibold">遊戲結束</p>
-            <p className="text-gray-400 text-sm">踩到密碼的是：{room.players?.find((p) => p.account === room.loser)?.name || room.loser}</p>
+            <p className="text-gray-400 text-sm">猜中密碼、獎池全拿：{room.players?.find((p) => p.account === (room.winner || room.loser))?.name || room.winner || room.loser}（+{room.pool ?? 0} 佳盟幣）</p>
             <div className="mt-4 flex flex-col gap-2">
               <button
                 type="button"
