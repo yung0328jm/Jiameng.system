@@ -86,7 +86,7 @@ export default function UltimatePasswordMulti({ onBack }) {
             type="text"
             value={joinCode}
             onChange={(e) => setJoinCode(e.target.value.trim())}
-            placeholder="輸入房間代碼"
+            placeholder="輸入 5 碼代碼"
             className="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
           />
           <button
@@ -94,7 +94,7 @@ export default function UltimatePasswordMulti({ onBack }) {
             onClick={() => {
               const res = joinRoom(joinCode, account)
               if (res.ok) {
-                setRoomId(joinCode)
+                setRoomId(res.room.id)
                 setJoinCode('')
                 setMessage('')
               } else {
@@ -116,7 +116,7 @@ export default function UltimatePasswordMulti({ onBack }) {
                 onClick={() => { setRoomId(r.id); setMessage('') }}
                 className="w-full text-left px-3 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm mb-1"
               >
-                {r.id} · {r.hostName} ({r.players?.length || 0} 人)
+                {(r.shortCode || r.id)} · {r.hostName} ({r.players?.length || 0} 人)
               </button>
             ))}
           </div>
@@ -162,17 +162,27 @@ export default function UltimatePasswordMulti({ onBack }) {
     <div className="flex flex-col items-center w-full max-w-[320px]">
       <div className="flex items-center justify-between w-full mb-3">
         <button type="button" onClick={() => { setRoomId(null); setMessage('') }} className="text-yellow-400 text-sm hover:underline">← 返回</button>
-        <span className="text-gray-500 text-xs">房間 {room.id}</span>
+        <span className="text-gray-500 text-xs">房間 {room.shortCode || room.id}</span>
       </div>
 
       <div className="w-full space-y-3">
         <p className="text-gray-400 text-xs">玩家：{room.players?.map((p) => p.name || p.account).join('、')}</p>
         {room.status === 'waiting' && (
           <>
+            {room.shortCode && (
+              <p className="text-center text-yellow-400 font-mono text-lg tracking-widest">代碼 {room.shortCode}</p>
+            )}
+            <p className="text-gray-500 text-xs">分享上面代碼給其他人加入，至少 2 人才能開始。</p>
             {isHost && (
-              <button type="button" onClick={handleStart} className="w-full py-3 bg-yellow-400 text-gray-800 font-semibold rounded-lg touch-manipulation">
-                開始遊戲（密碼已隨機產生）
-              </button>
+              <>
+                {(room.players?.length || 0) < 2 ? (
+                  <p className="text-yellow-400/90 text-sm">目前 {(room.players?.length || 0)} 人，需至少 2 人才能開始</p>
+                ) : (
+                  <button type="button" onClick={handleStart} className="w-full py-3 bg-yellow-400 text-gray-800 font-semibold rounded-lg touch-manipulation">
+                    開始遊戲（密碼已隨機產生）
+                  </button>
+                )}
+              </>
             )}
             {!isHost && <p className="text-gray-500 text-sm">等房主開始…</p>}
           </>
