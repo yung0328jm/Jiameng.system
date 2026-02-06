@@ -1,6 +1,7 @@
 // 終極密碼多人房間：存於 app_data jiameng_up_rooms，與 Supabase 同步
 import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
+import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction } from './walletStorage'
 
 const STORAGE_KEY = 'jiameng_up_rooms'
 const LAST_JOINED_KEY = 'jiameng_up_last_joined'
@@ -86,6 +87,11 @@ export function createRoom(hostAccount) {
     history: [],
     lastGuess: null,
     loser: null,
+    winner: null,
+    entryFee: 1,
+    paidPlayers: [],
+    pool: 0,
+    distributed: false,
     updatedAt: new Date().toISOString()
   }
   rooms.push(room)
@@ -110,7 +116,7 @@ export function joinRoom(roomIdOrShortCode, account) {
   return { ok: true, room: r }
 }
 
-/** 房主開始遊戲（不存密碼，密碼只在房主端）；至少 2 人才會輪流 */
+/** 房主開始遊戲：每人扣 1 佳盟幣入場費，至少 2 人且餘額足夠才開始 */
 export function startRoom(roomId) {
   const id = String(roomId || '').trim()
   const rooms = load()
@@ -120,6 +126,20 @@ export function startRoom(roomId) {
   if (r.status !== 'waiting') return { ok: false, error: '已開始' }
   const playerCount = r.players?.length || 0
   if (playerCount < 2) return { ok: false, error: '需至少 2 人才能開始，請分享房間代碼邀請他人加入' }
+  const entryFee = r.entryFee ?? 1
+  for (const p of r.players) {
+    if (getWalletBalance(p.account) < entryFee) {
+      return { ok: false, error: `有玩家佳盟幣不足（需 ${entryFee} 佳盟幣），無法開始` }
+    }
+  }
+  for (const p of r.players) {
+    const sub = subtractWalletBalance(p.account, entryFee)
+    if (!sub.success) {
+      return { ok: false, error: sub.message || '扣除佳盟幣失敗' }
+    }
+  }
+  r.paidPlayers = r.players.map((p) => p.account)
+  r.pool = (r.players?.length || 0) * entryFee
   r.status = 'playing'
   r.low = 1
   r.high = 100
@@ -167,9 +187,14 @@ export function processLastGuess(roomId, secret, currentRoom) {
   r.history.push({ account: lg.account, name: lg.name, number: guessNum, result: null })
   const lastHist = r.history[r.history.length - 1]
   if (guessNum === num) {
-    lastHist.result = 'lose'
+    lastHist.result = 'win'
     r.status = 'ended'
-    r.loser = lg.account
+    r.winner = lg.account
+    if (!r.distributed && r.pool > 0) {
+      addWalletBalance(lg.account, r.pool)
+      addTransaction({ from: 'ultimate_password', to: lg.account, amount: r.pool, description: '終極密碼猜中獎金（全拿）' })
+      r.distributed = true
+    }
   } else if (guessNum < num) {
     lastHist.result = 'too_small'
     r.low = Math.max(r.low, guessNum + 1)
@@ -200,6 +225,10 @@ export function resetRoomForNewRound(roomId) {
   r.history = []
   r.lastGuess = null
   r.loser = null
+  r.winner = null
+  r.paidPlayers = []
+  r.pool = 0
+  r.distributed = false
   r.updatedAt = new Date().toISOString()
   save(rooms)
   return { ok: true, room: r }
