@@ -25,6 +25,20 @@ function newId() {
   return `up_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 }
 
+// 5 碼短代碼（不含 0/O、1/I/L），方便分享
+const SHORT_CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
+function newShortCode(existingRooms) {
+  const used = new Set((existingRooms || []).map((r) => (r?.shortCode || '').toUpperCase()))
+  for (let i = 0; i < 50; i++) {
+    let code = ''
+    for (let j = 0; j < 5; j++) {
+      code += SHORT_CODE_CHARS[Math.floor(Math.random() * SHORT_CODE_CHARS.length)]
+    }
+    if (!used.has(code)) return code
+  }
+  return String(Date.now()).slice(-5)
+}
+
 export function getRooms() {
   return load().filter((r) => r?.status !== 'ended')
 }
@@ -40,8 +54,10 @@ export function createRoom(hostAccount) {
   if (!account) return { ok: false, error: '未登入' }
   const rooms = load()
   const id = newId()
+  const shortCode = newShortCode(rooms)
   const room = {
     id,
+    shortCode,
     host: account,
     hostName: getDisplayNameForAccount(account),
     low: 1,
@@ -59,13 +75,13 @@ export function createRoom(hostAccount) {
   return { ok: true, roomId: id, room }
 }
 
-/** 加入房間 */
-export function joinRoom(roomId, account) {
-  const id = String(roomId || '').trim()
+/** 加入房間（可輸入 5 碼短代碼或舊的房間 id） */
+export function joinRoom(roomIdOrShortCode, account) {
+  const input = String(roomIdOrShortCode || '').trim().toUpperCase()
   const accountStr = String(account || '').trim()
-  if (!id || !accountStr) return { ok: false, error: '房間代碼與帳號必填' }
+  if (!input || !accountStr) return { ok: false, error: '房間代碼與帳號必填' }
   const rooms = load()
-  const idx = rooms.findIndex((r) => r.id === id)
+  const idx = rooms.findIndex((r) => r.id === input || (r?.shortCode || '').toUpperCase() === input)
   if (idx === -1) return { ok: false, error: '找不到房間' }
   const r = rooms[idx]
   if (r.status !== 'waiting') return { ok: false, error: '遊戲已開始' }
@@ -76,7 +92,7 @@ export function joinRoom(roomId, account) {
   return { ok: true, room: r }
 }
 
-/** 房主開始遊戲（不存密碼，密碼只在房主端） */
+/** 房主開始遊戲（不存密碼，密碼只在房主端）；至少 2 人才會輪流 */
 export function startRoom(roomId) {
   const id = String(roomId || '').trim()
   const rooms = load()
@@ -84,6 +100,8 @@ export function startRoom(roomId) {
   if (idx === -1) return { ok: false, error: '找不到房間' }
   const r = rooms[idx]
   if (r.status !== 'waiting') return { ok: false, error: '已開始' }
+  const playerCount = r.players?.length || 0
+  if (playerCount < 2) return { ok: false, error: '需至少 2 人才能開始，請分享房間代碼邀請他人加入' }
   r.status = 'playing'
   r.low = 1
   r.high = 100
