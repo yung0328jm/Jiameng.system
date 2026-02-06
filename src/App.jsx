@@ -82,7 +82,7 @@ function App() {
         if (perm.receive !== 'granted') return
         PushNotifications.addListener('registration', async (token) => {
           if (cancelled) return
-          const { savePushToken } = await import('./utils/pushTokenStorage')
+          const { savePushToken } = await import('./utils/pushTokenStorage.js')
           await savePushToken(account, token.value)
         })
         PushNotifications.addListener('registrationError', (err) => console.warn('Push registration error', err))
