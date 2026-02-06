@@ -10,7 +10,8 @@ import {
   submitGuess,
   processLastGuess,
   getLastJoined,
-  saveLastJoined
+  saveLastJoined,
+  resetRoomForNewRound
 } from '../../utils/ultimatePasswordRoomsStorage'
 import { getCurrentUser } from '../../utils/authStorage'
 
@@ -280,7 +281,26 @@ export default function UltimatePasswordMulti({ onBack }) {
             )}
             <p className="text-yellow-400 font-semibold">遊戲結束</p>
             <p className="text-gray-400 text-sm">踩到密碼的是：{room.players?.find((p) => p.account === room.loser)?.name || room.loser}</p>
-            <button type="button" onClick={() => setRoomId(null)} className="mt-2 text-yellow-400 text-sm hover:underline">回列表</button>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExplosion(false)
+                  const res = resetRoomForNewRound(roomId)
+                  if (!res.ok) { setMessage(res.error || ''); return }
+                  if (isHost) {
+                    secretRef.current = randomSecret()
+                    startRoom(roomId)
+                  }
+                  setMessage('')
+                  setRefresh((r) => r + 1)
+                }}
+                className="w-full py-3 bg-yellow-400 text-gray-800 font-semibold rounded-lg touch-manipulation"
+              >
+                再來一局
+              </button>
+              <button type="button" onClick={() => setRoomId(null)} className="text-yellow-400 text-sm hover:underline">回列表</button>
+            </div>
           </div>
         )}
       </div>
