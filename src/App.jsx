@@ -25,6 +25,7 @@ import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange } from './utils/authSupabase'
+import { savePushToken } from './utils/pushTokenStorage'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => getAuthStatus())
@@ -82,7 +83,6 @@ function App() {
         if (perm.receive !== 'granted') return
         PushNotifications.addListener('registration', async (token) => {
           if (cancelled) return
-          const { savePushToken } = await import('./utils/pushTokenStorage.js')
           await savePushToken(account, token.value)
         })
         PushNotifications.addListener('registrationError', (err) => console.warn('Push registration error', err))
