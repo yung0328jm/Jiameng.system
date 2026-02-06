@@ -125,7 +125,7 @@ export function processLastGuess(roomId, secret, currentRoom) {
   if (idx === -1) return { ok: false }
   const r = rooms[idx]
   const lg = r.lastGuess
-  if (!lg || lg.account === currentRoom?.host) return { ok: false }
+  if (!lg) return { ok: false }
   const guessNum = lg.number
   r.history = r.history || []
   r.history.push({ account: lg.account, name: lg.name, number: guessNum, result: null })
