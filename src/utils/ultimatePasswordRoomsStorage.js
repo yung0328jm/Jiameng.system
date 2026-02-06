@@ -3,6 +3,7 @@ import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
 
 const STORAGE_KEY = 'jiameng_up_rooms'
+const LAST_JOINED_KEY = 'jiameng_up_last_joined'
 
 function load() {
   try {
@@ -46,6 +47,23 @@ export function getRooms() {
 export function getRoom(roomId) {
   const id = String(roomId || '').trim()
   return load().find((r) => r.id === id) || null
+}
+
+/** 儲存上次加入的房間（退出後可一鍵繼續） */
+export function saveLastJoined(roomId, shortCode) {
+  try {
+    localStorage.setItem(LAST_JOINED_KEY, JSON.stringify({ roomId: String(roomId || ''), shortCode: String(shortCode || '') }))
+  } catch (_) {}
+}
+
+/** 讀取上次加入的房間 */
+export function getLastJoined() {
+  try {
+    const raw = localStorage.getItem(LAST_JOINED_KEY)
+    const data = raw ? JSON.parse(raw) : null
+    if (data?.roomId) return { roomId: data.roomId, shortCode: data.shortCode || '' }
+  } catch (_) {}
+  return null
 }
 
 /** 房主建立房間；密碼由房主端產生，不寫入此 storage */
