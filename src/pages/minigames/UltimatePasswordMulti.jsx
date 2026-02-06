@@ -24,6 +24,7 @@ export default function UltimatePasswordMulti({ onBack }) {
   const [joinCode, setJoinCode] = useState('')
   const [guessInput, setGuessInput] = useState('')
   const [message, setMessage] = useState('')
+  const [refresh, setRefresh] = useState(0)
   const revision = useSyncRevision()
   const secretRef = useRef(null)
   const account = getCurrentUser() || ''
@@ -33,18 +34,19 @@ export default function UltimatePasswordMulti({ onBack }) {
   const isHost = room && room.host === account
   const currentPlayer = room?.players?.[room.currentIndex]
   const isMyTurn = currentPlayer?.account === account
-  const hasPendingGuess = room?.lastGuess && room.lastGuess.account !== account
+  const hasPendingGuess = !!room?.lastGuess
 
-  // 房主：處理他人提交的 lastGuess（Realtime 更新後 room 會變，此 effect 再跑一次）
+  // 房主：有 lastGuess 時立即處理（含自己猜的），處理完會清掉 lastGuess 並 sync
   useEffect(() => {
     if (!roomId || !room || !isHost || room.status !== 'playing') return
     const lg = room.lastGuess
-    if (!lg || lg.account === account) return
+    if (!lg) return
     const secret = secretRef.current
     if (secret == null) return
     processLastGuess(roomId, secret, room)
     setMessage('')
-  }, [roomId, room?.lastGuess, isHost, account, revision])
+    setRefresh((r) => r + 1)
+  }, [roomId, room?.lastGuess, isHost, account, revision, refresh])
 
   if (!account) {
     return (
@@ -150,6 +152,7 @@ export default function UltimatePasswordMulti({ onBack }) {
     if (res.ok) {
       setGuessInput('')
       setMessage('')
+      setRefresh((r) => r + 1)
     } else {
       setMessage(res.error || '')
     }
