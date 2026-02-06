@@ -142,7 +142,8 @@ export const APP_DATA_KEYS = [
   // 請假代填人（管理員指派一人可代他人填寫請假）
   'jiameng_leave_filler_account',
   // 預支申請（借支金額、事由、審核／已匯款）
-  'jiameng_advances'
+  'jiameng_advances',
+  'jiameng_up_rooms'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
