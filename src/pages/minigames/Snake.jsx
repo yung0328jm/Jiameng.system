@@ -29,6 +29,8 @@ export default function Snake({ onBack }) {
   const [started, setStarted] = useState(false)
   const [speedMs, setSpeedMs] = useState(INITIAL_SPEED_MS)
   const tickRef = useRef(null)
+  const touchStartRef = useRef({ x: 0, y: 0 })
+  const MIN_SWIPE_PX = 28
 
   const reset = useCallback(() => {
     setSnake([{ x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2) }])
@@ -105,6 +107,31 @@ export default function Snake({ onBack }) {
     })
   }
 
+  const handleTouchStart = (e) => {
+    if (!started || gameOver) return
+    const t = e.touches?.[0]
+    if (t) {
+      touchStartRef.current = { x: t.clientX, y: t.clientY }
+    }
+  }
+
+  const handleTouchEnd = (e) => {
+    if (!started || gameOver) return
+    const t = e.changedTouches?.[0]
+    if (!t) return
+    const { x: sx, y: sy } = touchStartRef.current
+    const dx = t.clientX - sx
+    const dy = t.clientY - sy
+    const ax = Math.abs(dx)
+    const ay = Math.abs(dy)
+    if (ax < MIN_SWIPE_PX && ay < MIN_SWIPE_PX) return
+    if (ax >= ay) {
+      setDir(dx > 0 ? 1 : -1, 0)
+    } else {
+      setDir(0, dy > 0 ? 1 : -1)
+    }
+  }
+
   const gridW = COLS * CELL_PX
   const gridH = ROWS * CELL_PX
 
@@ -123,7 +150,7 @@ export default function Snake({ onBack }) {
 
       {!started ? (
         <div className="text-center py-6">
-          <p className="text-gray-400 text-sm mb-4">用方向鍵或下方按鈕控制蛇的方向，吃到食物會變長。</p>
+          <p className="text-gray-400 text-sm mb-4">手機：在遊戲區滑動上下左右。電腦：方向鍵。吃到食物會變長。</p>
           <button
             type="button"
             onClick={reset}
@@ -145,77 +172,34 @@ export default function Snake({ onBack }) {
           </button>
         </div>
       ) : (
-        <>
-          <div
-            className="relative rounded-lg overflow-hidden border-2 border-gray-600 bg-gray-900"
-            style={{ width: gridW, height: gridH }}
-          >
-            {snake.map((p, i) => (
-              <div
-                key={`${p.x}-${p.y}-${i}`}
-                className="absolute rounded-sm bg-yellow-400"
-                style={{
-                  left: p.x * CELL_PX + 1,
-                  top: p.y * CELL_PX + 1,
-                  width: CELL_PX - 2,
-                  height: CELL_PX - 2
-                }}
-              />
-            ))}
+        <div
+          className="relative rounded-lg overflow-hidden border-2 border-gray-600 bg-gray-900 select-none touch-none"
+          style={{ width: gridW, height: gridH }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {snake.map((p, i) => (
             <div
-              className="absolute rounded-full bg-red-500"
+              key={`${p.x}-${p.y}-${i}`}
+              className="absolute rounded-sm bg-yellow-400"
               style={{
-                left: food.x * CELL_PX + 2,
-                top: food.y * CELL_PX + 2,
-                width: CELL_PX - 4,
-                height: CELL_PX - 4
+                left: p.x * CELL_PX + 1,
+                top: p.y * CELL_PX + 1,
+                width: CELL_PX - 2,
+                height: CELL_PX - 2
               }}
             />
-          </div>
-
-          {/* 手機方向鍵 */}
-          <div className="mt-4 flex flex-col items-center gap-1 select-none">
-            <button
-              type="button"
-              onTouchStart={(e) => { e.preventDefault(); setDir(0, -1) }}
-              onClick={() => setDir(0, -1)}
-              className="w-12 h-12 rounded-lg bg-gray-600 text-white text-xl flex items-center justify-center touch-manipulation active:bg-gray-500"
-              aria-label="上"
-            >
-              ↑
-            </button>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onTouchStart={(e) => { e.preventDefault(); setDir(-1, 0) }}
-                onClick={() => setDir(-1, 0)}
-                className="w-12 h-12 rounded-lg bg-gray-600 text-white text-xl flex items-center justify-center touch-manipulation active:bg-gray-500"
-                aria-label="左"
-              >
-                ←
-              </button>
-              <div className="w-12 h-12" />
-              <button
-                type="button"
-                onTouchStart={(e) => { e.preventDefault(); setDir(1, 0) }}
-                onClick={() => setDir(1, 0)}
-                className="w-12 h-12 rounded-lg bg-gray-600 text-white text-xl flex items-center justify-center touch-manipulation active:bg-gray-500"
-                aria-label="右"
-              >
-                →
-              </button>
-            </div>
-            <button
-              type="button"
-              onTouchStart={(e) => { e.preventDefault(); setDir(0, 1) }}
-              onClick={() => setDir(0, 1)}
-              className="w-12 h-12 rounded-lg bg-gray-600 text-white text-xl flex items-center justify-center touch-manipulation active:bg-gray-500"
-              aria-label="下"
-            >
-              ↓
-            </button>
-          </div>
-        </>
+          ))}
+          <div
+            className="absolute rounded-full bg-red-500"
+            style={{
+              left: food.x * CELL_PX + 2,
+              top: food.y * CELL_PX + 2,
+              width: CELL_PX - 4,
+              height: CELL_PX - 4
+            }}
+          />
+        </div>
       )}
     </div>
   )
