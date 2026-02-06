@@ -33,6 +33,7 @@ import { getPendingLeaveApplications, getLeaveApplications } from '../utils/leav
 import { getAnnouncements } from '../utils/announcementStorage'
 import { getGlobalMessages } from '../utils/memoStorage'
 import { getLastSeen, touchLastSeen } from '../utils/lastSeenStorage'
+import { maybeShowMessageNotification } from '../utils/browserNotification'
 
 // 图标组件
 function HomeIcon() {
@@ -217,6 +218,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const personalServiceButtonRef = useRef(null)
   const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
   const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0 })
+  const prevMessagesBadgeRef = useRef(0)
 
   const calcNavBadges = (me, role) => {
     const account = String(me || '').trim()
@@ -432,7 +434,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       setAvailableItems(getItems())
       loadPendingExchangeRequests()
     }
-    setNavBadges(calcNavBadges(user, role))
+    const next = calcNavBadges(user, role)
+    if (role !== 'admin') {
+      maybeShowMessageNotification(prevMessagesBadgeRef.current, next.messages)
+    }
+    prevMessagesBadgeRef.current = next.messages
+    setNavBadges(next)
   }
   useRealtimeKeys(
     [
@@ -446,7 +453,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   useEffect(() => {
     const user = getCurrentUser()
     const role = getCurrentUserRole()
-    setNavBadges(calcNavBadges(user, role))
+    const next = calcNavBadges(user, role)
+    prevMessagesBadgeRef.current = next.messages
+    setNavBadges(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -455,7 +464,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     const recalc = () => {
       const user = getCurrentUser()
       const role = getCurrentUserRole()
-      setNavBadges(calcNavBadges(user, role))
+      const next = calcNavBadges(user, role)
+      if (role !== 'admin') {
+        maybeShowMessageNotification(prevMessagesBadgeRef.current, next.messages)
+      }
+      prevMessagesBadgeRef.current = next.messages
+      setNavBadges(next)
     }
     const t = setInterval(recalc, 20000)
     const onVisible = () => {
@@ -475,7 +489,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   useEffect(() => {
     const user = getCurrentUser()
     const role = getCurrentUserRole()
-    setNavBadges(calcNavBadges(user, role))
+    const next = calcNavBadges(user, role)
+    prevMessagesBadgeRef.current = next.messages
+    setNavBadges(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
@@ -684,7 +700,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         touchLastSeen(me, 'memo_announcements')
         touchLastSeen(me, 'memo_chat')
       }
-      setNavBadges(calcNavBadges(me, role))
+      const next = calcNavBadges(me, role)
+      prevMessagesBadgeRef.current = next.messages
+      setNavBadges(next)
     }
   }
 
