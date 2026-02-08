@@ -225,6 +225,21 @@ export function processLastGuess(roomId, secret, currentRoom) {
   return { ok: true, room: r }
 }
 
+/** 房主退出：直接解散房間，從列表移除 */
+export function disbandRoom(roomId, account) {
+  const id = String(roomId || '').trim()
+  const accountStr = String(account || '').trim()
+  if (!id || !accountStr) return { ok: false, error: '參數錯誤' }
+  const rooms = load()
+  const idx = rooms.findIndex((r) => r.id === id)
+  if (idx === -1) return { ok: false, error: '找不到房間' }
+  const r = rooms[idx]
+  if (r.host !== accountStr) return { ok: false, error: '僅房主可解散房間' }
+  rooms.splice(idx, 1)
+  save(rooms)
+  return { ok: true }
+}
+
 /** 結束後再來一局：同一房間重置為等待中，房主可再按開始 */
 export function resetRoomForNewRound(roomId) {
   const id = String(roomId || '').trim()
