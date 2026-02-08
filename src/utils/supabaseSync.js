@@ -143,7 +143,8 @@ export const APP_DATA_KEYS = [
   'jiameng_leave_filler_account',
   // 預支申請（借支金額、事由、審核／已匯款）
   'jiameng_advances',
-  'jiameng_up_rooms'
+  'jiameng_up_rooms',
+  'jiameng_undercover_rooms'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
