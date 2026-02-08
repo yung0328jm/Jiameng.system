@@ -15,6 +15,9 @@ export function getNumberColor(num) {
   return RED_NUMBERS.includes(num) ? 'red' : 'black'
 }
 
+/** 歐式輪盤順序（順時針，從 0 開始） */
+export const WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26]
+
 /** 下注並旋轉：扣除金額、旋轉、結算、返還餘額
  * bet: { type, value?, amount }
  * type: 'straight' 單號(0-36, value=號碼) | 'red' 紅 | 'black' 黑 | 'odd' 單 | 'even' 雙 | 'high' 大(19-36) | 'low' 小(1-18)
