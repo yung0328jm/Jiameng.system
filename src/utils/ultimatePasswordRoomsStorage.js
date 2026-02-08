@@ -1,7 +1,7 @@
 // 終極密碼多人房間：存於 app_data jiameng_up_rooms，與 Supabase 同步
 import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
-import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction } from './walletStorage'
+import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction, getAllTransactions } from './walletStorage'
 
 const STORAGE_KEY = 'jiameng_up_rooms'
 const LAST_JOINED_KEY = 'jiameng_up_last_joined'
@@ -191,9 +191,24 @@ export function processLastGuess(roomId, secret, currentRoom) {
     r.status = 'ended'
     r.winner = lg.account
     if (!r.distributed && r.pool > 0) {
-      addWalletBalance(lg.account, r.pool)
-      addTransaction({ from: 'ultimate_password', to: lg.account, amount: r.pool, description: '終極密碼猜中獎金（全拿）' })
-      r.distributed = true
+      // 防重複發放：檢查交易紀錄是否已有此房間的獎金（避免多分頁/React Strict Mode 雙次執行）
+      const alreadyPaid = (getAllTransactions() || []).some(
+        (t) => t.from === 'ultimate_password' && t.roomId === id && t.to === lg.account
+      )
+      if (!alreadyPaid) {
+        r.distributed = true
+        save(rooms) // 先寫入 distributed，再發放，降低重複風險
+        addWalletBalance(lg.account, r.pool)
+        addTransaction({
+          from: 'ultimate_password',
+          to: lg.account,
+          amount: r.pool,
+          description: '終極密碼猜中獎金（全拿）',
+          roomId: id
+        })
+      } else {
+        r.distributed = true
+      }
     }
   } else if (guessNum < num) {
     lastHist.result = 'too_small'
