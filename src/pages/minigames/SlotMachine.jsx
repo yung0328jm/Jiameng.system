@@ -87,7 +87,7 @@ export default function SlotMachine({ onBack }) {
         <span className="text-amber-200/90 text-sm font-medium">佳盟幣：{balance.toLocaleString()}</span>
       </div>
 
-      <p className="text-gray-400 text-xs mb-3">三同 5～50 倍 · 兩同 2 倍</p>
+      <p className="text-gray-400 text-xs mb-3">僅三同（且非檸檬）有獎 5～50 倍</p>
 
       {/* 拉霸機外框 */}
       <div className="w-full max-w-[280px] p-4 rounded-2xl bg-gradient-to-b from-gray-800 to-gray-900 border-2 border-amber-600/60 shadow-[0_0_24px_rgba(251,191,36,0.12),inset_0_2px_8px_rgba(0,0,0,0.3)]">
@@ -106,8 +106,9 @@ export default function SlotMachine({ onBack }) {
         {/* 賠率表 */}
         <div className="flex flex-wrap justify-center gap-2 text-[10px] text-gray-500 mb-4">
           {SYMBOLS.map((s) => (
-            <span key={s.id}>{s.emoji}×3 = {s.id === 'seven' ? 50 : s.id === 'bar' ? 20 : s.id === 'star' ? 15 : s.id === 'bell' ? 10 : 5}倍</span>
+            <span key={s.id}>{s.emoji}×3 = {s.id === 'lemon' ? 0 : s.id === 'seven' ? 50 : s.id === 'bar' ? 20 : s.id === 'star' ? 15 : s.id === 'bell' ? 10 : 5}倍</span>
           ))}
+          <span className="text-gray-500">僅三同有獎，兩同不賠</span>
         </div>
       </div>
 
