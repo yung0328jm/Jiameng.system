@@ -2,14 +2,16 @@
 import { useState } from 'react'
 import UltimatePassword from './minigames/UltimatePassword'
 import UltimatePasswordMulti from './minigames/UltimatePasswordMulti'
+import Undercover from './minigames/Undercover'
 
 export default function MiniGames() {
   const [selectedGame, setSelectedGame] = useState(null)
 
   const gameSlots = [
     { id: 'slot1', name: '終極密碼', description: '1～100 猜數字', comingSoon: false },
-    { id: 'slot2', name: '終極密碼多人', description: '多人輪流猜 1～100，猜到的人輸', comingSoon: false },
-    { id: 'slot3', name: '小遊戲 3', description: '敬請期待', comingSoon: true }
+    { id: 'slot2', name: '終極密碼多人', description: '多人輪流猜 1～100，猜中的人全拿獎池', comingSoon: false },
+    { id: 'slot3', name: '誰是臥底', description: '輪流發言投票找出臥底，贏家平分獎池', comingSoon: false },
+    { id: 'slot4', name: '小遊戲 4', description: '敬請期待', comingSoon: true }
   ]
 
   return (
@@ -52,7 +54,12 @@ export default function MiniGames() {
           <UltimatePasswordMulti onBack={() => setSelectedGame(null)} />
         </div>
       )}
-      {selectedGame && selectedGame !== 'slot1' && selectedGame !== 'slot2' && (
+      {selectedGame === 'slot3' && (
+        <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
+          <Undercover onBack={() => setSelectedGame(null)} />
+        </div>
+      )}
+      {selectedGame && selectedGame !== 'slot1' && selectedGame !== 'slot2' && selectedGame !== 'slot3' && (
         <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
           <p className="text-gray-300 text-sm">遊戲內容可在此區塊擴充。</p>
           <button type="button" onClick={() => setSelectedGame(null)} className="mt-3 text-yellow-400 text-sm hover:underline">
