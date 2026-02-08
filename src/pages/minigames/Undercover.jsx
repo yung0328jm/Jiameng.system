@@ -246,6 +246,13 @@ export default function Undercover({ onBack }) {
             {phase === 'voting' && (
               <>
                 <p className="text-gray-400 text-sm">第 {room.currentRound} 輪 · 投票階段</p>
+                {room.speeches?.length > 0 && (
+                  <div className="text-gray-500 text-xs space-y-0.5 max-h-28 overflow-y-auto mb-2">
+                    {room.speeches.filter((s) => s.round === room.currentRound).map((s, i) => (
+                      <div key={i}>{s.name}：{s.text}</div>
+                    ))}
+                  </div>
+                )}
                 {hasVoted ? (
                   <p className="text-gray-500 text-sm">已投票，等其他人…</p>
                 ) : (
