@@ -3,7 +3,6 @@ import { useState } from 'react'
 import UltimatePassword from './minigames/UltimatePassword'
 import UltimatePasswordMulti from './minigames/UltimatePasswordMulti'
 import Undercover from './minigames/Undercover'
-import Roulette from './minigames/Roulette'
 import RockPaperScissors from './minigames/RockPaperScissors'
 
 export default function MiniGames() {
@@ -13,9 +12,8 @@ export default function MiniGames() {
     { id: 'slot1', name: '終極密碼', description: '1～100 猜數字', comingSoon: false },
     { id: 'slot2', name: '終極密碼多人', description: '多人輪流猜 1～100，猜中的人全拿獎池', comingSoon: false },
     { id: 'slot3', name: '誰是臥底', description: '輪流發言投票找出臥底', comingSoon: false },
-    { id: 'slot4', name: '輪盤', description: '0-36 歐式輪盤，佳盟幣下注', comingSoon: false },
-    { id: 'slot5', name: '猜拳', description: '兩人對戰五戰三勝，佳盟幣下注', comingSoon: false },
-    { id: 'slot6', name: '小遊戲 6', description: '敬請期待', comingSoon: true }
+    { id: 'slot4', name: '猜拳', description: '兩人對戰五戰三勝，佳盟幣下注', comingSoon: false },
+    { id: 'slot5', name: '小遊戲 5', description: '敬請期待', comingSoon: true }
   ]
 
   return (
@@ -65,15 +63,10 @@ export default function MiniGames() {
       )}
       {selectedGame === 'slot4' && (
         <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
-          <Roulette onBack={() => setSelectedGame(null)} />
-        </div>
-      )}
-      {selectedGame === 'slot5' && (
-        <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
           <RockPaperScissors onBack={() => setSelectedGame(null)} />
         </div>
       )}
-      {selectedGame && selectedGame !== 'slot1' && selectedGame !== 'slot2' && selectedGame !== 'slot3' && selectedGame !== 'slot4' && selectedGame !== 'slot5' && (
+      {selectedGame && selectedGame !== 'slot1' && selectedGame !== 'slot2' && selectedGame !== 'slot3' && selectedGame !== 'slot4' && (
         <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
           <p className="text-gray-300 text-sm">遊戲內容可在此區塊擴充。</p>
           <button type="button" onClick={() => setSelectedGame(null)} className="mt-3 text-yellow-400 text-sm hover:underline">
