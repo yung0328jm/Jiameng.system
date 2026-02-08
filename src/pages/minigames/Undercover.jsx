@@ -17,7 +17,6 @@ import {
   getAlivePlayers
 } from '../../utils/undercoverRoomsStorage'
 import { getCurrentUser } from '../../utils/authStorage'
-import { getWalletBalance } from '../../utils/walletStorage'
 
 export default function Undercover({ onBack }) {
   const [roomId, setRoomId] = useState(null)
@@ -81,8 +80,7 @@ export default function Undercover({ onBack }) {
         <div className="flex justify-between w-full max-w-[320px] mb-3">
           <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline touch-manipulation">← 返回</button>
         </div>
-        <p className="text-gray-400 text-sm mb-2">大家拿到相似的詞，臥底拿到不同詞。輪流發言後投票淘汰，找出臥底即平民勝利。</p>
-        <p className="text-yellow-400/90 text-xs mb-3">參與者每人支付 1 佳盟幣，贏家平分獎池。我的佳盟幣：{getWalletBalance(account).toLocaleString()}</p>
+        <p className="text-gray-400 text-sm mb-3">大家拿到相似的詞，臥底拿到不同詞。輪流發言後投票淘汰，找出臥底即平民勝利。</p>
         {canContinue && (
           <button
             type="button"
