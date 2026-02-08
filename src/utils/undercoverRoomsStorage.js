@@ -1,7 +1,6 @@
 // 誰是臥底：存於 app_data jiameng_undercover_rooms，與 Supabase 同步
 import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
-import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction, getAllTransactions } from './walletStorage'
 
 const STORAGE_KEY = 'jiameng_undercover_rooms'
 const LAST_JOINED_KEY = 'jiameng_undercover_last_joined'
@@ -130,10 +129,6 @@ export function createRoom(hostAccount) {
     votes: {},
     eliminated: [],
     winner: null,
-    entryFee: 1,
-    paidPlayers: [],
-    pool: 0,
-    distributed: false,
     updatedAt: new Date().toISOString()
   }
   rooms.push(room)
@@ -173,16 +168,6 @@ export function startRoom(roomId) {
   if (r.status !== 'waiting') return { ok: false, error: '已開始' }
   const playerCount = r.players?.length || 0
   if (playerCount < 3) return { ok: false, error: '需至少 3 人才能開始' }
-  const entryFee = r.entryFee ?? 1
-  for (const p of r.players) {
-    if (getWalletBalance(p.account) < entryFee) {
-      return { ok: false, error: `有玩家佳盟幣不足（需 ${entryFee} 佳盟幣），無法開始` }
-    }
-  }
-  for (const p of r.players) {
-    const sub = subtractWalletBalance(p.account, entryFee)
-    if (!sub.success) return { ok: false, error: sub.message || '扣除佳盟幣失敗' }
-  }
   const { civilian, undercover } = pickWordPair()
   const shuffled = [...r.players].sort(() => Math.random() - 0.5)
   const undercoverCount = Math.max(1, Math.min(2, Math.floor(shuffled.length / 3)))
@@ -191,8 +176,6 @@ export function startRoom(roomId) {
   r.players.forEach((p) => {
     playerWords[p.account] = undercoverAccounts.includes(p.account) ? undercover : civilian
   })
-  r.paidPlayers = r.players.map((p) => p.account)
-  r.pool = playerCount * entryFee
   r.status = 'playing'
   r.currentRound = 1
   r.phase = 'speaking'
@@ -292,45 +275,15 @@ export function resolveVoting(roomId) {
   if (aliveUndercover.length === 0) {
     r.status = 'ended'
     r.winner = 'civilians'
-    distributePrize(r, id, aliveCivilian.map((p) => p.account))
   } else if (aliveUndercover.length >= aliveCivilian.length) {
     r.status = 'ended'
     r.winner = 'undercover'
-    distributePrize(r, id, aliveUndercover)
   } else {
     r.currentRound++
   }
   r.updatedAt = new Date().toISOString()
   save(rooms)
   return { ok: true, room: r }
-}
-
-function distributePrize(r, roomId, winners) {
-  if (r.distributed || r.pool <= 0 || !winners?.length) return
-  const alreadyPaid = (getAllTransactions() || []).some(
-    (t) => t.from === 'undercover' && t.roomId === roomId
-  )
-  if (alreadyPaid) {
-    r.distributed = true
-    return
-  }
-  r.distributed = true
-  const share = Math.floor(r.pool / winners.length)
-  let remainder = r.pool - share * winners.length
-  winners.forEach((acc) => {
-    const amount = share + (remainder > 0 ? 1 : 0)
-    if (amount > 0) {
-      addWalletBalance(acc, amount)
-      addTransaction({
-        from: 'undercover',
-        to: acc,
-        amount,
-        description: '誰是臥底獲勝獎金',
-        roomId
-      })
-    }
-    if (remainder > 0) remainder--
-  })
 }
 
 /** 房主退出：解散房間 */
