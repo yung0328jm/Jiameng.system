@@ -99,13 +99,18 @@ export function createRoom(hostAccount) {
   return { ok: true, roomId: id, room }
 }
 
-/** 加入房間（可輸入 5 碼短代碼或舊的房間 id） */
+/** 加入房間（可用房間 id 或 5 碼短代碼） */
 export function joinRoom(roomIdOrShortCode, account) {
-  const input = String(roomIdOrShortCode || '').trim().toUpperCase()
+  const inputRaw = String(roomIdOrShortCode || '').trim()
+  const inputUpper = inputRaw.toUpperCase()
   const accountStr = String(account || '').trim()
-  if (!input || !accountStr) return { ok: false, error: '房間代碼與帳號必填' }
+  if (!inputRaw || !accountStr) return { ok: false, error: '房間代碼與帳號必填' }
   const rooms = load()
-  const idx = rooms.findIndex((r) => r.id === input || (r?.shortCode || '').toUpperCase() === input)
+  const idx = rooms.findIndex((r) =>
+    r.id === inputRaw ||
+    r.id?.toUpperCase() === inputUpper ||
+    (r?.shortCode || '').toUpperCase() === inputUpper
+  )
   if (idx === -1) return { ok: false, error: '找不到房間' }
   const r = rooms[idx]
   if (r.status !== 'waiting') return { ok: false, error: '遊戲已開始' }
