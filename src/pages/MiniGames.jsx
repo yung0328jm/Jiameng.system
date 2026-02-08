@@ -10,7 +10,7 @@ export default function MiniGames() {
   const gameSlots = [
     { id: 'slot1', name: '終極密碼', description: '1～100 猜數字', comingSoon: false },
     { id: 'slot2', name: '終極密碼多人', description: '多人輪流猜 1～100，猜中的人全拿獎池', comingSoon: false },
-    { id: 'slot3', name: '誰是臥底', description: '輪流發言投票找出臥底，贏家平分獎池', comingSoon: false },
+    { id: 'slot3', name: '誰是臥底', description: '輪流發言投票找出臥底', comingSoon: false },
     { id: 'slot4', name: '小遊戲 4', description: '敬請期待', comingSoon: true }
   ]
 
