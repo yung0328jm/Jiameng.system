@@ -192,15 +192,32 @@ export default function RockPaperScissors({ onBack }) {
 
   if (room.status === 'ended') {
     const winnerName = room.players?.find((p) => p.account === room.winner)?.name || room.winner
+    const iWon = room.winner === account
     return (
       <div className="flex flex-col items-center w-full max-w-[320px]">
+        <style>{`
+          @keyframes rps-end-reveal {
+            from { opacity: 0; transform: scale(0.85); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          @keyframes rps-trophy-glow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5)); }
+            50% { filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.8)); }
+          }
+          .rps-end-card { animation: rps-end-reveal 0.4s ease-out forwards; }
+          .rps-trophy { animation: rps-trophy-glow 1.5s ease-in-out infinite; }
+        `}</style>
         <div className="flex justify-between w-full mb-3">
           <button type="button" onClick={() => setRoomId(null)} className="text-yellow-400 text-sm hover:underline">← 返回</button>
         </div>
-        <p className="text-yellow-400 font-semibold text-lg">五戰三勝 結束</p>
-        <p className="text-gray-400 text-sm mt-1">獲勝：{winnerName}</p>
-        <p className="text-emerald-400 text-sm">獎金 {room.pool ?? 0} 佳盟幣</p>
-        <button type="button" onClick={() => setRoomId(null)} className="mt-4 text-yellow-400 text-sm hover:underline">回列表</button>
+        <div className="rps-end-card w-full p-5 rounded-2xl bg-gradient-to-b from-gray-800 to-gray-900 border border-amber-500/30 shadow-xl text-center">
+          <p className="text-yellow-400 font-semibold text-lg mb-2">五戰三勝 結束</p>
+          <p className="rps-trophy text-4xl mb-2">🏆</p>
+          <p className="text-gray-400 text-sm">獲勝：<span className="text-white font-medium">{winnerName}</span></p>
+          <p className={`text-lg font-bold mt-2 ${iWon ? 'text-emerald-400' : 'text-gray-400'}`}>{iWon ? '恭喜獲勝！' : ''}</p>
+          <p className="text-amber-400 text-sm mt-1">獎金 {room.pool ?? 0} 佳盟幣</p>
+        </div>
+        <button type="button" onClick={() => setRoomId(null)} className="mt-5 py-2 px-4 rounded-lg bg-amber-500/20 text-yellow-400 text-sm hover:bg-amber-500/30 transition-colors">回列表</button>
       </div>
     )
   }
@@ -212,24 +229,58 @@ export default function RockPaperScissors({ onBack }) {
 
   return (
     <div className="flex flex-col items-center w-full max-w-[320px]">
+      <style>{`
+        @keyframes rps-reveal {
+          from { opacity: 0; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes rps-choice-float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
+        }
+        @keyframes rps-score-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        @keyframes rps-vs-flash {
+          0% { opacity: 0; transform: scale(2); }
+          50% { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 0; transform: scale(1); }
+        }
+        @keyframes rps-shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-4px); }
+          75% { transform: translateX(4px); }
+        }
+        .rps-reveal-box { animation: rps-reveal 0.35s ease-out forwards; }
+        .rps-choice-btn:hover:not(:disabled) { transform: scale(1.05); }
+        .rps-choice-btn:active:not(:disabled) { transform: scale(0.98); }
+        .rps-choice-btn { transition: transform 0.15s ease, box-shadow 0.2s ease; }
+        .rps-choice-btn.chosen { box-shadow: 0 0 16px rgba(251, 191, 36, 0.4); }
+        .rps-score-display { animation: rps-score-pulse 0.5s ease-out; }
+      `}</style>
+
       <div className="flex justify-between w-full mb-2">
         <button type="button" onClick={() => { handleExitRoom(roomId); setRoomId(null); setMessage('') }} className="text-yellow-400 text-sm hover:underline">← 返回</button>
         <span className="text-gray-500 text-xs">房間 {room.shortCode}</span>
       </div>
 
-      <p className="text-gray-400 text-sm mb-1">第 {room.round} 局 · 五戰三勝</p>
-      <div className="flex items-center justify-center gap-4 mb-4">
-        <span className="text-white font-medium">{room.players?.[0]?.name || '?'}</span>
-        <span className="text-yellow-400 text-xl font-bold">{scores[0]} － {scores[1]}</span>
-        <span className="text-white font-medium">{room.players?.[1]?.name || '?'}</span>
+      {/* 比數區：卡片 + 動效 */}
+      <div className="w-full mb-4 p-4 rounded-xl bg-gradient-to-b from-gray-800/90 to-gray-900/90 border border-amber-600/30 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+        <p className="text-gray-500 text-xs text-center mb-2">第 {room.round} 局 · 五戰三勝</p>
+        <div className="flex items-center justify-center gap-4">
+          <span className="text-white font-medium truncate max-w-[80px]">{room.players?.[0]?.name || '?'}</span>
+          <span key={`${room.round}-${scores[0]}-${scores[1]}`} className="rps-score-display text-2xl font-bold text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]">{scores[0]} － {scores[1]}</span>
+          <span className="text-white font-medium truncate max-w-[80px]">{room.players?.[1]?.name || '?'}</span>
+        </div>
       </div>
 
       {showRoundResult && (
-        <div className="w-full mb-3 p-3 rounded-lg bg-gray-800/80 text-center text-sm">
-          <p className="text-gray-400">
+        <div className="rps-reveal-box w-full mb-4 p-4 rounded-xl bg-gray-800/90 border border-amber-500/20 text-center text-sm shadow-lg">
+          <p className="text-gray-400 mb-1">
             你出 {CHOICE_LABELS[meIndex === 0 ? lastResult.choice0 : lastResult.choice1] || '—'}，對方出 {CHOICE_LABELS[meIndex === 0 ? lastResult.choice1 : lastResult.choice0] || '—'}
           </p>
-          <p className={lastResult.winnerIndex == null ? 'text-gray-500' : lastResult.winnerIndex === meIndex + 1 ? 'text-emerald-400' : 'text-red-400'}>
+          <p className={`text-base font-semibold ${lastResult.winnerIndex == null ? 'text-gray-500' : lastResult.winnerIndex === meIndex + 1 ? 'text-emerald-400' : 'text-red-400'}`}>
             {lastResult.winnerIndex == null ? '平手' : lastResult.winnerIndex === meIndex + 1 ? '本局你贏' : '本局對方贏'}
           </p>
         </div>
@@ -237,8 +288,8 @@ export default function RockPaperScissors({ onBack }) {
 
       {!bothChosen && (
         <>
-          <p className="text-gray-500 text-xs mb-2">出拳</p>
-          <div className="flex gap-3">
+          <p className="text-amber-400/90 text-xs font-medium mb-3">出拳</p>
+          <div className="flex gap-4">
             {CHOICES.map((c) => (
               <button
                 key={c.id}
@@ -249,21 +300,24 @@ export default function RockPaperScissors({ onBack }) {
                   else setMessage(res.error || '')
                 }}
                 disabled={myChoice != null}
-                className="flex flex-col items-center gap-1 w-20 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-default border-2 border-transparent touch-manipulation data-[chosen]:border-amber-400"
-                data-chosen={myChoice === c.id ? '' : undefined}
+                className={`rps-choice-btn flex flex-col items-center gap-2 w-24 py-4 rounded-2xl bg-gradient-to-b from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 disabled:opacity-50 disabled:cursor-default border-2 touch-manipulation ${myChoice === c.id ? 'border-amber-400 chosen' : 'border-gray-600 hover:border-amber-500/50'}`}
               >
-                <span className="text-3xl">{c.emoji}</span>
-                <span className="text-xs text-gray-300">{c.label}</span>
+                <span className="text-4xl drop-shadow-md">{c.emoji}</span>
+                <span className="text-xs text-gray-300 font-medium">{c.label}</span>
               </button>
             ))}
           </div>
-          {myChoice != null && <p className="text-gray-500 text-xs mt-2">已出拳，等對方…</p>}
+          {myChoice != null && (
+            <p className="text-gray-500 text-sm mt-4 animate-pulse">已出拳，等對方…</p>
+          )}
         </>
       )}
 
-      {bothChosen && room.status === 'playing' && <p className="text-gray-500 text-sm">結算中…</p>}
+      {bothChosen && room.status === 'playing' && (
+        <p className="text-amber-400/90 text-sm font-medium animate-pulse">結算中…</p>
+      )}
 
-      {message && <p className="mt-2 text-yellow-400/90 text-sm">{message}</p>}
+      {message && <p className="mt-3 text-yellow-400/90 text-sm">{message}</p>}
     </div>
   )
 }
