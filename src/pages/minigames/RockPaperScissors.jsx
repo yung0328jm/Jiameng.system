@@ -252,7 +252,27 @@ export default function RockPaperScissors({ onBack }) {
           25% { transform: translateX(-4px); }
           75% { transform: translateX(4px); }
         }
+        @keyframes rps-mood-pop {
+          0% { opacity: 0; transform: scale(0.3); }
+          50% { transform: scale(1.15); }
+          70% { transform: scale(0.95); }
+          85% { transform: scale(1.05); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes rps-mood-glow {
+          0%, 100% { filter: drop-shadow(0 0 12px currentColor); }
+          50% { filter: drop-shadow(0 0 24px currentColor) drop-shadow(0 0 32px currentColor); }
+        }
+        @keyframes rps-mood-shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+          20%, 40%, 60%, 80% { transform: translateX(3px); }
+        }
         .rps-reveal-box { animation: rps-reveal 0.35s ease-out forwards; }
+        .rps-mood-text { animation: rps-mood-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .rps-mood-glow { animation: rps-mood-glow 1s ease-in-out infinite; }
+        .rps-mood-lose { animation: rps-mood-pop 0.6s ease-out forwards, rps-mood-shake 0.5s ease-in-out 0.4s; }
+        .rps-mood-title { text-shadow: 0 0 16px currentColor, 0 0 32px currentColor; }
         .rps-choice-btn:hover:not(:disabled) { transform: scale(1.05); }
         .rps-choice-btn:active:not(:disabled) { transform: scale(0.98); }
         .rps-choice-btn { transition: transform 0.15s ease, box-shadow 0.2s ease; }
@@ -275,16 +295,29 @@ export default function RockPaperScissors({ onBack }) {
         </div>
       </div>
 
-      {showRoundResult && (
-        <div className="rps-reveal-box w-full mb-4 p-4 rounded-xl bg-gray-800/90 border border-amber-500/20 text-center text-sm shadow-lg">
-          <p className="text-gray-400 mb-1">
-            你出 {CHOICE_LABELS[meIndex === 0 ? lastResult.choice0 : lastResult.choice1] || '—'}，對方出 {CHOICE_LABELS[meIndex === 0 ? lastResult.choice1 : lastResult.choice0] || '—'}
-          </p>
-          <p className={`text-base font-semibold ${lastResult.winnerIndex == null ? 'text-gray-500' : lastResult.winnerIndex === meIndex + 1 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {lastResult.winnerIndex == null ? '平手' : lastResult.winnerIndex === meIndex + 1 ? '本局你贏' : '本局對方贏'}
-          </p>
-        </div>
-      )}
+      {showRoundResult && (() => {
+        const isDraw = lastResult.winnerIndex == null
+        const iWon = lastResult.winnerIndex === meIndex + 1
+        const moodText = isDraw ? '平手啦!! 再來啊!!' : iWon ? '嘿嘿!!' : '可惡!!'
+        const moodClass = isDraw
+          ? 'rps-mood-text text-amber-400 rps-mood-glow'
+          : iWon
+            ? 'rps-mood-text text-emerald-400 rps-mood-glow'
+            : 'rps-mood-lose text-red-400'
+        return (
+          <div className="rps-reveal-box w-full mb-4 p-4 rounded-xl bg-gray-800/90 border border-amber-500/20 text-center shadow-lg">
+            <p className={`rps-mood-title text-3xl sm:text-4xl font-black tracking-wider py-3 ${moodClass}`} style={{ opacity: 0 }}>
+              {moodText}
+            </p>
+            <p className="text-gray-400 text-sm mt-2 mb-1">
+              你出 {CHOICE_LABELS[meIndex === 0 ? lastResult.choice0 : lastResult.choice1] || '—'}，對方出 {CHOICE_LABELS[meIndex === 0 ? lastResult.choice1 : lastResult.choice0] || '—'}
+            </p>
+            <p className={`text-base font-semibold ${isDraw ? 'text-gray-500' : iWon ? 'text-emerald-400' : 'text-red-400'}`}>
+              {isDraw ? '平手' : iWon ? '本局你贏' : '本局對方贏'}
+            </p>
+          </div>
+        )
+      })()}
 
       {!bothChosen && (
         <>
