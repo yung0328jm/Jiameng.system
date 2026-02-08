@@ -11,7 +11,8 @@ import {
   processLastGuess,
   getLastJoined,
   saveLastJoined,
-  resetRoomForNewRound
+  resetRoomForNewRound,
+  disbandRoom
 } from '../../utils/ultimatePasswordRoomsStorage'
 import { getCurrentUser } from '../../utils/authStorage'
 import { getWalletBalance } from '../../utils/walletStorage'
@@ -71,8 +72,13 @@ export default function UltimatePasswordMulti({ onBack }) {
     )
   }
 
-  const markExited = (id) => {
-    if (id) setExitedRoomIds((prev) => new Set([...prev, id]))
+  const handleExitRoom = (id) => {
+    if (!id) return
+    if (room && room.host === account) {
+      disbandRoom(id, account)
+    } else {
+      setExitedRoomIds((prev) => new Set([...prev, id]))
+    }
   }
 
   if (!roomId) {
@@ -155,7 +161,7 @@ export default function UltimatePasswordMulti({ onBack }) {
     return (
       <div className="text-center py-6">
         <p className="text-gray-400 text-sm">找不到房間或已結束</p>
-        <button type="button" onClick={() => { markExited(roomId); setRoomId(null) }} className="mt-3 text-yellow-400 text-sm hover:underline">返回列表</button>
+        <button type="button" onClick={() => { handleExitRoom(roomId); setRoomId(null) }} className="mt-3 text-yellow-400 text-sm hover:underline">返回列表</button>
       </div>
     )
   }
@@ -186,7 +192,7 @@ export default function UltimatePasswordMulti({ onBack }) {
   return (
     <div className="flex flex-col items-center w-full max-w-[320px]">
       <div className="flex items-center justify-between w-full mb-3">
-        <button type="button" onClick={() => { markExited(roomId); setRoomId(null); setMessage('') }} className="text-yellow-400 text-sm hover:underline">← 返回</button>
+        <button type="button" onClick={() => { handleExitRoom(roomId); setRoomId(null); setMessage('') }} className="text-yellow-400 text-sm hover:underline">← 返回</button>
         <span className="text-gray-500 text-xs">房間 {room.shortCode || room.id}</span>
       </div>
 
@@ -299,7 +305,7 @@ export default function UltimatePasswordMulti({ onBack }) {
               >
                 再來一局
               </button>
-              <button type="button" onClick={() => { markExited(roomId); setRoomId(null) }} className="text-yellow-400 text-sm hover:underline">回列表</button>
+              <button type="button" onClick={() => { handleExitRoom(roomId); setRoomId(null) }} className="text-yellow-400 text-sm hover:underline">回列表</button>
             </div>
           </div>
         )}
