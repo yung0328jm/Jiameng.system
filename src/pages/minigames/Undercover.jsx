@@ -1,6 +1,6 @@
 // 誰是臥底：多人輪流發言描述詞彙，投票淘汰臥底
 import { useState, useEffect } from 'react'
-import { useSyncRevision } from '../../contexts/SyncContext'
+import { useSyncRevision, useRealtimeKeys } from '../../contexts/SyncContext'
 import {
   getRooms,
   getRoom,
@@ -38,6 +38,9 @@ export default function Undercover({ onBack }) {
   const votes = room?.votes || {}
   const hasVoted = votes[account]
   const phase = room?.phase
+
+  // 即時更新：房間資料變更時（他人發言、投票等）立即重讀
+  useRealtimeKeys(['jiameng_undercover_rooms'], () => setRefresh((r) => r + 1))
 
   // 房主：投票階段且所有人都投完時自動結算
   useEffect(() => {
@@ -217,12 +220,15 @@ export default function Undercover({ onBack }) {
             {phase === 'speaking' && (
               <>
                 <p className="text-gray-400 text-sm">第 {room.currentRound} 輪 · 發言階段</p>
-                <p className="text-gray-500 text-xs">輪到：{currentSpeaker?.name || currentSpeaker?.account}</p>
+                <p className="text-gray-500 text-xs mb-1">輪到：{currentSpeaker?.name || currentSpeaker?.account}</p>
                 {room.speeches?.length > 0 && (
-                  <div className="text-gray-500 text-xs space-y-0.5 max-h-24 overflow-y-auto">
-                    {room.speeches.filter((s) => s.round === room.currentRound).map((s, i) => (
-                      <div key={i}>{s.name}：{s.text}</div>
-                    ))}
+                  <div className="mb-2">
+                    <p className="text-gray-500 text-xs mb-1">本輪發言（所有人可見）</p>
+                    <div className="text-gray-400 text-xs space-y-1 max-h-28 overflow-y-auto p-2 bg-gray-800/50 rounded">
+                      {room.speeches.filter((s) => s.round === room.currentRound).map((s, i) => (
+                        <div key={i}>{s.name}：{s.text}</div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {isMyTurnToSpeak && (
@@ -247,10 +253,13 @@ export default function Undercover({ onBack }) {
               <>
                 <p className="text-gray-400 text-sm">第 {room.currentRound} 輪 · 投票階段</p>
                 {room.speeches?.length > 0 && (
-                  <div className="text-gray-500 text-xs space-y-0.5 max-h-28 overflow-y-auto mb-2">
-                    {room.speeches.filter((s) => s.round === room.currentRound).map((s, i) => (
-                      <div key={i}>{s.name}：{s.text}</div>
-                    ))}
+                  <div className="mb-3">
+                    <p className="text-gray-500 text-xs mb-1">本輪發言（所有人可見）</p>
+                    <div className="text-gray-400 text-xs space-y-1 max-h-32 overflow-y-auto p-2 bg-gray-800/50 rounded">
+                      {room.speeches.filter((s) => s.round === room.currentRound).map((s, i) => (
+                        <div key={i}>{s.name}：{s.text}</div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {hasVoted ? (
