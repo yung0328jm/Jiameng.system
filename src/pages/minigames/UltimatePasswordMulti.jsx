@@ -25,7 +25,6 @@ function randomSecret() {
 
 export default function UltimatePasswordMulti({ onBack }) {
   const [roomId, setRoomId] = useState(null)
-  const [joinCode, setJoinCode] = useState('')
   const [guessInput, setGuessInput] = useState('')
   const [message, setMessage] = useState('')
   const [refresh, setRefresh] = useState(0)
@@ -99,7 +98,7 @@ export default function UltimatePasswordMulti({ onBack }) {
             if (res.ok) {
               secretRef.current = randomSecret()
               setRoomId(res.roomId)
-              setMessage('已建立房間，可分享代碼給其他人加入')
+              setMessage('已建立房間，其他用戶可從下方列表選擇加入')
             } else {
               setMessage(res.error || '建立失敗')
             }
@@ -108,44 +107,37 @@ export default function UltimatePasswordMulti({ onBack }) {
         >
           建立房間
         </button>
-        <div className="mt-4 flex gap-2 w-full max-w-[280px]">
-          <input
-            type="text"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.trim())}
-            placeholder="輸入 5 碼代碼"
-            className="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              const res = joinRoom(joinCode, account)
-              if (res.ok) {
-                setRoomId(res.room.id)
-                setJoinCode('')
-                setMessage('')
-              } else {
-                setMessage(res.error || '加入失敗')
-              }
-            }}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg touch-manipulation whitespace-nowrap"
-          >
-            加入
-          </button>
-        </div>
         {waitingRooms.length > 0 && (
           <div className="mt-4 w-full max-w-[280px]">
-            <p className="text-gray-500 text-xs mb-2">可加入的房間</p>
-            {waitingRooms.slice(0, 5).map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => { saveLastJoined(r.id, r.shortCode); setRoomId(r.id); setMessage('') }}
-                className="w-full text-left px-3 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm mb-1"
-              >
-                {(r.shortCode || r.id)} · {r.hostName} ({r.players?.length || 0} 人)
-              </button>
-            ))}
+            <p className="text-gray-500 text-xs mb-2">可加入的房間（點擊加入）</p>
+            {waitingRooms.slice(0, 10).map((r) => {
+              const isInRoom = r.players?.some((p) => p.account === account)
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => {
+                    if (isInRoom) {
+                      saveLastJoined(r.id, r.shortCode)
+                      setRoomId(r.id)
+                      setMessage('')
+                    } else {
+                      const res = joinRoom(r.id, account)
+                      if (res.ok) {
+                        saveLastJoined(r.id, r.shortCode)
+                        setRoomId(res.room.id)
+                        setMessage('')
+                      } else {
+                        setMessage(res.error || '加入失敗')
+                      }
+                    }
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm mb-1 hover:bg-gray-600 touch-manipulation"
+                >
+                  {r.hostName} 的房間（{r.players?.length || 0} 人）{isInRoom && '· 已在此房'}
+                </button>
+              )
+            })}
           </div>
         )}
         {message && <p className="mt-3 text-yellow-400/90 text-sm">{message}</p>}
