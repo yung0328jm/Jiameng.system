@@ -1,13 +1,14 @@
 // 拉霸機：3 軸，佳盟幣下注
 import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction } from './walletStorage'
 
-// 符號 id 與權重（權重愈高出現率愈高）
+// 符號 id 與權重 — 設置更難中獎：檸檬權重高且不賠，僅三同有獎、兩同不賠
 const SYMBOLS = [
-  { id: 'cherry', weight: 40, name: '櫻桃', emoji: '🍒' },
-  { id: 'bell', weight: 25, name: '鈴鐺', emoji: '🔔' },
-  { id: 'star', weight: 20, name: '星星', emoji: '⭐' },
-  { id: 'bar', weight: 10, name: 'BAR', emoji: '📊' },
-  { id: 'seven', weight: 5, name: '7', emoji: '7️⃣' }
+  { id: 'lemon', weight: 50, name: '檸檬', emoji: '🍋' },   // 三同不賠
+  { id: 'cherry', weight: 18, name: '櫻桃', emoji: '🍒' },
+  { id: 'bell', weight: 12, name: '鈴鐺', emoji: '🔔' },
+  { id: 'star', weight: 10, name: '星星', emoji: '⭐' },
+  { id: 'bar', weight: 6, name: 'BAR', emoji: '📊' },
+  { id: 'seven', weight: 4, name: '7', emoji: '7️⃣' }
 ]
 
 const TOTAL_WEIGHT = SYMBOLS.reduce((s, x) => s + x.weight, 0)
@@ -35,19 +36,15 @@ export function spinReels() {
   return [pickSymbol(), pickSymbol(), pickSymbol()]
 }
 
-/** 計算獎金倍數：三同、兩同、無 */
+/** 計算獎金倍數：僅三同（且非檸檬）有獎，兩同與其他皆 0 */
 function getMultiplier(reels) {
   const [a, b, c] = reels
   if (a === b && b === c) {
-    // 三同
-    const info = getSymbolInfo(a)
+    if (a === 'lemon') return 0
     const table = { seven: 50, bar: 20, star: 15, bell: 10, cherry: 5 }
-    return table[info.id] ?? 5
+    return table[a] ?? 5
   }
-  if (a === b || b === c || a === c) {
-    return 2 // 兩同
-  }
-  return 0
+  return 0 // 兩同不再退還，更難中獎
 }
 
 /** 下注並旋轉 */
