@@ -151,13 +151,14 @@ export function startGame(roomId) {
   r.result0 = null
   r.result1 = null
   r.winner = null
+  r.revealReady = {}
   r.distributed = false
   r.updatedAt = new Date().toISOString()
   save(rooms)
   return { ok: true, room: r }
 }
 
-/** 發牌推進：每次多發一張（輪流給玩家0、玩家1）。由房主端定時呼叫，dealIndex 到 10 時自動比牌並結束 */
+/** 發牌推進：每次多發一張（輪流給玩家0、玩家1）。dealIndex 到 10 時進入「攤開」階段，不直接結束 */
 export function advanceDeal(roomId) {
   const id = String(roomId || '').trim()
   const rooms = load()
@@ -182,11 +183,34 @@ export function advanceDeal(roomId) {
     r.result1 = calcNiuniu(cards1)
     const cmp = compareHands(r.result0, r.result1)
     r.winner = cmp === 'win' ? p0.account : cmp === 'lose' ? p1.account : null
-    r.status = 'ended'
+    r.status = 'reveal'
+    r.revealReady = r.revealReady || {}
     r.updatedAt = new Date().toISOString()
-    distributePrize(r, id)
     save(rooms)
   }
+  return { ok: true, room: getRoom(id) }
+}
+
+/** 玩家按「攤開」：兩人皆攤開後才結算並派獎 */
+export function setRevealReady(roomId, account) {
+  const id = String(roomId || '').trim()
+  const accountStr = String(account || '').trim()
+  if (!id || !accountStr) return { ok: false, error: '參數錯誤' }
+  const rooms = load()
+  const idx = rooms.findIndex((r) => r.id === id)
+  if (idx === -1) return { ok: false, error: '找不到房間' }
+  const r = rooms[idx]
+  if (r.status !== 'reveal') return { ok: false, error: '未在攤開階段' }
+  if (!r.players?.some((p) => p.account === accountStr)) return { ok: false, error: '你不在這間房間' }
+  r.revealReady = r.revealReady || {}
+  r.revealReady[accountStr] = true
+  r.updatedAt = new Date().toISOString()
+  const bothReady = r.players.every((p) => r.revealReady[p.account])
+  if (bothReady) {
+    r.status = 'ended'
+    distributePrize(r, id)
+  }
+  save(rooms)
   return { ok: true, room: getRoom(id) }
 }
 
@@ -233,7 +257,7 @@ export function disbandRoom(roomId, account) {
   return { ok: true }
 }
 
-/** 依 dealIndex 取得目前兩家已發出的牌（用於顯示）。deck[i] 屬於玩家 i % 2 */
+/** 依 dealIndex 取得目前兩家已發出的牌。deck[i] 屬於玩家 i % 2 */
 export function getDealtCards(room) {
   if (!room?.deck || room.deck.length < 10) return { cards0: [], cards1: [] }
   const idx = Math.min(room.dealIndex ?? 0, 10)
@@ -244,4 +268,14 @@ export function getDealtCards(room) {
     else cards1.push(room.deck[i])
   }
   return { cards0, cards1 }
+}
+
+/** 取得雙方完整 5 張（發完後）。用於攤開後顯示 */
+export function getFullHands(room) {
+  if (!room?.deck || room.deck.length < 10) return { cards0: [], cards1: [] }
+  const d = room.deck
+  return {
+    cards0: [d[0], d[2], d[4], d[6], d[8]],
+    cards1: [d[1], d[3], d[5], d[7], d[9]]
+  }
 }
