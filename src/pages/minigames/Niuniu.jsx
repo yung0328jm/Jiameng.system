@@ -8,16 +8,18 @@ import {
   joinRoom,
   startGame,
   advanceDeal,
+  setRevealReady,
   getLastJoined,
   saveLastJoined,
   disbandRoom,
-  getDealtCards
+  getDealtCards,
+  getFullHands
 } from '../../utils/niuniuRoomsStorage'
 import { cardFace } from '../../utils/niuniuStorage'
 import { getCurrentUser } from '../../utils/authStorage'
 import { getWalletBalance } from '../../utils/walletStorage'
 
-const DEAL_INTERVAL_MS = 650
+const DEAL_INTERVAL_MS = 1000
 
 export default function Niuniu({ onBack }) {
   const [roomId, setRoomId] = useState(null)
@@ -71,7 +73,7 @@ export default function Niuniu({ onBack }) {
     const waitingRooms = rooms.filter((r) => r.status === 'waiting' && !exitedRoomIds.has(r.id))
     const lastJoined = getLastJoined()
     const lastRoom = lastJoined ? getRoom(lastJoined.roomId) : null
-    const canContinue = lastRoom && (lastRoom.status === 'waiting' || lastRoom.status === 'dealing' || lastRoom.status === 'ended')
+    const canContinue = lastRoom && (lastRoom.status === 'waiting' || lastRoom.status === 'dealing' || lastRoom.status === 'reveal' || lastRoom.status === 'ended')
     return (
       <div className="flex flex-col items-center w-full max-w-[320px]">
         <div className="flex justify-between w-full mb-3">
@@ -172,7 +174,8 @@ export default function Niuniu({ onBack }) {
           <span className="text-gray-500 text-xs">房間 {room.shortCode}</span>
         </div>
         <p className="text-gray-400 text-sm">玩家：{room.players?.map((p) => p.name || p.account).join(' vs ')}</p>
-        <p className="text-amber-400/90 text-xs mb-3">下注 {room.betAmount ?? 1} 佳盟幣/人</p>
+        <p className="text-amber-400/90 text-xs mb-1">下注 {room.betAmount ?? 1} 佳盟幣/人</p>
+        <p className="text-gray-500 text-xs mb-3">須兩人佳盟幣皆足夠才能開始</p>
         {!full && <p className="text-gray-500 text-sm mb-2">等待第二人加入…</p>}
         {isHost && full && (
           <button
@@ -193,71 +196,174 @@ export default function Niuniu({ onBack }) {
     )
   }
 
-  // 已結束
+  // 已結束：雙方牌都攤開，顯示結果
   if (room.status === 'ended') {
     const winner = room.winner ? room.players?.find((p) => p.account === room.winner) : null
     const iWon = room.winner === account
+    const { cards0, cards1 } = getFullHands(room)
+    const oppCards = meIndex === 0 ? cards1 : cards0
+    const myCards = meIndex === 0 ? cards0 : cards1
+    const oppName = room.players?.[1 - meIndex]?.name || '對手'
     return (
-      <div className="flex flex-col items-center w-full max-w-[320px]">
+      <div className="flex flex-col items-center w-full max-w-[340px]">
+        <style>{`
+          @keyframes nn-reveal {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          .nn-reveal-in { animation: nn-reveal 0.4s ease-out forwards; }
+        `}</style>
         <div className="flex justify-between w-full mb-3">
           <button type="button" onClick={() => setRoomId(null)} className="text-yellow-400 text-sm hover:underline">← 返回</button>
         </div>
-        <p className="text-yellow-400 font-semibold text-lg">本局結束</p>
-        {winner && <p className="text-gray-400 text-sm mt-1">獲勝：{winner.name || winner.account}</p>}
-        {!winner && <p className="text-gray-400 text-sm mt-1">和局，各退下注</p>}
-        <p className="text-emerald-400 text-sm">獎池 {room.pool ?? 0} 佳盟幣</p>
-        {room.result0 && room.result1 && (
-          <p className="text-gray-500 text-xs mt-2">
-            {room.players?.[0]?.name} {room.result0.label} vs {room.players?.[1]?.name} {room.result1.label}
+        <p className="text-yellow-400 font-semibold text-lg nn-reveal-in">開牌結果</p>
+        {/* 對手牌（攤開後） */}
+        <div className="w-full mb-3 p-3 rounded-xl bg-gray-800/90 border border-amber-600/30 nn-reveal-in">
+          <p className="text-gray-400 text-xs mb-2">{oppName}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {oppCards.map((c, i) => (
+              <span key={i} className="nn-card inline-flex items-center justify-center w-10 h-14 rounded-lg bg-gray-700 text-white text-sm font-medium border border-gray-600">
+                {cardFace(c)}
+              </span>
+            ))}
+          </div>
+          <p className="text-amber-400 text-sm font-semibold mt-1">
+            {(meIndex === 0 ? room.result1 : room.result0)?.label ?? '—'}
           </p>
-        )}
+        </div>
+        {/* 我的牌 */}
+        <div className="w-full mb-4 p-3 rounded-xl bg-gray-800/90 border border-amber-600/30 nn-reveal-in">
+          <p className="text-gray-400 text-xs mb-2">你</p>
+          <div className="flex flex-wrap gap-1.5">
+            {myCards.map((c, i) => (
+              <span key={i} className="nn-card inline-flex items-center justify-center w-10 h-14 rounded-lg bg-gray-700 text-white text-sm font-medium border border-gray-600">
+                {cardFace(c)}
+              </span>
+            ))}
+          </div>
+          <p className="text-amber-400 text-sm font-semibold mt-1">
+            {(meIndex === 0 ? room.result0 : room.result1)?.label ?? '—'}
+          </p>
+        </div>
+        <div className="text-center nn-reveal-in">
+          {winner && <p className="text-gray-400 text-sm">獲勝：{winner.name || winner.account}</p>}
+          {!winner && <p className="text-gray-400 text-sm">和局，各退下注</p>}
+          <p className="text-emerald-400 text-sm font-semibold">獎池 {room.pool ?? 0} 佳盟幣</p>
+        </div>
         <button type="button" onClick={() => setRoomId(null)} className="mt-4 text-yellow-400 text-sm hover:underline">回列表</button>
       </div>
     )
   }
 
-  // 發牌中 status === 'dealing'
+  // 攤開階段：只顯示自己的牌型，對手為牌背；按「攤開」後等對方
+  if (room.status === 'reveal') {
+    const { cards0, cards1 } = getFullHands(room)
+    const myCards = meIndex === 0 ? cards0 : cards1
+    const myResult = meIndex === 0 ? room.result0 : room.result1
+    const oppName = room.players?.[1 - meIndex]?.name || '對手'
+    const iReady = room.revealReady?.[account]
+    const bothReady = room.players?.every((p) => room.revealReady?.[p.account])
+    return (
+      <div className="flex flex-col items-center w-full max-w-[340px]">
+        <div className="flex justify-between w-full mb-2">
+          <button type="button" onClick={() => { handleExitRoom(roomId); setRoomId(null); setMessage('') }} className="text-yellow-400 text-sm hover:underline">← 返回</button>
+          <span className="text-gray-500 text-xs">房間 {room.shortCode}</span>
+        </div>
+        <p className="text-amber-400/90 text-xs mb-3">看牌後按「攤開」，兩人皆攤開後即開牌</p>
+        {/* 對手：牌背 */}
+        <div className="w-full mb-4 p-3 rounded-xl bg-gray-800/90 border border-amber-600/30">
+          <p className="text-gray-400 text-xs mb-2">{oppName}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Array.from({ length: 5 }, (_, i) => (
+              <span key={i} className="nn-card-back inline-flex items-center justify-center w-10 h-14 rounded-lg bg-gradient-to-br from-amber-900 to-amber-800 text-amber-200/60 text-xl border border-amber-600/50 shadow-inner">
+                🂠
+              </span>
+            ))}
+          </div>
+        </div>
+        {/* 我的牌 + 牌型 */}
+        <div className="w-full mb-4 p-3 rounded-xl bg-gray-800/90 border border-amber-500/40">
+          <p className="text-gray-400 text-xs mb-2">你的牌</p>
+          <div className="flex flex-wrap gap-1.5">
+            {myCards.map((c, i) => (
+              <span key={i} className="nn-card inline-flex items-center justify-center w-10 h-14 rounded-lg bg-gray-700 text-white text-sm font-medium border border-gray-600">
+                {cardFace(c)}
+              </span>
+            ))}
+          </div>
+          <p className="text-amber-400 text-sm font-semibold mt-2">牌型：{myResult?.label ?? '—'}</p>
+        </div>
+        {!iReady ? (
+          <button
+            type="button"
+            onClick={() => {
+              const res = setRevealReady(roomId, account)
+              if (res.ok) setRefresh((r) => r + 1)
+              else setMessage(res.error || '')
+            }}
+            className="w-full max-w-[200px] py-3 rounded-xl bg-amber-500 text-gray-900 font-bold"
+          >
+            攤開
+          </button>
+        ) : (
+          <p className="text-gray-500 text-sm">已攤開，等對方…</p>
+        )}
+        {message && <p className="mt-2 text-yellow-400/90 text-sm">{message}</p>}
+      </div>
+    )
+  }
+
+  // 發牌中：只顯示自己的牌依序出現，對手一律牌背；發牌動畫
   const { cards0, cards1 } = getDealtCards(room)
-  const p0Name = room.players?.[0]?.name || '玩家1'
-  const p1Name = room.players?.[1]?.name || '玩家2'
+  const myCards = meIndex === 0 ? cards0 : cards1
+  const oppName = room.players?.[1 - meIndex]?.name || '對手'
   const totalSlots = 5
 
   return (
     <div className="flex flex-col items-center w-full max-w-[340px]">
+      <style>{`
+        @keyframes nn-deal-in {
+          from { opacity: 0; transform: translateY(-12px) scale(0.9); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .nn-card-new { animation: nn-deal-in 0.35s ease-out forwards; }
+        .nn-card-back { user-select: none; }
+      `}</style>
       <div className="flex justify-between w-full mb-2">
         <button type="button" onClick={() => { handleExitRoom(roomId); setRoomId(null); setMessage('') }} className="text-yellow-400 text-sm hover:underline">← 返回</button>
         <span className="text-gray-500 text-xs">房間 {room.shortCode} · 發牌中</span>
       </div>
 
-      <p className="text-amber-400/90 text-xs mb-3">下注 {room.betAmount ?? 1} 佳盟幣/人 · 輪流發牌</p>
+      <p className="text-amber-400/90 text-xs mb-3">下注 {room.betAmount ?? 1} 佳盟幣 · 輪流發牌（只會看到自己的牌）</p>
 
-      {/* 玩家0 的牌：5 個位子，依序翻開 */}
+      {/* 對手：5 張牌背 */}
       <div className="w-full mb-4 p-3 rounded-xl bg-gray-800/90 border border-amber-600/30">
-        <p className="text-gray-400 text-xs mb-2">{meIndex === 0 ? '你' : p0Name}</p>
+        <p className="text-gray-400 text-xs mb-2">{oppName}</p>
         <div className="flex flex-wrap gap-1.5">
           {Array.from({ length: totalSlots }, (_, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center justify-center w-10 h-14 rounded-lg bg-gray-700 text-white text-sm font-medium border border-gray-600"
-            >
-              {cards0[i] ? cardFace(cards0[i]) : '?'}
+            <span key={`back-${i}`} className="nn-card-back inline-flex items-center justify-center w-10 h-14 rounded-lg bg-gradient-to-br from-amber-900 to-amber-800 text-amber-200/60 text-xl border border-amber-600/50 shadow-inner">
+              🂠
             </span>
           ))}
         </div>
       </div>
 
-      {/* 玩家1 的牌 */}
+      {/* 我的牌：依序出現 + 動畫 */}
       <div className="w-full mb-4 p-3 rounded-xl bg-gray-800/90 border border-amber-600/30">
-        <p className="text-gray-400 text-xs mb-2">{meIndex === 1 ? '你' : p1Name}</p>
+        <p className="text-gray-400 text-xs mb-2">你的牌</p>
         <div className="flex flex-wrap gap-1.5">
-          {Array.from({ length: totalSlots }, (_, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center justify-center w-10 h-14 rounded-lg bg-gray-700 text-white text-sm font-medium border border-gray-600"
-            >
-              {cards1[i] ? cardFace(cards1[i]) : '?'}
-            </span>
-          ))}
+          {Array.from({ length: totalSlots }, (_, i) => {
+            const card = myCards[i]
+            const key = card ? `slot-${i}-${card.suit}-${card.rank}` : `slot-${i}-empty`
+            return (
+              <span
+                key={key}
+                className={`inline-flex items-center justify-center w-10 h-14 rounded-lg border border-gray-600 text-sm font-medium ${card ? 'nn-card-new bg-gray-700 text-white' : 'bg-gray-700/50 text-gray-500'}`}
+              >
+                {card ? cardFace(card) : '?'}
+              </span>
+            )
+          })}
         </div>
       </div>
 
