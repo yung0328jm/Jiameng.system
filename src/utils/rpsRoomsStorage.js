@@ -83,6 +83,9 @@ export function createRoom(hostAccount, betAmount = 1) {
   const account = String(hostAccount || '').trim()
   if (!account) return { ok: false, error: '未登入' }
   const bet = Math.max(1, Math.floor(Number(betAmount) || 1))
+  if (getWalletBalance(account) < bet) {
+    return { ok: false, error: `佳盟幣不足（需 ${bet}，目前 ${getWalletBalance(account)}），無法建立該下注房間` }
+  }
   const rooms = load()
   const id = newId()
   const shortCode = newShortCode(rooms)
@@ -124,6 +127,10 @@ export function joinRoom(roomIdOrShortCode, account) {
   const r = rooms[idx]
   if (r.status !== 'waiting') return { ok: false, error: '遊戲已開始' }
   if (r.players.length >= 2) return { ok: false, error: '房間已滿' }
+  const bet = r.betAmount ?? 1
+  if (getWalletBalance(accountStr) < bet) {
+    return { ok: false, error: `佳盟幣不足（此房間需 ${bet} 佳盟幣），無法加入` }
+  }
   if (r.players.some((p) => p.account === accountStr)) return { ok: true, room: r }
   r.players.push({ account: accountStr, name: getDisplayNameForAccount(accountStr) })
   r.updatedAt = new Date().toISOString()
