@@ -14,7 +14,7 @@ export default function MiniGames() {
     { id: 'slot2', name: '終極密碼多人', description: '多人輪流猜 1～100，猜中的人全拿獎池', comingSoon: false },
     { id: 'slot3', name: '誰是臥底', description: '輪流發言投票找出臥底', comingSoon: false },
     { id: 'slot4', name: '猜拳', description: '兩人對戰五戰三勝，佳盟幣下注', comingSoon: false },
-    { id: 'slot5', name: '妞妞', description: '玩家 vs 莊家比牛，牛牛 2 倍賠，佳盟幣下注', comingSoon: false }
+    { id: 'slot5', name: '妞妞', description: '兩人對戰，依序發牌比牛，佳盟幣下注', comingSoon: false }
   ]
 
   return (
