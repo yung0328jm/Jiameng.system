@@ -56,7 +56,7 @@ function PersonalPerformance() {
   // 管理者評分表單狀態
   const [showScoreForm, setShowScoreForm] = useState(false)
   const [scoreForm, setScoreForm] = useState({
-    userName: '',
+    selectedUserNames: [], // 可多選員工（帳號陣列）
     date: new Date().toISOString().split('T')[0],
     adjustmentType: '+', // + 或 -
     adjustment: '', // 調整分數
@@ -1663,10 +1663,11 @@ function PersonalPerformance() {
     // 嘗試UTF-8編碼，如果失敗可以嘗試其他編碼
     reader.readAsText(file, 'UTF-8')
   }
-  // 管理者評分相關函數
+  // 管理者評分相關函數（支援多選員工，每人一筆評分）
   const handleScoreSubmit = () => {
-    if (!scoreForm.userName || !scoreForm.date || !scoreForm.adjustment) {
-      alert('請填寫完整資訊')
+    const names = Array.isArray(scoreForm.selectedUserNames) ? scoreForm.selectedUserNames : []
+    if (names.length === 0 || !scoreForm.date || !scoreForm.adjustment) {
+      alert('請至少選擇一位員工，並填寫日期與調整分數')
       return
     }
     
@@ -1676,45 +1677,37 @@ function PersonalPerformance() {
       return
     }
     
-    // 計算實際調整值（+ 為正數，- 為負數）
     const actualAdjustment = scoreForm.adjustmentType === '+' ? adjustment : -adjustment
-    
-    const result = savePerformanceRecord({
-      userName: scoreForm.userName,
-      date: scoreForm.date,
-      adjustment: actualAdjustment.toString(), // 保存實際調整值（正數或負數）
-      adjustmentType: scoreForm.adjustmentType, // 保存調整類型（+ 或 -）
-      details: scoreForm.details || '',
-      evaluator: currentUser // 記錄評分者
+    const viewUser = getViewUser()
+    let successCount = 0
+    let failMsg = ''
+    names.forEach((userName) => {
+      const result = savePerformanceRecord({
+        userName,
+        date: scoreForm.date,
+        adjustment: actualAdjustment.toString(),
+        adjustmentType: scoreForm.adjustmentType,
+        details: scoreForm.details || '',
+        evaluator: currentUser
+      })
+      if (result.success) successCount++
+      else if (result.message) failMsg = result.message
     })
     
-    if (result.success) {
-      alert('評分已保存')
+    if (successCount > 0) {
+      alert(successCount === names.length ? '評分已保存' : `已保存 ${successCount} 筆，${names.length - successCount} 筆失敗${failMsg ? '：' + failMsg : ''}`)
       setShowScoreForm(false)
-      const savedUserName = scoreForm.userName // 保存被評分的用戶名
       setScoreForm({
-        userName: '',
+        selectedUserNames: [],
         date: new Date().toISOString().split('T')[0],
         adjustmentType: '+',
         adjustment: '',
         details: ''
       })
-      // 重新計算績效（立即更新績效評分卡片）
-      // 重新計算當前查看用戶的績效（如果被評分的是當前查看的用戶）
-      const viewUser = getViewUser()
-      if (savedUserName === viewUser) {
-        // 使用 setTimeout 確保數據已保存到 localStorage
-        setTimeout(() => {
-          calculatePerformance(viewUser)
-        }, 100)
-      } else {
-        // 即使為其他用戶評分，也重新計算當前查看用戶的績效（確保數據同步）
-        setTimeout(() => {
-          calculatePerformance(viewUser)
-        }, 100)
-      }
+      names.forEach((u) => setTimeout(() => calculatePerformance(u), 100))
+      if (!names.includes(viewUser)) setTimeout(() => calculatePerformance(viewUser), 100)
     } else {
-      alert(result.message || '保存失敗')
+      alert(failMsg || '保存失敗')
     }
   }
   
@@ -2430,11 +2423,10 @@ function PersonalPerformance() {
             <button
               onClick={() => {
                 if (!showScoreForm) {
-                  // 打開表單時，如果當前正在查看某個用戶，自動選擇該用戶
                   const viewUser = getViewUser()
                   setScoreForm({
                     ...scoreForm,
-                    userName: viewUser || ''
+                    selectedUserNames: viewUser ? [viewUser] : []
                   })
                 }
                 setShowScoreForm(!showScoreForm)
@@ -2448,18 +2440,52 @@ function PersonalPerformance() {
           {showScoreForm && (
             <div className="bg-gray-900 rounded-lg p-4 mb-4 border border-gray-700">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-400 text-sm mb-2">選擇員工 *</label>
-                  <select
-                    value={scoreForm.userName}
-                    onChange={(e) => setScoreForm({ ...scoreForm, userName: e.target.value })}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
-                  >
-                    <option value="">請選擇員工</option>
-                    {users.map(user => (
-                      <option key={user.id} value={user.account}>{user.name || user.account}</option>
-                    ))}
-                  </select>
+                <div className="md:col-span-2">
+                  <label className="block text-gray-400 text-sm mb-2">選擇員工 *（可多選）</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setScoreForm({ ...scoreForm, selectedUserNames: users.map(u => u.account) })}
+                      className="text-xs px-2 py-1 rounded bg-gray-600 text-gray-300 hover:bg-gray-500"
+                    >
+                      全選
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScoreForm({ ...scoreForm, selectedUserNames: [] })}
+                      className="text-xs px-2 py-1 rounded bg-gray-600 text-gray-300 hover:bg-gray-500"
+                    >
+                      清空
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto border border-gray-600 rounded px-3 py-2 bg-gray-700 space-y-1.5">
+                    {users.map((user) => {
+                      const account = user.account || user.id
+                      const checked = (scoreForm.selectedUserNames || []).includes(account)
+                      return (
+                        <label key={account} className="flex items-center gap-2 cursor-pointer hover:bg-gray-600 rounded px-2 py-1 -mx-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...(scoreForm.selectedUserNames || []), account]
+                                : (scoreForm.selectedUserNames || []).filter((a) => a !== account)
+                              setScoreForm({ ...scoreForm, selectedUserNames: next })
+                            }}
+                            className="rounded border-gray-500 text-yellow-500 focus:ring-yellow-400"
+                          />
+                          <span className="text-white text-sm">{user.name || account}</span>
+                        </label>
+                      )
+                    })}
+                    {users.length === 0 && (
+                      <p className="text-gray-500 text-sm">尚無員工名單</p>
+                    )}
+                  </div>
+                  {(scoreForm.selectedUserNames || []).length > 0 && (
+                    <p className="text-gray-500 text-xs mt-1">已選 {(scoreForm.selectedUserNames || []).length} 人</p>
+                  )}
                 </div>
                 
                 <div>
