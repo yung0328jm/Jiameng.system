@@ -11,6 +11,7 @@ const AWARD_CLAIMS_KEY = 'jiameng_leaderboard_award_claims_v1'
 const DELETED_LEADERBOARDS_KEY = 'jiameng_deleted_leaderboards'
 const LEADERBOARD_ITEMS_KEY = 'jiameng_leaderboard_items'
 const ITEMS_KEY = 'jiameng_items'
+const MEMOS_KEY = 'jiameng_memos'
 const PROJECT_RECORD_PREFIX_LEGACY = 'jiameng_project_records:'
 const PROJECT_RECORD_PREFIX = 'jiameng_project_records__'
 
@@ -389,6 +390,62 @@ export function subscribeRealtime(onUpdate) {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
                 localStorage.setItem(key, val)
                 notifyKey(key)
+              }
+            } else if (key === MEMOS_KEY) {
+              // 交流區：合併本機與雲端話題／訊息，避免覆蓋導致「只看到自己的訊息」或「訊息消失」
+              try {
+                const incoming = Array.isArray(payload.new.data)
+                  ? payload.new.data
+                  : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+                const existing = (() => {
+                  try { return JSON.parse(localStorage.getItem(MEMOS_KEY) || '[]') } catch (_) { return [] }
+                })()
+                const byTopicId = new Map()
+                function mergeTopicMessages(a, b) {
+                  const arrA = Array.isArray(a) ? a : []
+                  const arrB = Array.isArray(b) ? b : []
+                  const byId = new Map()
+                  ;[...arrA, ...arrB].forEach((m) => {
+                    const id = String(m?.id || '').trim()
+                    if (!id) return
+                    const prev = byId.get(id)
+                    if (!prev) { byId.set(id, m); return }
+                    const ta = Date.parse(prev?.createdAt || '') || 0
+                    const tb = Date.parse(m?.createdAt || '') || 0
+                    byId.set(id, tb >= ta ? m : prev)
+                  })
+                  return Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
+                }
+                ;[...existing, ...incoming].forEach((t) => {
+                  const tid = String(t?.id ?? '').trim()
+                  if (!tid) return
+                  const prev = byTopicId.get(tid)
+                  if (!prev) {
+                    byTopicId.set(tid, { ...t, messages: mergeTopicMessages(t?.messages, []) })
+                    return
+                  }
+                  byTopicId.set(tid, {
+                    ...prev,
+                    ...t,
+                    messages: mergeTopicMessages(prev?.messages, t?.messages)
+                  })
+                })
+                const merged = Array.from(byTopicId.values())
+                const val = JSON.stringify(merged)
+                localStorage.setItem(MEMOS_KEY, val)
+                notifyKey(MEMOS_KEY)
+
+                const globalIncoming = incoming.find((x) => x?.id === 'global')
+                const globalMerged = merged.find((x) => x?.id === 'global')
+                const incLen = Array.isArray(globalIncoming?.messages) ? globalIncoming.messages.length : 0
+                const merLen = Array.isArray(globalMerged?.messages) ? globalMerged.messages.length : 0
+                if (merLen > incLen && merLen > 0) {
+                  sb.from('app_data').upsert({ key: MEMOS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                }
+              } catch (_) {
+                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                localStorage.setItem(MEMOS_KEY, val)
+                notifyKey(MEMOS_KEY)
               }
             } else {
               if (key === LEADERBOARD_ITEMS_KEY) {

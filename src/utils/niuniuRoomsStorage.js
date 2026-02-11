@@ -224,17 +224,38 @@ function distributePrize(r, roomId) {
     return
   }
   r.distributed = true
-  if (r.winner && r.pool > 0) {
-    addWalletBalance(r.winner, r.pool)
+  const bet = (r.pool || 0) / 2
+  if (r.winner && r.pool > 0 && r.players?.length === 2) {
+    const loser = r.players.find((p) => p.account !== r.winner)?.account
+    const winnerHand = r.winner === r.players[0].account ? r.result0 : r.result1
+    const niu = winnerHand?.niu ?? 0
+    let winAmount = r.pool
+    let loserExtra = 0
+    if (niu === 10) {
+      winAmount = bet * 3
+      loserExtra = bet
+    } else if (niu >= 8) {
+      winAmount = bet * 2
+    }
+    addWalletBalance(r.winner, winAmount)
     addTransaction({
       from: 'niuniu',
       to: r.winner,
-      amount: r.pool,
-      description: '妞妞對戰獲勝',
+      amount: winAmount,
+      description: niu === 10 ? '妞妞對戰獲勝（牛牛 3 倍）' : niu >= 8 ? '妞妞對戰獲勝（牛 8 以上 2 倍）' : '妞妞對戰獲勝',
       roomId
     })
+    if (loser && loserExtra > 0) {
+      subtractWalletBalance(loser, loserExtra)
+      addTransaction({
+        from: loser,
+        to: r.winner,
+        amount: loserExtra,
+        description: '妞妞牛牛／牛8+ 輸家多付',
+        roomId
+      })
+    }
   } else if (r.pool > 0 && r.players?.length === 2) {
-    const bet = r.pool / 2
     addWalletBalance(r.players[0].account, bet)
     addWalletBalance(r.players[1].account, bet)
     addTransaction({ from: 'niuniu', to: r.players[0].account, amount: bet, description: '妞妞和局退注', roomId })
