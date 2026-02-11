@@ -92,11 +92,12 @@ function PersonalPerformance() {
 
   const loadUsersForAdmin = useCallback(async () => {
     try {
-      // 管理員用戶清單：只顯示非管理員（員工）
+      const me = getCurrentUser()
+      // 管理員用戶清單：只顯示非管理員（員工），且排除自己，避免評分時誤選到自己
       if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
         const profiles = await getPublicProfiles()
         const list = (Array.isArray(profiles) ? profiles : [])
-          .filter((p) => !p?.is_admin)
+          .filter((p) => !p?.is_admin && p?.account !== me)
           .map((p) => ({
             account: p.account,
             name: p.display_name || p.account,
@@ -106,11 +107,12 @@ function PersonalPerformance() {
         return
       }
       const allUsers = getUsers()
-      setUsers((allUsers || []).filter(u => u.role !== 'admin'))
+      setUsers((allUsers || []).filter(u => u.role !== 'admin' && u.account !== me))
     } catch (e) {
       console.warn('loadUsersForAdmin failed', e)
       const allUsers = getUsers()
-      setUsers((allUsers || []).filter(u => u.role !== 'admin'))
+      const me = getCurrentUser()
+      setUsers((allUsers || []).filter(u => u.role !== 'admin' && u.account !== me))
     }
   }, [])
 
@@ -2424,9 +2426,11 @@ function PersonalPerformance() {
               onClick={() => {
                 if (!showScoreForm) {
                   const viewUser = getViewUser()
+                  const me = getCurrentUser()
+                  // 僅在「正在查看的用戶」不是自己時才預選，避免管理員被預選而誤扣到自己
                   setScoreForm({
                     ...scoreForm,
-                    selectedUserNames: viewUser ? [viewUser] : []
+                    selectedUserNames: viewUser && viewUser !== me ? [viewUser] : []
                   })
                 }
                 setShowScoreForm(!showScoreForm)
