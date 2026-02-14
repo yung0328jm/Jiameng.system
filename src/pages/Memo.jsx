@@ -810,10 +810,21 @@ function Memo() {
         }
       `}</style>
       <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-0 flex flex-col overflow-y-auto">
-      <h2 className="text-2xl font-bold text-yellow-400 mb-6 shrink-0">交流區</h2>
+      {/* 過年主題標題 */}
+      <div className="mb-6 shrink-0 flex items-center justify-center gap-3 flex-wrap">
+        <span className="text-2xl">🧧</span>
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 via-amber-400 to-red-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]">
+          交流區 · 喜迎新春
+        </h2>
+        <span className="text-2xl">🏮</span>
+      </div>
 
       {/* 交流區：對話框 + 彈幕（公佈欄已移至首頁） */}
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 relative" style={{ overflow: 'hidden', position: 'relative' }}>
+      <div className="rounded-xl p-6 relative overflow-hidden" style={{
+        background: 'linear-gradient(135deg, rgba(127,29,29,0.4) 0%, rgba(185,28,28,0.25) 50%, rgba(127,29,29,0.4) 100%)',
+        border: '2px solid rgba(220,38,38,0.5)',
+        boxShadow: '0 0 24px rgba(251,191,36,0.15), inset 0 1px 0 rgba(255,255,255,0.08)'
+      }}>
         
         {/* 彈幕動畫樣式 */}
         <style>{`
@@ -906,7 +917,9 @@ function Memo() {
         `}</style>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-bold text-yellow-400">交流區</h3>
+            <h3 className="text-lg font-bold text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]">
+              <span className="text-red-400">福</span> 交流區 <span className="text-red-400">春</span>
+            </h3>
             {userRole === 'admin' && (
               <button
                 type="button"
@@ -943,13 +956,13 @@ function Memo() {
                 setShowDanmuInput(!showDanmuInput)
               }}
               disabled={!hasDanmuItem || danmuItemQuantity <= 0}
-              className={`font-semibold px-4 py-2 rounded text-sm transition-colors flex items-center gap-2 border ${
+              className={`font-semibold px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 border ${
                 hasDanmuItem && danmuItemQuantity > 0
-                  ? 'bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-yellow-300'
+                  ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600 text-white border-amber-400/50'
                   : 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
               }`}
             >
-              <span>💬</span>
+              <span>🧧</span>
               <span>發彈幕</span>
             </button>
             
@@ -979,7 +992,11 @@ function Memo() {
 
         {/* 彈幕牆：固定在交流區這個區塊內（不覆蓋整頁） */}
         {danmuEnabled && (
-          <div className="relative mb-4 h-32 sm:h-36 bg-gray-900/40 border border-gray-700 rounded-lg overflow-hidden pointer-events-none">
+          <div className="relative mb-4 h-32 sm:h-36 overflow-hidden pointer-events-none rounded-lg" style={{
+            background: 'linear-gradient(180deg, rgba(127,29,29,0.3) 0%, rgba(30,27,27,0.6) 100%)',
+            border: '1px solid rgba(220,38,38,0.35)',
+            boxShadow: 'inset 0 0 20px rgba(251,191,36,0.06)'
+          }}>
           {screenDanmus.map((danmu) => {
             const anim = danmu?._anim || {}
             const danmuId = `danmu-${danmu.id}`
@@ -1390,15 +1407,20 @@ function Memo() {
         )}
         
         {/* 對話框：所有用戶直接發話，不需開設話題；僅發話內容區可上下滑動 */}
-        <div className="bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0 flex-1 max-h-[70vh]" style={{ minHeight: '50vh' }}>
+        <div className="rounded-xl flex flex-col min-h-0 flex-1 max-h-[70vh]" style={{
+          minHeight: '50vh',
+          background: 'linear-gradient(180deg, rgba(55,65,81,0.9) 0%, rgba(31,41,55,0.95) 100%)',
+          border: '2px solid rgba(220,38,38,0.35)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(251,191,36,0.1)'
+        }}>
           <button
             type="button"
             onClick={() => setIsChatCollapsed((v) => !v)}
-            className="p-4 border-b border-gray-700 shrink-0 text-left hover:bg-gray-750 transition-colors cursor-pointer select-none"
+            className="p-4 border-b border-red-900/50 shrink-0 text-left hover:bg-red-950/30 transition-colors cursor-pointer select-none"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-lg font-semibold text-white">對話框</h3>
+                <h3 className="text-lg font-semibold text-amber-100">🏮 對話框</h3>
                 <p className="text-sm sm:text-xs text-gray-400 mt-0.5">
                   {isChatCollapsed ? '點擊展開對話框' : '所有用戶在此發話，無需新增話題（點擊可收合）'}
                 </p>
@@ -1424,9 +1446,9 @@ function Memo() {
             className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-auto p-4 space-y-4"
           >
             {messages.length === 0 ? (
-              <div className="text-gray-400 text-center py-12">
-                <p>尚無消息</p>
-                <p className="text-sm mt-2">輸入下方訊息後按發送即可開始聊天</p>
+              <div className="text-center py-12">
+                <p className="text-amber-200/90 font-medium">尚無消息</p>
+                <p className="text-sm mt-2 text-amber-200/60">輸入下方訊息後按發送，與大家喜迎新春 🏮</p>
               </div>
             ) : (
               messages.map((message) => {
@@ -1454,8 +1476,8 @@ function Memo() {
                       </span>
                     </div>
                     <div
-                      className="bg-gray-700 rounded-lg p-4 sm:p-3 text-base sm:text-sm"
-                      style={messageEffectStyle ? { ...messageEffectStyle, color: '#F5F1E8' } : { color: '#FFFFFF' }}
+                      className="rounded-lg p-4 sm:p-3 text-base sm:text-sm"
+                      style={messageEffectStyle ? { ...messageEffectStyle, color: '#F5F1E8', background: 'linear-gradient(135deg, rgba(127,29,29,0.25) 0%, rgba(55,65,81,0.9) 100%)', border: '1px solid rgba(220,38,38,0.2)' } : { color: '#FFFFFF', background: 'linear-gradient(135deg, rgba(127,29,29,0.2) 0%, rgba(55,65,81,0.85) 100%)', border: '1px solid rgba(220,38,38,0.15)' }}
                     >
                       {message.content}
                     </div>
@@ -1469,7 +1491,7 @@ function Memo() {
 
           {/* 發送者名稱顯示 */}
           {!isChatCollapsed && (
-          <div className="px-4 py-2 border-t border-gray-700 bg-gray-900 shrink-0">
+          <div className="px-4 py-2 border-t border-red-900/50 bg-gray-900/90 shrink-0">
             <div className="text-gray-400 text-sm flex items-center flex-wrap gap-1">
               發送者: <span
                 className="font-semibold"
@@ -1495,21 +1517,22 @@ function Memo() {
 
           {/* 消息輸入框 */}
           {!isChatCollapsed && (
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-700 shrink-0">
+          <form onSubmit={handleSendMessage} className="p-4 border-t border-red-900/50 shrink-0">
             <div className="flex gap-2 items-center">
               <input
                 type="text"
                 value={messageContent}
                 onChange={(e) => setMessageContent(e.target.value)}
                 placeholder="輸入消息..."
-                className="flex-1 min-w-0 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                className="flex-1 min-w-0 bg-gray-700 border border-red-900/40 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/50"
               />
               <button
                 type="submit"
                 disabled={!messageContent.trim()}
-                className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-gray-800 font-semibold px-4 py-2 rounded transition-colors text-sm"
+                className={`flex-shrink-0 font-semibold px-4 py-2 rounded-lg transition-colors text-sm disabled:cursor-not-allowed ${messageContent.trim() ? 'hover:opacity-90' : 'bg-gray-600 text-gray-400'}`}
+                style={messageContent.trim() ? { background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', color: '#FEF3C7' } : {}}
               >
-                發送
+                🧧 發送
               </button>
             </div>
           </form>
