@@ -1085,7 +1085,6 @@ function Memo() {
                     const res = grabRedEnvelope(currentUser)
                     if (res.success) {
                       setRedEnvelopeConfig(getRedEnvelopeConfig())
-                      setShowRedEnvelopeFirework(true)
                       setShowRedEnvelopeBlessingModal(true)
                       setRedEnvelopeBlessingText('')
                     } else {
@@ -1727,7 +1726,7 @@ function Memo() {
             <h3 className="text-xl font-bold text-amber-400 flex items-center gap-2 mb-2">
               <span>🧧</span> 恭喜搶到紅包！寫下祝福語
             </h3>
-            <p className="text-gray-400 text-sm mb-4">祝福語將發送到交流區對話框，與大家分享喜氣。</p>
+            <p className="text-gray-400 text-sm mb-4">請輸入祝福語並發送至交流區對話框，與大家分享喜氣。</p>
             <textarea
               value={redEnvelopeBlessingText}
               onChange={(e) => setRedEnvelopeBlessingText(e.target.value)}
@@ -1735,34 +1734,24 @@ function Memo() {
               rows={3}
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/50 resize-none"
             />
-            <div className="flex gap-3 mt-4">
+            <div className="flex justify-end mt-4">
               <button
                 type="button"
+                disabled={!redEnvelopeBlessingText.trim()}
                 onClick={() => {
-                  setShowRedEnvelopeBlessingModal(false)
-                  setShowRedEnvelopeFirework(false)
-                  setRedEnvelopeBlessingText('')
-                }}
-                className="flex-1 px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-500 font-medium"
-              >
-                略過
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const text = redEnvelopeBlessingText.trim() || '恭喜發財，新年快樂！'
+                  const text = redEnvelopeBlessingText.trim()
                   const result = addGlobalMessage(text, currentUser)
                   if (result.success) {
                     loadMessages()
                     setShowRedEnvelopeBlessingModal(false)
-                    setShowRedEnvelopeFirework(false)
                     setRedEnvelopeBlessingText('')
+                    setShowRedEnvelopeFirework(true)
                     setTimeout(scrollToBottom, 100)
                   } else {
                     alert(result.message || '發送失敗')
                   }
                 }}
-                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-amber-500 text-white rounded-lg hover:opacity-90 font-semibold border border-amber-400/50"
+                className="px-6 py-2.5 bg-gradient-to-r from-red-500 to-amber-500 text-white rounded-lg font-semibold border border-amber-400/50 disabled:opacity-50 disabled:cursor-not-allowed hover:disabled:opacity-50"
               >
                 發送至對話框
               </button>
