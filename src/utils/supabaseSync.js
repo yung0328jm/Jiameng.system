@@ -459,6 +459,22 @@ export async function fetchRedEnvelopeConfigFromSupabase() {
   } catch (_) {}
 }
 
+const ANNOUNCEMENTS_KEY = 'jiameng_announcements'
+
+/** 從雲端拉取公布欄並寫入 localStorage，觸發 UI 更新（確保首頁公布欄及時同步） */
+export async function refreshAnnouncementsFromSupabase() {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  try {
+    const { data: row, error } = await sb.from('app_data').select('data').eq('key', ANNOUNCEMENTS_KEY).maybeSingle()
+    if (error) return
+    const incoming = Array.isArray(row?.data) ? row.data : (typeof row?.data === 'string' ? (() => { try { return JSON.parse(row.data || '[]') } catch (_) { return [] } })() : [])
+    const val = JSON.stringify(incoming)
+    localStorage.setItem(ANNOUNCEMENTS_KEY, val)
+    try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: ANNOUNCEMENTS_KEY } })) } catch (_) {}
+  } catch (_) {}
+}
+
 /** 交流區輪詢備援：從雲端拉取 jiameng_memos 並與本機合併後寫回，再觸發 UI 更新（Realtime 未送達時仍能及時同步） */
 export async function refreshMemosFromSupabase() {
   const sb = getSupabaseClient()
