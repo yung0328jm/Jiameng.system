@@ -1,11 +1,6 @@
 // 公佈欄存儲工具
-import { syncKeyToSupabase, fetchAnnouncementsFromSupabase } from './supabaseSync'
+import { syncKeyToSupabase } from './supabaseSync'
 const ANNOUNCEMENT_STORAGE_KEY = 'jiameng_announcements'
-
-const announcementTime = (a) => Math.max(
-  Date.parse(a?.updatedAt || '') || 0,
-  Date.parse(a?.createdAt || '') || 0
-)
 
 // 獲取所有公佈欄項目
 export const getAnnouncements = () => {
@@ -18,31 +13,14 @@ export const getAnnouncements = () => {
   }
 }
 
-// 保存公佈欄項目：以本機為準（刪除／更新會保留），再補上雲端有而本機沒有的項目，避免雲端舊資料把刪除或新內容蓋回
+// 保存公佈欄項目：直接寫入你傳入的列表並同步雲端，不做合併，刪除／更新才會真的生效
 export const saveAnnouncements = async (announcements) => {
   try {
-    const localList = Array.isArray(announcements) ? announcements : []
-    const serverList = await fetchAnnouncementsFromSupabase()
-    const localById = new Map(localList.map((a) => [String(a?.id || '').trim(), a]).filter(([id]) => id))
-    const mergedById = new Map(localById)
-    // 只補上雲端有、本機沒有的（他端新增）；同 id 以較新者為準，本機已刪的 id 不再加回
-    ;(Array.isArray(serverList) ? serverList : []).forEach((a) => {
-      const id = String(a?.id || '').trim()
-      if (!id) return
-      const localItem = mergedById.get(id)
-      if (!localItem) {
-        mergedById.set(id, a)
-        return
-      }
-      if (announcementTime(a) > announcementTime(localItem)) mergedById.set(id, a)
-    })
-    const merged = Array.from(mergedById.values()).sort(
-      (x, y) => announcementTime(y) - announcementTime(x)
-    )
-    const val = JSON.stringify(merged)
+    const list = Array.isArray(announcements) ? announcements : []
+    const val = JSON.stringify(list)
     localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, val)
     await syncKeyToSupabase(ANNOUNCEMENT_STORAGE_KEY, val)
-    return { success: true, data: merged }
+    return { success: true, data: list }
   } catch (error) {
     console.error('Error saving announcements:', error)
     return { success: false, message: error?.message || '保存失敗' }
