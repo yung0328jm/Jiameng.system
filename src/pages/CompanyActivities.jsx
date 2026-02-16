@@ -140,8 +140,12 @@ function CompanyActivities() {
     const currentUser = getCurrentUser() || ''
 
     if (editingActivity) {
-      if (!isAdmin) {
-        alert('只有管理者可以編輯活動')
+      if (!isAdmin && !isCreator(editingActivity)) {
+        alert('只有管理者或活動建立者可編輯')
+        return
+      }
+      if (!isAdmin && !isApproved(editingActivity)) {
+        alert('活動審核通過後才能編輯')
         return
       }
       const result = updateCompanyActivity(editingActivity.id, formData)
@@ -178,11 +182,17 @@ function CompanyActivities() {
   }
 
   const handleDelete = (id) => {
+    const activity = getCompanyActivities().find((a) => a.id === id)
+    if (activity && !canEditOrDeleteActivity(activity)) {
+      alert('只有管理者或活動建立者可刪除此活動')
+      return
+    }
     if (window.confirm('確定要刪除此活動嗎？')) {
       const result = deleteCompanyActivity(id)
       if (result.success) {
         alert('刪除成功')
         loadActivities()
+        if (viewingActivityId === id) handleBackToActivityList()
       } else {
         alert(result.message || '刪除失敗')
       }
@@ -209,6 +219,12 @@ function CompanyActivities() {
       alert(result.message || '操作失敗')
     }
   }
+
+  const currentUser = getCurrentUser() || ''
+  const isCreator = (activity) => String(activity?.createdBy || '').trim() === String(currentUser).trim()
+  const isApproved = (activity) => (activity?.approvalStatus ?? 'approved') === 'approved'
+  const canEditOrDeleteActivity = (activity) =>
+    userRole === 'admin' || (isApproved(activity) && isCreator(activity))
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -377,10 +393,10 @@ function CompanyActivities() {
                   key={activity.id}
                   className="relative rounded-lg overflow-hidden shadow-lg bg-gray-800 border border-gray-700 min-h-[200px] flex flex-col"
                 >
-                  {/* 管理員：待審核時顯示通過/拒絕，否則顯示刪除 */}
-                  {userRole === 'admin' && (
+                  {/* 管理員：待審核時顯示通過/拒絕，否則刪除；建立者：審核通過後可編輯與刪除 */}
+                  {(userRole === 'admin' || canEditOrDeleteActivity(activity)) && (
                     <div className="absolute top-3 right-3 z-20 flex items-center gap-1">
-                      {(activity.approvalStatus ?? 'approved') === 'pending' ? (
+                      {userRole === 'admin' && (activity.approvalStatus ?? 'approved') === 'pending' ? (
                         <>
                           <span className="px-2 py-0.5 bg-amber-500 text-gray-800 text-xs font-semibold rounded">待審核</span>
                           <button
@@ -399,15 +415,26 @@ function CompanyActivities() {
                           </button>
                         </>
                       ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(activity.id) }}
-                          className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
-                          title="刪除活動"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                        <>
+                          {canEditOrDeleteActivity(activity) && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleEdit(activity) }}
+                              className="w-8 h-8 bg-yellow-400 text-gray-800 rounded-full flex items-center justify-center hover:bg-yellow-500 transition-colors shadow-lg"
+                              title="編輯活動"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDelete(activity.id) }}
+                            className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                            title="刪除活動"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
@@ -550,9 +577,9 @@ function CompanyActivities() {
               )}
             </div>
 
-            {userRole === 'admin' && (
+            {(userRole === 'admin' || canEditOrDeleteActivity(viewingActivity)) && (
               <div className="mt-4 pt-4 border-t border-gray-700 flex flex-wrap gap-3">
-                {(viewingActivity.approvalStatus ?? 'approved') === 'pending' && (
+                {userRole === 'admin' && (viewingActivity.approvalStatus ?? 'approved') === 'pending' && (
                   <>
                     <button
                       onClick={() => { handleApprove(viewingActivity.id); handleBackToActivityList() }}
@@ -568,12 +595,22 @@ function CompanyActivities() {
                     </button>
                   </>
                 )}
-                <button
-                  onClick={() => handleEdit(viewingActivity)}
-                  className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors"
-                >
-                  編輯活動
-                </button>
+                {canEditOrDeleteActivity(viewingActivity) && (
+                  <>
+                    <button
+                      onClick={() => handleEdit(viewingActivity)}
+                      className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors"
+                    >
+                      編輯活動
+                    </button>
+                    <button
+                      onClick={() => handleDelete(viewingActivity.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+                    >
+                      刪除活動
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
