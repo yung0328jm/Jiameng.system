@@ -2,17 +2,34 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const COMPANY_ACTIVITY_STORAGE_KEY = 'jiameng_company_activities'
 
-// 獲取所有公司活動
+// 獲取所有公司活動（含待審核，供管理員使用）
 export const getCompanyActivities = () => {
   try {
     const activities = localStorage.getItem(COMPANY_ACTIVITY_STORAGE_KEY)
     const list = activities ? JSON.parse(activities) : []
-    // 確保每個活動有 signups 陣列
-    return list.map(a => ({ ...a, signups: a.signups || [] }))
+    // 確保每個活動有 signups 陣列，舊資料無 approvalStatus 視為已通過
+    return list.map(a => ({
+      ...a,
+      signups: a.signups || [],
+      approvalStatus: a.approvalStatus ?? 'approved',
+      createdBy: a.createdBy ?? ''
+    }))
   } catch (error) {
     console.error('Error getting company activities:', error)
     return []
   }
+}
+
+// 依角色取得顯示用活動：一般用戶只看已審核通過的，管理員看全部
+export const getCompanyActivitiesForDisplay = (role) => {
+  const list = getCompanyActivities()
+  if (role === 'admin') return list
+  return list.filter(a => (a.approvalStatus ?? 'approved') === 'approved')
+}
+
+// 待審核活動數量（管理員未讀提醒用）
+export const getPendingActivitiesCount = () => {
+  return getCompanyActivities().filter(a => (a.approvalStatus ?? 'approved') === 'pending').length
 }
 
 // 保存公司活動列表
@@ -28,15 +45,20 @@ export const saveCompanyActivities = (activities) => {
   }
 }
 
-// 添加公司活動
-export const addCompanyActivity = (activity) => {
+// 添加公司活動。options: { isAdmin, createdBy }；非管理員新增時 approvalStatus 為 pending
+export const addCompanyActivity = (activity, options = {}) => {
   try {
     const activities = getCompanyActivities()
+    const isAdmin = options.isAdmin === true
+    const createdBy = String(options.createdBy || '').trim()
     const newActivity = {
       ...activity,
       id: activity.id || Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
       signups: activity.signups || [],
-      createdAt: activity.createdAt || new Date().toISOString()
+      createdAt: activity.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy,
+      approvalStatus: isAdmin ? 'approved' : 'pending'
     }
     activities.push(newActivity)
     saveCompanyActivities(activities)
@@ -64,6 +86,16 @@ export const updateCompanyActivity = (id, updates) => {
     console.error('Error updating company activity:', error)
     return { success: false, message: '更新失敗' }
   }
+}
+
+// 管理員審核通過
+export const approveCompanyActivity = (id) => {
+  return updateCompanyActivity(id, { approvalStatus: 'approved' })
+}
+
+// 管理員拒絕（刪除或改為拒絕狀態；此處改為刪除待審活動，避免列表堆積）
+export const rejectCompanyActivity = (id) => {
+  return deleteCompanyActivity(id)
 }
 
 // 刪除公司活動
