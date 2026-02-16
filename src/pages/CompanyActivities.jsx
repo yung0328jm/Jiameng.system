@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getCompanyActivities, addCompanyActivity, updateCompanyActivity, deleteCompanyActivity, signUpForActivity, cancelSignUp } from '../utils/companyActivityStorage'
+import { getCompanyActivitiesForDisplay, getCompanyActivities, addCompanyActivity, updateCompanyActivity, deleteCompanyActivity, approveCompanyActivity, rejectCompanyActivity, signUpForActivity, cancelSignUp, getPendingActivitiesCount } from '../utils/companyActivityStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
@@ -27,15 +27,18 @@ function CompanyActivities() {
   useEffect(() => {
     const role = getCurrentUserRole()
     setUserRole(role)
-    loadActivities()
   }, [])
+
+  useEffect(() => {
+    loadActivities()
+  }, [userRole])
 
   useEffect(() => {
     filterActivities()
   }, [activities, filterStatus])
 
   const loadActivities = () => {
-    const data = getCompanyActivities()
+    const data = getCompanyActivitiesForDisplay(userRole)
     // 按日期排序（最新的在前）
     data.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt))
     setActivities(data)
@@ -45,6 +48,8 @@ function CompanyActivities() {
   const filterActivities = () => {
     if (filterStatus === 'all') {
       setFilteredActivities(activities)
+    } else if (filterStatus === 'pending') {
+      setFilteredActivities(activities.filter(activity => (activity.approvalStatus ?? 'approved') === 'pending'))
     } else {
       setFilteredActivities(activities.filter(activity => activity.status === filterStatus))
     }
@@ -126,16 +131,19 @@ function CompanyActivities() {
   }
 
   const handleSave = () => {
-    if (userRole !== 'admin') {
-      alert('只有管理者可以新增或編輯活動')
-      return
-    }
     if (!formData.title.trim()) {
       alert('請輸入活動標題')
       return
     }
 
+    const isAdmin = userRole === 'admin'
+    const currentUser = getCurrentUser() || ''
+
     if (editingActivity) {
+      if (!isAdmin) {
+        alert('只有管理者可以編輯活動')
+        return
+      }
       const result = updateCompanyActivity(editingActivity.id, formData)
       if (result.success) {
         alert('更新成功')
@@ -146,9 +154,13 @@ function CompanyActivities() {
         alert(result.message || '更新失敗')
       }
     } else {
-      const result = addCompanyActivity(formData)
+      const result = addCompanyActivity(formData, { isAdmin, createdBy: currentUser })
       if (result.success) {
-        alert('添加成功')
+        if (isAdmin) {
+          alert('添加成功')
+        } else {
+          alert('已送出，待管理員審核通過後會顯示在活動列表')
+        }
         loadActivities()
         setShowAddModal(false)
         setFormData({
@@ -174,6 +186,27 @@ function CompanyActivities() {
       } else {
         alert(result.message || '刪除失敗')
       }
+    }
+  }
+
+  const handleApprove = (id) => {
+    const result = approveCompanyActivity(id)
+    if (result.success) {
+      alert('已審核通過')
+      loadActivities()
+    } else {
+      alert(result.message || '操作失敗')
+    }
+  }
+
+  const handleReject = (id) => {
+    if (!window.confirm('確定要拒絕此活動？拒絕後將從列表中移除。')) return
+    const result = rejectCompanyActivity(id)
+    if (result.success) {
+      alert('已拒絕')
+      loadActivities()
+    } else {
+      alert(result.message || '操作失敗')
     }
   }
 
@@ -234,7 +267,7 @@ function CompanyActivities() {
           </svg>
           <h2 className="text-2xl font-bold text-yellow-400">公司活動</h2>
         </div>
-        {!viewingActivityId && userRole === 'admin' && (
+        {!viewingActivityId && (
           <button
             onClick={handleAdd}
             className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
@@ -262,6 +295,23 @@ function CompanyActivities() {
             >
               全部
             </button>
+            {userRole === 'admin' && (
+              <button
+                onClick={() => setFilterStatus('pending')}
+                className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
+                  filterStatus === 'pending'
+                    ? 'bg-amber-500 text-gray-800'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                待審核
+                {getPendingActivitiesCount() > 0 && (
+                  <span className="ml-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center text-xs">
+                    {getPendingActivitiesCount()}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setFilterStatus('planning')}
               className={`px-5 sm:px-4 py-3 sm:py-2 rounded-lg font-semibold transition-colors text-base sm:text-sm min-h-[44px] sm:min-h-0 ${
@@ -310,7 +360,9 @@ function CompanyActivities() {
               <p className="text-lg mb-2">
                 {activities.length === 0 
                   ? '目前尚無活動' 
-                  : `目前沒有「${getStatusText(filterStatus)}」狀態的活動`}
+                  : filterStatus === 'pending' 
+                    ? '目前沒有待審核的活動' 
+                    : `目前沒有「${getStatusText(filterStatus)}」狀態的活動`}
               </p>
               <p className="text-sm">
                 {activities.length === 0 
@@ -325,18 +377,38 @@ function CompanyActivities() {
                   key={activity.id}
                   className="relative rounded-lg overflow-hidden shadow-lg bg-gray-800 border border-gray-700 min-h-[200px] flex flex-col"
                 >
-                  {/* 刪除按鈕 */}
+                  {/* 管理員：待審核時顯示通過/拒絕，否則顯示刪除 */}
                   {userRole === 'admin' && (
-                    <div className="absolute top-3 right-3 z-20">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(activity.id) }}
-                        className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
-                        title="刪除活動"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                    <div className="absolute top-3 right-3 z-20 flex items-center gap-1">
+                      {(activity.approvalStatus ?? 'approved') === 'pending' ? (
+                        <>
+                          <span className="px-2 py-0.5 bg-amber-500 text-gray-800 text-xs font-semibold rounded">待審核</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleApprove(activity.id) }}
+                            className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg"
+                            title="審核通過"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleReject(activity.id) }}
+                            className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                            title="拒絕"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(activity.id) }}
+                          className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                          title="刪除活動"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -479,7 +551,23 @@ function CompanyActivities() {
             </div>
 
             {userRole === 'admin' && (
-              <div className="mt-4 pt-4 border-t border-gray-700">
+              <div className="mt-4 pt-4 border-t border-gray-700 flex flex-wrap gap-3">
+                {(viewingActivity.approvalStatus ?? 'approved') === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => { handleApprove(viewingActivity.id); handleBackToActivityList() }}
+                      className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+                    >
+                      審核通過
+                    </button>
+                    <button
+                      onClick={() => { if (window.confirm('確定拒絕此活動？')) { handleReject(viewingActivity.id); handleBackToActivityList() } }}
+                      className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+                    >
+                      拒絕
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => handleEdit(viewingActivity)}
                   className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors"

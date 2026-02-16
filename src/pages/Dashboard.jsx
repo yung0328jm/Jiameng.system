@@ -35,6 +35,7 @@ import { getAnnouncements } from '../utils/announcementStorage'
 import { getGlobalMessages } from '../utils/memoStorage'
 import { getLastSeen, touchLastSeen } from '../utils/lastSeenStorage'
 import { maybeShowMessageNotification } from '../utils/browserNotification'
+import { getCompanyActivities, getPendingActivitiesCount } from '../utils/companyActivityStorage'
 
 // 图标组件
 function HomeIcon() {
@@ -227,7 +228,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
   const personalServiceButtonRef = useRef(null)
   const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
-  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0 })
+  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0, activities: 0 })
   const prevMessagesBadgeRef = useRef(0)
 
   const calcNavBadges = (me, role) => {
@@ -321,7 +322,27 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       memoBadge = annUnread + chatUnread
     }
 
-    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge }
+    // 公司活動：有新增或更新時顯示未讀；一般用戶只計已審核通過的
+    let activitiesBadge = 0
+    if (account) {
+      const lastSeenActivities = getLastSeen(account, 'company_activities')
+      const lastTsActivities = Date.parse(lastSeenActivities || '') || 0
+      const list = r === 'admin' ? getCompanyActivities() : getCompanyActivities().filter((a) => (a.approvalStatus ?? 'approved') === 'approved')
+      const newOrUpdated = list.filter((a) => {
+        const created = Date.parse(a?.createdAt || '') || 0
+        const updated = Date.parse(a?.updatedAt || '') || 0
+        const t = Math.max(created, updated)
+        return t > lastTsActivities
+      })
+      activitiesBadge = newOrUpdated.length
+      // 管理員：未讀數至少為待審核數量（即使剛看過，待審核仍要提醒）
+      if (r === 'admin') {
+        const pending = getPendingActivitiesCount()
+        if (pending > activitiesBadge) activitiesBadge = pending
+      }
+    }
+
+    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge, activities: activitiesBadge }
   }
 
   const loadAllUsersForAdmin = async () => {
@@ -454,7 +475,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   useRealtimeKeys(
     [
       'jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests',
-      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_memos', 'jiameng_last_seen_v1'
+      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_memos', 'jiameng_last_seen_v1',
+      'jiameng_company_activities'
     ],
     refetchDashboard
   )
@@ -703,14 +725,17 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     // 點進頁面時：立即標記已讀（僅影響「使用者端 lastSeen」，管理員待審/未讀是狀態制）
     const me = String(getCurrentUser() || '').trim()
     const role = getCurrentUserRole()
-    if (me && role !== 'admin') {
-      if (tab === 'messages') touchLastSeen(me, 'messages')
-      if (tab === 'leave-application') touchLastSeen(me, 'leave')
-      if (tab === 'advance') touchLastSeen(me, 'advance')
-      if (tab === 'memo') {
-        touchLastSeen(me, 'memo_announcements')
-        touchLastSeen(me, 'memo_chat')
+    if (me) {
+      if (role !== 'admin') {
+        if (tab === 'messages') touchLastSeen(me, 'messages')
+        if (tab === 'leave-application') touchLastSeen(me, 'leave')
+        if (tab === 'advance') touchLastSeen(me, 'advance')
+        if (tab === 'memo') {
+          touchLastSeen(me, 'memo_announcements')
+          touchLastSeen(me, 'memo_chat')
+        }
       }
+      if (tab === 'activities') touchLastSeen(me, 'company_activities')
       const next = calcNavBadges(me, role)
       prevMessagesBadgeRef.current = next.messages
       setNavBadges(next)
@@ -1271,6 +1296,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="公司活動"
             isActive={activeTab === 'activities'}
             onClick={() => handleTabClick('activities', '/company-activities')}
+            badge={activeTab === 'activities' ? null : (navBadges.activities > 0 ? navBadges.activities : null)}
           />
           <NavItem
             icon={<GameIcon />}
