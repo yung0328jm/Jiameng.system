@@ -484,6 +484,8 @@ export async function refreshAnnouncementsFromSupabase() {
   const sb = getSupabaseClient()
   if (!sb) return
   try {
+    const lastWrite = parseInt(localStorage.getItem('jiameng_announcements_last_write') || '', 10)
+    if (lastWrite && (Date.now() - lastWrite < 8000)) return
     const incoming = await fetchAnnouncementsFromSupabase()
     const val = JSON.stringify(incoming)
     localStorage.setItem(ANNOUNCEMENTS_KEY, val)
