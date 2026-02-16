@@ -17,7 +17,7 @@ import { getEffectDisplayConfig, saveEffectDisplayConfig, getStyleForPreset, get
 import { getLeaderboardTypes, addLeaderboardType, updateLeaderboardType, deleteLeaderboardType, getPresetIdByRank } from '../utils/leaderboardTypeStorage'
 import { getEquippedEffects } from '../utils/effectStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { syncKeyToSupabase } from '../utils/supabaseSync'
+import { syncKeyToSupabase, refreshAnnouncementsFromSupabase } from '../utils/supabaseSync'
 import { getDisplayNameForAccount } from '../utils/displayName' // 公布欄顯示發佈者名稱用
 import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
@@ -276,6 +276,22 @@ function Home() {
     setAnnouncements(getAnnouncements())
   }
   useRealtimeKeys(['jiameng_announcements'], loadAnnouncements)
+
+  // 進入首頁或切回分頁時從雲端拉取最新公布欄，確保與他端即時同步
+  useEffect(() => {
+    const refresh = async () => {
+      await refreshAnnouncementsFromSupabase()
+      loadAnnouncements()
+    }
+    refresh()
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
   useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
     loadLeaderboardItems()
@@ -321,12 +337,12 @@ function Home() {
     setAwardClaims(c)
   }
 
-  const handleAddAnnouncement = () => {
+  const handleAddAnnouncement = async () => {
     if (!announcementForm.title.trim() || !announcementForm.content.trim()) {
       alert('請輸入標題和內容')
       return
     }
-    const result = addAnnouncement({
+    const result = await addAnnouncement({
       ...announcementForm,
       createdBy: currentUser
     })
@@ -339,8 +355,8 @@ function Home() {
     }
   }
 
-  const handleUpdateAnnouncement = (id, updates) => {
-    const result = updateAnnouncement(id, updates)
+  const handleUpdateAnnouncement = async (id, updates) => {
+    const result = await updateAnnouncement(id, updates)
     if (result.success) {
       loadAnnouncements()
       setEditingAnnouncementId(null)
@@ -349,9 +365,9 @@ function Home() {
     }
   }
 
-  const handleDeleteAnnouncement = (id) => {
+  const handleDeleteAnnouncement = async (id) => {
     if (!window.confirm('確定要刪除此公佈欄項目嗎？')) return
-    const result = deleteAnnouncement(id)
+    const result = await deleteAnnouncement(id)
     if (result.success) loadAnnouncements()
     else alert(result.message || '刪除失敗')
   }
