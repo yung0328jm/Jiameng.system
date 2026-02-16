@@ -17,7 +17,9 @@ function VehicleInfo() {
         vehicleSummary[key] = {
           vehicle: key,
           activities: {},
-          monthlyFuelCosts: {}
+          monthlyFuelCosts: {},
+          lastReturnDate: null,
+          lastReturnMileage: null
         }
       }
       return key
@@ -31,6 +33,15 @@ function VehicleInfo() {
       if (activity) dayByVehicle[key][ymd].activities.add(activity)
       const delta = returnMile > departure ? (returnMile - departure) : 0
       if (delta > dayByVehicle[key][ymd].mileage) dayByVehicle[key][ymd].mileage = delta
+      // 記錄該車最後一次回程公里數（取日期最新的一筆，方便下次出發填寫）
+      if (ymd && (returnMile != null && returnMile !== '')) {
+        const ret = parseFloat(returnMile) || 0
+        const cur = vehicleSummary[key].lastReturnDate
+        if (!cur || ymd >= cur) {
+          vehicleSummary[key].lastReturnDate = ymd
+          vehicleSummary[key].lastReturnMileage = ret
+        }
+      }
       if (needRefuel && fuelCost != null && fuelCost !== '') {
         const date = new Date(`${ymd}T00:00:00`)
         if (!Number.isNaN(date.getTime())) {
@@ -147,14 +158,23 @@ function VehicleInfo() {
         <div className="space-y-6">
           {vehicles.map((vehicle, index) => (
             <div key={index} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              {/* 車輛標題 */}
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700">
+              {/* 車輛標題：車牌 + 最後回程公里數（下次出發可填此值） */}
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700 flex-wrap gap-2">
                 <h3 className="text-xl font-semibold text-yellow-400 flex items-center gap-2">
                   <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   {vehicle.vehicle}
                 </h3>
+                {(vehicle.lastReturnMileage != null && !Number.isNaN(Number(vehicle.lastReturnMileage))) && (
+                  <div className="text-sm text-gray-300 bg-gray-700/80 px-3 py-1.5 rounded-lg border border-gray-600">
+                    <span className="text-gray-400">最後回程公里數：</span>
+                    <span className="text-amber-300 font-semibold ml-1">
+                      {Number(vehicle.lastReturnMileage).toLocaleString(undefined, { maximumFractionDigits: 0 })} km
+                    </span>
+                    <span className="text-gray-500 text-xs ml-2">（下次出發可填此值）</span>
+                  </div>
+                )}
               </div>
 
               {/* 按活动统计里程 */}
