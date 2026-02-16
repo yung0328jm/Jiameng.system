@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getUserPerformanceRecords, getUserLateRecords, getUserAttendanceRecords } from '../utils/performanceStorage'
@@ -298,13 +298,17 @@ function Home() {
       clearInterval(interval)
     }
   }, [])
-  // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
+  // 排行榜／手動排名變更時重讀（debounce 避免多人同時在首頁時 Realtime 連發導致 calculateAllRankings 瘋狂執行、卡住公佈欄刪除/保存）
+  const leaderboardRefetchTimerRef = useRef(null)
   useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
-    loadLeaderboardItems()
-    loadManualRankings()
-    setAvailableItems(getItems())
-    // 彈幕次數排行榜需要即時重算
-    calculateAllRankings()
+    if (leaderboardRefetchTimerRef.current) clearTimeout(leaderboardRefetchTimerRef.current)
+    leaderboardRefetchTimerRef.current = setTimeout(() => {
+      leaderboardRefetchTimerRef.current = null
+      loadLeaderboardItems()
+      loadManualRankings()
+      setAvailableItems(getItems())
+      calculateAllRankings()
+    }, 500)
   })
 
   // 排行榜獎勵發放去重（避免因為重算/多裝置同步造成重複發放）
@@ -1081,7 +1085,9 @@ function Home() {
     // 僅管理員端執行，避免多裝置同時發放造成「有人拿兩次/有人沒拿到」與資料互相覆蓋
     if (userRole === 'admin') {
       setTimeout(async () => {
-        console.log('calculateAllRankings 完成（admin），開始分配稱號、特效與上榜道具')
+        if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+          console.log('calculateAllRankings 完成（admin），開始分配稱號、特效與上榜道具')
+        }
         await distributeTitlesAndEffects(newRankings)
       }, 500)
     }
@@ -1094,7 +1100,9 @@ function Home() {
       return
     }
     
-    console.log('開始分配特效道具和稱號，排行榜數量:', Object.keys(currentRankings).length)
+    if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+      console.log('開始分配特效道具和稱號，排行榜數量:', Object.keys(currentRankings).length)
+    }
     const rawItems = getLeaderboardItems()
     const currentLeaderboardItems = Array.isArray(rawItems) ? rawItems : []
     const titleConfigData = getTitleConfig()
