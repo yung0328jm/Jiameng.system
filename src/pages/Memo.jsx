@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages } from '../utils/memoStorage'
+import { refreshMemosFromSupabase } from '../utils/supabaseSync'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
 import { getUserInventory, hasItem, useItem, getItemQuantity, addItemToInventory, removeItemFromInventory } from '../utils/inventoryStorage'
@@ -191,6 +192,18 @@ function Memo() {
     }, 60 * 1000) // 每分鐘檢查一次
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 交流區：輪詢備援，Realtime 未送達時仍能及時看到他人訊息（每 4 秒拉一次雲端並合併）
+  useEffect(() => {
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshMemosFromSupabase()
+      }
+    }
+    poll()
+    const interval = setInterval(poll, 4000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
