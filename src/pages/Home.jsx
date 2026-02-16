@@ -90,6 +90,7 @@ function Home() {
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false)
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'normal' })
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null)
+  const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
 
   // 固定ID特效道具模板（由「下拉選單管理 → 特效道具庫」建立）
@@ -356,12 +357,18 @@ function Home() {
   }
 
   const handleUpdateAnnouncement = async (id, updates) => {
-    const result = await updateAnnouncement(id, updates)
-    if (result.success) {
-      loadAnnouncements()
-      setEditingAnnouncementId(null)
-    } else {
-      alert(result.message || '更新失敗')
+    if (isSavingAnnouncement) return
+    setIsSavingAnnouncement(true)
+    try {
+      const result = await updateAnnouncement(id, updates)
+      if (result.success) {
+        loadAnnouncements()
+        setEditingAnnouncementId(null)
+      } else {
+        alert(result.message || '更新失敗')
+      }
+    } finally {
+      setIsSavingAnnouncement(false)
     }
   }
 
@@ -2028,12 +2035,14 @@ function Home() {
               </div>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={handleAddAnnouncement}
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded transition-colors"
                 >
                   {editingAnnouncementId ? '更新' : '發布'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowAnnouncementForm(false)
                     setEditingAnnouncementId(null)
@@ -2089,17 +2098,21 @@ function Home() {
                       {editingAnnouncementId === announcement.id ? (
                         <>
                           <button
+                            type="button"
+                            disabled={isSavingAnnouncement}
                             onClick={() => handleUpdateAnnouncement(announcement.id, announcementForm)}
-                            className="text-green-400 hover:text-green-300 text-sm px-3 py-1"
+                            className="text-green-400 hover:text-green-300 text-sm px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            保存
+                            {isSavingAnnouncement ? '保存中...' : '保存'}
                           </button>
                           <button
+                            type="button"
+                            disabled={isSavingAnnouncement}
                             onClick={() => {
                               setEditingAnnouncementId(null)
                               setAnnouncementForm({ title: '', content: '', priority: 'normal' })
                             }}
-                            className="text-gray-400 hover:text-gray-300 text-sm px-3 py-1"
+                            className="text-gray-400 hover:text-gray-300 text-sm px-3 py-1 disabled:opacity-50"
                           >
                             取消
                           </button>
@@ -2107,12 +2120,13 @@ function Home() {
                       ) : (
                         <>
                           <button
+                            type="button"
                             onClick={() => {
                               setEditingAnnouncementId(announcement.id)
                               setAnnouncementForm({
                                 title: announcement.title,
                                 content: announcement.content,
-                                priority: announcement.priority
+                                priority: announcement.priority ?? 'normal'
                               })
                             }}
                             className="text-yellow-400 hover:text-yellow-300 text-sm px-3 py-1"
@@ -2120,6 +2134,7 @@ function Home() {
                             編輯
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDeleteAnnouncement(announcement.id)}
                             className="text-red-400 hover:text-red-300 text-sm px-3 py-1"
                           >
