@@ -22,7 +22,7 @@ export const saveAnnouncements = async (announcements) => {
     return { success: true }
   } catch (error) {
     console.error('Error saving announcements:', error)
-    return { success: false, message: '保存失敗' }
+    return { success: false, message: error?.message || '保存失敗' }
   }
 }
 
