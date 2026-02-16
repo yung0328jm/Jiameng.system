@@ -444,6 +444,21 @@ export async function syncFromSupabase() {
   }
 }
 
+const RED_ENVELOPE_CONFIG_KEY = 'jiameng_red_envelope_config'
+
+/** 僅拉取搶紅包設定並寫入 localStorage（供一般用戶在交流區使用，避免初始 sync 因 RLS 未回傳此 key 而看不到） */
+export async function fetchRedEnvelopeConfigFromSupabase() {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  try {
+    const { data: row, error } = await sb.from('app_data').select('data').eq('key', RED_ENVELOPE_CONFIG_KEY).maybeSingle()
+    if (error || row == null) return
+    const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? {})
+    localStorage.setItem(RED_ENVELOPE_CONFIG_KEY, val)
+    try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: RED_ENVELOPE_CONFIG_KEY } })) } catch (_) {}
+  } catch (_) {}
+}
+
 /** 交流區輪詢備援：從雲端拉取 jiameng_memos 並與本機合併後寫回，再觸發 UI 更新（Realtime 未送達時仍能及時同步） */
 export async function refreshMemosFromSupabase() {
   const sb = getSupabaseClient()
