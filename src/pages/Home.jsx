@@ -22,6 +22,7 @@ import { getDisplayNameForAccount } from '../utils/displayName' // 公布欄顯�
 import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
 import { getWorkItemCollaborators, getWorkItemActualForNameForPerformance, getWorkItemTargetForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
+import { getRedEnvelopeConfig, saveRedEnvelopeConfig, getRedEnvelopeClaimedCount, grabRedEnvelope } from '../utils/redEnvelopeStorage'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -91,6 +92,9 @@ function Home() {
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'normal' })
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
+  const [showRedEnvelopeConfig, setShowRedEnvelopeConfig] = useState(false)
+  const [redEnvelopeForm, setRedEnvelopeForm] = useState(() => getRedEnvelopeConfig())
+  const [redEnvelopeConfig, setRedEnvelopeConfig] = useState(() => getRedEnvelopeConfig())
 
   // 固定ID特效道具模板（由「下拉選單管理 → 特效道具庫」建立）
   const effectTemplates = (Array.isArray(availableItems) ? availableItems : []).filter((it) => it && it.isEffectTemplate)
@@ -276,6 +280,9 @@ function Home() {
     setAnnouncements(getAnnouncements())
   }
   useRealtimeKeys(['jiameng_announcements'], loadAnnouncements)
+  useRealtimeKeys(['jiameng_red_envelope_config', 'jiameng_red_envelope_claims'], () => {
+    setRedEnvelopeConfig(getRedEnvelopeConfig())
+  })
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
   useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
     loadLeaderboardItems()
@@ -1911,8 +1918,10 @@ function Home() {
             </h2>
             <p className="text-amber-200/90 text-sm truncate">歡迎使用佳盟事業群企業管理系統 · 新年快樂</p>
           </div>
+          {(userRole === 'admin' || (redEnvelopeConfig.itemId && redEnvelopeConfig.maxPerUser > 0)) && (
+            <div className="flex flex-wrap gap-2 sm:gap-2 justify-start sm:justify-end min-w-0 items-center">
           {userRole === 'admin' && (
-            <div className="flex flex-wrap gap-2 sm:gap-2 justify-start sm:justify-end min-w-0">
+            <>
               <button
                 onClick={handleAddItem}
                 className="bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600 text-white border border-amber-400/50 px-3 py-2.5 sm:px-4 sm:py-2 rounded transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
@@ -1945,6 +1954,48 @@ function Home() {
                 <span className="shrink-0">📋</span>
                 <span className="truncate">排行榜類型</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRedEnvelopeForm(getRedEnvelopeConfig())
+                  setShowRedEnvelopeConfig(true)
+                }}
+                className="bg-red-500 text-white px-3 py-2.5 sm:px-4 sm:py-2 rounded hover:bg-red-600 transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
+              >
+                <span className="shrink-0">🧧</span>
+                <span className="truncate">搶紅包設定</span>
+              </button>
+            </>
+          )}
+          {/* 搶紅包小按鈕：有設定且開放時所有人可見 */}
+          {redEnvelopeConfig.itemId && redEnvelopeConfig.maxPerUser > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentUser) {
+                    alert('請先登入')
+                    return
+                  }
+                  const claimed = getRedEnvelopeClaimedCount(currentUser)
+                  if (claimed >= redEnvelopeConfig.maxPerUser) {
+                    alert(`已達本活動上限（${redEnvelopeConfig.maxPerUser}），下次請早`)
+                    return
+                  }
+                  const res = grabRedEnvelope(currentUser)
+                  alert(res.message || (res.success ? '領取成功' : '領取失敗'))
+                  if (res.success) setRedEnvelopeConfig(getRedEnvelopeConfig())
+                }}
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 shadow-lg border border-amber-400/50 shrink-0"
+              >
+                <span>🧧</span>
+                <span>搶紅包</span>
+                {currentUser && (
+                  <span className="text-amber-200 text-xs">
+                    （已領 {getRedEnvelopeClaimedCount(currentUser)}/{redEnvelopeConfig.maxPerUser}）
+                  </span>
+                )}
+              </button>
+          )}
             </div>
           )}
         </div>
@@ -3768,6 +3819,98 @@ function Home() {
                 className="px-4 py-2 bg-yellow-400 text-gray-900 rounded hover:bg-yellow-500 transition-colors font-semibold"
               >
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 搶紅包設定彈窗（管理員）：紅包卡道具、每用戶上限 */}
+      {showRedEnvelopeConfig && userRole === 'admin' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg border border-red-500 w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2">
+                <span>🧧</span> 搶紅包設定
+              </h2>
+              <button
+                onClick={() => setShowRedEnvelopeConfig(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">請先在「新增排行榜面板」旁的新增道具或下拉選單管理新增「紅包卡」道具，再選擇下方作為搶紅包發放的道具。每用戶最多可領數量由您設定。</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">紅包卡道具 *</label>
+                <select
+                  value={redEnvelopeForm.itemId}
+                  onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, itemId: e.target.value })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
+                >
+                  <option value="">請選擇道具（請先新增紅包卡道具）</option>
+                  {(getItems() || []).map((item) => (
+                    <option key={item.id} value={item.id}>{item.icon || '📦'} {item.name || item.id}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">每用戶最多可領數量 *</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={redEnvelopeForm.maxPerUser}
+                  onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, maxPerUser: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
+                  placeholder="0 = 關閉活動"
+                />
+                <p className="text-gray-500 text-xs mt-1">設為 0 則不顯示搶紅包按鈕（關閉活動）</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-300 text-sm mb-1">每次最少數量</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={redEnvelopeForm.minQtyPerGrab}
+                    onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, minQtyPerGrab: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 text-sm mb-1">每次最多數量</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={redEnvelopeForm.maxQtyPerGrab}
+                    onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, maxQtyPerGrab: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowRedEnvelopeConfig(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  const res = saveRedEnvelopeConfig(redEnvelopeForm)
+                  if (res.success) {
+                    setRedEnvelopeConfig(res.config)
+                    setShowRedEnvelopeConfig(false)
+                    alert('已儲存')
+                  } else {
+                    alert(res.message || '儲存失敗')
+                  }
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 font-semibold"
+              >
+                儲存
               </button>
             </div>
           </div>
