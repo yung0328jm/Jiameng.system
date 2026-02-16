@@ -285,13 +285,18 @@ function Home() {
     setRedEnvelopeConfig(getRedEnvelopeConfig())
   })
 
-  // 一般用戶進入首頁時也要能讀到搶紅包設定（同步可能晚於首屏），進入／回到首頁時重讀
+  // 一般用戶進入首頁時也要能讀到搶紅包設定（同步可能晚於首屏），進入／回到首頁時重讀；多段延遲以覆蓋較晚完成的 sync
   useEffect(() => {
     const refresh = () => setRedEnvelopeConfig(getRedEnvelopeConfig())
-    const t = setTimeout(refresh, 400)
+    const t1 = setTimeout(refresh, 300)
+    const t2 = setTimeout(refresh, 1500)
+    const t3 = setTimeout(refresh, 3500)
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
     window.addEventListener('visibilitychange', onVisible)
-    return () => { clearTimeout(t); window.removeEventListener('visibilitychange', onVisible) }
+    return () => {
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3)
+      window.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
   useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
