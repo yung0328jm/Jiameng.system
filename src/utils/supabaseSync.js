@@ -1,5 +1,8 @@
 // 從 Supabase 拉一輪資料寫入 localStorage；全站同步（排程／請假／特休＋其餘經 app_data）
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
+import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
+
+const MEMOS_KEY = 'jiameng_memos'
 
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'
@@ -146,7 +149,10 @@ export const APP_DATA_KEYS = [
   'jiameng_up_rooms',
   'jiameng_undercover_rooms',
   'jiameng_rps_rooms',
-  'jiameng_niuniu_rooms'
+  'jiameng_niuniu_rooms',
+  // 搶紅包（設定 + 每人已領數量）
+  'jiameng_red_envelope_config',
+  'jiameng_red_envelope_claims'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
@@ -435,6 +441,53 @@ export async function syncFromSupabase() {
   } catch (e) {
     if (typeof console !== 'undefined' && console.warn) console.warn('[Sync] 從雲端載入失敗', e)
   }
+}
+
+/** 交流區輪詢備援：從雲端拉取 jiameng_memos 並與本機合併後寫回，再觸發 UI 更新（Realtime 未送達時仍能及時同步） */
+export async function refreshMemosFromSupabase() {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  try {
+    const { data: row, error } = await sb.from('app_data').select('data').eq('key', MEMOS_KEY).maybeSingle()
+    if (error) return
+    const incoming = Array.isArray(row?.data) ? row.data : (typeof row?.data === 'string' ? (() => { try { return JSON.parse(row.data || '[]') } catch (_) { return [] } })() : [])
+    const existing = (() => { try { return JSON.parse(localStorage.getItem(MEMOS_KEY) || '[]') } catch (_) { return [] } })()
+    const byTopicId = new Map()
+    function mergeTopicMessages(a, b) {
+      const arrA = Array.isArray(a) ? a : []
+      const arrB = Array.isArray(b) ? b : []
+      const byId = new Map()
+      ;[...arrA, ...arrB].forEach((m) => {
+        const id = String(m?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, m); return }
+        const ta = Date.parse(prev?.createdAt || '') || 0
+        const tb = Date.parse(m?.createdAt || '') || 0
+        byId.set(id, tb >= ta ? m : prev)
+      })
+      return Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
+    }
+    ;[...existing, ...incoming].forEach((t) => {
+      const tid = String(t?.id ?? '').trim()
+      if (!tid) return
+      const prev = byTopicId.get(tid)
+      if (!prev) {
+        byTopicId.set(tid, { ...t, messages: mergeTopicMessages(t?.messages, []) })
+        return
+      }
+      byTopicId.set(tid, {
+        ...prev,
+        ...t,
+        messages: mergeTopicMessages(prev?.messages, t?.messages)
+      })
+    })
+    const merged = Array.from(byTopicId.values())
+    localStorage.setItem(MEMOS_KEY, JSON.stringify(merged))
+    try {
+      window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: MEMOS_KEY } }))
+    } catch (_) {}
+  } catch (_) {}
 }
 
 export { isSupabaseEnabled }
