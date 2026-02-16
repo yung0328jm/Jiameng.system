@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
-import { getSchedules, saveSchedule, updateSchedule, deleteSchedule } from '../utils/scheduleStorage'
+import { getSchedules, saveSchedule, updateSchedule, deleteSchedule, getLastReturnMileageByVehicle } from '../utils/scheduleStorage'
 import { deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
 import { getDropdownOptionsByCategory, addDropdownOption, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
@@ -3634,10 +3634,22 @@ function Calendar() {
                   <p className="text-gray-500 text-xs mt-1">輸入後按「加入選單」可新增選項，再從上方勾選一或多台車輛</p>
                 </div>
 
-                {/* 每台車一組：出發/回程駕駛、里程、加油、發票 */}
-                {(Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map((entry, idx) => (
+                {/* 每台車一組：出發/回程駕駛、里程、加油、發票；車牌旁顯示上次回程里程供出發里程參考 */}
+                {(() => {
+                  const lastReturnMap = getLastReturnMileageByVehicle()
+                  return (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map((entry, idx) => {
+                    const lastReturn = entry.vehicle ? lastReturnMap[String(entry.vehicle).trim()] : null
+                    return (
                   <div key={entry.vehicle || idx} className="space-y-3 p-4 bg-gray-800/50 border border-gray-600 rounded-lg">
-                    <h3 className="text-yellow-400 font-medium text-sm border-b border-gray-600 pb-2">車輛 {idx + 1}：{entry.vehicle || '(未命名)'}</h3>
+                    <h3 className="text-yellow-400 font-medium text-sm border-b border-gray-600 pb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span>車輛 {idx + 1}：{entry.vehicle || '(未命名)'}</span>
+                      {lastReturn != null && !Number.isNaN(lastReturn) && (
+                        <span className="text-gray-400 font-normal text-xs">
+                          上次回程：<span className="text-amber-300 font-semibold">{Number(lastReturn).toLocaleString(undefined, { maximumFractionDigits: 0 })} km</span>
+                          <span className="text-gray-500 ml-0.5">（可作出發里程參考）</span>
+                        </span>
+                      )}
+                    </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-gray-300 text-sm mb-1">出發駕駛</label>
@@ -3722,7 +3734,9 @@ function Calendar() {
                       </label>
                     </div>
                   </div>
-                ))}
+                    );
+                  });
+                })()}
                 {(!scheduleFormData.vehicleEntries || scheduleFormData.vehicleEntries.length === 0) && (
                   <p className="text-gray-500 text-sm">請先在上方勾選一或多台車輛，此處會顯示每台車的出發/回程駕駛與里程。</p>
                 )}
