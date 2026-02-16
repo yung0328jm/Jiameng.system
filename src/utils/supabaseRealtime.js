@@ -559,6 +559,12 @@ export function subscribeRealtime(onUpdate) {
                   localStorage.setItem(key, val)
                   notifyKey(key)
                 }
+              } else if (key === 'jiameng_announcements') {
+                // 公佈欄：管理員發布/編輯/刪除後，其他用戶即時收到並覆蓋本機
+                const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
+                const val = JSON.stringify(incoming)
+                localStorage.setItem(key, val)
+                notifyKey(key)
               } else if (key === 'jiameng_todos') {
                 // 待辦：內容相同則跳過；若雲端筆數比本機多，且本機剛寫入（3 秒內）才不覆寫，避免刪除被蓋回、又不擋另一台新增
                 const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
