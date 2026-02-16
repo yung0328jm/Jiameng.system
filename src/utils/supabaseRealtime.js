@@ -443,9 +443,17 @@ export function subscribeRealtime(onUpdate) {
                   sb.from('app_data').upsert({ key: MEMOS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
                 }
               } catch (_) {
-                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
-                localStorage.setItem(MEMOS_KEY, val)
-                notifyKey(MEMOS_KEY)
+                // 合併失敗時不要用空或無效 payload 覆寫，否則會導致「發送後訊息消失」
+                const incomingRaw = payload.new?.data
+                const incomingArr = Array.isArray(incomingRaw)
+                  ? incomingRaw
+                  : (typeof incomingRaw === 'string' ? (() => { try { return JSON.parse(incomingRaw || '[]') } catch (_) { return null } })() : null)
+                if (Array.isArray(incomingArr) && incomingArr.length > 0) {
+                  const val = typeof incomingRaw === 'string' ? incomingRaw : JSON.stringify(incomingArr)
+                  localStorage.setItem(MEMOS_KEY, val)
+                  notifyKey(MEMOS_KEY)
+                }
+                // 否則保留本機現有資料，不覆寫
               }
             } else {
               if (key === LEADERBOARD_ITEMS_KEY) {
