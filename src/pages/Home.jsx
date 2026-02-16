@@ -1918,7 +1918,7 @@ function Home() {
             </h2>
             <p className="text-amber-200/90 text-sm truncate">歡迎使用佳盟事業群企業管理系統 · 新年快樂</p>
           </div>
-          {(userRole === 'admin' || (redEnvelopeConfig.itemId && redEnvelopeConfig.maxPerUser > 0)) && (
+          {(userRole === 'admin' || ((redEnvelopeConfig.itemIds?.length > 0) && redEnvelopeConfig.maxPerUser > 0)) && (
             <div className="flex flex-wrap gap-2 sm:gap-2 justify-start sm:justify-end min-w-0 items-center">
           {userRole === 'admin' && (
             <>
@@ -1968,7 +1968,7 @@ function Home() {
             </>
           )}
           {/* 搶紅包小按鈕：有設定且開放時所有人可見 */}
-          {redEnvelopeConfig.itemId && redEnvelopeConfig.maxPerUser > 0 && (
+          {redEnvelopeConfig.itemIds?.length > 0 && redEnvelopeConfig.maxPerUser > 0 && (
               <button
                 type="button"
                 onClick={() => {
@@ -3840,23 +3840,42 @@ function Home() {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <p className="text-gray-400 text-sm mb-4">請先在「新增排行榜面板」旁的新增道具或下拉選單管理新增「紅包卡」道具，再選擇下方作為搶紅包發放的道具。每用戶最多可領數量由您設定。</p>
+            <p className="text-gray-400 text-sm mb-4">可多選紅包卡道具，用戶搶紅包時會隨機發放其中一種。每用戶最多可搶次數由您設定。</p>
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-300 text-sm mb-1">紅包卡道具 *</label>
-                <select
-                  value={redEnvelopeForm.itemId}
-                  onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, itemId: e.target.value })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
-                >
-                  <option value="">請選擇道具（請先新增紅包卡道具）</option>
-                  {(getItems() || []).map((item) => (
-                    <option key={item.id} value={item.id}>{item.icon || '📦'} {item.name || item.id}</option>
-                  ))}
-                </select>
+                <label className="block text-gray-300 text-sm mb-1">紅包卡道具（可多選，隨機發放）*</label>
+                <div className="max-h-48 overflow-y-auto border border-gray-600 rounded-lg p-3 bg-gray-700/50 space-y-2">
+                  {(getItems() || []).length === 0 ? (
+                    <p className="text-gray-500 text-sm">尚無道具，請先新增紅包卡等道具</p>
+                  ) : (
+                    (getItems() || []).map((item) => {
+                      const ids = Array.isArray(redEnvelopeForm.itemIds) ? redEnvelopeForm.itemIds : []
+                      const checked = ids.includes(item.id)
+                      return (
+                        <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700/50 rounded px-2 py-1.5">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? (ids.includes(item.id) ? ids : [...ids, item.id])
+                                : ids.filter((id) => id !== item.id)
+                              setRedEnvelopeForm({ ...redEnvelopeForm, itemIds: next })
+                            }}
+                            className="w-4 h-4 rounded border-gray-500 text-red-500 focus:ring-red-500"
+                          />
+                          <span className="text-white text-sm">{item.icon || '📦'} {item.name || item.id}</span>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+                {Array.isArray(redEnvelopeForm.itemIds) && redEnvelopeForm.itemIds.length > 0 && (
+                  <p className="text-amber-200/80 text-xs mt-1">已選 {redEnvelopeForm.itemIds.length} 種，發放時隨機抽一種</p>
+                )}
               </div>
               <div>
-                <label className="block text-gray-300 text-sm mb-1">每用戶最多可領數量 *</label>
+                <label className="block text-gray-300 text-sm mb-1">每用戶最多可搶次數 *</label>
                 <input
                   type="number"
                   min="0"
@@ -3865,7 +3884,7 @@ function Home() {
                   className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
                   placeholder="0 = 關閉活動"
                 />
-                <p className="text-gray-500 text-xs mt-1">設為 0 則不顯示搶紅包按鈕（關閉活動）</p>
+                <p className="text-gray-500 text-xs mt-1">設為 0 則不顯示搶紅包按鈕（關閉活動）。每次搶會隨機發放一種已選道具。</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
