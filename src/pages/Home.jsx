@@ -23,6 +23,7 @@ import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
 import { getWorkItemCollaborators, getWorkItemActualForNameForPerformance, getWorkItemTargetForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 import { getRedEnvelopeConfig, saveRedEnvelopeConfig, getRedEnvelopeClaimedCount, grabRedEnvelope } from '../utils/redEnvelopeStorage'
+import { getGlobalMessages } from '../utils/memoStorage'
 
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
@@ -280,7 +281,7 @@ function Home() {
     setAnnouncements(getAnnouncements())
   }
   useRealtimeKeys(['jiameng_announcements'], loadAnnouncements)
-  useRealtimeKeys(['jiameng_red_envelope_config', 'jiameng_red_envelope_claims'], () => {
+  useRealtimeKeys(['jiameng_red_envelope_config', 'jiameng_red_envelope_claims', 'jiameng_memos'], () => {
     setRedEnvelopeConfig(getRedEnvelopeConfig())
   })
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
@@ -1967,8 +1968,19 @@ function Home() {
               </button>
             </>
           )}
-          {/* 搶紅包小按鈕：有設定且開放時所有人可見 */}
-          {redEnvelopeConfig.itemIds?.length > 0 && redEnvelopeConfig.maxPerUser > 0 && (
+          {/* 搶紅包小按鈕：須在交流區輸入「新年快樂」後才顯示 */}
+          {redEnvelopeConfig.itemIds?.length > 0 && redEnvelopeConfig.maxPerUser > 0 && (() => {
+            const hasSaidNewYear = currentUser && (getGlobalMessages() || []).some(
+              (m) => String(m?.author || '').trim() === String(currentUser).trim() && String(m?.content || '').includes('新年快樂')
+            )
+            if (!hasSaidNewYear) {
+              return (
+                <span className="text-amber-200/90 text-xs shrink-0 px-2 py-1.5 rounded bg-gray-700/80 border border-amber-400/30">
+                  在交流區輸入「新年快樂」即可解鎖搶紅包 🧧
+                </span>
+              )
+            }
+            return (
               <button
                 type="button"
                 onClick={() => {
@@ -1995,7 +2007,8 @@ function Home() {
                   </span>
                 )}
               </button>
-          )}
+            )
+          })()}
             </div>
           )}
         </div>
