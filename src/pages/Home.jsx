@@ -359,7 +359,8 @@ function Home() {
       if (result.success) {
         setAnnouncementForm({ title: '', content: '', priority: 'normal' })
         setShowAnnouncementForm(false)
-        loadAnnouncements()
+        if (Array.isArray(result.data)) setAnnouncements(result.data)
+        else loadAnnouncements()
       } else {
         alert(result.message || '新增失敗')
       }
@@ -374,7 +375,8 @@ function Home() {
     try {
       const result = await updateAnnouncement(id, updates)
       if (result.success) {
-        loadAnnouncements()
+        if (Array.isArray(result.data)) setAnnouncements(result.data)
+        else loadAnnouncements()
         setEditingAnnouncementId(null)
       } else {
         alert(result.message || '更新失敗')
@@ -387,8 +389,12 @@ function Home() {
   const handleDeleteAnnouncement = async (id) => {
     if (!window.confirm('確定要刪除此公佈欄項目嗎？')) return
     const result = await deleteAnnouncement(id)
-    if (result.success) loadAnnouncements()
-    else alert(result.message || '刪除失敗')
+    if (result.success) {
+      if (Array.isArray(result.data)) setAnnouncements(result.data)
+      else loadAnnouncements()
+    } else {
+      alert(result.message || '刪除失敗')
+    }
   }
 
   const getPriorityColor = (priority) => {
