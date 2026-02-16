@@ -289,10 +289,10 @@ function Memo() {
     }
   }, [])
 
-  // 搶紅包成功後煙火自動於數秒後關閉
+  // 搶紅包成功後煙火約 12 秒後關閉
   useEffect(() => {
     if (!showRedEnvelopeFirework) return
-    const t = setTimeout(() => setShowRedEnvelopeFirework(false), 4500)
+    const t = setTimeout(() => setShowRedEnvelopeFirework(false), 12000)
     return () => clearTimeout(t)
   }, [showRedEnvelopeFirework])
 
@@ -1663,6 +1663,7 @@ function Memo() {
           <style>{`
             @keyframes firework-burst {
               0% { transform: translate(0,0) scale(0); opacity: 1; }
+              70% { opacity: 0.9; }
               100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
             }
             .firework-dot {
@@ -1672,10 +1673,11 @@ function Memo() {
               width: 8px;
               height: 8px;
               border-radius: 50%;
-              animation: firework-burst 1.2s ease-out forwards;
+              animation: firework-burst 2.2s ease-out forwards;
               pointer-events: none;
             }
           `}</style>
+          {/* 第一發 */}
           {[...Array(24)].map((_, i) => {
             const angle = (i / 24) * Math.PI * 2
             const dist = 120 + (i % 3) * 60
@@ -1712,6 +1714,68 @@ function Memo() {
                   animationDelay: `${0.3 + (i % 4) * 0.04}s`,
                   width: '6px',
                   height: '6px'
+                }}
+              />
+            )
+          })}
+          {/* 第二發（約 2.5 秒後） */}
+          {[...Array(20)].map((_, i) => {
+            const angle = (i / 20) * Math.PI * 2 + 0.7
+            const dist = 100 + (i % 4) * 45
+            const dx = Math.cos(angle) * dist
+            const dy = Math.sin(angle) * dist
+            const colors = ['#ef4444', '#f97316', '#fbbf24', '#eab308']
+            return (
+              <div
+                key={`c-${i}`}
+                className="firework-dot"
+                style={{
+                  '--dx': `${dx}px`,
+                  '--dy': `${dy}px`,
+                  background: colors[i % colors.length],
+                  animationDelay: `${2.5 + (i % 5) * 0.04}s`,
+                  boxShadow: '0 0 8px currentColor'
+                }}
+              />
+            )
+          })}
+          {/* 第三發（約 5 秒後） */}
+          {[...Array(18)].map((_, i) => {
+            const angle = (i / 18) * Math.PI * 2 + 0.2
+            const dist = 90 + (i % 3) * 50
+            const dx = Math.cos(angle) * dist
+            const dy = Math.sin(angle) * dist
+            return (
+              <div
+                key={`d-${i}`}
+                className="firework-dot"
+                style={{
+                  '--dx': `${dx}px`,
+                  '--dy': `${dy}px`,
+                  background: i % 2 ? '#fde68a' : '#fef3c7',
+                  animationDelay: `${5 + (i % 4) * 0.05}s`,
+                  width: '7px',
+                  height: '7px'
+                }}
+              />
+            )
+          })}
+          {/* 第四發（約 7.5 秒後） */}
+          {[...Array(22)].map((_, i) => {
+            const angle = (i / 22) * Math.PI * 2 + 1.1
+            const dist = 110 + (i % 3) * 55
+            const dx = Math.cos(angle) * dist
+            const dy = Math.sin(angle) * dist
+            const colors = ['#f59e0b', '#ef4444', '#fbbf24']
+            return (
+              <div
+                key={`e-${i}`}
+                className="firework-dot"
+                style={{
+                  '--dx': `${dx}px`,
+                  '--dy': `${dy}px`,
+                  background: colors[i % colors.length],
+                  animationDelay: `${7.5 + (i % 6) * 0.04}s`
                 }}
               />
             )
