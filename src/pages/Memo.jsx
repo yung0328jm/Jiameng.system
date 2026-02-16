@@ -286,6 +286,25 @@ function Memo() {
     }
   }, [])
 
+  // 一般用戶進入交流區時也要能讀到搶紅包設定（同步可能晚於首屏），多段延遲 + 分頁可見／取得焦點時重讀
+  useEffect(() => {
+    const refresh = () => setRedEnvelopeConfig(getRedEnvelopeConfig())
+    refresh()
+    const t1 = setTimeout(refresh, 300)
+    const t2 = setTimeout(refresh, 1500)
+    const t3 = setTimeout(refresh, 3500)
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', refresh)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      window.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
+
   const scrollToBottom = () => {
     // 用 auto 避免「回彈感」；且只在必要時呼叫（發送訊息時）
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
