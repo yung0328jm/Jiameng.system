@@ -13,12 +13,21 @@ export const getAnnouncements = () => {
   }
 }
 
+const ANNOUNCEMENT_LAST_WRITE_KEY = 'jiameng_announcements_last_write'
+const ANNOUNCEMENT_GUARD_MS = 5000
+
 // 保存公佈欄項目：直接寫入你傳入的列表並同步雲端，不做合併，刪除／更新才會真的生效
 export const saveAnnouncements = async (announcements) => {
   try {
     const list = Array.isArray(announcements) ? announcements : []
     const val = JSON.stringify(list)
     localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, val)
+    try {
+      localStorage.setItem(ANNOUNCEMENT_LAST_WRITE_KEY, String(Date.now()))
+      setTimeout(() => {
+        try { localStorage.removeItem(ANNOUNCEMENT_LAST_WRITE_KEY) } catch (_) {}
+      }, ANNOUNCEMENT_GUARD_MS)
+    } catch (_) {}
     await syncKeyToSupabase(ANNOUNCEMENT_STORAGE_KEY, val)
     return { success: true, data: list }
   } catch (error) {
