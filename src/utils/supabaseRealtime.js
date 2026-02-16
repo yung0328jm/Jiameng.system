@@ -420,14 +420,15 @@ export function subscribeRealtime(onUpdate) {
                   const tid = String(t?.id ?? '').trim()
                   if (!tid) return
                   const prev = byTopicId.get(tid)
+                  const incomingEmpty = tid === 'global' && Array.isArray(t?.messages) && t.messages.length === 0
                   if (!prev) {
-                    byTopicId.set(tid, { ...t, messages: mergeTopicMessages(t?.messages, []) })
+                    byTopicId.set(tid, { ...t, messages: incomingEmpty ? [] : mergeTopicMessages(t?.messages, []) })
                     return
                   }
                   byTopicId.set(tid, {
                     ...prev,
                     ...t,
-                    messages: mergeTopicMessages(prev?.messages, t?.messages)
+                    messages: incomingEmpty ? [] : mergeTopicMessages(prev?.messages, t?.messages)
                   })
                 })
                 const merged = Array.from(byTopicId.values())
