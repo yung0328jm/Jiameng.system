@@ -91,6 +91,7 @@ function Home() {
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'normal' })
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null)
   const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false)
+  const [isAddingAnnouncement, setIsAddingAnnouncement] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
 
   // 固定ID特效道具模板（由「下拉選單管理 → 特效道具庫」建立）
@@ -278,7 +279,7 @@ function Home() {
   }
   useRealtimeKeys(['jiameng_announcements'], loadAnnouncements)
 
-  // 進入首頁或切回分頁時從雲端拉取最新公布欄，確保與他端即時同步
+  // 進入首頁或切回分頁時從雲端拉取最新公布欄；並每 25 秒輪詢一次，讓其他用戶即時看到更新
   useEffect(() => {
     const refresh = async () => {
       await refreshAnnouncementsFromSupabase()
@@ -288,9 +289,13 @@ function Home() {
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
     window.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', refresh)
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, 25000)
     return () => {
       window.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', refresh)
+      clearInterval(interval)
     }
   }, [])
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
@@ -338,21 +343,28 @@ function Home() {
     setAwardClaims(c)
   }
 
-  const handleAddAnnouncement = async () => {
+  const handleAddAnnouncement = async (e) => {
+    if (e && e.preventDefault) e.preventDefault()
     if (!announcementForm.title.trim() || !announcementForm.content.trim()) {
       alert('請輸入標題和內容')
       return
     }
-    const result = await addAnnouncement({
-      ...announcementForm,
-      createdBy: currentUser
-    })
-    if (result.success) {
-      setAnnouncementForm({ title: '', content: '', priority: 'normal' })
-      setShowAnnouncementForm(false)
-      loadAnnouncements()
-    } else {
-      alert(result.message || '新增失敗')
+    if (isAddingAnnouncement) return
+    setIsAddingAnnouncement(true)
+    try {
+      const result = await addAnnouncement({
+        ...announcementForm,
+        createdBy: currentUser
+      })
+      if (result.success) {
+        setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+        setShowAnnouncementForm(false)
+        loadAnnouncements()
+      } else {
+        alert(result.message || '新增失敗')
+      }
+    } finally {
+      setIsAddingAnnouncement(false)
     }
   }
 
@@ -2036,10 +2048,11 @@ function Home() {
               <div className="flex gap-2">
                 <button
                   type="button"
+                  disabled={isAddingAnnouncement}
                   onClick={handleAddAnnouncement}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded transition-colors"
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingAnnouncementId ? '更新' : '發布'}
+                  {isAddingAnnouncement ? '發布中...' : (editingAnnouncementId ? '更新' : '發布')}
                 </button>
                 <button
                   type="button"
