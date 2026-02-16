@@ -1894,25 +1894,28 @@ function Home() {
           }
         }
       `}</style>
-      <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
-      {/* 眉條 - 頂部標題橫幅（手機垂直排列、按鈕整齊不溢出） */}
+      <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen border border-red-900/20">
+      {/* 眉條 - 新年主題頂部標題橫幅 */}
       <div 
         className="rounded-t-lg px-4 py-3 sm:px-6 sm:py-4 mb-4 sm:mb-6 overflow-hidden"
         style={{
-          background: 'linear-gradient(90deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%)',
-          borderBottom: '2px solid rgba(251, 191, 36, 0.3)'
+          background: 'linear-gradient(90deg, #450a0a 0%, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%, #450a0a 100%)',
+          borderBottom: '2px solid rgba(251, 191, 36, 0.4)',
+          boxShadow: '0 0 20px rgba(185, 28, 28, 0.15)'
         }}
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
           <div className="flex-shrink-0 min-w-0">
-            <h2 className="text-xl sm:text-2xl font-bold text-yellow-400 mb-1 truncate">首頁</h2>
-            <p className="text-gray-300 text-sm truncate">歡迎使用佳盟事業群企業管理系統</p>
+            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-red-500 via-amber-400 to-red-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.4)] mb-1 truncate">
+              首頁 · 喜迎新春 🏮
+            </h2>
+            <p className="text-amber-200/90 text-sm truncate">歡迎使用佳盟事業群企業管理系統 · 新年快樂</p>
           </div>
           {userRole === 'admin' && (
             <div className="flex flex-wrap gap-2 sm:gap-2 justify-start sm:justify-end min-w-0">
               <button
                 onClick={handleAddItem}
-                className="bg-yellow-400 text-gray-900 px-3 py-2.5 sm:px-4 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
+                className="bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600 text-white border border-amber-400/50 px-3 py-2.5 sm:px-4 sm:py-2 rounded transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1947,18 +1950,16 @@ function Home() {
         </div>
       </div>
 
-      {/* 交流區公布欄（原待辦位置） */}
-      <div className="bg-gray-800 rounded-lg p-3 sm:p-5 border border-gray-700 mb-4">
+      {/* 交流區公布欄 - 新年主題 */}
+      <div className="bg-gray-800/95 rounded-lg p-3 sm:p-5 border border-red-900/50 mb-4 shadow-[0_0_12px_rgba(185,28,28,0.1)]">
         <div className="flex items-center justify-between mb-3 sm:mb-4">
           <h3
-            className="text-sm sm:text-base font-bold text-white text-center"
+            className="text-sm sm:text-base font-bold text-center drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]"
             style={{
-              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-              animation: 'premiumGlow 3s ease-in-out infinite, subtlePulse 5s ease-in-out infinite',
-              textShadow: '0 0 20px rgba(255, 255, 255, 0.8), 0 0 40px rgba(255, 255, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4)'
+              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
             }}
           >
-            公佈欄
+            <span className="text-red-400">福</span> 公佈欄 · 新春 <span className="text-red-400">春</span> 🏮
           </h3>
           {userRole === 'admin' && (
             <button
@@ -1967,7 +1968,7 @@ function Home() {
                 setEditingAnnouncementId(null)
                 setAnnouncementForm({ title: '', content: '', priority: 'normal' })
               }}
-              className="bg-yellow-400 text-gray-900 px-3 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold text-sm"
+              className="bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600 text-white border border-amber-400/50 px-3 py-2 rounded font-semibold text-sm transition-colors"
             >
               {showAnnouncementForm ? '取消' : '+ 新增公告'}
             </button>
@@ -2033,8 +2034,8 @@ function Home() {
 
         <div className="space-y-4 max-h-96 overflow-y-auto">
           {announcements.length === 0 ? (
-            <div className="text-gray-400 text-center py-8">
-              <p className="text-sm">尚無公告</p>
+            <div className="text-amber-200/70 text-center py-8">
+              <p className="text-sm">尚無公告 · 歡迎發布新春訊息 🏮</p>
             </div>
           ) : (
             announcements.map((announcement) => (
