@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages, getTopics } from '../utils/memoStorage'
-import { refreshMemosFromSupabase, syncKeyToSupabase } from '../utils/supabaseSync'
+import { refreshMemosFromSupabase, syncKeyToSupabase, fetchRedEnvelopeConfigFromSupabase } from '../utils/supabaseSync'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
 import { getUserInventory, hasItem, useItem, getItemQuantity, addItemToInventory, removeItemFromInventory } from '../utils/inventoryStorage'
@@ -286,22 +286,25 @@ function Memo() {
     }
   }, [])
 
-  // 一般用戶進入交流區時也要能讀到搶紅包設定（同步可能晚於首屏），多段延遲 + 分頁可見／取得焦點時重讀
+  // 一般用戶進入交流區時主動向雲端拉取搶紅包設定（避免初始 sync 未帶回此 key 或 RLS 僅對管理員回傳）
   useEffect(() => {
     const refresh = () => setRedEnvelopeConfig(getRedEnvelopeConfig())
+    const fetchThenRefresh = async () => {
+      await fetchRedEnvelopeConfigFromSupabase()
+      refresh()
+    }
     refresh()
-    const t1 = setTimeout(refresh, 300)
-    const t2 = setTimeout(refresh, 1500)
-    const t3 = setTimeout(refresh, 3500)
-    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    fetchThenRefresh()
+    const t1 = setTimeout(fetchThenRefresh, 500)
+    const t2 = setTimeout(fetchThenRefresh, 2000)
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchThenRefresh() }
     window.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', refresh)
+    window.addEventListener('focus', fetchThenRefresh)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
-      clearTimeout(t3)
       window.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', refresh)
+      window.removeEventListener('focus', fetchThenRefresh)
     }
   }, [])
 
