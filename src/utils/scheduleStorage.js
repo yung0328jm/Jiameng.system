@@ -258,6 +258,44 @@ export const getSchedules = () => {
   }
 }
 
+/** 依排程計算每台車「最後一次回程里程」，供行事曆填寫出發里程參考。回傳 { 車牌: 公里數 } */
+export const getLastReturnMileageByVehicle = () => {
+  const schedules = getSchedules()
+  const byVehicle = {} // vehicleKey -> { date, returnMileage }
+  schedules.forEach((schedule) => {
+    const ymd = String(schedule.date || '').slice(0, 10)
+    if (!ymd) return
+    if (Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0) {
+      schedule.vehicleEntries.forEach((entry) => {
+        const vehicleKey = String(entry?.vehicle || '').trim()
+        if (!vehicleKey) return
+        const ret = parseFloat(entry.returnMileage) || 0
+        const cur = byVehicle[vehicleKey]
+        if (!cur || ymd >= cur.date) {
+          byVehicle[vehicleKey] = { date: ymd, returnMileage: ret }
+        }
+      })
+    } else {
+      const vehicleStr = String(schedule.vehicle || '').trim()
+      if (!vehicleStr) return
+      const ret = parseFloat(schedule.returnMileage) || 0
+      const vehicleKeys = vehicleStr.split(',').map((v) => String(v).trim()).filter(Boolean)
+      vehicleKeys.forEach((vehicleKey) => {
+        const cur = byVehicle[vehicleKey]
+        if (!cur || ymd >= cur.date) {
+          byVehicle[vehicleKey] = { date: ymd, returnMileage: ret }
+        }
+      })
+    }
+  })
+  const result = {}
+  Object.keys(byVehicle).forEach((k) => {
+    const v = byVehicle[k].returnMileage
+    if (v != null && !Number.isNaN(v)) result[k] = v
+  })
+  return result
+}
+
 export const saveSchedule = (schedule) => {
   try {
     const schedules = getSchedules()
