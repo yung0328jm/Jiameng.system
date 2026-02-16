@@ -58,7 +58,16 @@ export const saveRedEnvelopeConfig = (config) => {
   return { success: true, config: next }
 }
 
-/** 取得所有用戶的已領取紀錄 { account: totalClaimed } */
+/** 取得今日日期字串 YYYY-MM-DD（本地） */
+const getTodayDateString = () => {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** 取得所有用戶的已領取紀錄 { account: lastClaimDate } 或舊版 { account: number } */
 export const getRedEnvelopeClaims = () => {
   const raw = localStorage.getItem(CLAIMS_KEY)
   const obj = safeParse(raw, {})
@@ -71,16 +80,24 @@ const persistClaims = (claims) => {
   syncKeyToSupabase(CLAIMS_KEY, val)
 }
 
-/** 某用戶目前已搶次數（依次數計，每次搶隨機發一種道具） */
-export const getRedEnvelopeClaimedCount = (account) => {
+/** 某用戶今日是否已搶過（一天只能搶一次）；舊版為數字則視為無日期、允許今日再領一次並寫入日期 */
+export const hasRedEnvelopeClaimedToday = (account) => {
   const acc = String(account || '').trim()
-  if (!acc) return 0
+  if (!acc) return false
   const claims = getRedEnvelopeClaims()
-  const n = Number(claims[acc])
-  return Number.isNaN(n) ? 0 : Math.max(0, Math.floor(n))
+  const v = claims[acc]
+  const today = getTodayDateString()
+  if (v == null || v === '') return false
+  if (typeof v === 'number') return false
+  return String(v) === today
 }
 
-/** 搶紅包：若未達上限則從已選道具中隨機抽一種發放 */
+/** 某用戶今日已搶次數（0 或 1，供 UI 顯示「已領 1/1」） */
+export const getRedEnvelopeClaimedCount = (account) => {
+  return hasRedEnvelopeClaimedToday(account) ? 1 : 0
+}
+
+/** 搶紅包：一天只能搶一次，從已選道具中隨機抽一種發放 */
 export const grabRedEnvelope = (account) => {
   const acc = String(account || '').trim()
   if (!acc) return { success: false, message: '請先登入' }
@@ -90,9 +107,8 @@ export const grabRedEnvelope = (account) => {
   if (ids.length === 0) return { success: false, message: '管理員尚未設定紅包卡道具' }
   if (config.maxPerUser <= 0) return { success: false, message: '搶紅包活動尚未開放' }
 
-  const claimed = getRedEnvelopeClaimedCount(acc)
-  if (claimed >= config.maxPerUser) {
-    return { success: false, message: `已達本活動上限（${config.maxPerUser} 次），下次請早` }
+  if (hasRedEnvelopeClaimedToday(acc)) {
+    return { success: false, message: '今日已搶過，明天再來～' }
   }
 
   const minQty = config.minQtyPerGrab
@@ -104,7 +120,7 @@ export const grabRedEnvelope = (account) => {
   if (!res.success) return { success: false, message: res.message || '發放失敗' }
 
   const claims = getRedEnvelopeClaims()
-  claims[acc] = (Number(claims[acc]) || 0) + 1
+  claims[acc] = getTodayDateString()
   persistClaims(claims)
 
   return { success: true, message: `恭喜獲得 ${qty} 個紅包卡！`, quantity: qty, itemId }
