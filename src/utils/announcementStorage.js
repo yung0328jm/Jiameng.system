@@ -1,6 +1,11 @@
 // 公佈欄存儲工具
-import { syncKeyToSupabase } from './supabaseSync'
+import { syncKeyToSupabase, fetchAnnouncementsFromSupabase } from './supabaseSync'
 const ANNOUNCEMENT_STORAGE_KEY = 'jiameng_announcements'
+
+const announcementTime = (a) => Math.max(
+  Date.parse(a?.updatedAt || '') || 0,
+  Date.parse(a?.createdAt || '') || 0
+)
 
 // 獲取所有公佈欄項目
 export const getAnnouncements = () => {
@@ -13,10 +18,26 @@ export const getAnnouncements = () => {
   }
 }
 
-// 保存公佈欄項目（會等待同步至雲端，確保重新整理後能拿到最新資料）
+// 保存公佈欄項目：先與雲端合併再寫入，避免其他裝置的舊資料覆蓋新資料（資料回朔）
 export const saveAnnouncements = async (announcements) => {
   try {
-    const val = JSON.stringify(announcements)
+    const serverList = await fetchAnnouncementsFromSupabase()
+    const byId = new Map()
+    const add = (list) => {
+      (Array.isArray(list) ? list : []).forEach((a) => {
+        const id = String(a?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, a); return }
+        byId.set(id, announcementTime(a) >= announcementTime(prev) ? a : prev)
+      })
+    }
+    add(serverList)
+    add(announcements)
+    const merged = Array.from(byId.values()).sort(
+      (x, y) => announcementTime(y) - announcementTime(x)
+    )
+    const val = JSON.stringify(merged)
     localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, val)
     await syncKeyToSupabase(ANNOUNCEMENT_STORAGE_KEY, val)
     return { success: true }
@@ -48,7 +69,7 @@ export const addAnnouncement = async (announcement) => {
   }
 }
 
-// 更新公佈欄項目
+// 更新公佈欄項目（寫入 updatedAt 供多裝置合併時以較新者為準）
 export const updateAnnouncement = async (id, updates) => {
   try {
     const announcements = getAnnouncements()
@@ -56,7 +77,11 @@ export const updateAnnouncement = async (id, updates) => {
     if (index === -1) {
       return { success: false, message: '找不到公佈欄項目' }
     }
-    announcements[index] = { ...announcements[index], ...updates }
+    announcements[index] = {
+      ...announcements[index],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    }
     return await saveAnnouncements(announcements)
   } catch (error) {
     console.error('Error updating announcement:', error)
