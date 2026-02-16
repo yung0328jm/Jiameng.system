@@ -284,6 +284,15 @@ function Home() {
   useRealtimeKeys(['jiameng_red_envelope_config', 'jiameng_red_envelope_claims', 'jiameng_memos'], () => {
     setRedEnvelopeConfig(getRedEnvelopeConfig())
   })
+
+  // 一般用戶進入首頁時也要能讀到搶紅包設定（同步可能晚於首屏），進入／回到首頁時重讀
+  useEffect(() => {
+    const refresh = () => setRedEnvelopeConfig(getRedEnvelopeConfig())
+    const t = setTimeout(refresh, 400)
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('visibilitychange', onVisible)
+    return () => { clearTimeout(t); window.removeEventListener('visibilitychange', onVisible) }
+  }, [])
   // 排行榜／手動排名變更時重讀，不需登出再登入（calculateAllRankings 由 useEffect 依 leaderboardItems 觸發）
   useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
     loadLeaderboardItems()
@@ -1919,7 +1928,10 @@ function Home() {
             </h2>
             <p className="text-amber-200/90 text-sm truncate">歡迎使用佳盟事業群企業管理系統 · 新年快樂</p>
           </div>
-          {(userRole === 'admin' || ((redEnvelopeConfig.itemIds?.length > 0) && redEnvelopeConfig.maxPerUser > 0)) && (
+          {(userRole === 'admin' || (() => {
+            const c = getRedEnvelopeConfig()
+            return (c.itemIds?.length > 0) && c.maxPerUser > 0
+          })()) && (
             <div className="flex flex-wrap gap-2 sm:gap-2 justify-start sm:justify-end min-w-0 items-center">
           {userRole === 'admin' && (
             <>
@@ -1968,8 +1980,10 @@ function Home() {
               </button>
             </>
           )}
-          {/* 搶紅包小按鈕：須在交流區輸入「新年快樂」後才顯示 */}
-          {redEnvelopeConfig.itemIds?.length > 0 && redEnvelopeConfig.maxPerUser > 0 && (() => {
+          {/* 搶紅包小按鈕：須在交流區輸入「新年快樂」後才顯示；用最新 config 讓一般用戶也能看到 */}
+          {(() => {
+            const config = getRedEnvelopeConfig()
+            if (!(config.itemIds?.length > 0 && config.maxPerUser > 0)) return null
             const hasSaidNewYear = currentUser && (getGlobalMessages() || []).some(
               (m) => String(m?.author || '').trim() === String(currentUser).trim() && String(m?.content || '').includes('新年快樂')
             )
@@ -1989,8 +2003,8 @@ function Home() {
                     return
                   }
                   const claimed = getRedEnvelopeClaimedCount(currentUser)
-                  if (claimed >= redEnvelopeConfig.maxPerUser) {
-                    alert(`已達本活動上限（${redEnvelopeConfig.maxPerUser}），下次請早`)
+                  if (claimed >= config.maxPerUser) {
+                    alert(`已達本活動上限（${config.maxPerUser}），下次請早`)
                     return
                   }
                   const res = grabRedEnvelope(currentUser)
@@ -2003,7 +2017,7 @@ function Home() {
                 <span>搶紅包</span>
                 {currentUser && (
                   <span className="text-amber-200 text-xs">
-                    （已領 {getRedEnvelopeClaimedCount(currentUser)}/{redEnvelopeConfig.maxPerUser}）
+                    （已領 {getRedEnvelopeClaimedCount(currentUser)}/{config.maxPerUser}）
                   </span>
                 )}
               </button>
