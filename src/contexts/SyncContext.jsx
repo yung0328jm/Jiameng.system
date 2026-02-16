@@ -10,6 +10,7 @@ export function SyncProvider({ children, syncReady = false }) {
   const unsubRef = useRef(null)
   const pollRef = useRef(null)
   const lastLbUpdatedAtRef = useRef('')
+  const lastAnnouncementsUpdatedAtRef = useRef('')
   const resumeRefreshInFlightRef = useRef(false)
 
   const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
@@ -40,7 +41,7 @@ export function SyncProvider({ children, syncReady = false }) {
         try {
           await flushSyncOutbox()
           await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
-          // 待辦與交流區一樣：只靠 Realtime 更新，不輪詢，避免覆寫造成狀態亂跳
+          await refreshAppDataKey(sb, 'jiameng_announcements', lastAnnouncementsUpdatedAtRef, [])
         } catch (_) {}
       }, 8000)
     }
