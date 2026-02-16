@@ -16,7 +16,7 @@ export function SyncProvider({ children, syncReady = false }) {
   const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
     if (key === 'jiameng_announcements') {
       const lastWrite = parseInt(typeof localStorage !== 'undefined' && localStorage.getItem('jiameng_announcements_last_write') || '', 10)
-      if (lastWrite && (Date.now() - lastWrite < 5000)) return false
+      if (lastWrite && (Date.now() - lastWrite < 8000)) return false
     }
     const { data } = await sb
       .from('app_data')
