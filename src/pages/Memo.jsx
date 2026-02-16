@@ -55,6 +55,9 @@ function Memo() {
   const [showRedEnvelopeConfig, setShowRedEnvelopeConfig] = useState(false)
   const [redEnvelopeForm, setRedEnvelopeForm] = useState(() => getRedEnvelopeConfig())
   const [redEnvelopeConfig, setRedEnvelopeConfig] = useState(() => getRedEnvelopeConfig())
+  const [showRedEnvelopeFirework, setShowRedEnvelopeFirework] = useState(false)
+  const [showRedEnvelopeBlessingModal, setShowRedEnvelopeBlessingModal] = useState(false)
+  const [redEnvelopeBlessingText, setRedEnvelopeBlessingText] = useState('')
   const [isChatCollapsed, setIsChatCollapsed] = useState(false)
   const chatScrollRef = useRef(null)
   const [stickToBottom, setStickToBottom] = useState(true)
@@ -285,6 +288,13 @@ function Memo() {
       document.removeEventListener('visibilitychange', refresh)
     }
   }, [])
+
+  // 搶紅包成功後煙火自動於數秒後關閉
+  useEffect(() => {
+    if (!showRedEnvelopeFirework) return
+    const t = setTimeout(() => setShowRedEnvelopeFirework(false), 4500)
+    return () => clearTimeout(t)
+  }, [showRedEnvelopeFirework])
 
   // 一般用戶進入交流區時主動向雲端拉取搶紅包設定（避免初始 sync 未帶回此 key 或 RLS 僅對管理員回傳）
   useEffect(() => {
@@ -1073,8 +1083,14 @@ function Memo() {
                       return
                     }
                     const res = grabRedEnvelope(currentUser)
-                    alert(res.message || (res.success ? '領取成功' : '領取失敗'))
-                    if (res.success) setRedEnvelopeConfig(getRedEnvelopeConfig())
+                    if (res.success) {
+                      setRedEnvelopeConfig(getRedEnvelopeConfig())
+                      setShowRedEnvelopeFirework(true)
+                      setShowRedEnvelopeBlessingModal(true)
+                      setRedEnvelopeBlessingText('')
+                    } else {
+                      alert(res.message || '領取失敗')
+                    }
                   }}
                   className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 border border-amber-400/50 shrink-0"
                 >
@@ -1641,6 +1657,119 @@ function Memo() {
         </div>
       </div>
       </div>
+
+      {/* 搶紅包成功：煙火特效層（固定全螢幕，不阻擋點擊下方彈窗） */}
+      {showRedEnvelopeFirework && (
+        <div className="fixed inset-0 z-40 pointer-events-none overflow-hidden" aria-hidden="true">
+          <style>{`
+            @keyframes firework-burst {
+              0% { transform: translate(0,0) scale(0); opacity: 1; }
+              100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
+            }
+            .firework-dot {
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+              animation: firework-burst 1.2s ease-out forwards;
+              pointer-events: none;
+            }
+          `}</style>
+          {[...Array(24)].map((_, i) => {
+            const angle = (i / 24) * Math.PI * 2
+            const dist = 120 + (i % 3) * 60
+            const dx = Math.cos(angle) * dist
+            const dy = Math.sin(angle) * dist
+            const colors = ['#fbbf24', '#f59e0b', '#ef4444', '#f97316', '#eab308']
+            return (
+              <div
+                key={i}
+                className="firework-dot"
+                style={{
+                  '--dx': `${dx}px`,
+                  '--dy': `${dy}px`,
+                  background: colors[i % colors.length],
+                  animationDelay: `${(i % 6) * 0.05}s`,
+                  boxShadow: '0 0 10px currentColor'
+                }}
+              />
+            )
+          })}
+          {[...Array(16)].map((_, i) => {
+            const angle = (i / 16) * Math.PI * 2 + 0.4
+            const dist = 80 + (i % 2) * 40
+            const dx = Math.cos(angle) * dist
+            const dy = Math.sin(angle) * dist
+            return (
+              <div
+                key={`b-${i}`}
+                className="firework-dot"
+                style={{
+                  '--dx': `${dx}px`,
+                  '--dy': `${dy}px`,
+                  background: i % 2 ? '#fef3c7' : '#fde68a',
+                  animationDelay: `${0.3 + (i % 4) * 0.04}s`,
+                  width: '6px',
+                  height: '6px'
+                }}
+              />
+            )
+          })}
+        </div>
+      )}
+
+      {/* 搶紅包成功：祝福語彈窗，發送至對話框 */}
+      {showRedEnvelopeBlessingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl border-2 border-amber-500/80 w-full max-w-md p-6 shadow-2xl shadow-amber-900/20">
+            <h3 className="text-xl font-bold text-amber-400 flex items-center gap-2 mb-2">
+              <span>🧧</span> 恭喜搶到紅包！寫下祝福語
+            </h3>
+            <p className="text-gray-400 text-sm mb-4">祝福語將發送到交流區對話框，與大家分享喜氣。</p>
+            <textarea
+              value={redEnvelopeBlessingText}
+              onChange={(e) => setRedEnvelopeBlessingText(e.target.value)}
+              placeholder="例如：新年快樂、恭喜發財、萬事如意..."
+              rows={3}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/50 resize-none"
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRedEnvelopeBlessingModal(false)
+                  setShowRedEnvelopeFirework(false)
+                  setRedEnvelopeBlessingText('')
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-500 font-medium"
+              >
+                略過
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = redEnvelopeBlessingText.trim() || '恭喜發財，新年快樂！'
+                  const result = addGlobalMessage(text, currentUser)
+                  if (result.success) {
+                    loadMessages()
+                    setShowRedEnvelopeBlessingModal(false)
+                    setShowRedEnvelopeFirework(false)
+                    setRedEnvelopeBlessingText('')
+                    setTimeout(scrollToBottom, 100)
+                  } else {
+                    alert(result.message || '發送失敗')
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-amber-500 text-white rounded-lg hover:opacity-90 font-semibold border border-amber-400/50"
+              >
+                發送至對話框
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 搶紅包設定彈窗（管理員） */}
       {showRedEnvelopeConfig && userRole === 'admin' && (
