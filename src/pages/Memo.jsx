@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages } from '../utils/memoStorage'
-import { refreshMemosFromSupabase } from '../utils/supabaseSync'
+import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages, getTopics } from '../utils/memoStorage'
+import { refreshMemosFromSupabase, syncKeyToSupabase } from '../utils/supabaseSync'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
 import { getUserInventory, hasItem, useItem, getItemQuantity, addItemToInventory, removeItemFromInventory } from '../utils/inventoryStorage'
@@ -390,21 +390,21 @@ function Memo() {
     }
   }
 
-  const handleClearChatMessages = () => {
+  const handleClearChatMessages = async () => {
     if (userRole !== 'admin') return
     if (!window.confirm('確定要清除交流區「對話框」所有對話內容嗎？此操作會同步到所有裝置，且無法復原。')) return
     const r = clearGlobalMessages()
     if (r?.success) {
-      // 立即清空 UI，避免看起來像沒清掉
       setMessages([])
       setMessageContent('')
       try { sessionStorage.removeItem(CHAT_SCROLL_KEY) } catch (_) {}
       try { chatScrollRestoredRef.current = false } catch (_) {}
-      // 重新載入一次（確保與本地儲存一致）
       loadMessages()
-      setTimeout(() => {
-        try { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }) } catch (_) {}
-      }, 0)
+      setTimeout(() => { try { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }) } catch (_) {} }, 0)
+      try {
+        const topics = getTopics()
+        await syncKeyToSupabase('jiameng_memos', JSON.stringify(topics))
+      } catch (_) {}
       alert('已清除對話內容')
     } else {
       alert(r?.message || '清除失敗')
