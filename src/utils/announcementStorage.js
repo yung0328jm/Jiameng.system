@@ -18,29 +18,31 @@ export const getAnnouncements = () => {
   }
 }
 
-// 保存公佈欄項目：先與雲端合併再寫入，避免其他裝置的舊資料覆蓋新資料（資料回朔）
+// 保存公佈欄項目：以本機為準（刪除／更新會保留），再補上雲端有而本機沒有的項目，避免雲端舊資料把刪除或新內容蓋回
 export const saveAnnouncements = async (announcements) => {
   try {
+    const localList = Array.isArray(announcements) ? announcements : []
     const serverList = await fetchAnnouncementsFromSupabase()
-    const byId = new Map()
-    const add = (list) => {
-      (Array.isArray(list) ? list : []).forEach((a) => {
-        const id = String(a?.id || '').trim()
-        if (!id) return
-        const prev = byId.get(id)
-        if (!prev) { byId.set(id, a); return }
-        byId.set(id, announcementTime(a) >= announcementTime(prev) ? a : prev)
-      })
-    }
-    add(serverList)
-    add(announcements)
-    const merged = Array.from(byId.values()).sort(
+    const localById = new Map(localList.map((a) => [String(a?.id || '').trim(), a]).filter(([id]) => id))
+    const mergedById = new Map(localById)
+    // 只補上雲端有、本機沒有的（他端新增）；同 id 以較新者為準，本機已刪的 id 不再加回
+    ;(Array.isArray(serverList) ? serverList : []).forEach((a) => {
+      const id = String(a?.id || '').trim()
+      if (!id) return
+      const localItem = mergedById.get(id)
+      if (!localItem) {
+        mergedById.set(id, a)
+        return
+      }
+      if (announcementTime(a) > announcementTime(localItem)) mergedById.set(id, a)
+    })
+    const merged = Array.from(mergedById.values()).sort(
       (x, y) => announcementTime(y) - announcementTime(x)
     )
     const val = JSON.stringify(merged)
     localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, val)
     await syncKeyToSupabase(ANNOUNCEMENT_STORAGE_KEY, val)
-    return { success: true }
+    return { success: true, data: merged }
   } catch (error) {
     console.error('Error saving announcements:', error)
     return { success: false, message: error?.message || '保存失敗' }
@@ -62,7 +64,7 @@ export const addAnnouncement = async (announcement) => {
     }
     announcements.unshift(newAnnouncement) // 最新的在前面
     const res = await saveAnnouncements(announcements)
-    return res.success ? { success: true, announcement: newAnnouncement } : res
+    return res.success ? { success: true, announcement: newAnnouncement, data: res.data } : res
   } catch (error) {
     console.error('Error adding announcement:', error)
     return { success: false, message: '新增失敗' }
@@ -82,7 +84,8 @@ export const updateAnnouncement = async (id, updates) => {
       ...updates,
       updatedAt: new Date().toISOString()
     }
-    return await saveAnnouncements(announcements)
+    const res = await saveAnnouncements(announcements)
+    return res.success ? { ...res, data: res.data } : res
   } catch (error) {
     console.error('Error updating announcement:', error)
     return { success: false, message: '更新失敗' }
@@ -94,7 +97,8 @@ export const deleteAnnouncement = async (id) => {
   try {
     const announcements = getAnnouncements()
     const filtered = announcements.filter(a => a.id !== id)
-    return await saveAnnouncements(filtered)
+    const res = await saveAnnouncements(filtered)
+    return res.success ? { ...res, data: res.data } : res
   } catch (error) {
     console.error('Error deleting announcement:', error)
     return { success: false, message: '刪除失敗' }
