@@ -33,17 +33,27 @@ alter table public.engineering_schedules enable row level security;
 alter table public.leave_applications enable row level security;
 alter table public.special_leave_quota enable row level security;
 
+-- 允許 anon 與 authenticated 讀寫（登入後用 authenticated，未登入用 anon）
 drop policy if exists "Allow anon read write engineering_schedules" on public.engineering_schedules;
 create policy "Allow anon read write engineering_schedules"
   on public.engineering_schedules for all to anon using (true) with check (true);
+drop policy if exists "Allow authenticated read write engineering_schedules" on public.engineering_schedules;
+create policy "Allow authenticated read write engineering_schedules"
+  on public.engineering_schedules for all to authenticated using (true) with check (true);
 
 drop policy if exists "Allow anon read write leave_applications" on public.leave_applications;
 create policy "Allow anon read write leave_applications"
   on public.leave_applications for all to anon using (true) with check (true);
+drop policy if exists "Allow authenticated read write leave_applications" on public.leave_applications;
+create policy "Allow authenticated read write leave_applications"
+  on public.leave_applications for all to authenticated using (true) with check (true);
 
 drop policy if exists "Allow anon read write special_leave_quota" on public.special_leave_quota;
 create policy "Allow anon read write special_leave_quota"
   on public.special_leave_quota for all to anon using (true) with check (true);
+drop policy if exists "Allow authenticated read write special_leave_quota" on public.special_leave_quota;
+create policy "Allow authenticated read write special_leave_quota"
+  on public.special_leave_quota for all to authenticated using (true) with check (true);
 
 -- 其餘所有功能共用：key = localStorage 的 key，data = 整份 JSON
 create table if not exists public.app_data (
@@ -55,9 +65,28 @@ alter table public.app_data enable row level security;
 drop policy if exists "Allow anon read write app_data" on public.app_data;
 create policy "Allow anon read write app_data"
   on public.app_data for all to anon using (true) with check (true);
+drop policy if exists "Allow authenticated read write app_data" on public.app_data;
+create policy "Allow authenticated read write app_data"
+  on public.app_data for all to authenticated using (true) with check (true);
 
--- 啟用 Realtime（多人即時同步用）；若表已在 publication 會報錯，可略過那幾行
-alter publication supabase_realtime add table public.engineering_schedules;
-alter publication supabase_realtime add table public.leave_applications;
-alter publication supabase_realtime add table public.special_leave_quota;
-alter publication supabase_realtime add table public.app_data;
+-- 啟用 Realtime（多人即時同步用）；已在 publication 則略過，可重複執行
+do $$
+begin
+  alter publication supabase_realtime add table public.engineering_schedules;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.leave_applications;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.special_leave_quota;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.app_data;
+exception when duplicate_object then null;
+end $$;
