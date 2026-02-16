@@ -461,14 +461,30 @@ export async function fetchRedEnvelopeConfigFromSupabase() {
 
 const ANNOUNCEMENTS_KEY = 'jiameng_announcements'
 
+/** 僅從雲端讀取公布欄陣列（不寫入 localStorage），供合併用 */
+async function fetchAnnouncementsFromSupabase() {
+  const sb = getSupabaseClient()
+  if (!sb) return []
+  try {
+    const { data: row, error } = await sb.from('app_data').select('data').eq('key', ANNOUNCEMENTS_KEY).maybeSingle()
+    if (error) return []
+    const data = row?.data
+    if (Array.isArray(data)) return data
+    if (typeof data === 'string') {
+      try { return JSON.parse(data || '[]') } catch (_) { return [] }
+    }
+    return []
+  } catch (_) {
+    return []
+  }
+}
+
 /** 從雲端拉取公布欄並寫入 localStorage，觸發 UI 更新（確保首頁公布欄及時同步） */
 export async function refreshAnnouncementsFromSupabase() {
   const sb = getSupabaseClient()
   if (!sb) return
   try {
-    const { data: row, error } = await sb.from('app_data').select('data').eq('key', ANNOUNCEMENTS_KEY).maybeSingle()
-    if (error) return
-    const incoming = Array.isArray(row?.data) ? row.data : (typeof row?.data === 'string' ? (() => { try { return JSON.parse(row.data || '[]') } catch (_) { return [] } })() : [])
+    const incoming = await fetchAnnouncementsFromSupabase()
     const val = JSON.stringify(incoming)
     localStorage.setItem(ANNOUNCEMENTS_KEY, val)
     try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: ANNOUNCEMENTS_KEY } })) } catch (_) {}
@@ -523,4 +539,4 @@ export async function refreshMemosFromSupabase() {
   } catch (_) {}
 }
 
-export { isSupabaseEnabled }
+export { isSupabaseEnabled, fetchAnnouncementsFromSupabase }
