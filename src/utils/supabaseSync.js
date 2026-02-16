@@ -392,6 +392,7 @@ export async function syncFromSupabase() {
           if (existing != null) return
         }
         localStorage.setItem(key, typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}))
+        try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
       } catch (_) {}
     })
 
