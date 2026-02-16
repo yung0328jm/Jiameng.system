@@ -968,6 +968,17 @@ function Memo() {
               background-position: 200% 0;
             }
           }
+          @keyframes newyearBlessingBlink {
+            0%, 100% { color: #fef3c7; text-shadow: 0 0 10px rgba(251,191,36,0.95), 0 0 16px rgba(239,68,68,0.5); }
+            50% { color: #fbbf24; text-shadow: 0 0 14px rgba(251,191,36,1), 0 0 24px rgba(239,68,68,0.85); }
+          }
+          .newyear-blessing {
+            display: inline;
+            font-weight: 700;
+            color: #fef3c7;
+            text-shadow: 0 0 10px rgba(251,191,36,0.95);
+            animation: newyearBlessingBlink 1.2s ease-in-out infinite;
+          }
         `}</style>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
@@ -1078,8 +1089,8 @@ function Memo() {
                   onClick={() => {
                     if (!currentUser) { alert('請先登入'); return }
                     const claimed = getRedEnvelopeClaimedCount(currentUser)
-                    if (claimed >= config.maxPerUser) {
-                      alert(`已達本活動上限（${config.maxPerUser}），下次請早`)
+                    if (claimed >= 1) {
+                      alert('今日已搶過，明天再來～')
                       return
                     }
                     const res = grabRedEnvelope(currentUser)
@@ -1097,7 +1108,7 @@ function Memo() {
                   <span>搶紅包</span>
                   {currentUser && (
                     <span className="text-amber-200 text-xs">
-                      （已領 {getRedEnvelopeClaimedCount(currentUser)}/{config.maxPerUser}）
+                      （{getRedEnvelopeClaimedCount(currentUser) >= 1 ? '今日已搶' : '每日可搶一次'}）
                     </span>
                   )}
                 </button>
@@ -1595,7 +1606,9 @@ function Memo() {
                       className="rounded-lg p-4 sm:p-3 text-base sm:text-sm"
                       style={messageEffectStyle ? { ...messageEffectStyle, color: '#F5F1E8', background: 'linear-gradient(135deg, rgba(127,29,29,0.25) 0%, rgba(55,65,81,0.9) 100%)', border: '1px solid rgba(220,38,38,0.2)' } : { color: '#FFFFFF', background: 'linear-gradient(135deg, rgba(127,29,29,0.2) 0%, rgba(55,65,81,0.85) 100%)', border: '1px solid rgba(220,38,38,0.15)' }}
                     >
-                      {message.content}
+                      {String(message.content || '').split(/(新年快樂)/g).map((seg, i) =>
+                        seg === '新年快樂' ? <span key={i} className="newyear-blessing">{seg}</span> : seg
+                      )}
                     </div>
                   </div>
                 )
