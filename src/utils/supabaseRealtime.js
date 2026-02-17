@@ -421,14 +421,16 @@ export function subscribeRealtime(onUpdate) {
                   if (!tid) return
                   const prev = byTopicId.get(tid)
                   const incomingEmpty = tid === 'global' && Array.isArray(t?.messages) && t.messages.length === 0
+                  const localHasMessages = Array.isArray(prev?.messages) && prev.messages.length > 0
+                  const dontWipeWithEmpty = tid === 'global' && incomingEmpty && localHasMessages
                   if (!prev) {
-                    byTopicId.set(tid, { ...t, messages: incomingEmpty ? [] : mergeTopicMessages(t?.messages, []) })
+                    byTopicId.set(tid, { ...t, messages: (incomingEmpty && !dontWipeWithEmpty) ? [] : mergeTopicMessages(t?.messages || [], []) })
                     return
                   }
                   byTopicId.set(tid, {
                     ...prev,
                     ...t,
-                    messages: incomingEmpty ? [] : mergeTopicMessages(prev?.messages, t?.messages)
+                    messages: dontWipeWithEmpty ? mergeTopicMessages(prev?.messages || [], t?.messages || []) : (incomingEmpty ? [] : mergeTopicMessages(prev?.messages || [], t?.messages || []))
                   })
                 })
                 const merged = Array.from(byTopicId.values())
@@ -560,7 +562,9 @@ export function subscribeRealtime(onUpdate) {
                   notifyKey(key)
                 }
               } else if (key === 'jiameng_announcements') {
-                // 公佈欄：管理員發布/編輯/刪除後，其他用戶即時收到並覆蓋本機
+                // 公佈欄：若本機剛寫入（5 秒內）不覆寫，避免多人同時在首頁時自己的刪除/保存被輪詢或 Realtime 舊資料蓋回
+                const lastWrite = parseInt(localStorage.getItem('jiameng_announcements_last_write') || '', 10)
+                if (lastWrite && (Date.now() - lastWrite < 8000)) return
                 const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
                 const val = JSON.stringify(incoming)
                 localStorage.setItem(key, val)

@@ -523,14 +523,16 @@ export async function refreshMemosFromSupabase() {
       if (!tid) return
       const prev = byTopicId.get(tid)
       const incomingEmpty = tid === 'global' && Array.isArray(t?.messages) && t.messages.length === 0
+      const localHasMessages = Array.isArray(prev?.messages) && prev.messages.length > 0
+      const dontWipeWithEmpty = tid === 'global' && incomingEmpty && localHasMessages
       if (!prev) {
-        byTopicId.set(tid, { ...t, messages: incomingEmpty ? [] : mergeTopicMessages(t?.messages, []) })
+        byTopicId.set(tid, { ...t, messages: (incomingEmpty && !dontWipeWithEmpty) ? [] : mergeTopicMessages(t?.messages || [], []) })
         return
       }
       byTopicId.set(tid, {
         ...prev,
         ...t,
-        messages: incomingEmpty ? [] : mergeTopicMessages(prev?.messages, t?.messages)
+        messages: dontWipeWithEmpty ? mergeTopicMessages(prev?.messages || [], t?.messages || []) : (incomingEmpty ? [] : mergeTopicMessages(prev?.messages || [], t?.messages || []))
       })
     })
     const merged = Array.from(byTopicId.values())
