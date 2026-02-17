@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages, getTopics } from '../utils/memoStorage'
+import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages, getTopics, restoreMemosFromBackup } from '../utils/memoStorage'
 import { refreshMemosFromSupabase, syncKeyToSupabase, fetchRedEnvelopeConfigFromSupabase } from '../utils/supabaseSync'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
@@ -428,6 +428,17 @@ function Memo() {
       setTimeout(scrollToBottom, 50)
     } else {
       alert(result.message || '發送消息失敗')
+    }
+  }
+
+  const handleRestoreFromBackup = () => {
+    if (userRole !== 'admin') return
+    const r = restoreMemosFromBackup()
+    if (r?.success) {
+      loadMessages()
+      alert('已從本機備份恢復對話框內容')
+    } else {
+      alert(r?.message || '恢復失敗')
     }
   }
 
@@ -1041,6 +1052,17 @@ function Memo() {
               </button>
             )}
 
+            {/* 管理員：從備份恢復對話框（若曾被誤蓋可嘗試） */}
+            {userRole === 'admin' && (
+              <button
+                type="button"
+                onClick={handleRestoreFromBackup}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded text-sm transition-colors border border-amber-500"
+                title="從本機備份恢復對話框（僅限上次寫入前的內容）"
+              >
+                從備份恢復
+              </button>
+            )}
             {/* 管理員清除對話內容 */}
             {userRole === 'admin' && (
               <button
@@ -1889,10 +1911,21 @@ function Memo() {
               <div>
                 <label className="block text-gray-300 text-sm mb-1">每用戶最多可搶次數 *</label>
                 <input
-                  type="number"
-                  min="0"
-                  value={redEnvelopeForm.maxPerUser}
-                  onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, maxPerUser: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={redEnvelopeForm.maxPerUser != null ? String(redEnvelopeForm.maxPerUser) : ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim()
+                    if (raw === '') {
+                      setRedEnvelopeForm({ ...redEnvelopeForm, maxPerUser: 0 })
+                      return
+                    }
+                    const num = parseInt(raw, 10)
+                    if (!Number.isNaN(num) && num >= 0) {
+                      setRedEnvelopeForm({ ...redEnvelopeForm, maxPerUser: num })
+                    }
+                  }}
                   className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
                   placeholder="0 = 關閉活動"
                 />
