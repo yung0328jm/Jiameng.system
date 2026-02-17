@@ -11,7 +11,7 @@ import { calculateCompletionRateAdjustment } from '../utils/completionRateConfig
 import { getLatePerformanceConfig, calculateLateCountAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 import { getWalletBalance } from '../utils/walletStorage'
-import { getUserInventory } from '../utils/inventoryStorage'
+import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
 
 function UserAdvanceCell({ account }) {
@@ -123,6 +123,18 @@ function UserManagement() {
     setSelectedAssetsUser({ account, name: user?.name || account })
     setSelectedAssetsData(buildUserAssetsData(account))
     setShowUserAssets(true)
+  }
+
+  const handleRemoveUserItem = (account, itemId, quantity, itemName) => {
+    const qty = Math.max(1, Number(quantity) || 1)
+    if (!window.confirm(`確定要從此用戶背包移除「${itemName}」${qty > 1 ? ` x${qty}（全部）` : ' x1'}？`)) return
+    const res = removeItemFromInventory(account, itemId, qty)
+    if (res?.success) {
+      setAssetsRevision((v) => v + 1)
+      setSelectedAssetsData(buildUserAssetsData(account))
+    } else {
+      alert(res?.message || '移除失敗')
+    }
   }
 
   useEffect(() => {
@@ -642,9 +654,33 @@ function UserManagement() {
                             </div>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-purple-300 font-bold">{Number(it.quantity || 0)}</div>
-                          <div className="text-gray-500 text-[11px]">{it.itemId}</div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <div className="text-purple-300 font-bold">{Number(it.quantity || 0)}</div>
+                            <div className="text-gray-500 text-[11px]">{it.itemId}</div>
+                          </div>
+                          {currentUserRole === 'admin' && (
+                            <div className="flex flex-col gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveUserItem(selectedAssetsUser.account, it.itemId, 1, it.name)}
+                                className="text-red-400 hover:text-red-300 text-xs px-2 py-1 border border-red-500/50 rounded hover:bg-red-900/30"
+                                title="移除 1 個"
+                              >
+                                移除1
+                              </button>
+                              {Number(it.quantity || 0) > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveUserItem(selectedAssetsUser.account, it.itemId, it.quantity, it.name)}
+                                  className="text-red-500 hover:text-red-400 text-xs px-2 py-1 border border-red-600 rounded hover:bg-red-900/40"
+                                  title="移除全部"
+                                >
+                                  移除全部
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
