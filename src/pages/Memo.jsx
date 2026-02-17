@@ -1615,9 +1615,13 @@ function Memo() {
                     </div>
                     <div
                       className="rounded-lg p-4 sm:p-3 text-base sm:text-sm"
-                      style={messageEffectStyle ? { ...messageEffectStyle, color: '#F5F1E8', background: 'linear-gradient(135deg, rgba(127,29,29,0.25) 0%, rgba(55,65,81,0.9) 100%)', border: '1px solid rgba(220,38,38,0.2)' } : { color: '#FFFFFF', background: 'linear-gradient(135deg, rgba(127,29,29,0.2) 0%, rgba(55,65,81,0.85) 100%)', border: '1px solid rgba(220,38,38,0.15)' }}
+                      style={messageEffectStyle ? { color: '#F5F1E8', background: 'linear-gradient(135deg, rgba(127,29,29,0.25) 0%, rgba(55,65,81,0.9) 100%)', border: '1px solid rgba(220,38,38,0.2)' } : { color: '#FFFFFF', background: 'linear-gradient(135deg, rgba(127,29,29,0.2) 0%, rgba(55,65,81,0.85) 100%)', border: '1px solid rgba(220,38,38,0.15)' }}
                     >
-                      {String(message.content || '')}
+                      {messageEffectStyle ? (
+                        <span style={messageEffectStyle}>{String(message.content || '')}</span>
+                      ) : (
+                        String(message.content || '')
+                      )}
                     </div>
                   </div>
                 )
