@@ -6,6 +6,9 @@ import { getItems, createItem, updateItem, deleteItem, ITEM_TYPES } from '../uti
 import { NAME_EFFECT_PRESETS, MESSAGE_EFFECT_PRESETS, TITLE_BADGE_PRESETS, DECORATION_PRESETS } from '../utils/effectDisplayStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
+import { addItemToInventory } from '../utils/inventoryStorage'
+
+const ALL_USERS_VALUE = '__ALL_USERS__'
 
 function DropdownManagement({ userRole: propUserRole }) {
   const [userRole, setUserRole] = useState(propUserRole)
@@ -30,6 +33,22 @@ function DropdownManagement({ userRole: propUserRole }) {
     description: ''
   })
   const [fxEditingId, setFxEditingId] = useState(null)
+  const [showEffectDistributeModal, setShowEffectDistributeModal] = useState(false)
+  const [effectDistributeItem, setEffectDistributeItem] = useState(null)
+  const [effectDistributeUsername, setEffectDistributeUsername] = useState('')
+  const [effectDistributeQuantity, setEffectDistributeQuantity] = useState(1)
+
+  const getRecipientAccounts = () => {
+    const list = Array.isArray(users) ? users : []
+    return list
+      .filter((u) => {
+        const acc = String(u?.account || '').trim()
+        if (!acc || acc === 'admin' || acc === 'jiameng.system') return false
+        if (u?.role === 'admin') return false
+        return true
+      })
+      .map((u) => String(u.account).trim())
+  }
 
   useEffect(() => {
     if (!userRole) {
@@ -150,6 +169,50 @@ function DropdownManagement({ userRole: propUserRole }) {
     if (!res.success) return alert(res.message || '刪除失敗')
     loadEffectItems()
     if (fxEditingId === id) resetEffectItemForm()
+  }
+
+  const openEffectDistributeModal = (item) => {
+    setEffectDistributeItem(item)
+    setEffectDistributeUsername('')
+    setEffectDistributeQuantity(1)
+    setShowEffectDistributeModal(true)
+  }
+
+  const handleEffectDistribute = () => {
+    if (!effectDistributeItem) return
+    if (!effectDistributeUsername) {
+      alert('請選擇發放對象')
+      return
+    }
+    if (effectDistributeQuantity <= 0) {
+      alert('數量必須大於 0')
+      return
+    }
+    if (effectDistributeUsername === ALL_USERS_VALUE) {
+      const recipients = getRecipientAccounts()
+      if (recipients.length === 0) {
+        alert('沒有可分發的用戶（已排除管理員/系統帳號）')
+        return
+      }
+      if (!window.confirm(`確定要將「${effectDistributeItem.name}」發放給所有用戶嗎？共 ${recipients.length} 人。`)) return
+      let ok = 0
+      let fail = 0
+      recipients.forEach((acc) => {
+        const r = addItemToInventory(acc, effectDistributeItem.id, effectDistributeQuantity)
+        if (r?.success) ok += 1
+        else fail += 1
+      })
+      alert(`全體發放完成：成功 ${ok} 人，失敗 ${fail} 人。`)
+    } else {
+      const r = addItemToInventory(effectDistributeUsername, effectDistributeItem.id, effectDistributeQuantity)
+      if (r?.success) {
+        alert(`已成功發放 ${effectDistributeQuantity} 個「${effectDistributeItem.name}」給所選用戶。`)
+      } else {
+        alert(r?.message || '發放失敗')
+      }
+    }
+    setShowEffectDistributeModal(false)
+    setEffectDistributeItem(null)
   }
 
   const handleAddOption = (e) => {
@@ -416,7 +479,7 @@ function DropdownManagement({ userRole: propUserRole }) {
           <div className="bg-gray-800 rounded-lg border border-gray-700">
             <div className="p-4 border-b border-gray-700">
               <h3 className="text-lg font-semibold text-white">已建立的特效道具（固定ID）</h3>
-              <p className="text-gray-500 text-xs mt-1">這裡的道具 ID 之後可在排行榜「第 1/2/3 名」指定分發。</p>
+              <p className="text-gray-500 text-xs mt-1">這裡的道具 ID 可在排行榜「第 1/2/3 名」指定分發，也可手動發放給指定用戶。</p>
             </div>
             <div className="p-4 space-y-2">
               {effectItems.length === 0 ? (
@@ -431,6 +494,16 @@ function DropdownManagement({ userRole: propUserRole }) {
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
+                      {userRole === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => openEffectDistributeModal(it)}
+                          className="text-green-400 hover:text-green-300 text-sm"
+                          title="手動發放給用戶"
+                        >
+                          手動發放
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => startEditEffectItem(it)}
@@ -451,6 +524,42 @@ function DropdownManagement({ userRole: propUserRole }) {
               )}
             </div>
           </div>
+
+          {/* 手動發放特效道具彈窗 */}
+          {showEffectDistributeModal && effectDistributeItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowEffectDistributeModal(false)}>
+              <div className="bg-gray-800 rounded-lg border border-gray-600 shadow-xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold text-white mb-3">手動發放特效道具</h3>
+                <p className="text-gray-400 text-sm mb-4">道具：{effectDistributeItem.icon} {effectDistributeItem.name}</p>
+                <div className="space-y-3 mb-4">
+                  <label className="block text-gray-300 text-sm">發放對象</label>
+                  <select
+                    value={effectDistributeUsername}
+                    onChange={(e) => setEffectDistributeUsername(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  >
+                    <option value="">請選擇</option>
+                    <option value={ALL_USERS_VALUE}>所有用戶（全體發放）</option>
+                    {(Array.isArray(users) ? users : []).filter((u) => u?.role !== 'admin').map((u) => (
+                      <option key={u.account} value={u.account}>{u.name || u.account}</option>
+                    ))}
+                  </select>
+                  <label className="block text-gray-300 text-sm">數量</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={effectDistributeQuantity}
+                    onChange={(e) => setEffectDistributeQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button type="button" onClick={() => setShowEffectDistributeModal(false)} className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500">取消</button>
+                  <button type="button" onClick={handleEffectDistribute} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500">發放</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <>
