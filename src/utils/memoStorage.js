@@ -1,12 +1,35 @@
 // 交流區存储工具
 import { syncKeyToSupabase } from './supabaseSync'
 const MEMO_STORAGE_KEY = 'jiameng_memos'
+const MEMO_BACKUP_KEY = 'jiameng_memos_backup'
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 const persist = (topics) => {
+  try {
+    const existing = localStorage.getItem(MEMO_STORAGE_KEY)
+    if (existing != null && existing !== '') localStorage.setItem(MEMO_BACKUP_KEY, existing)
+  } catch (_) {}
   const val = JSON.stringify(topics)
   localStorage.setItem(MEMO_STORAGE_KEY, val)
   syncKeyToSupabase(MEMO_STORAGE_KEY, val)
+}
+
+/** 從本機備份恢復對話框（僅當備份存在且與目前不同時有效） */
+export const restoreMemosFromBackup = () => {
+  try {
+    const backup = localStorage.getItem(MEMO_BACKUP_KEY)
+    if (!backup) return { success: false, message: '無備份資料' }
+    const current = localStorage.getItem(MEMO_STORAGE_KEY)
+    if (backup === current) return { success: false, message: '備份與目前內容相同' }
+    const parsed = JSON.parse(backup)
+    if (!Array.isArray(parsed)) return { success: false, message: '備份格式錯誤' }
+    localStorage.setItem(MEMO_STORAGE_KEY, backup)
+    syncKeyToSupabase(MEMO_STORAGE_KEY, backup)
+    return { success: true, data: parsed }
+  } catch (e) {
+    console.error('restoreMemosFromBackup error', e)
+    return { success: false, message: e?.message || '恢復失敗' }
+  }
 }
 
 const pruneTopicMessages = (topics) => {
