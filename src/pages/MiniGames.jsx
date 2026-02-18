@@ -25,7 +25,7 @@ export default function MiniGames() {
   const [coinToPointsAmount, setCoinToPointsAmount] = useState('')
   const [pointsToCoinAmount, setPointsToCoinAmount] = useState('')
   const [showRatioModal, setShowRatioModal] = useState(false)
-  const [ratioForm, setRatioForm] = useState({ coinToPoints: 10, pointsToCoin: 0.1 })
+  const [ratioForm, setRatioForm] = useState({ coinToPoints: 10, pointsForCoins: 10, coinsFromPoints: 1 })
 
   useEffect(() => {
     setCurrentUser(getCurrentUser() || '')
@@ -102,7 +102,13 @@ export default function MiniGames() {
   }
 
   const handleSaveRatio = () => {
-    const res = saveExchangeConfig(ratioForm)
+    const pointsForCoins = Number(ratioForm.pointsForCoins) || 1
+    const coinsFromPoints = Number(ratioForm.coinsFromPoints) || 0.1
+    const pointsToCoin = pointsForCoins > 0 ? coinsFromPoints / pointsForCoins : 0.1
+    const res = saveExchangeConfig({
+      coinToPoints: ratioForm.coinToPoints,
+      pointsToCoin
+    })
     if (res.success) {
       setExchangeConfig(res.data)
       setShowRatioModal(false)
@@ -111,6 +117,15 @@ export default function MiniGames() {
     } else {
       alert(res.message || '保存失敗')
     }
+  }
+
+  // 顯示用：多少佳盟分 = 多少佳盟幣（不綁定 1 佳盟分）
+  const pointsToCoinDisplay = () => {
+    const r = exchangeConfig.pointsToCoin || 0.1
+    if (r >= 1) return `1 佳盟分 = ${r} 佳盟幣`
+    const x = 1 / r
+    const xStr = Number.isInteger(x) ? x : x.toFixed(2)
+    return `${xStr} 佳盟分 = 1 佳盟幣`
   }
 
   const gameSlots = [
@@ -166,7 +181,7 @@ export default function MiniGames() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-gray-300 text-sm">佳盟分 → 佳盟幣</span>
-                <span className="text-gray-500 text-xs">1 佳盟分 = {exchangeConfig.pointsToCoin} 佳盟幣</span>
+                <span className="text-gray-500 text-xs">{pointsToCoinDisplay()}</span>
                 <input
                   type="number"
                   min="0"
@@ -189,7 +204,14 @@ export default function MiniGames() {
               <button
                 type="button"
                 onClick={() => {
-                  setRatioForm({ coinToPoints: exchangeConfig.coinToPoints, pointsToCoin: exchangeConfig.pointsToCoin })
+                  const r = exchangeConfig.pointsToCoin || 0.1
+                  const pointsForCoins = r >= 1 ? 1 : (Number.isInteger(1 / r) ? 1 / r : Math.round(1 / r * 100) / 100)
+                  const coinsFromPoints = r >= 1 ? r : 1
+                  setRatioForm({
+                    coinToPoints: exchangeConfig.coinToPoints,
+                    pointsForCoins,
+                    coinsFromPoints
+                  })
                   setShowRatioModal(true)
                 }}
                 className="mt-3 text-amber-400 hover:text-amber-300 text-sm"
@@ -209,7 +231,7 @@ export default function MiniGames() {
             <h3 className="text-white font-semibold mb-3">設定兌換比例</h3>
             <div className="space-y-3 mb-4">
               <div>
-                <label className="block text-gray-400 text-xs mb-1">1 佳盟幣 = 幾 佳盟分</label>
+                <label className="block text-gray-400 text-xs mb-1">佳盟幣 → 佳盟分：1 佳盟幣 = 幾 佳盟分</label>
                 <input
                   type="number"
                   min="0.0001"
@@ -220,15 +242,29 @@ export default function MiniGames() {
                 />
               </div>
               <div>
-                <label className="block text-gray-400 text-xs mb-1">1 佳盟分 = 幾 佳盟幣</label>
-                <input
-                  type="number"
-                  min="0.0001"
-                  step="0.01"
-                  value={ratioForm.pointsToCoin}
-                  onChange={(e) => setRatioForm((f) => ({ ...f, pointsToCoin: Number(e.target.value) || 0 }))}
-                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                />
+                <label className="block text-gray-400 text-xs mb-1">佳盟分 → 佳盟幣：多少 佳盟分 = 多少 佳盟幣</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    min="0.0001"
+                    step="1"
+                    value={ratioForm.pointsForCoins}
+                    onChange={(e) => setRatioForm((f) => ({ ...f, pointsForCoins: Number(e.target.value) || 0 }))}
+                    className="flex-1 bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                    placeholder="佳盟分"
+                  />
+                  <span className="text-gray-500">=</span>
+                  <input
+                    type="number"
+                    min="0.0001"
+                    step="0.01"
+                    value={ratioForm.coinsFromPoints}
+                    onChange={(e) => setRatioForm((f) => ({ ...f, coinsFromPoints: Number(e.target.value) || 0 }))}
+                    className="flex-1 bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                    placeholder="佳盟幣"
+                  />
+                </div>
+                <p className="text-gray-500 text-[11px] mt-1">例：10 佳盟分 = 1 佳盟幣</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
