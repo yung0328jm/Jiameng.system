@@ -152,7 +152,10 @@ export const APP_DATA_KEYS = [
   'jiameng_niuniu_rooms',
   // 搶紅包（設定 + 每人已領數量）
   'jiameng_red_envelope_config',
-  'jiameng_red_envelope_claims'
+  'jiameng_red_envelope_claims',
+  // 佳盟分餘額 + 佳盟幣↔佳盟分兌換比例
+  'jiameng_points',
+  'jiameng_coin_points_exchange'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
