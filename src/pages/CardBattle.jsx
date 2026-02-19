@@ -5,7 +5,8 @@ import { getCardById, getSkillById } from '../utils/cardGameStorage.js'
 const MAX_FRONT = 5  // 前排小怪數量上限
 const MAX_BACK = 5   // 後排裝備/效果/陷阱數量上限
 const HAND_SIZE_START = 5
-const DECK_SIZE = 50
+const MIN_DECK_SIZE = 30
+const MAX_DECK_SIZE = 50
 const DRAW_PER_TURN = 1
 
 function buildDeckForBattle(heroId, cardIds, getCard) {
@@ -100,7 +101,8 @@ function HeroSlot({ hero, isTarget, onClick, className = '', hitAnim }) {
   )
 }
 
-export default function CardBattle({ playerDeck, playerAccount, onExit, cardBackUrl }) {
+export default function CardBattle({ playerDeck, playerAccount, onExit, playerCardBackUrl, enemyCardBackUrl }) {
+  const cardBackUrl = playerCardBackUrl ?? enemyCardBackUrl ?? '' // fallback for legacy
   const getCard = (id) => getCardById(id)
   const [player, setPlayer] = useState(null)
   const [enemy, setEnemy] = useState(null)
@@ -112,6 +114,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
   const [drawInIndices, setDrawInIndices] = useState([])
   const [lastAttack, setLastAttack] = useState(null) // { attackerSide, attackerIndex, targetSide, targetHero, targetIndex }
   const [hintOpen, setHintOpen] = useState(false)
+  const [playerGraveyardCount, setPlayerGraveyardCount] = useState(0)
   const prevHandLengthRef = useRef(0)
   const attackAnimTimeoutRef = useRef(null)
   const deathRemoveTimeoutRef = useRef(null)
@@ -182,7 +185,12 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
     if (deathRemoveTimeoutRef.current != null) return
     deathRemoveTimeoutRef.current = setTimeout(() => {
       deathRemoveTimeoutRef.current = null
-      setPlayer((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((m) => !m.dying) }))
+      setPlayer((prev) => {
+        const front = prev.fieldFront || []
+        const dyingCount = front.filter((m) => m.dying).length
+        if (dyingCount > 0) setPlayerGraveyardCount((c) => c + dyingCount)
+        return { ...prev, fieldFront: front.filter((m) => !m.dying) }
+      })
       setEnemy((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((m) => !m.dying) }))
     }, 700)
     return () => {}
@@ -390,6 +398,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
   const aiTurn = () => {
     let e = { ...enemy }
     let p = { ...player }
+    let playerDeathsThisTurn = 0
     e.fieldFront = (e.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     if (e.deck.length > 0 && e.hand.length < 10) {
       const drawn = e.deck.shift()
@@ -419,6 +428,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
         const target = pFront[targetIdx]
         const newHp = (target.currentHp || target.hp) - minion.attack
         if (newHp <= 0) {
+          playerDeathsThisTurn += 1
           p.fieldFront = pFront.filter((_, j) => j !== targetIdx)
         } else {
           p.fieldFront = pFront.map((m, j) => (j === targetIdx ? { ...m, currentHp: newHp } : m))
@@ -429,6 +439,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       }
     })
     setEnemy(e)
+    if (playerDeathsThisTurn > 0) setPlayerGraveyardCount((c) => c + playerDeathsThisTurn)
     const nextP = { ...p }
     nextP.fieldFront = (nextP.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     nextP.hero = nextP.hero ? { ...nextP.hero, energy: (nextP.hero.energy ?? 0) + 1 } : null
@@ -520,7 +531,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
         {!isPlayer && (
           <>
             <span className="text-amber-400/90 text-[10px] sm:text-sm">獻祭 {enemySacrificePoints ?? 0}</span>
-            <span className="text-gray-400 text-[10px] sm:text-sm">牌庫 {enemyDeckRemaining ?? 0}/{DECK_SIZE}</span>
+            <span className="text-gray-400 text-[10px] sm:text-sm">牌庫 {enemyDeckRemaining ?? 0}</span>
             <span className="text-gray-400 text-[10px] sm:text-sm">手牌 {hand?.length ?? 0}</span>
           </>
         )}
@@ -760,19 +771,25 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
       <div className="p-2 sm:p-4 space-y-2 sm:space-y-4 max-w-2xl mx-auto">
         <div className="flex gap-2 sm:gap-4">
-        <div className="flex-shrink-0 flex flex-col items-center justify-end">
+        <div className="flex-shrink-0 flex flex-col items-center justify-end gap-2">
+          <div className="flex flex-col items-center" aria-label="墓地">
+            <span className="text-gray-500 text-[10px] sm:text-xs">墓地</span>
+            <div className="w-10 h-12 sm:w-12 sm:h-14 rounded-lg border-2 border-gray-600 bg-gray-800/90 flex items-center justify-center">
+              <span className="text-amber-400/90 font-mono text-xs sm:text-sm font-bold">{playerGraveyardCount}</span>
+            </div>
+          </div>
           <div className="relative w-12 h-14 sm:w-16 sm:h-20 flex items-center justify-center" aria-label="牌堆">
             <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
-              <CardBack cardBackUrl={cardBackUrl} className="w-full h-full rounded-lg" />
+              <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
             </div>
             <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
-              <CardBack cardBackUrl={cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
+              <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
             </div>
             <div className="absolute inset-0 rounded-lg border-2 border-amber-500 flex items-center justify-center bg-gray-800/90">
               <span className="text-amber-400/90 text-[10px] sm:text-xs font-bold">牌庫</span>
             </div>
           </div>
-          <p className="text-amber-400 font-mono text-xs sm:text-sm mt-1 font-semibold">{deckRemaining}/{DECK_SIZE}</p>
+          <p className="text-amber-400 font-mono text-xs sm:text-sm mt-1 font-semibold">{deckRemaining}</p>
         </div>
         <div className="flex-1 min-w-0 space-y-2 sm:space-y-4 min-h-0 flex flex-col">
           <Field
@@ -786,7 +803,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
             isPlayer={false}
             enemyDeckRemaining={enemyDeckRemaining}
             enemySacrificePoints={enemy.sacrificePoints ?? 0}
-            cardBackUrl={cardBackUrl}
+            cardBackUrl={enemyCardBackUrl ?? cardBackUrl}
             onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
             onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
           />
@@ -802,7 +819,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
             isPlayer={true}
             sacrificePoints={player.sacrificePoints ?? 0}
             drawInIndices={drawInIndices}
-            cardBackUrl={cardBackUrl}
+            cardBackUrl={playerCardBackUrl ?? cardBackUrl}
             onSelectHeroAttacker={canHeroAttack ? () => setSelectedAttacker(-1) : undefined}
             onUseHeroSkill={useHeroSkill}
             onSacrificeCard={sacrificeCard}

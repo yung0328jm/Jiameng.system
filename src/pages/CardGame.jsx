@@ -377,7 +377,8 @@ export default function CardGame({ onBack }) {
           playerDeck={deck}
           playerAccount={currentUser}
           onExit={() => { setBattleStarted(false); setBattleDeckId(null); refresh() }}
-          cardBackUrl={getEquippedCardBackUrl(currentUser) || getCardBackUrl()}
+          playerCardBackUrl={getEquippedCardBackUrl(currentUser) || getCardBackUrl()}
+          enemyCardBackUrl={getCardBackUrl()}
         />
       )
     }
@@ -421,7 +422,7 @@ export default function CardGame({ onBack }) {
         <div className="space-y-3">
           <p className="text-gray-400 text-sm">選擇牌組開始對戰（PvE 對電腦）</p>
           {decks.length === 0 ? (
-            <p className="text-gray-500">尚無牌組，請先到「牌組」組牌（1 張英雄 + 50 張牌）。</p>
+            <p className="text-gray-500">尚無牌組，請先到「牌組」組牌（1 張英雄 + 30～50 張牌，每張同名卡最多 4 張）。</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {decks.map((d) => {
@@ -445,7 +446,7 @@ export default function CardGame({ onBack }) {
 
       {tab === TAB_DECKS && currentUser && (
         <div className="space-y-3">
-          <p className="text-gray-400 text-sm">每個牌組：1 張英雄卡 + 50 張小怪／效果卡。</p>
+          <p className="text-gray-400 text-sm">每個牌組：1 張英雄卡 + 30～50 張小怪／效果卡（每張同名卡最多 4 張）。</p>
           <DeckList
             account={currentUser}
             decks={decks}
@@ -831,7 +832,7 @@ function DeckList({ account, decks, definitions, collection, onSave }) {
   const addToDeck = (cardId) => {
     const qty = getCollectionQty(account, cardId)
     const current = selectedCardIds.filter((id) => id === cardId).length
-    if (current >= qty) return
+    if (current >= Math.min(4, qty)) return // 每張同名卡最多 4 張
     if (selectedCardIds.length >= 50) return
     setSelectedCardIds((ids) => [...ids, cardId])
   }
@@ -843,7 +844,10 @@ function DeckList({ account, decks, definitions, collection, onSave }) {
   const save = () => {
     if (!deckName.trim()) { alert('請輸入牌組名稱'); return }
     if (!selectedHeroId) { alert('請選擇 1 張英雄'); return }
-    if (selectedCardIds.length !== 50) { alert('請剛好選擇 50 張牌'); return }
+    if (selectedCardIds.length < 30 || selectedCardIds.length > 50) { alert('請選擇 30～50 張牌'); return }
+    const countById = {}
+    selectedCardIds.forEach((id) => { countById[id] = (countById[id] || 0) + 1 })
+    if (Object.values(countById).some((c) => c > 4)) { alert('每張同名卡最多只能帶 4 張'); return }
     const deck = {
       id: editingDeckId === 'new' ? undefined : editingDeckId,
       name: deckName.trim(),
@@ -881,7 +885,7 @@ function DeckList({ account, decks, definitions, collection, onSave }) {
             </select>
           </div>
           <div>
-            <label className="text-gray-400 text-xs block mb-1">小怪／效果卡（已選 {selectedCardIds.length}/50）</label>
+            <label className="text-gray-400 text-xs block mb-1">小怪／效果卡（已選 {selectedCardIds.length}/30～50，每張最多 4 張）</label>
             <div className="flex flex-wrap gap-1 max-h-24 overflow-auto p-2 bg-gray-900 rounded">
               {selectedCardIds.map((id, i) => {
                 const card = getCardById(id)
@@ -897,7 +901,7 @@ function DeckList({ account, decks, definitions, collection, onSave }) {
               {others.map((c) => {
                 const inDeck = selectedCardIds.filter((id) => id === c.id).length
                 const owned = getCollectionQty(account, c.id)
-                const canAdd = inDeck < owned && selectedCardIds.length < 50
+                const canAdd = inDeck < Math.min(4, owned) && selectedCardIds.length < 50
                 return (
                   <button key={c.id} type="button" onClick={() => canAdd && addToDeck(c.id)} disabled={!canAdd} className={`px-2 py-1 rounded text-xs ${canAdd ? 'bg-gray-600 text-white hover:bg-gray-500' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}>
                     {c.name} x{inDeck}/{owned}
