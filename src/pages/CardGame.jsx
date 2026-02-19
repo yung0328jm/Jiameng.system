@@ -121,14 +121,22 @@ export default function CardGame({ onBack }) {
         alert(`佳盟幣不足，需要 ${price}`)
         return
       }
-      subtractWalletBalance(currentUser, price)
+      const res = subtractWalletBalance(currentUser, price)
+      if (res && res.success === false) {
+        alert(res.message || '扣款失敗')
+        return
+      }
     } else {
       const balance = getPointsBalance(currentUser)
       if (balance < price) {
         alert(`佳盟分不足，需要 ${price}`)
         return
       }
-      subtractPointsBalance(currentUser, price)
+      const res = subtractPointsBalance(currentUser, price)
+      if (res && res.success === false) {
+        alert(res.message || '扣款失敗')
+        return
+      }
     }
     addCardToCollection(currentUser, card.id, 1)
     refresh()
@@ -140,25 +148,41 @@ export default function CardGame({ onBack }) {
       alert('請先登入')
       return
     }
+    const pool = Array.isArray(pack.cardPool) ? pack.cardPool : []
+    if (pool.length === 0) {
+      alert('此卡包尚未設定卡池，請聯絡管理員')
+      return
+    }
     const price = Number(pack.price) || 0
+    if (price <= 0) {
+      alert('此卡包未設定售價')
+      return
+    }
     if (pack.currency === 'coin') {
       const balance = getWalletBalance(currentUser)
       if (balance < price) {
         alert(`佳盟幣不足，需要 ${price}`)
         return
       }
-      subtractWalletBalance(currentUser, price)
+      const res = subtractWalletBalance(currentUser, price)
+      if (res && res.success === false) {
+        alert(res.message || '扣款失敗')
+        return
+      }
     } else {
       const balance = getPointsBalance(currentUser)
       if (balance < price) {
         alert(`佳盟分不足，需要 ${price}`)
         return
       }
-      subtractPointsBalance(currentUser, price)
+      const res = subtractPointsBalance(currentUser, price)
+      if (res && res.success === false) {
+        alert(res.message || '扣款失敗')
+        return
+      }
     }
-    const pool = pack.cardPool || []
     const count = Math.min(pack.countPerPack || 1, pool.length)
-    for (let i = 0; i < count && pool.length > 0; i++) {
+    for (let i = 0; i < count; i++) {
       const idx = Math.floor(Math.random() * pool.length)
       const cardId = pool[idx]
       addCardToCollection(currentUser, cardId, 1)
