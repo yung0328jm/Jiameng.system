@@ -518,12 +518,17 @@ export default function CardGame({ onBack }) {
           </div>
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
             <h3 className="text-amber-400 text-sm mb-2">技能定義</h3>
-            <p className="text-gray-400 text-xs mb-3">英雄技能（耗能釋放）、效果卡／陷阱卡可套用。之後在對戰中實作效果邏輯（如：攻擊全場小怪 3 點）。</p>
-            <div className="flex flex-wrap gap-2 mb-3">
-              <input type="text" placeholder="技能名稱" value={skillForm.name} onChange={(e) => setSkillForm((f) => ({ ...f, name: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-32" />
+            <p className="text-gray-400 text-xs mb-3">名稱與描述僅供顯示；<strong className="text-amber-200">實際效果由「效果類型」決定</strong>，選「僅敘述」則釋放時不會有遊戲效果。</p>
+            <div className="flex flex-wrap gap-2 mb-3 items-center">
+              <input type="text" placeholder="技能名稱（顯示用）" value={skillForm.name} onChange={(e) => setSkillForm((f) => ({ ...f, name: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-32" />
               <input type="number" min={0} placeholder="耗能" value={skillForm.energyCost} onChange={(e) => setSkillForm((f) => ({ ...f, energyCost: e.target.value }))} className="w-16 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
-              <input type="text" placeholder="skillKey（選填）" value={skillForm.skillKey} onChange={(e) => setSkillForm((f) => ({ ...f, skillKey: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-36" />
-              <input type="text" placeholder="描述" value={skillForm.description} onChange={(e) => setSkillForm((f) => ({ ...f, description: e.target.value }))} className="flex-1 min-w-[120px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
+              <label className="text-gray-400 text-xs whitespace-nowrap">效果類型：</label>
+              <select value={skillForm.skillKey} onChange={(e) => setSkillForm((f) => ({ ...f, skillKey: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm min-w-[200px]">
+                <option value="">僅敘述（無實際效果）</option>
+                <option value="damage_all_minions_3">全體敵方小怪受到 3 點傷害</option>
+                <option value="damage_all_minions_5">全體敵方小怪受到 5 點傷害</option>
+              </select>
+              <input type="text" placeholder="描述（顯示用）" value={skillForm.description} onChange={(e) => setSkillForm((f) => ({ ...f, description: e.target.value }))} className="flex-1 min-w-[120px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
               <button type="button" onClick={handleSaveSkill} className="px-3 py-1.5 bg-amber-600 text-gray-900 rounded text-sm font-semibold">{editingSkillId ? '更新' : '新增技能'}</button>
               {editingSkillId && <button type="button" onClick={() => { setEditingSkillId(null); setSkillForm({ name: '', energyCost: 0, skillKey: '', description: '' }); }} className="px-3 py-1.5 bg-gray-600 text-white rounded text-sm">取消</button>}
             </div>

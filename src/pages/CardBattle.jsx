@@ -465,11 +465,14 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       hero: prev.hero ? { ...prev.hero, energy: (prev.hero.energy ?? 0) - energyCost } : null
     }))
     setMessage(`使用了「${skill.name}」`)
-    if (skill.skillKey === 'damage_all_minions_3') {
+    const key = skill.skillKey || ''
+    const damageAllMatch = key.match(/^damage_all_minions_(\d+)$/)
+    if (damageAllMatch) {
+      const damage = Math.max(0, parseInt(damageAllMatch[1], 10) || 3)
       setEnemy((prev) => ({
         ...prev,
         fieldFront: (prev.fieldFront || []).map((m) => {
-          const newHp = (m.currentHp ?? m.hp) - 3
+          const newHp = (m.currentHp ?? m.hp) - damage
           return newHp <= 0 ? null : { ...m, currentHp: newHp }
         }).filter(Boolean)
       }))
