@@ -682,6 +682,54 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const fieldFrontHasSpace = (player?.fieldFront?.length ?? 0) <= MAX_FRONT - 1
   const fieldBackHasSpace = (player?.fieldBack?.length ?? 0) <= MAX_BACK - 1
 
+  const renderHandDetailModal = () => {
+    if (handDetailIndex == null || !player?.hand?.[handDetailIndex]) return null
+    const card = player.hand[handDetailIndex]
+    const canSacrifice = phase === 'sacrifice'
+    const canPlayMinion = phase === 'play' && card?.type === 'minion' && (player.sacrificePoints ?? 0) >= (card?.cost ?? 0) && fieldFrontHasSpace
+    const canPlayBack = phase === 'play' && (card?.type === 'equipment' || card?.type === 'effect' || card?.type === 'trap') && (player.sacrificePoints ?? 0) >= (card?.cost ?? 0) && fieldBackHasSpace
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3"
+        onClick={() => setHandDetailIndex(null)}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className="bg-gray-800 rounded-xl border border-amber-600/60 shadow-xl max-w-[280px] w-full overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-3 flex justify-center">
+            <div className="scale-[1.8] origin-center pointer-events-none">
+              <BattleCard card={card} showCost attack={card?.attack} hp={card?.hp} className="cursor-default" />
+            </div>
+          </div>
+          <div className="mt-2 text-center text-white text-sm font-medium">{card?.name}</div>
+          <div className="mt-1 text-gray-400 text-xs text-center">
+            {card?.type === 'minion' && `小怪 · 攻${card?.attack ?? 0} 血${card?.hp ?? 0}`}
+            {card?.type === 'equipment' && `裝備 · 攻${card?.attack ?? 0}`}
+            {card?.type === 'effect' && '效果'}
+            {card?.type === 'trap' && '陷阱'}
+            {card?.cost != null && (card.cost || 0) >= 1 && ` · 消耗 ${card.cost} 獻祭點`}
+          </div>
+          {card?.description && <p className="mt-1 text-gray-500 text-[10px] text-center line-clamp-3">{card.description}</p>}
+          <div className="flex flex-wrap gap-2 p-3 border-t border-gray-700">
+            <button type="button" onClick={() => setHandDetailIndex(null)} className="flex-1 min-w-[60px] py-2 bg-gray-600 text-white rounded-lg text-xs font-medium touch-manipulation">關閉</button>
+            {canSacrifice && (
+              <button type="button" onClick={() => { sacrificeCard(handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-amber-600 text-gray-900 rounded-lg text-xs font-medium touch-manipulation">獻祭</button>
+            )}
+            {canPlayMinion && (
+              <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
+            )}
+            {canPlayBack && (
+              <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 ${playerHeroJustHit ? 'battle-screen-shake' : ''}`}>
       <style>{`
@@ -912,55 +960,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       </div>
 
       {/* 手牌預覽：點擊手牌放大，關閉／獻祭／出牌需按鈕確認 */}
-      {handDetailIndex != null && player?.hand?.[handDetailIndex] && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3"
-          onClick={() => setHandDetailIndex(null)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="bg-gray-800 rounded-xl border border-amber-600/60 shadow-xl max-w-[280px] w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-3 flex justify-center">
-              <div className="scale-[1.8] origin-center pointer-events-none">
-                <BattleCard
-                  card={player.hand[handDetailIndex]}
-                  showCost
-                  attack={player.hand[handDetailIndex]?.attack}
-                  hp={player.hand[handDetailIndex]?.hp}
-                  className="cursor-default"
-                />
-              </div>
-            </div>
-              <div className="mt-2 text-center text-white text-sm font-medium">{player.hand[handDetailIndex]?.name}</div>
-              <div className="mt-1 text-gray-400 text-xs text-center">
-                {player.hand[handDetailIndex]?.type === 'minion' && `小怪 · 攻${player.hand[handDetailIndex]?.attack ?? 0} 血${player.hand[handDetailIndex]?.hp ?? 0}`}
-                {player.hand[handDetailIndex]?.type === 'equipment' && `裝備 · 攻${player.hand[handDetailIndex]?.attack ?? 0}`}
-                {player.hand[handDetailIndex]?.type === 'effect' && '效果'}
-                {player.hand[handDetailIndex]?.type === 'trap' && '陷阱'}
-                {player.hand[handDetailIndex]?.cost != null && (player.hand[handDetailIndex].cost || 0) >= 1 && ` · 消耗 ${player.hand[handDetailIndex].cost} 獻祭點`}
-              </div>
-              {player.hand[handDetailIndex]?.description && (
-                <p className="mt-1 text-gray-500 text-[10px] text-center line-clamp-3">{player.hand[handDetailIndex].description}</p>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2 p-3 border-t border-gray-700">
-              <button type="button" onClick={() => setHandDetailIndex(null)} className="flex-1 min-w-[60px] py-2 bg-gray-600 text-white rounded-lg text-xs font-medium touch-manipulation">關閉</button>
-              {phase === 'sacrifice' && (
-                <button type="button" onClick={() => { sacrificeCard(handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-amber-600 text-gray-900 rounded-lg text-xs font-medium touch-manipulation">獻祭</button>
-              )}
-              {phase === 'play' && player.hand[handDetailIndex]?.type === 'minion' && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && fieldFrontHasSpace && (
-                <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
-              )}
-              {phase === 'play' && (player.hand[handDetailIndex]?.type === 'equipment' || player.hand[handDetailIndex]?.type === 'effect' || player.hand[handDetailIndex]?.type === 'trap') && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && fieldBackHasSpace && (
-                <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {renderHandDetailModal()}
     </div>
   )
 }
