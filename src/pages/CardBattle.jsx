@@ -123,9 +123,12 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const [playerGraveyardCount, setPlayerGraveyardCount] = useState(0)
   const [enemyGraveyardCount, setEnemyGraveyardCount] = useState(0)
   const [handDetailIndex, setHandDetailIndex] = useState(null) // 點擊手牌放大預覽，再點或關閉後可獻祭/出牌需按鈕確認
+  const [initialDrawComplete, setInitialDrawComplete] = useState(false)
   const prevHandLengthRef = useRef(0)
   const attackAnimTimeoutRef = useRef(null)
   const deathRemoveTimeoutRef = useRef(null)
+  const initialDrawStartedRef = useRef(false)
+  const initialDrawTimeoutRef = useRef(null)
 
   useEffect(() => {
     return () => { if (attackAnimTimeoutRef.current) clearTimeout(attackAnimTimeoutRef.current) }
@@ -134,11 +137,10 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   useEffect(() => {
     const pHero = getCard(playerDeck.heroId)
     const pDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
-    const { drawn: hand } = drawCards(pDeck, Math.min(HAND_SIZE_START, pDeck.length))
     const p = {
       hero: pHero ? { ...pHero, currentHp: pHero.hp, maxHp: pHero.hp, energy: 1 } : null,
       deck: pDeck,
-      hand,
+      hand: [],
       fieldFront: [],
       fieldBack: [],
       sacrificePoints: 0
@@ -156,7 +158,34 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     }
     setPlayer(p)
     setEnemy(e)
+    setInitialDrawComplete(false)
+    initialDrawStartedRef.current = false
   }, [])
+
+  useEffect(() => {
+    if (!player || initialDrawStartedRef.current) return
+    if (player.hand.length >= HAND_SIZE_START || player.deck.length === 0) return
+    initialDrawStartedRef.current = true
+    const drawOne = (step) => {
+      if (step >= HAND_SIZE_START) return
+      initialDrawTimeoutRef.current = setTimeout(() => {
+        setPlayer((prev) => {
+          if (!prev.deck.length || prev.hand.length >= HAND_SIZE_START) return prev
+          const card = prev.deck[0]
+          return {
+            ...prev,
+            deck: prev.deck.slice(1),
+            hand: [...prev.hand, card]
+          }
+        })
+        drawOne(step + 1)
+      }, step === 0 ? 400 : 500)
+    }
+    drawOne(0)
+    return () => {
+      if (initialDrawTimeoutRef.current) clearTimeout(initialDrawTimeoutRef.current)
+    }
+  }, [player?.hand?.length, player?.deck?.length])
 
   useEffect(() => {
     if (!player || !enemy) return
@@ -169,6 +198,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   useEffect(() => {
     if (!player?.hand) return
     const len = player.hand.length
+    if (len >= HAND_SIZE_START) setInitialDrawComplete(true)
     if (len > prevHandLengthRef.current) {
       const newIndices = []
       for (let i = prevHandLengthRef.current; i < len; i++) newIndices.push(i)
@@ -179,7 +209,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
 
   useEffect(() => {
     if (drawInIndices.length === 0) return
-    const t = setTimeout(() => setDrawInIndices([]), 700)
+    const t = setTimeout(() => setDrawInIndices([]), 750)
     return () => clearTimeout(t)
   }, [drawInIndices])
 
@@ -656,7 +686,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
                 <div
                   key={i}
                   className={`${(drawInIndices || []).includes(i) ? 'card-draw-in' : ''} ${handDetailIndex === i ? 'ring-2 ring-amber-400 rounded' : ''}`}
-                  style={(drawInIndices || []).includes(i) ? { animationDelay: `${Math.min(i, 4) * 80}ms` } : undefined}
+                  style={(drawInIndices || []).includes(i) ? { animationDelay: '0ms' } : undefined}
                 >
                   <BattleCard
                     card={c}
@@ -734,10 +764,11 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     <div className={`h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 ${playerHeroJustHit ? 'battle-screen-shake' : ''}`}>
       <style>{`
         @keyframes cardDrawIn {
-          from { transform: translateX(-90px) scale(0.85); opacity: 0.7; }
-          to { transform: translateX(0) scale(1); opacity: 1; }
+          0% { transform: translate(-160px, 40px) scale(0.45) rotate(-12deg); opacity: 0.4; }
+          55% { transform: translate(-40px, 8px) scale(0.92) rotate(-2deg); opacity: 0.95; }
+          100% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
         }
-        .card-draw-in { animation: cardDrawIn 0.4s ease-out forwards; }
+        .card-draw-in { animation: cardDrawIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
         @keyframes cardAttackLunge {
           0% { transform: translateY(0) scale(1); }
           35% { transform: translateY(-12px) scale(1.08); }
@@ -830,7 +861,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
           <h3 className="text-amber-300 font-bold text-sm sm:text-base truncate">對戰中</h3>
           <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-[10px] sm:text-xs px-2 py-1.5 rounded border border-gray-600 flex-shrink-0 min-h-[36px] touch-manipulation">離開</button>
         </div>
-        {message && <p className="text-amber-100/90 text-[10px] sm:text-xs truncate mt-0.5">{message}</p>}
+        <p className="text-amber-100/90 text-[10px] sm:text-xs truncate mt-0.5">{initialDrawComplete ? message : '抽牌中...'}</p>
       </div>
       {/* 中間：對戰場地，可捲動 */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
