@@ -6,6 +6,11 @@ import {
   addCardDefinition,
   updateCardDefinition,
   deleteCardDefinition,
+  getSkillDefinitions,
+  addSkillDefinition,
+  updateSkillDefinition,
+  deleteSkillDefinition,
+  getSkillById,
   getCardById,
   getCollection,
   addCardToCollection,
@@ -95,8 +100,32 @@ export default function CardGame({ onBack }) {
   const [editingCardId, setEditingCardId] = useState(null)
   const [cardForm, setCardForm] = useState({
     name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '',
-    cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin'
+    cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin',
+    skills: [], useCount: 1, skillKey: ''
   })
+  const [skillDefinitions, setSkillDefinitions] = useState([])
+  const [editingSkillId, setEditingSkillId] = useState(null)
+  const [skillForm, setSkillForm] = useState({ name: '', energyCost: 0, skillKey: '', description: '' })
+  useEffect(() => {
+    if (tab === TAB_ADMIN) setSkillDefinitions(getSkillDefinitions())
+  }, [tab])
+  const handleSaveSkill = () => {
+    if (!skillForm.name.trim()) { alert('請輸入技能名稱'); return }
+    if (editingSkillId) {
+      updateSkillDefinition(editingSkillId, { ...skillForm, energyCost: Number(skillForm.energyCost) || 0 })
+      setEditingSkillId(null)
+    } else {
+      addSkillDefinition({ ...skillForm, energyCost: Number(skillForm.energyCost) || 0 })
+    }
+    setSkillForm({ name: '', energyCost: 0, skillKey: '', description: '' })
+    setSkillDefinitions(getSkillDefinitions())
+  }
+  const handleDeleteSkill = (id) => {
+    if (!window.confirm('確定刪除此技能？')) return
+    deleteSkillDefinition(id)
+    if (editingSkillId === id) setEditingSkillId(null)
+    setSkillDefinitions(getSkillDefinitions())
+  }
 
   useEffect(() => {
     setCurrentUser(getCurrentUser() || '')
@@ -134,6 +163,12 @@ export default function CardGame({ onBack }) {
     }
   }
 
+  const defaultCardForm = () => ({
+    name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '',
+    cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin',
+    skills: [], useCount: 1, skillKey: ''
+  })
+
   const handleSaveCard = () => {
     if (!cardForm.name.trim()) {
       alert('請輸入卡牌名稱')
@@ -150,14 +185,14 @@ export default function CardGame({ onBack }) {
       const res = updateCardDefinition(editingCardId, payload)
       if (res.success) {
         setEditingCardId(null)
-        setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin' })
+        setCardForm(defaultCardForm())
         refresh()
         alert('已更新')
       } else alert(res.message)
     } else {
       const res = addCardDefinition(payload)
       if (res.success) {
-        setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin' })
+        setCardForm(defaultCardForm())
         refresh()
         alert('已新增')
       } else alert(res.message)
@@ -401,7 +436,7 @@ export default function CardGame({ onBack }) {
             )}
             <h3 className="text-white font-semibold text-lg mt-2">{collectionDetail.card.name}</h3>
             <p className="text-gray-400 text-sm mt-1">持有 x{collectionDetail.quantity}</p>
-            <p className="text-amber-400 text-xs mt-1">{collectionDetail.card.type === 'hero' ? '英雄' : collectionDetail.card.type === 'minion' ? '小怪' : '效果'}</p>
+            <p className="text-amber-400 text-xs mt-1">{collectionDetail.card.type === 'hero' ? '英雄' : collectionDetail.card.type === 'minion' ? '小怪' : collectionDetail.card.type === 'equipment' ? '裝備' : collectionDetail.card.type === 'trap' ? '陷阱' : '效果'}</p>
             {(collectionDetail.card.attack != null || collectionDetail.card.hp != null) && (
               <p className="text-gray-300 text-sm mt-1">攻擊 {collectionDetail.card.attack ?? '-'} · 血量 {collectionDetail.card.hp ?? '-'}</p>
             )}
@@ -481,6 +516,30 @@ export default function CardGame({ onBack }) {
               </div>
             )}
           </div>
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <h3 className="text-amber-400 text-sm mb-2">技能定義</h3>
+            <p className="text-gray-400 text-xs mb-3">英雄技能（耗能釋放）、效果卡／陷阱卡可套用。之後在對戰中實作效果邏輯（如：攻擊全場小怪 3 點）。</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <input type="text" placeholder="技能名稱" value={skillForm.name} onChange={(e) => setSkillForm((f) => ({ ...f, name: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-32" />
+              <input type="number" min={0} placeholder="耗能" value={skillForm.energyCost} onChange={(e) => setSkillForm((f) => ({ ...f, energyCost: e.target.value }))} className="w-16 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
+              <input type="text" placeholder="skillKey（選填）" value={skillForm.skillKey} onChange={(e) => setSkillForm((f) => ({ ...f, skillKey: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-36" />
+              <input type="text" placeholder="描述" value={skillForm.description} onChange={(e) => setSkillForm((f) => ({ ...f, description: e.target.value }))} className="flex-1 min-w-[120px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
+              <button type="button" onClick={handleSaveSkill} className="px-3 py-1.5 bg-amber-600 text-gray-900 rounded text-sm font-semibold">{editingSkillId ? '更新' : '新增技能'}</button>
+              {editingSkillId && <button type="button" onClick={() => { setEditingSkillId(null); setSkillForm({ name: '', energyCost: 0, skillKey: '', description: '' }); }} className="px-3 py-1.5 bg-gray-600 text-white rounded text-sm">取消</button>}
+            </div>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {skillDefinitions.map((s) => (
+                <div key={s.id} className="flex items-center gap-2 p-2 bg-gray-700 rounded text-sm">
+                  <span className="text-amber-200 font-medium">{s.name}</span>
+                  <span className="text-gray-400">耗{s.energyCost}</span>
+                  {s.skillKey && <span className="text-gray-500 text-xs">{s.skillKey}</span>}
+                  <span className="text-gray-500 text-xs truncate flex-1">{s.description}</span>
+                  <button type="button" onClick={() => { setEditingSkillId(s.id); setSkillForm({ name: s.name, energyCost: s.energyCost, skillKey: s.skillKey || '', description: s.description || '' }); }} className="text-amber-400 text-xs">編輯</button>
+                  <button type="button" onClick={() => handleDeleteSkill(s.id)} className="text-red-400 text-xs">刪除</button>
+                </div>
+              ))}
+            </div>
+          </div>
           <h3 className="text-white font-semibold">卡牌定義</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
@@ -490,20 +549,55 @@ export default function CardGame({ onBack }) {
                 <select value={cardForm.type} onChange={(e) => setCardForm((f) => ({ ...f, type: e.target.value }))} className="w-full bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white">
                   <option value="hero">英雄</option>
                   <option value="minion">小怪</option>
+                  <option value="equipment">裝備</option>
                   <option value="effect">效果</option>
+                  <option value="trap">陷阱</option>
                 </select>
                 <input type="text" placeholder="封面圖片 URL" value={cardForm.coverImage} onChange={(e) => setCardForm((f) => ({ ...f, coverImage: e.target.value }))} className="w-full bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                 <input type="text" placeholder="描述" value={cardForm.description} onChange={(e) => setCardForm((f) => ({ ...f, description: e.target.value }))} className="w-full bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <input type="number" placeholder="攻擊" value={cardForm.attack} onChange={(e) => setCardForm((f) => ({ ...f, attack: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                   <input type="number" placeholder="血量" value={cardForm.hp} onChange={(e) => setCardForm((f) => ({ ...f, hp: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                   <input type="number" min={0} placeholder="出場點數" value={cardForm.cost} onChange={(e) => setCardForm((f) => ({ ...f, cost: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" title="打出此牌需消耗的獻祭點數（每回合獻祭 1 張手牌得 1 點）" />
+                  {cardForm.type === 'equipment' && (
+                    <input type="number" min={1} placeholder="使用次數" value={cardForm.useCount} onChange={(e) => setCardForm((f) => ({ ...f, useCount: e.target.value }))} className="w-24 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" title="裝備可發動攻擊的次數" />
+                  )}
                 </div>
-                <label className="flex items-center gap-2 text-gray-300 text-sm">
-                  <input type="checkbox" checked={cardForm.canAttackHeroDirect} onChange={(e) => setCardForm((f) => ({ ...f, canAttackHeroDirect: e.target.checked }))} className="rounded" />
-                  特殊技能：場上有小怪時也可直擊英雄
-                </label>
-                <input type="text" placeholder="技能說明" value={cardForm.skillText} onChange={(e) => setCardForm((f) => ({ ...f, skillText: e.target.value }))} className="w-full bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
+                {cardForm.type === 'hero' && (
+                  <div className="space-y-1">
+                    <div className="text-amber-300 text-xs">技能組（每回合累積 1 能量，消耗能量釋放）</div>
+                    {(cardForm.skills || []).map((s, i) => {
+                      const sk = getSkillById(s.skillId)
+                      return (
+                        <div key={i} className="flex items-center gap-2 flex-wrap">
+                          <select value={s.skillId} onChange={(e) => setCardForm((f) => ({ ...f, skills: f.skills.map((x, j) => j === i ? { ...x, skillId: e.target.value } : x) }))} className="flex-1 min-w-[120px] bg-gray-700 border border-gray-500 rounded px-2 py-1 text-white text-xs">
+                            <option value="">— 選擇技能 —</option>
+                            {skillDefinitions.map((skd) => <option key={skd.id} value={skd.id}>{skd.name}（耗{skd.energyCost}）</option>)}
+                          </select>
+                          <input type="number" min={0} placeholder="耗能" value={s.energyCost} onChange={(e) => setCardForm((f) => ({ ...f, skills: f.skills.map((x, j) => j === i ? { ...x, energyCost: Number(e.target.value) || 0 } : x) }))} className="w-14 bg-gray-700 border border-gray-500 rounded px-2 py-1 text-white text-xs" />
+                          <button type="button" onClick={() => setCardForm((f) => ({ ...f, skills: f.skills.filter((_, j) => j !== i) }))} className="text-red-400 text-xs">移除</button>
+                        </div>
+                      )
+                    })}
+                    <button type="button" onClick={() => setCardForm((f) => ({ ...f, skills: [...(f.skills || []), { skillId: skillDefinitions[0]?.id || '', energyCost: 0 }] }))} className="text-amber-400 text-xs">+ 新增技能</button>
+                  </div>
+                )}
+                {(cardForm.type === 'effect' || cardForm.type === 'trap') && (
+                  <div>
+                    <label className="text-gray-400 text-xs">觸發後套用技能（之後新增技能組）</label>
+                    <select value={cardForm.skillKey} onChange={(e) => setCardForm((f) => ({ ...f, skillKey: e.target.value }))} className="w-full bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white mt-0.5">
+                      <option value="">— 選擇技能 —</option>
+                      {skillDefinitions.map((s) => <option key={s.id} value={s.skillKey || s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                {(cardForm.type === 'minion' || cardForm.type === 'equipment') && (
+                  <label className="flex items-center gap-2 text-gray-300 text-sm">
+                    <input type="checkbox" checked={cardForm.canAttackHeroDirect} onChange={(e) => setCardForm((f) => ({ ...f, canAttackHeroDirect: e.target.checked }))} className="rounded" />
+                    可直擊英雄（小怪/裝備）
+                  </label>
+                )}
+                <input type="text" placeholder="技能說明／描述" value={cardForm.skillText} onChange={(e) => setCardForm((f) => ({ ...f, skillText: e.target.value }))} className="w-full bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                 <div className="flex gap-2 items-center">
                   <input type="number" placeholder="售價（留空不上架）" value={cardForm.price} onChange={(e) => setCardForm((f) => ({ ...f, price: e.target.value }))} className="flex-1 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                   <select value={cardForm.priceCurrency} onChange={(e) => setCardForm((f) => ({ ...f, priceCurrency: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white">
@@ -513,7 +607,7 @@ export default function CardGame({ onBack }) {
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={handleSaveCard} className="px-3 py-1.5 bg-yellow-500 text-gray-900 rounded text-sm font-semibold">保存</button>
-                  {editingCardId && <button type="button" onClick={() => { setEditingCardId(null); setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin' }); }} className="px-3 py-1.5 bg-gray-600 text-white rounded text-sm">取消</button>}
+                  {editingCardId && <button type="button" onClick={() => { setEditingCardId(null); setCardForm(defaultCardForm()); }} className="px-3 py-1.5 bg-gray-600 text-white rounded text-sm">取消</button>}
                 </div>
               </div>
             </div>
@@ -523,9 +617,14 @@ export default function CardGame({ onBack }) {
                   {c.coverImage ? <img src={c.coverImage} alt="" className="w-10 h-14 object-cover rounded" /> : <div className="w-10 h-14 bg-gray-600 rounded" />}
                   <div className="flex-1 min-w-0">
                     <div className="text-white font-medium truncate">{c.name}</div>
-                    <div className="text-gray-400 text-xs">{c.type} · 攻{c.attack} 血{c.hp}</div>
+                    <div className="text-gray-400 text-xs">
+                      {c.type === 'hero' && `英雄 · 血${c.hp}`}
+                      {c.type === 'minion' && `小怪 · 攻${c.attack} 血${c.hp}`}
+                      {c.type === 'equipment' && `裝備 · 攻${c.attack} 次${c.useCount ?? 1}`}
+                      {(c.type === 'effect' || c.type === 'trap') && c.type}
+                    </div>
                   </div>
-                  <button type="button" onClick={() => { setEditingCardId(c.id); setCardForm({ name: c.name, type: c.type, coverImage: c.coverImage || '', description: c.description || '', attack: c.attack, hp: c.hp, skillText: c.skillText || '', cost: c.cost ?? 0, canAttackHeroDirect: !!c.canAttackHeroDirect, price: c.price != null ? c.price : '', priceCurrency: c.priceCurrency || 'coin' }); }} className="text-amber-400 text-xs">編輯</button>
+                  <button type="button" onClick={() => { setEditingCardId(c.id); setCardForm({ name: c.name, type: c.type || 'minion', coverImage: c.coverImage || '', description: c.description || '', attack: c.attack, hp: c.hp, skillText: c.skillText || '', cost: c.cost ?? 0, canAttackHeroDirect: !!c.canAttackHeroDirect, price: c.price != null ? c.price : '', priceCurrency: c.priceCurrency || 'coin', skills: Array.isArray(c.skills) ? c.skills.map((s) => ({ skillId: s.skillId, energyCost: s.energyCost ?? 0 })) : [], useCount: c.useCount ?? 1, skillKey: c.skillKey ?? '' }); }} className="text-amber-400 text-xs">編輯</button>
                   <button type="button" onClick={() => handleDeleteCard(c.id)} className="text-red-400 text-xs">刪除</button>
                 </div>
               ))}
