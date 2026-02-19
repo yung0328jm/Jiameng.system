@@ -527,6 +527,7 @@ export default function CardGame({ onBack }) {
                 <option value="">僅敘述（無實際效果）</option>
                 <option value="damage_all_minions_3">全體敵方小怪受到 3 點傷害</option>
                 <option value="damage_all_minions_5">全體敵方小怪受到 5 點傷害</option>
+                <option value="heal_hero_3">回復己方英雄 3 點血量</option>
               </select>
               <input type="text" placeholder="描述（顯示用）" value={skillForm.description} onChange={(e) => setSkillForm((f) => ({ ...f, description: e.target.value }))} className="flex-1 min-w-[120px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
               <button type="button" onClick={handleSaveSkill} className="px-3 py-1.5 bg-amber-600 text-gray-900 rounded text-sm font-semibold">{editingSkillId ? '更新' : '新增技能'}</button>

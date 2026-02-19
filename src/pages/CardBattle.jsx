@@ -467,6 +467,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
     setMessage(`使用了「${skill.name}」`)
     const key = skill.skillKey || ''
     const damageAllMatch = key.match(/^damage_all_minions_(\d+)$/)
+    const healHeroMatch = key.match(/^heal_hero_(\d+)$/)
     if (damageAllMatch) {
       const damage = Math.max(0, parseInt(damageAllMatch[1], 10) || 3)
       setEnemy((prev) => ({
@@ -475,6 +476,15 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
           const newHp = (m.currentHp ?? m.hp) - damage
           return newHp <= 0 ? null : { ...m, currentHp: newHp }
         }).filter(Boolean)
+      }))
+    } else if (healHeroMatch && player?.hero) {
+      const heal = Math.max(0, parseInt(healHeroMatch[1], 10) || 3)
+      const maxHp = player.hero.maxHp ?? player.hero.hp ?? 0
+      const currentHp = player.hero.currentHp ?? player.hero.hp ?? 0
+      const newHp = Math.min(maxHp, currentHp + heal)
+      setPlayer((prev) => ({
+        ...prev,
+        hero: prev.hero ? { ...prev.hero, currentHp: newHp } : null
       }))
     }
   }
