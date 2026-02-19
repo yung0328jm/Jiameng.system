@@ -1,5 +1,6 @@
 // 卡牌對戰：回合制 PvE，英雄血量歸 0 即敗
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { getCardById, getSkillById } from '../utils/cardGameStorage.js'
 
 const MAX_FRONT = 5  // 前排小怪數量上限
@@ -718,19 +719,19 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     const canSacrifice = phase === 'sacrifice'
     const canPlayMinion = phase === 'play' && card?.type === 'minion' && (player.sacrificePoints ?? 0) >= (card?.cost ?? 0) && fieldFrontHasSpace
     const canPlayBack = phase === 'play' && (card?.type === 'equipment' || card?.type === 'effect' || card?.type === 'trap') && (player.sacrificePoints ?? 0) >= (card?.cost ?? 0) && fieldBackHasSpace
-    return (
+    const modalContent = (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
         onClick={() => setHandDetailIndex(null)}
         role="dialog"
         aria-modal="true"
       >
         <div
-          className="bg-gray-800 rounded-xl border border-amber-600/60 shadow-xl max-w-[280px] w-full overflow-hidden"
+          className="bg-gray-800 rounded-xl border border-amber-600/60 shadow-xl max-w-[320px] w-full overflow-visible"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="p-3 flex justify-center">
-            <div className="scale-[1.8] origin-center pointer-events-none">
+          <div className="p-4 flex justify-center overflow-visible">
+            <div className="scale-[1.8] origin-center pointer-events-none overflow-visible">
               <BattleCard card={card} showCost attack={card?.attack} hp={card?.hp} className="cursor-default" />
             </div>
           </div>
@@ -758,6 +759,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         </div>
       </div>
     )
+    return typeof document !== 'undefined' && document.body ? createPortal(modalContent, document.body) : modalContent
   }
 
   return (
