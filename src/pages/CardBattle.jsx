@@ -125,6 +125,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const [playerGraveyardCount, setPlayerGraveyardCount] = useState(0)
   const [enemyGraveyardCount, setEnemyGraveyardCount] = useState(0)
   const [handDetailIndex, setHandDetailIndex] = useState(null) // 點擊手牌放大預覽，再點或關閉後可獻祭/出牌需按鈕確認
+  const [viewDetail, setViewDetail] = useState(null) // { type: 'hero', side } | { type: 'field', side, row, index } 點擊英雄或場上卡瀏覽
   const [initialDrawComplete, setInitialDrawComplete] = useState(false)
   const prevHandLengthRef = useRef(0)
   const prevEnemyHandLengthRef = useRef(0)
@@ -612,7 +613,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     })
   }
 
-  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion, onHandCardClick, handDetailIndex, handCardCompact }) => (
+  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onViewHero, onViewField, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion, onHandCardClick, handDetailIndex, handCardCompact }) => (
     <div className={`rounded-lg border border-amber-900/50 overflow-hidden flex-shrink-0 min-h-0 flex flex-col ${isPlayer ? 'bg-gradient-to-b from-gray-900/80 to-gray-800/60' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/80'}`}>
       <div className="px-1.5 py-0.5 sm:px-2 sm:py-1 flex items-center gap-1 sm:gap-2 flex-wrap border-b border-amber-800/40">
         <span className="text-amber-200/90 font-medium text-[10px] sm:text-xs">{side === 'player' ? '我方' : '敵方'}</span>
@@ -638,8 +639,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               <HeroSlot
                 hero={hero}
                 isTarget={onSelectTargetHero && side === 'enemy'}
-                onClick={onSelectTargetHero && side === 'enemy' ? onSelectTargetHero : (onSelectHeroAttacker && side === 'player' ? onSelectHeroAttacker : undefined)}
-                className={side === 'enemy' && !onSelectTargetHero ? 'opacity-75 cursor-default' : 'cursor-pointer'}
+                onClick={onViewHero ? () => onViewHero(side) : (onSelectTargetHero && side === 'enemy' ? onSelectTargetHero : (onSelectHeroAttacker && side === 'player' ? onSelectHeroAttacker : undefined))}
+                className={onViewHero ? 'cursor-pointer' : (side === 'enemy' && !onSelectTargetHero ? 'opacity-75 cursor-default' : 'cursor-pointer')}
                 hitAnim={lastAttack?.targetSide === side && lastAttack?.targetHero === true}
               />
             )}
@@ -677,7 +678,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
                 dimmed={isPlayer && phase === 'attack' && m.canAttack === false}
                 attackAnim={lastAttack?.attackerSide === side && lastAttack?.attackerIndex === i}
                 hitAnim={lastAttack?.targetSide === side && lastAttack?.targetHero === false && lastAttack?.targetIndex === i}
-                onClick={() => {
+                onClick={onViewField ? () => onViewField(side, 'front', i) : () => {
                   const canAttack = m.canAttack !== false
                   if (isPlayer && phase === 'attack' && turn === 'player' && m.attack > 0 && canAttack) {
                     setSelectedAttacker(selectedAttacker === i ? null : i)
@@ -706,6 +707,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
                   currentHp={slot.currentUseCount != null ? slot.currentUseCount : undefined}
                   maxHp={slot.card?.type === 'equipment' ? slot.card.useCount : undefined}
                   className="opacity-90"
+                  onClick={onViewField ? () => onViewField(side, 'back', i) : undefined}
                 />
               )
             ))}
@@ -760,6 +762,151 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const playerHeroJustHit = lastAttack?.targetSide === 'player' && lastAttack?.targetHero === true
   const fieldFrontHasSpace = (player?.fieldFront?.length ?? 0) <= MAX_FRONT - 1
   const fieldBackHasSpace = (player?.fieldBack?.length ?? 0) <= MAX_BACK - 1
+
+  const closeView = () => setViewDetail(null)
+
+  const renderViewDetailModal = () => {
+    if (!viewDetail) return null
+    const isPlayerTurn = turn === 'player'
+    const inAttackPhase = phase === 'attack'
+
+    if (viewDetail.type === 'hero') {
+      const side = viewDetail.side
+      const hero = side === 'player' ? player?.hero : enemy?.hero
+      if (!hero) return null
+      const skills = hero.skills || []
+      const modalContent = (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
+          onClick={closeView}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-gray-800 rounded-xl border border-amber-600/60 shadow-xl max-w-[320px] w-full overflow-visible"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3 flex justify-center">
+              <HeroSlot hero={hero} className="scale-110 cursor-default pointer-events-none border-amber-500/70" />
+            </div>
+            <div className="text-center text-amber-200 font-medium">{hero.name}</div>
+            <div className="text-gray-400 text-xs text-center mt-0.5">
+              HP {hero.currentHp ?? hero.hp} / {hero.maxHp ?? hero.hp}
+              {side === 'player' && hero.energy != null && ` · 能量 ${hero.energy}`}
+            </div>
+            {hero.description && <p className="mt-2 text-gray-500 text-[10px] text-center px-2 line-clamp-3">{hero.description}</p>}
+            {skills.length > 0 && (
+              <div className="mt-2 px-3 pb-2 border-t border-gray-700 pt-2">
+                <div className="text-gray-500 text-[9px] mb-1">技能</div>
+                {skills.map((s, i) => {
+                  const sk = getSkillById(s.skillId)
+                  const slotCost = Number(s.energyCost)
+                  const defCost = Number(sk?.energyCost)
+                  const cost = Math.max(0, (slotCost > 0 ? slotCost : defCost) || 0)
+                  return sk ? (
+                    <div key={i} className="text-left text-[10px] text-gray-300 mb-1">
+                      <span className="font-medium text-amber-200/90">{sk.name}</span>
+                      {cost >= 1 && <span className="text-amber-400/80">（耗 {cost}）</span>}
+                      {sk.description && <div className="text-gray-500 text-[9px] mt-0.5">{sk.description}</div>}
+                    </div>
+                  ) : null
+                })}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 p-3 border-t border-gray-700">
+              <button type="button" onClick={closeView} className="flex-1 min-w-[60px] py-2 bg-gray-600 text-white rounded-lg text-xs font-medium touch-manipulation">關閉</button>
+              {side === 'enemy' && inAttackPhase && isPlayerTurn && selectedAttacker != null && canAttackEnemyHero && (
+                <button
+                  type="button"
+                  onClick={() => { handleSelectAttackTargetHero(); closeView(); }}
+                  className="flex-1 min-w-[80px] py-2 bg-red-600 text-white rounded-lg text-xs font-medium touch-manipulation"
+                >
+                  選為攻擊目標
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+      return typeof document !== 'undefined' && document.body ? createPortal(modalContent, document.body) : modalContent
+    }
+
+    if (viewDetail.type === 'field') {
+      const { side, row, index } = viewDetail
+      const front = side === 'player' ? (player?.fieldFront || []) : (enemy?.fieldFront || [])
+      const back = side === 'player' ? (player?.fieldBack || []) : (enemy?.fieldBack || [])
+      const isFront = row === 'front'
+      const slot = isFront ? front[index] : back[index]
+      const card = isFront ? slot : slot?.card
+      const isBackSlot = !isFront && slot?.faceDown
+      if (isBackSlot || (!slot && !card)) return null
+      const m = isFront ? slot : null
+      const attack = m?.attack ?? card?.attack ?? 0
+      const currentHp = isFront ? (m?.currentHp ?? card?.hp) : (slot?.currentUseCount ?? slot?.card?.useCount)
+      const maxHp = isFront ? (m?.maxHp ?? card?.hp) : (slot?.card?.type === 'equipment' ? slot?.card?.useCount : undefined)
+      const canSelectAsAttacker = isPlayerTurn && inAttackPhase && side === 'player' && isFront && m?.attack > 0 && m?.canAttack !== false
+      const canSelectAsTarget = isPlayerTurn && inAttackPhase && side === 'enemy' && isFront
+      const modalContent = (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
+          onClick={closeView}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-gray-800 rounded-xl border border-amber-600/60 shadow-xl max-w-[320px] w-full overflow-visible"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 flex justify-center overflow-visible">
+              <div className="scale-[1.8] origin-center pointer-events-none overflow-visible">
+                <BattleCard
+                  card={card}
+                  showCost
+                  attack={attack}
+                  currentHp={currentHp}
+                  maxHp={maxHp}
+                  dying={m?.dying}
+                  className="cursor-default"
+                />
+              </div>
+            </div>
+            <div className="mt-2 text-center text-white text-sm font-medium">{card?.name}</div>
+            <div className="mt-1 text-gray-400 text-xs text-center">
+              {card?.type === 'minion' && `小怪 · 攻${attack ?? 0} 血${maxHp ?? 0}`}
+              {card?.type === 'equipment' && `裝備 · 攻${card?.attack ?? 0}`}
+              {card?.type === 'effect' && '效果'}
+              {card?.type === 'trap' && '陷阱'}
+              {card?.cost != null && (card.cost || 0) >= 1 && ` · 消耗 ${card.cost} 獻祭點`}
+            </div>
+            {card?.description && <p className="mt-1 text-gray-500 text-[10px] text-center line-clamp-4 px-2">{card.description}</p>}
+            <div className="flex flex-wrap gap-2 p-3 border-t border-gray-700">
+              <button type="button" onClick={closeView} className="flex-1 min-w-[60px] py-2 bg-gray-600 text-white rounded-lg text-xs font-medium touch-manipulation">關閉</button>
+              {canSelectAsAttacker && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedAttacker(index); closeView(); }}
+                  className="flex-1 min-w-[80px] py-2 bg-amber-600 text-gray-900 rounded-lg text-xs font-medium touch-manipulation"
+                >
+                  選為攻擊者
+                </button>
+              )}
+              {canSelectAsTarget && (
+                <button
+                  type="button"
+                  onClick={() => { handleSelectAttackTarget('enemy', index); closeView(); }}
+                  className="flex-1 min-w-[80px] py-2 bg-red-600 text-white rounded-lg text-xs font-medium touch-manipulation"
+                >
+                  選為攻擊目標
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+      return typeof document !== 'undefined' && document.body ? createPortal(modalContent, document.body) : modalContent
+    }
+    return null
+  }
 
   const renderHandDetailModal = () => {
     if (handDetailIndex == null || !player?.hand?.[handDetailIndex]) return null
@@ -950,6 +1097,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               enemyDeckRemaining={enemyDeckRemaining}
               enemySacrificePoints={enemy.sacrificePoints ?? 0}
               cardBackUrl={enemyCardBackUrl ?? cardBackUrl}
+              onViewHero={(s) => setViewDetail({ type: 'hero', side: s })}
+              onViewField={(s, row, idx) => setViewDetail({ type: 'field', side: s, row, index: idx })}
               onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
               onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
             />
@@ -989,14 +1138,16 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               sacrificePoints={player.sacrificePoints ?? 0}
               drawInIndices={drawInIndices}
               cardBackUrl={playerCardBackUrl ?? cardBackUrl}
+              onViewHero={(s) => setViewDetail({ type: 'hero', side: s })}
+              onViewField={(s, row, idx) => setViewDetail({ type: 'field', side: s, row, index: idx })}
               onSelectHeroAttacker={canHeroAttack ? () => setSelectedAttacker(-1) : undefined}
               onUseHeroSkill={useHeroSkill}
-            onSacrificeCard={sacrificeCard}
-            onPlayMinion={(i) => playMinion('player', i)}
-            onHandCardClick={(i) => setHandDetailIndex((prev) => (prev === i ? null : i))}
-            handDetailIndex={handDetailIndex}
-            handCardCompact={true}
-          />
+              onSacrificeCard={sacrificeCard}
+              onPlayMinion={(i) => playMinion('player', i)}
+              onHandCardClick={(i) => setHandDetailIndex((prev) => (prev === i ? null : i))}
+              handDetailIndex={handDetailIndex}
+              handCardCompact={true}
+            />
           </div>
         </div>
       </div>
@@ -1043,6 +1194,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
 
       {/* 手牌預覽：點擊手牌放大，關閉／獻祭／出牌需按鈕確認 */}
       {renderHandDetailModal()}
+      {renderViewDetailModal()}
     </div>
   )
 }
