@@ -3,6 +3,7 @@ import { syncKeyToSupabase } from './supabaseSync.js'
 
 const CARD_DEFINITIONS_KEY = 'jiameng_card_definitions'
 const CARD_COLLECTION_KEY = 'jiameng_card_collection'
+const CARD_COLLECTION_LAST_WRITE_KEY = 'jiameng_card_collection_last_write'
 const CARD_DECKS_KEY = 'jiameng_card_decks'
 const CARD_SHOP_KEY = 'jiameng_card_shop'
 
@@ -79,6 +80,9 @@ export const getCollection = (account) => {
 const persistCollection = (data) => {
   const val = JSON.stringify(data)
   localStorage.setItem(CARD_COLLECTION_KEY, val)
+  try {
+    localStorage.setItem(CARD_COLLECTION_LAST_WRITE_KEY, String(Date.now()))
+  } catch (_) {}
   syncKeyToSupabase(CARD_COLLECTION_KEY, val)
 }
 
