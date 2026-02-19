@@ -89,7 +89,7 @@ export default function CardGame({ onBack }) {
   const [editingCardId, setEditingCardId] = useState(null)
   const [cardForm, setCardForm] = useState({
     name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '',
-    price: '', priceCurrency: 'coin'
+    cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin'
   })
 
   useEffect(() => {
@@ -137,20 +137,21 @@ export default function CardGame({ onBack }) {
       ...cardForm,
       attack: Number(cardForm.attack) || 0,
       hp: Number(cardForm.hp) || 0,
+      cost: Math.max(0, Number(cardForm.cost) ?? 0),
       price: cardForm.price === '' ? null : Number(cardForm.price)
     }
     if (editingCardId) {
       const res = updateCardDefinition(editingCardId, payload)
       if (res.success) {
         setEditingCardId(null)
-        setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', price: '', priceCurrency: 'coin' })
+        setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin' })
         refresh()
         alert('已更新')
       } else alert(res.message)
     } else {
       const res = addCardDefinition(payload)
       if (res.success) {
-        setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', price: '', priceCurrency: 'coin' })
+        setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin' })
         refresh()
         alert('已新增')
       } else alert(res.message)
@@ -469,7 +470,12 @@ export default function CardGame({ onBack }) {
                 <div className="flex gap-2">
                   <input type="number" placeholder="攻擊" value={cardForm.attack} onChange={(e) => setCardForm((f) => ({ ...f, attack: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                   <input type="number" placeholder="血量" value={cardForm.hp} onChange={(e) => setCardForm((f) => ({ ...f, hp: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
+                  <input type="number" min={0} placeholder="獻祭點數" value={cardForm.cost} onChange={(e) => setCardForm((f) => ({ ...f, cost: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" title="出牌時需消耗的獻祭點數" />
                 </div>
+                <label className="flex items-center gap-2 text-gray-300 text-sm">
+                  <input type="checkbox" checked={cardForm.canAttackHeroDirect} onChange={(e) => setCardForm((f) => ({ ...f, canAttackHeroDirect: e.target.checked }))} className="rounded" />
+                  特殊技能：場上有小怪時也可直擊英雄
+                </label>
                 <input type="text" placeholder="技能說明" value={cardForm.skillText} onChange={(e) => setCardForm((f) => ({ ...f, skillText: e.target.value }))} className="w-full bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                 <div className="flex gap-2 items-center">
                   <input type="number" placeholder="售價（留空不上架）" value={cardForm.price} onChange={(e) => setCardForm((f) => ({ ...f, price: e.target.value }))} className="flex-1 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
@@ -480,7 +486,7 @@ export default function CardGame({ onBack }) {
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={handleSaveCard} className="px-3 py-1.5 bg-yellow-500 text-gray-900 rounded text-sm font-semibold">保存</button>
-                  {editingCardId && <button type="button" onClick={() => { setEditingCardId(null); setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', price: '', priceCurrency: 'coin' }); }} className="px-3 py-1.5 bg-gray-600 text-white rounded text-sm">取消</button>}
+                  {editingCardId && <button type="button" onClick={() => { setEditingCardId(null); setCardForm({ name: '', type: 'minion', coverImage: '', description: '', attack: 0, hp: 0, skillText: '', cost: 0, canAttackHeroDirect: false, price: '', priceCurrency: 'coin' }); }} className="px-3 py-1.5 bg-gray-600 text-white rounded text-sm">取消</button>}
                 </div>
               </div>
             </div>
@@ -492,7 +498,7 @@ export default function CardGame({ onBack }) {
                     <div className="text-white font-medium truncate">{c.name}</div>
                     <div className="text-gray-400 text-xs">{c.type} · 攻{c.attack} 血{c.hp}</div>
                   </div>
-                  <button type="button" onClick={() => { setEditingCardId(c.id); setCardForm({ name: c.name, type: c.type, coverImage: c.coverImage || '', description: c.description || '', attack: c.attack, hp: c.hp, skillText: c.skillText || '', price: c.price != null ? c.price : '', priceCurrency: c.priceCurrency || 'coin' }); }} className="text-amber-400 text-xs">編輯</button>
+                  <button type="button" onClick={() => { setEditingCardId(c.id); setCardForm({ name: c.name, type: c.type, coverImage: c.coverImage || '', description: c.description || '', attack: c.attack, hp: c.hp, skillText: c.skillText || '', cost: c.cost ?? 0, canAttackHeroDirect: !!c.canAttackHeroDirect, price: c.price != null ? c.price : '', priceCurrency: c.priceCurrency || 'coin' }); }} className="text-amber-400 text-xs">編輯</button>
                   <button type="button" onClick={() => handleDeleteCard(c.id)} className="text-red-400 text-xs">刪除</button>
                 </div>
               ))}
