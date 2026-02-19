@@ -160,7 +160,8 @@ export const APP_DATA_KEYS = [
   'jiameng_card_definitions',
   'jiameng_card_collection',
   'jiameng_card_decks',
-  'jiameng_card_shop'
+  'jiameng_card_shop',
+  'jiameng_card_back_url'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */

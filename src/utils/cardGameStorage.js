@@ -233,3 +233,22 @@ export const deleteShopPack = (packId) => {
   syncKeyToSupabase(CARD_SHOP_KEY, val)
   return { success: true }
 }
+
+// --- 卡套背面（對戰時手牌/牌堆背面圖，可販售）---
+const CARD_BACK_URL_KEY = 'jiameng_card_back_url'
+
+export const getCardBackUrl = () => {
+  try {
+    const url = localStorage.getItem(CARD_BACK_URL_KEY)
+    return url != null ? String(url).trim() : ''
+  } catch (e) {
+    return ''
+  }
+}
+
+export const setCardBackUrl = (url) => {
+  const val = url != null ? String(url).trim() : ''
+  localStorage.setItem(CARD_BACK_URL_KEY, val)
+  syncKeyToSupabase(CARD_BACK_URL_KEY, val)
+  return { success: true }
+}
