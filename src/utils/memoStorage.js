@@ -1,4 +1,5 @@
 // 交流區存储工具
+// 原則：訊息發布後不自動刪除，僅管理員手動「清除對話」可清空
 import { syncKeyToSupabase } from './supabaseSync'
 const MEMO_STORAGE_KEY = 'jiameng_memos'
 const MEMO_BACKUP_KEY = 'jiameng_memos_backup'
@@ -94,13 +95,10 @@ export const getTopicMessages = (topicId) => {
   }
 }
 
-// 添加消息到话题
+// 添加消息到话题（不自動清理舊訊息，僅管理員可清除）
 export const addMessage = (topicId, messageContent, author = '使用者') => {
   try {
-    // 先清理超過 24 小時的訊息，避免資料持續膨脹
-    const topicsRaw = getTopics()
-    const { next: topicsPruned, changed } = pruneTopicMessages(topicsRaw)
-    const topics = topicsPruned
+    const topics = getTopics()
     const topicIndex = topics.findIndex(t => t.id === topicId)
     if (topicIndex === -1) {
       return { success: false, message: '話題不存在' }
@@ -114,7 +112,6 @@ export const addMessage = (topicId, messageContent, author = '使用者') => {
     }
     
     topics[topicIndex].messages.push(newMessage)
-    // 若 prune 有變更，或新增了訊息，都需要寫回
     persist(topics)
     return { success: true, message: newMessage }
   } catch (error) {
@@ -173,7 +170,7 @@ export const getOrCreateGlobalTopic = () => {
   return globalTopic
 }
 
-// 清理超過 24 小時的交流區訊息（所有 topics 皆適用；主要針對 global 對話框）
+// 清理超過 24 小時的交流區訊息（僅供管理員選用，預設不再自動呼叫）
 export const cleanExpiredMessages = () => {
   try {
     const topics = getTopics()
@@ -187,8 +184,6 @@ export const cleanExpiredMessages = () => {
 }
 
 export const getGlobalMessages = () => {
-  // 讀取前先清理一天以前的訊息
-  cleanExpiredMessages()
   const topic = getOrCreateGlobalTopic()
   const msgs = Array.isArray(topic.messages) ? topic.messages : []
   return msgs
@@ -196,8 +191,6 @@ export const getGlobalMessages = () => {
 
 export const addGlobalMessage = (messageContent, author = '使用者') => {
   getOrCreateGlobalTopic()
-  // 新增前先清理一天以前的訊息
-  cleanExpiredMessages()
   return addMessage(GLOBAL_TOPIC_ID, messageContent, author)
 }
 

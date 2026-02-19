@@ -396,7 +396,7 @@ export async function syncFromSupabase() {
     ;(appRes.data || []).forEach((r) => {
       try {
         const key = r.key
-        // 待辦與交流區：只要本機有寫過（含空陣列 []）就不覆寫，避免刪光或刪一筆後被雲端舊資料蓋回
+        // 待辦：本機有寫過就不覆寫。交流區：本機有寫過就不覆寫，訊息僅能由管理員手動清除
         if (key === 'jiameng_todos' || key === 'jiameng_memos') {
           const existing = localStorage.getItem(key)
           if (existing != null) return
@@ -553,22 +553,19 @@ export async function refreshMemosFromSupabase() {
       })
       return Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
     }
+    // 交流區：合併時絕不縮減訊息，僅管理員手動清除可清空
     ;[...existing, ...incoming].forEach((t) => {
       const tid = String(t?.id ?? '').trim()
       if (!tid) return
       const prev = byTopicId.get(tid)
-      const incomingEmpty = tid === 'global' && Array.isArray(t?.messages) && t.messages.length === 0
-      const localHasMessages = Array.isArray(prev?.messages) && prev.messages.length > 0
-      const dontWipeWithEmpty = tid === 'global' && incomingEmpty && localHasMessages
+      const prevMsgs = Array.isArray(prev?.messages) ? prev.messages : []
+      const incMsgs = Array.isArray(t?.messages) ? t.messages : []
+      const mergedMsgs = mergeTopicMessages(prevMsgs, incMsgs)
       if (!prev) {
-        byTopicId.set(tid, { ...t, messages: (incomingEmpty && !dontWipeWithEmpty) ? [] : mergeTopicMessages(t?.messages || [], []) })
+        byTopicId.set(tid, { ...t, messages: mergedMsgs })
         return
       }
-      byTopicId.set(tid, {
-        ...prev,
-        ...t,
-        messages: dontWipeWithEmpty ? mergeTopicMessages(prev?.messages || [], t?.messages || []) : (incomingEmpty ? [] : mergeTopicMessages(prev?.messages || [], t?.messages || []))
-      })
+      byTopicId.set(tid, { ...prev, ...t, messages: mergedMsgs })
     })
     const merged = Array.from(byTopicId.values())
     localStorage.setItem(MEMOS_KEY, JSON.stringify(merged))

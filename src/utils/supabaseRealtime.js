@@ -416,22 +416,19 @@ export function subscribeRealtime(onUpdate) {
                   })
                   return Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
                 }
+                // 交流區：合併時絕不縮減訊息，僅管理員手動清除可清空
                 ;[...existing, ...incoming].forEach((t) => {
                   const tid = String(t?.id ?? '').trim()
                   if (!tid) return
                   const prev = byTopicId.get(tid)
-                  const incomingEmpty = tid === 'global' && Array.isArray(t?.messages) && t.messages.length === 0
-                  const localHasMessages = Array.isArray(prev?.messages) && prev.messages.length > 0
-                  const dontWipeWithEmpty = tid === 'global' && incomingEmpty && localHasMessages
+                  const prevMsgs = Array.isArray(prev?.messages) ? prev.messages : []
+                  const incMsgs = Array.isArray(t?.messages) ? t.messages : []
+                  const mergedMsgs = mergeTopicMessages(prevMsgs, incMsgs)
                   if (!prev) {
-                    byTopicId.set(tid, { ...t, messages: (incomingEmpty && !dontWipeWithEmpty) ? [] : mergeTopicMessages(t?.messages || [], []) })
+                    byTopicId.set(tid, { ...t, messages: mergedMsgs })
                     return
                   }
-                  byTopicId.set(tid, {
-                    ...prev,
-                    ...t,
-                    messages: dontWipeWithEmpty ? mergeTopicMessages(prev?.messages || [], t?.messages || []) : (incomingEmpty ? [] : mergeTopicMessages(prev?.messages || [], t?.messages || []))
-                  })
+                  byTopicId.set(tid, { ...prev, ...t, messages: mergedMsgs })
                 })
                 const merged = Array.from(byTopicId.values())
                 const val = JSON.stringify(merged)
@@ -567,6 +564,13 @@ export function subscribeRealtime(onUpdate) {
                 if (lastWrite && (Date.now() - lastWrite < 8000)) return
                 const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
                 const val = JSON.stringify(incoming)
+                localStorage.setItem(key, val)
+                notifyKey(key)
+              } else if (key === 'jiameng_card_collection') {
+                // 牌庫：剛寫入 8 秒內不覆寫，避免購買卡包後被雲端/Realtime 舊資料蓋回
+                const lastWrite = parseInt(localStorage.getItem('jiameng_card_collection_last_write') || '', 10)
+                if (lastWrite && (Date.now() - lastWrite < 8000)) return
+                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
                 localStorage.setItem(key, val)
                 notifyKey(key)
               } else if (key === 'jiameng_todos') {
