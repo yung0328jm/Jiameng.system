@@ -1,9 +1,10 @@
 // 卡牌對戰：回合制 PvE，英雄血量歸 0 即敗
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getCardById } from '../utils/cardGameStorage.js'
 
 const MAX_FIELD = 5
 const HAND_SIZE_START = 5
+const DECK_SIZE = 50
 const DRAW_PER_TURN = 1
 
 function buildDeckForBattle(heroId, cardIds, getCard) {
@@ -36,6 +37,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
   const [message, setMessage] = useState('請獻祭一張手牌（點擊手牌）')
   const [gameOver, setGameOver] = useState(null) // 'win' | 'lose'
   const [selectedAttacker, setSelectedAttacker] = useState(null)
+  const [drawInIndices, setDrawInIndices] = useState([])
+  const prevHandLengthRef = useRef(0)
 
   useEffect(() => {
     const pHero = getCard(playerDeck.heroId)
@@ -68,16 +71,31 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
     if (enemy.hero && enemy.hero.currentHp <= 0) setGameOver('win')
   }, [player?.hero?.currentHp, enemy?.hero?.currentHp])
 
+  useEffect(() => {
+    if (!player?.hand) return
+    const len = player.hand.length
+    if (len > prevHandLengthRef.current) {
+      const newIndices = []
+      for (let i = prevHandLengthRef.current; i < len; i++) newIndices.push(i)
+      setDrawInIndices(newIndices)
+    }
+    prevHandLengthRef.current = len
+  }, [player?.hand?.length])
+
+  useEffect(() => {
+    if (drawInIndices.length === 0) return
+    const t = setTimeout(() => setDrawInIndices([]), 700)
+    return () => clearTimeout(t)
+  }, [drawInIndices])
+
   const sacrificeCard = (handIndex) => {
     if (turn !== 'player' || phase !== 'sacrifice') return
     const card = player.hand[handIndex]
     if (!card) return
-    const cost = card.cost ?? 0
-    const gain = Math.max(1, 1 + cost)
     const newHand = player.hand.filter((_, i) => i !== handIndex)
-    setPlayer((prev) => ({ ...prev, hand: newHand, sacrificePoints: (prev.sacrificePoints || 0) + gain }))
+    setPlayer((prev) => ({ ...prev, hand: newHand, sacrificePoints: (prev.sacrificePoints || 0) + 1 }))
     setPhase('play')
-    setMessage(`獻祭了「${card.name}」，獲得 ${gain} 點獻祭點數。出牌或進入攻擊階段`)
+    setMessage(`獻祭了「${card.name}」，獲得 1 點獻祭點數。累積足夠點數才能打出卡牌（出場點數）。出牌或進入攻擊階段`)
   }
 
   const playMinion = (side, handIndex) => {
@@ -201,9 +219,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
     }
     const sacrificeIdx = e.hand.findIndex((c) => c && c.type !== 'hero')
     if (sacrificeIdx !== -1) {
-      const sac = e.hand[sacrificeIdx]
-      const cost = sac.cost ?? 0
-      e.sacrificePoints = (e.sacrificePoints || 0) + Math.max(1, 1 + cost)
+      e.sacrificePoints = (e.sacrificePoints || 0) + 1
       e.hand = e.hand.filter((_, i) => i !== sacrificeIdx)
     }
     while (e.field.length < MAX_FIELD && e.hand.some((c) => c.type !== 'hero')) {
@@ -279,7 +295,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
 
   const canAttackEnemyHero = enemy.field.length === 0
 
-  const Field = ({ side, hero, field, hand, isPlayer, sacrificePoints, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSacrificeCard, onPlayMinion }) => (
+  const Field = ({ side, hero, field, hand, isPlayer, sacrificePoints, drawInIndices, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSacrificeCard, onPlayMinion }) => (
     <div className="space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-gray-400 text-sm">{side === 'player' ? '我方' : '敵方'}</span>
@@ -324,7 +340,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
               key={i}
               type="button"
               onClick={() => phase === 'sacrifice' ? (onSacrificeCard && onSacrificeCard(i)) : (onPlayMinion && onPlayMinion(i))}
-              className={`w-14 h-20 rounded border text-left p-0.5 overflow-hidden ${phase === 'sacrifice' ? 'bg-amber-900/30 border-amber-600 hover:border-amber-400' : 'bg-gray-600 border-gray-500 hover:border-yellow-500'}`}
+              className={`w-14 h-20 rounded border text-left p-0.5 overflow-hidden ${phase === 'sacrifice' ? 'bg-amber-900/30 border-amber-600 hover:border-amber-400' : 'bg-gray-600 border-gray-500 hover:border-yellow-500'} ${(drawInIndices || []).includes(i) ? 'card-draw-in' : ''}`}
+              style={(drawInIndices || []).includes(i) ? { animationDelay: `${Math.min(i, 4) * 80}ms` } : undefined}
             >
               <div className="text-white text-[10px] truncate">{c.name}</div>
               <div className="text-[10px] text-amber-400">攻{c.attack} 血{c.hp}</div>
@@ -336,33 +353,57 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
     </div>
   )
 
+  const deckRemaining = player?.deck?.length ?? 0
+
   return (
     <div className="p-4 space-y-4">
+      <style>{`
+        @keyframes cardDrawIn {
+          from { transform: translateX(-90px) scale(0.85); opacity: 0.7; }
+          to { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        .card-draw-in { animation: cardDrawIn 0.4s ease-out forwards; }
+      `}</style>
       <div className="flex justify-between items-center">
         <h3 className="text-yellow-400 font-bold">對戰中</h3>
         <button type="button" onClick={onExit} className="text-gray-400 text-sm">離開</button>
       </div>
       {message && <p className="text-gray-300 text-sm">{message}</p>}
-      <Field
-        side="enemy"
-        hero={enemy.hero}
-        field={enemy.field}
-        hand={enemy.hand}
-        isPlayer={false}
-        onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
-        onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
-      />
-      <hr className="border-gray-600" />
-      <Field
-        side="player"
-        hero={player.hero}
-        field={player.field}
-        hand={player.hand}
-        isPlayer={true}
-        sacrificePoints={player.sacrificePoints ?? 0}
-        onSacrificeCard={sacrificeCard}
-        onPlayMinion={(i) => playMinion('player', i)}
-      />
+      <div className="flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center justify-end">
+          <div className="relative w-16 h-20 flex items-center justify-center" aria-label="牌堆">
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg border-2 border-amber-600/60 shadow-lg" style={{ transform: 'translateY(2px)' }} />
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-600 to-gray-700 rounded-lg border-2 border-amber-500/40" style={{ transform: 'translateY(4px)' }} />
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border-2 border-amber-500 flex items-center justify-center">
+              <span className="text-amber-400/90 text-xs font-bold">牌庫</span>
+            </div>
+          </div>
+          <p className="text-amber-400 font-mono text-sm mt-2 font-semibold">{deckRemaining}/{DECK_SIZE}</p>
+        </div>
+        <div className="flex-1 min-w-0 space-y-4">
+          <Field
+            side="enemy"
+            hero={enemy.hero}
+            field={enemy.field}
+            hand={enemy.hand}
+            isPlayer={false}
+            onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
+            onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
+          />
+          <hr className="border-gray-600" />
+          <Field
+            side="player"
+            hero={player.hero}
+            field={player.field}
+            hand={player.hand}
+            isPlayer={true}
+            sacrificePoints={player.sacrificePoints ?? 0}
+            drawInIndices={drawInIndices}
+            onSacrificeCard={sacrificeCard}
+            onPlayMinion={(i) => playMinion('player', i)}
+          />
+        </div>
+      </div>
       <div className="flex gap-2 flex-wrap items-center">
         {phase === 'sacrifice' && (
           <>
@@ -380,7 +421,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
         )}
       </div>
       <p className="text-gray-500 text-xs">
-        每回合須獻祭一張手牌獲得獻祭點數；出牌需消耗對應獻祭點數。敵方場上有小怪時無法直接攻擊英雄（特殊技能卡除外）。
+        每回合獻祭一張手牌固定獲得 1 點獻祭點數；出牌須消耗該牌的「出場點數」（管理員設定），累積足夠才能打出。敵方場上有小怪時無法直接攻擊英雄（特殊技能卡除外）。
       </p>
     </div>
   )

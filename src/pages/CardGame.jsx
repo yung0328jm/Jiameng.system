@@ -470,7 +470,7 @@ export default function CardGame({ onBack }) {
                 <div className="flex gap-2">
                   <input type="number" placeholder="攻擊" value={cardForm.attack} onChange={(e) => setCardForm((f) => ({ ...f, attack: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                   <input type="number" placeholder="血量" value={cardForm.hp} onChange={(e) => setCardForm((f) => ({ ...f, hp: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
-                  <input type="number" min={0} placeholder="獻祭點數" value={cardForm.cost} onChange={(e) => setCardForm((f) => ({ ...f, cost: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" title="出牌時需消耗的獻祭點數" />
+                  <input type="number" min={0} placeholder="出場點數" value={cardForm.cost} onChange={(e) => setCardForm((f) => ({ ...f, cost: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" title="打出此牌需消耗的獻祭點數（每回合獻祭 1 張手牌得 1 點）" />
                 </div>
                 <label className="flex items-center gap-2 text-gray-300 text-sm">
                   <input type="checkbox" checked={cardForm.canAttackHeroDirect} onChange={(e) => setCardForm((f) => ({ ...f, canAttackHeroDirect: e.target.checked }))} className="rounded" />
