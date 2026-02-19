@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, cleanExpiredMessages, clearGlobalMessages, getTopics, restoreMemosFromBackup } from '../utils/memoStorage'
+import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, clearGlobalMessages, getTopics, restoreMemosFromBackup } from '../utils/memoStorage'
 import { refreshMemosFromSupabase, syncKeyToSupabase, fetchRedEnvelopeConfigFromSupabase } from '../utils/supabaseSync'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
@@ -116,8 +116,6 @@ function Memo() {
 
   const loadMessages = () => {
     getOrCreateGlobalTopic()
-    // 交流區：只保留一天內容
-    cleanExpiredMessages()
     const next = getGlobalMessages()
     // 避免資料沒變卻重設 state，導致使用者滑動時一直被觸發「自動捲到底」
     setMessages((prev) => {
@@ -191,17 +189,7 @@ function Memo() {
     return () => clearInterval(interval)
   }, [])
 
-  // 交流區：定期清理超過 24 小時訊息（即使沒人發話也會自動刪除）
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const r = cleanExpiredMessages()
-      if (r?.changed) loadMessages()
-    }, 60 * 1000) // 每分鐘檢查一次
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // 交流區：輪詢備援，Realtime 未送達時仍能及時看到他人訊息（每 4 秒拉一次雲端並合併）
+  // 交流區：輪詢備援，Realtime 未送達時仍能及時看到他人訊息（每 4 秒拉一次雲端並合併，合併時不縮減訊息）
   useEffect(() => {
     const poll = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
