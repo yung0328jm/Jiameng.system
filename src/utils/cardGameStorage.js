@@ -207,6 +207,7 @@ export const saveShopPack = (pack) => {
   const newPack = {
     id,
     name: pack.name || '卡包',
+    coverImage: pack.coverImage || '',
     price: Number(pack.price) || 0,
     currency: pack.currency || 'coin',
     cardPool: Array.isArray(pack.cardPool) ? pack.cardPool : [],
