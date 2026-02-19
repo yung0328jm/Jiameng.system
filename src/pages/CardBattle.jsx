@@ -679,6 +679,9 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const enemyDeckRemaining = enemy?.deck?.length ?? 0
 
   const playerHeroJustHit = lastAttack?.targetSide === 'player' && lastAttack?.targetHero === true
+  const fieldFrontHasSpace = (player?.fieldFront?.length ?? 0) <= MAX_FRONT - 1
+  const fieldBackHasSpace = (player?.fieldBack?.length ?? 0) <= MAX_BACK - 1
+
   return (
     <div className={`h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 ${playerHeroJustHit ? 'battle-screen-shake' : ''}`}>
       <style>{`
@@ -948,10 +951,10 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               {phase === 'sacrifice' && (
                 <button type="button" onClick={() => { sacrificeCard(handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-amber-600 text-gray-900 rounded-lg text-xs font-medium touch-manipulation">獻祭</button>
               )}
-              {phase === 'play' && player.hand[handDetailIndex]?.type === 'minion' && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && (player.fieldFront?.length ?? 0) <= MAX_FRONT - 1 && (
+              {phase === 'play' && player.hand[handDetailIndex]?.type === 'minion' && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && fieldFrontHasSpace && (
                 <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
               )}
-              {phase === 'play' && (player.hand[handDetailIndex]?.type === 'equipment' || player.hand[handDetailIndex]?.type === 'effect' || player.hand[handDetailIndex]?.type === 'trap') && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && (player.fieldBack?.length ?? 0) <= MAX_BACK - 1 && (
+              {phase === 'play' && (player.hand[handDetailIndex]?.type === 'equipment' || player.hand[handDetailIndex]?.type === 'effect' || player.hand[handDetailIndex]?.type === 'trap') && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && fieldBackHasSpace && (
                 <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
               )}
             </div>
