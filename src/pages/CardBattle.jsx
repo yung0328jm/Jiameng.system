@@ -40,7 +40,7 @@ function CardBack({ cardBackUrl, className = '' }) {
   )
 }
 
-function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, selected, dimmed, onClick, className = '', attackAnim, hitAnim }) {
+function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, selected, dimmed, onClick, className = '', attackAnim, hitAnim, dying }) {
   const atk = attack ?? card?.attack ?? 0
   const health = currentHp ?? hp ?? card?.hp ?? 0
   const maxHealth = maxHp ?? card?.maxHp ?? card?.hp ?? 0
@@ -49,8 +49,8 @@ function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, sele
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`relative w-14 h-[72px] sm:w-[72px] sm:h-[96px] md:w-[80px] md:h-[108px] rounded-xl overflow-visible border-2 shadow-lg transition-all ${selected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-amber-700/60 hover:border-amber-500'} ${dimmed ? 'opacity-60' : ''} ${attackAnim ? 'card-attack-lunge' : ''} ${hitAnim ? 'card-hit' : ''} ${className}`}
+      onClick={dying ? undefined : onClick}
+      className={`relative w-14 h-[72px] sm:w-[72px] sm:h-[96px] md:w-[80px] md:h-[108px] rounded-xl overflow-visible border-2 shadow-lg transition-all ${selected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-amber-700/60 hover:border-amber-500'} ${dimmed ? 'opacity-60' : ''} ${attackAnim ? 'card-attack-lunge' : ''} ${hitAnim ? 'card-hit' : ''} ${dying ? 'card-death pointer-events-none' : ''} ${className}`}
     >
       <div className="absolute inset-0 rounded-[10px] overflow-hidden bg-gray-900">
         {cover ? (
@@ -114,6 +114,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
   const [hintOpen, setHintOpen] = useState(false)
   const prevHandLengthRef = useRef(0)
   const attackAnimTimeoutRef = useRef(null)
+  const deathRemoveTimeoutRef = useRef(null)
 
   useEffect(() => {
     return () => { if (attackAnimTimeoutRef.current) clearTimeout(attackAnimTimeoutRef.current) }
@@ -170,6 +171,22 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
     const t = setTimeout(() => setDrawInIndices([]), 700)
     return () => clearTimeout(t)
   }, [drawInIndices])
+
+  useEffect(() => {
+    const hasDying = (arr) => Array.isArray(arr) && arr.some((m) => m?.dying === true)
+    if (!player || !enemy) return
+    if (!hasDying(player.fieldFront) && !hasDying(enemy.fieldFront)) {
+      deathRemoveTimeoutRef.current = null
+      return
+    }
+    if (deathRemoveTimeoutRef.current != null) return
+    deathRemoveTimeoutRef.current = setTimeout(() => {
+      deathRemoveTimeoutRef.current = null
+      setPlayer((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((m) => !m.dying) }))
+      setEnemy((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((m) => !m.dying) }))
+    }, 700)
+    return () => {}
+  }, [player?.fieldFront, enemy?.fieldFront])
 
   const sacrificeCard = (handIndex) => {
     if (turn !== 'player' || phase !== 'sacrifice') return
@@ -283,9 +300,17 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       const targetFieldIndex = targetFieldIndexOrHero
       if (newHp <= 0) {
         if (targetSide === 'player') {
-          setPlayer((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((_, i) => i !== targetFieldIndex) }))
+          setPlayer((prev) => {
+            const f = [...(prev.fieldFront || [])]
+            if (f[targetFieldIndex]) f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: 0, dying: true }
+            return { ...prev, fieldFront: f }
+          })
         } else {
-          setEnemy((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((_, i) => i !== targetFieldIndex) }))
+          setEnemy((prev) => {
+            const f = [...(prev.fieldFront || [])]
+            if (f[targetFieldIndex]) f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: 0, dying: true }
+            return { ...prev, fieldFront: f }
+          })
         }
       } else {
         if (targetSide === 'player') {
@@ -455,38 +480,37 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
   const canHeroAttack = playerBack.some((s) => s.card?.type === 'equipment' && (s.currentUseCount ?? s.card?.useCount ?? 0) > 0)
 
   const useHeroSkill = (skillId, energyCost) => {
+    const cost = Math.max(0, Number(energyCost) || 0)
     if (turn !== 'player' || !player?.hero) return
     const energy = player.hero.energy ?? 0
-    if (energy < energyCost) return
+    if (energy < cost) return
     const skill = getSkillById(skillId)
     if (!skill) return
-    setPlayer((prev) => ({
-      ...prev,
-      hero: prev.hero ? { ...prev.hero, energy: (prev.hero.energy ?? 0) - energyCost } : null
-    }))
-    setMessage(`使用了「${skill.name}」`)
     const key = skill.skillKey || ''
     const damageAllMatch = key.match(/^damage_all_minions_(\d+)$/)
     const healHeroMatch = key.match(/^heal_hero_(\d+)$/)
+    setMessage(`使用了「${skill.name}」`)
     if (damageAllMatch) {
       const damage = Math.max(0, parseInt(damageAllMatch[1], 10) || 3)
       setEnemy((prev) => ({
         ...prev,
         fieldFront: (prev.fieldFront || []).map((m) => {
           const newHp = (m.currentHp ?? m.hp) - damage
-          return newHp <= 0 ? null : { ...m, currentHp: newHp }
-        }).filter(Boolean)
-      }))
-    } else if (healHeroMatch && player?.hero) {
-      const heal = Math.max(0, parseInt(healHeroMatch[1], 10) || 3)
-      const maxHp = player.hero.maxHp ?? player.hero.hp ?? 0
-      const currentHp = player.hero.currentHp ?? player.hero.hp ?? 0
-      const newHp = Math.min(maxHp, currentHp + heal)
-      setPlayer((prev) => ({
-        ...prev,
-        hero: prev.hero ? { ...prev.hero, currentHp: newHp } : null
+          return newHp <= 0 ? { ...m, currentHp: 0, dying: true } : { ...m, currentHp: newHp }
+        })
       }))
     }
+    setPlayer((prev) => {
+      const newEnergy = (prev.hero?.energy ?? 0) - cost
+      let heroUpdate = prev.hero ? { ...prev.hero, energy: Math.max(0, newEnergy) } : null
+      if (healHeroMatch && heroUpdate) {
+        const heal = Math.max(0, parseInt(healHeroMatch[1], 10) || 3)
+        const maxHp = heroUpdate.maxHp ?? heroUpdate.hp ?? 0
+        const currentHp = heroUpdate.currentHp ?? heroUpdate.hp ?? 0
+        heroUpdate = { ...heroUpdate, currentHp: Math.min(maxHp, currentHp + heal) }
+      }
+      return { ...prev, hero: heroUpdate }
+    })
   }
 
   const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion }) => (
@@ -527,7 +551,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
             <span className="text-gray-500 text-[10px]">英雄技能：</span>
             {(heroSkills || []).map((s, i) => {
               const sk = getSkillById(s.skillId)
-              const cost = s.energyCost ?? sk?.energyCost ?? 0
+              const cost = Math.max(0, Number(s.energyCost ?? sk?.energyCost ?? 0))
               const canUse = (heroEnergy ?? 0) >= cost
               return sk ? (
                 <button key={i} type="button" onClick={() => canUse && onUseHeroSkill?.(s.skillId, cost)} disabled={!canUse} className={`px-2 py-1 rounded text-xs ${canUse ? 'bg-amber-600 text-gray-900' : 'bg-gray-700 text-gray-500'}`}>
@@ -547,6 +571,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
                 attack={m.attack}
                 currentHp={m.currentHp}
                 maxHp={m.maxHp}
+                dying={m.dying}
                 selected={isPlayer && phase === 'attack' && selectedAttacker === i}
                 dimmed={isPlayer && phase === 'attack' && m.canAttack === false}
                 attackAnim={lastAttack?.attackerSide === side && lastAttack?.attackerIndex === i}
@@ -626,8 +651,9 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
   const deckRemaining = player?.deck?.length ?? 0
   const enemyDeckRemaining = enemy?.deck?.length ?? 0
 
+  const playerHeroJustHit = lastAttack?.targetSide === 'player' && lastAttack?.targetHero === true
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900">
+    <div className={`h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 ${playerHeroJustHit ? 'battle-screen-shake' : ''}`}>
       <style>{`
         @keyframes cardDrawIn {
           from { transform: translateX(-90px) scale(0.85); opacity: 0.7; }
@@ -684,6 +710,41 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
           pointer-events: none;
           animation: heroHitBlood 0.55s ease-out forwards;
         }
+        @keyframes cardDeathCrack {
+          0% { transform: scale(1); opacity: 1; filter: brightness(1); }
+          25% { transform: scale(1.05); opacity: 1; filter: brightness(1.3); }
+          50% { transform: scale(1.08) rotate(-2deg); opacity: 0.95; filter: brightness(1.1); }
+          75% { transform: scale(1.1) rotate(1deg); opacity: 0.7; filter: brightness(0.8); }
+          100% { transform: scale(1.15) rotate(3deg); opacity: 0; filter: brightness(0.5); }
+        }
+        @keyframes cardDeathBlood {
+          0% { opacity: 0; transform: scale(0.8); }
+          20% { opacity: 0.95; transform: scale(1.2); }
+          60% { opacity: 0.7; transform: scale(1.4); }
+          100% { opacity: 0; transform: scale(1.5); }
+        }
+        .card-death {
+          animation: cardDeathCrack 0.65s ease-out forwards;
+        }
+        .card-death::before {
+          content: '';
+          position: absolute;
+          inset: -10%;
+          border-radius: inherit;
+          background: radial-gradient(ellipse at center, rgba(180,0,0,0.7) 0%, rgba(100,0,0,0.4) 40%, transparent 70%);
+          pointer-events: none;
+          animation: cardDeathBlood 0.65s ease-out forwards;
+          z-index: 2;
+        }
+        @keyframes screenShake {
+          0%, 100% { transform: translateX(0); }
+          15% { transform: translateX(-4px); }
+          30% { transform: translateX(4px); }
+          45% { transform: translateX(-3px); }
+          60% { transform: translateX(3px); }
+          75% { transform: translateX(-2px); }
+        }
+        .battle-screen-shake { animation: screenShake 0.4s ease-out; }
       `}</style>
       {/* 頂部：標題與訊息，不捲動 */}
       <div className="flex-shrink-0 p-2 sm:p-3 max-w-2xl w-full mx-auto border-b border-amber-900/40 bg-slate-900/50">
