@@ -155,7 +155,12 @@ export const APP_DATA_KEYS = [
   'jiameng_red_envelope_claims',
   // 佳盟分餘額 + 佳盟幣↔佳盟分兌換比例
   'jiameng_points',
-  'jiameng_coin_points_exchange'
+  'jiameng_coin_points_exchange',
+  // 卡牌對戰：卡牌定義、牌庫、牌組、商城
+  'jiameng_card_definitions',
+  'jiameng_card_collection',
+  'jiameng_card_decks',
+  'jiameng_card_shop'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
@@ -394,6 +399,11 @@ export async function syncFromSupabase() {
           const existing = localStorage.getItem(key)
           if (existing != null) return
         }
+        // 牌庫：剛寫入 8 秒內不覆寫，避免購買卡包後被雲端舊資料蓋回、牌庫看不到新卡
+        if (key === 'jiameng_card_collection') {
+          const lastWrite = parseInt(localStorage.getItem('jiameng_card_collection_last_write') || '', 10)
+          if (lastWrite && (Date.now() - lastWrite < 8000)) return
+        }
         localStorage.setItem(key, typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}))
         try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
       } catch (_) {}
@@ -459,6 +469,26 @@ export async function fetchRedEnvelopeConfigFromSupabase() {
     const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? {})
     localStorage.setItem(RED_ENVELOPE_CONFIG_KEY, val)
     try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: RED_ENVELOPE_CONFIG_KEY } })) } catch (_) {}
+  } catch (_) {}
+}
+
+const CARD_DEFINITIONS_KEY = 'jiameng_card_definitions'
+const CARD_SHOP_KEY = 'jiameng_card_shop'
+
+/** 僅拉取卡牌定義與商城並寫入 localStorage（供一般用戶在商城看到單卡與卡包；若初始 sync 因 RLS 或時序未回傳這些 key 可補拉） */
+export async function fetchCardShopDataFromSupabase() {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  try {
+    const { data: rows, error } = await sb.from('app_data').select('key, data').in('key', [CARD_DEFINITIONS_KEY, CARD_SHOP_KEY])
+    if (error || !Array.isArray(rows)) return
+    for (const r of rows) {
+      const key = r?.key
+      if (!key) continue
+      const val = typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? (key === CARD_DEFINITIONS_KEY ? [] : {}))
+      localStorage.setItem(key, val)
+      try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
+    }
   } catch (_) {}
 }
 
