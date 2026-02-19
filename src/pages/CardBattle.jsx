@@ -35,8 +35,8 @@ function CardBack({ cardBackUrl, className = '' }) {
     return <img src={cardBackUrl} alt="" className={`w-full h-full object-cover rounded-lg border border-amber-600/40 ${className}`} />
   }
   return (
-    <div className={`w-full h-full rounded-lg border-2 border-amber-600/50 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center ${className}`}>
-      <span className="text-amber-400/60 text-[8px]">背面</span>
+    <div className={`w-full h-full rounded-md border border-amber-600/50 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center ${className}`}>
+      <span className="text-amber-400/60 text-[7px]">背面</span>
     </div>
   )
 }
@@ -51,23 +51,23 @@ function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, sele
     <button
       type="button"
       onClick={dying ? undefined : onClick}
-      className={`relative w-14 h-[72px] sm:w-[72px] sm:h-[96px] md:w-[80px] md:h-[108px] rounded-xl overflow-visible border-2 shadow-lg transition-all ${selected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-amber-700/60 hover:border-amber-500'} ${dimmed ? 'opacity-60' : ''} ${attackAnim ? 'card-attack-lunge' : ''} ${hitAnim ? 'card-hit' : ''} ${dying ? 'card-death pointer-events-none' : ''} ${className}`}
+      className={`relative w-11 h-[56px] sm:w-14 sm:h-[68px] md:w-16 md:h-20 rounded-lg overflow-visible border-2 shadow-md transition-all ${selected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-amber-700/60 hover:border-amber-500'} ${dimmed ? 'opacity-60' : ''} ${attackAnim ? 'card-attack-lunge' : ''} ${hitAnim ? 'card-hit' : ''} ${dying ? 'card-death pointer-events-none' : ''} ${className}`}
     >
-      <div className="absolute inset-0 rounded-[10px] overflow-hidden bg-gray-900">
+      <div className="absolute inset-0 rounded-md overflow-hidden bg-gray-900">
         {cover ? (
           <img src={cover} alt="" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-gray-500 text-[10px]">無圖</div>
+          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-gray-500 text-[8px]">無圖</div>
         )}
       </div>
-      <div className="absolute inset-0 rounded-[10px] overflow-hidden bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+      <div className="absolute inset-0 rounded-md overflow-hidden bg-gradient-to-t from-black/80 via-transparent to-transparent" />
       {showCost && (card?.cost != null && card.cost > 0) && (
-        <div className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[10px] font-bold text-gray-900">{card.cost}</div>
+        <div className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-amber-600 flex items-center justify-center text-[8px] font-bold text-gray-900">{card.cost}</div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 p-1 flex items-center justify-between gap-0.5">
-        <span className="w-6 h-6 rounded-full bg-red-900/90 flex items-center justify-center text-[10px] font-bold text-red-200" title="攻擊">{atk}</span>
-        <span className="text-white text-[9px] truncate flex-1 text-center drop-shadow">{name}</span>
-        <span className="w-6 h-6 rounded-full bg-green-900/90 flex items-center justify-center text-[10px] font-bold text-green-200" title="血量">{currentHp != null ? `${currentHp}/${maxHealth}` : health}</span>
+      <div className="absolute bottom-0 left-0 right-0 p-0.5 flex items-center justify-between gap-0.5">
+        <span className="w-5 h-5 rounded-full bg-red-900/90 flex items-center justify-center text-[8px] font-bold text-red-200" title="攻擊">{atk}</span>
+        <span className="text-white text-[7px] sm:text-[8px] truncate flex-1 text-center drop-shadow">{name}</span>
+        <span className="w-5 h-5 rounded-full bg-green-900/90 flex items-center justify-center text-[8px] font-bold text-green-200" title="血量">{currentHp != null ? `${currentHp}/${maxHealth}` : health}</span>
       </div>
     </button>
   )
@@ -81,21 +81,21 @@ function HeroSlot({ hero, isTarget, onClick, className = '', hitAnim }) {
     <Wrapper
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`relative w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36 rounded-xl overflow-hidden border-2 shadow-xl ${isTarget ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-amber-700/70'} ${hitAnim ? 'hero-hit' : ''} ${className}`}
+      className={`relative w-14 h-20 sm:w-16 sm:h-24 md:w-20 md:h-28 rounded-lg overflow-hidden border-2 shadow-lg ${isTarget ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-amber-700/70'} ${hitAnim ? 'hero-hit' : ''} ${className}`}
     >
       <div className="absolute inset-0 bg-gray-900">
         {cover ? (
           <img src={cover} alt="" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-amber-900/40 to-gray-800 flex items-center justify-center text-amber-200/80 text-xs">英雄</div>
+          <div className="w-full h-full bg-gradient-to-br from-amber-900/40 to-gray-800 flex items-center justify-center text-amber-200/80 text-[9px] sm:text-xs">英雄</div>
         )}
       </div>
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-      <div className="absolute top-1 left-1 right-1">
-        <span className="text-amber-200 text-xs font-semibold drop-shadow truncate block">{hero.name}</span>
+      <div className="absolute top-0.5 left-0.5 right-0.5">
+        <span className="text-amber-200 text-[9px] sm:text-xs font-semibold drop-shadow truncate block">{hero.name}</span>
       </div>
-      <div className="absolute bottom-1 left-1 right-1 flex justify-center">
-        <span className="px-2 py-0.5 rounded-full bg-red-900/90 text-red-200 text-xs font-bold">HP {hero.currentHp ?? hero.hp}/{hero.maxHp ?? hero.hp}</span>
+      <div className="absolute bottom-0.5 left-0.5 right-0.5 flex justify-center">
+        <span className="px-1.5 py-0.5 rounded-full bg-red-900/90 text-red-200 text-[9px] sm:text-xs font-bold">HP {hero.currentHp ?? hero.hp}/{hero.maxHp ?? hero.hp}</span>
       </div>
     </Wrapper>
   )
@@ -531,23 +531,23 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }
 
   const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion }) => (
-    <div className={`rounded-lg sm:rounded-xl border border-amber-900/50 overflow-hidden flex-shrink-0 min-h-0 flex flex-col ${isPlayer ? 'bg-gradient-to-b from-gray-900/80 to-gray-800/60' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/80'}`}>
-      <div className="px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2 flex-wrap border-b border-amber-800/40">
-        <span className="text-amber-200/90 font-medium text-xs sm:text-base">{side === 'player' ? '我方' : '敵方'}</span>
+    <div className={`rounded-lg border border-amber-900/50 overflow-hidden flex-shrink-0 min-h-0 flex flex-col ${isPlayer ? 'bg-gradient-to-b from-gray-900/80 to-gray-800/60' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/80'}`}>
+      <div className="px-1.5 py-0.5 sm:px-2 sm:py-1 flex items-center gap-1 sm:gap-2 flex-wrap border-b border-amber-800/40">
+        <span className="text-amber-200/90 font-medium text-[10px] sm:text-xs">{side === 'player' ? '我方' : '敵方'}</span>
         {!isPlayer && (
           <>
-            <span className="text-amber-400/90 text-[10px] sm:text-sm">獻祭 {enemySacrificePoints ?? 0}</span>
-            <span className="text-gray-400 text-[10px] sm:text-sm">牌庫 {enemyDeckRemaining ?? 0}</span>
-            <span className="text-gray-400 text-[10px] sm:text-sm">手牌 {hand?.length ?? 0}</span>
+            <span className="text-amber-400/90 text-[9px] sm:text-xs">獻祭 {enemySacrificePoints ?? 0}</span>
+            <span className="text-gray-400 text-[9px] sm:text-xs">牌庫 {enemyDeckRemaining ?? 0}</span>
+            <span className="text-gray-400 text-[9px] sm:text-xs">手牌 {hand?.length ?? 0}</span>
           </>
         )}
         {isPlayer && sacrificePoints != null && (
-          <span className="text-amber-400 text-[10px] sm:text-sm">獻祭 {sacrificePoints}</span>
+          <span className="text-amber-400 text-[9px] sm:text-xs">獻祭 {sacrificePoints}</span>
         )}
       </div>
-      <div className="p-2 sm:p-3 space-y-2 sm:space-y-3 flex-1 min-h-0">
+      <div className="p-1 sm:p-2 space-y-1 sm:space-y-2 flex-1 min-h-0">
         <div>
-          <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5 flex items-center justify-center gap-2">
+          <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5 flex items-center justify-center gap-1">
             英雄
             {isPlayer && heroEnergy != null && <span className="text-amber-400">能量 {heroEnergy}</span>}
           </div>
@@ -564,8 +564,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
           </div>
         </div>
         {isPlayer && hero && (heroSkills || []).length > 0 && (phase === 'play' || phase === 'attack') && (
-          <div className="flex flex-wrap gap-1 justify-center items-center">
-            <span className="text-gray-500 text-[10px]">英雄技能：</span>
+          <div className="flex flex-wrap gap-0.5 sm:gap-1 justify-center items-center">
+            <span className="text-gray-500 text-[9px] sm:text-[10px]">技能：</span>
             {(heroSkills || []).map((s, i) => {
               const sk = getSkillById(s.skillId)
               const slotCost = Number(s.energyCost)
@@ -573,7 +573,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               const cost = Math.max(0, (slotCost > 0 ? slotCost : defCost) || 0)
               const canUse = (heroEnergy ?? 0) >= cost
               return sk ? (
-                <button key={i} type="button" onClick={() => canUse && onUseHeroSkill?.(s.skillId, cost)} disabled={!canUse} className={`px-2 py-1 rounded text-xs ${canUse ? 'bg-amber-600 text-gray-900' : 'bg-gray-700 text-gray-500'}`}>
+                <button key={i} type="button" onClick={() => canUse && onUseHeroSkill?.(s.skillId, cost)} disabled={!canUse} className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] ${canUse ? 'bg-amber-600 text-gray-900' : 'bg-gray-700 text-gray-500'}`}>
                   {sk.name}（耗{cost}）
                 </button>
               ) : null
@@ -581,8 +581,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
           </div>
         )}
         <div>
-          <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5">前排（小怪）</div>
-          <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center min-h-[80px] sm:min-h-[100px]">
+          <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">前排</div>
+          <div className="flex flex-wrap gap-1 sm:gap-1.5 justify-center min-h-[52px] sm:min-h-[64px]">
             {(fieldFront || []).map((m, i) => (
               <BattleCard
                 key={i}
@@ -608,11 +608,11 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
           </div>
         </div>
         <div>
-          <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5">後排（裝備／效果／陷阱）</div>
-          <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center min-h-[60px]">
+          <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">後排</div>
+          <div className="flex flex-wrap gap-1 sm:gap-1.5 justify-center min-h-[44px] sm:min-h-[56px]">
             {(fieldBack || []).map((slot, i) => (
               slot.faceDown ? (
-                <div key={i} className="w-14 h-[72px] sm:w-[72px] sm:h-[96px] rounded-xl overflow-hidden border-2 border-amber-700/60 shadow-lg">
+                <div key={i} className="w-11 h-[56px] sm:w-14 sm:h-[68px] rounded-lg overflow-hidden border-2 border-amber-700/60 shadow-md">
                   <CardBack cardBackUrl={cardBackUrl} className="w-full h-full" />
                 </div>
               ) : (
@@ -631,10 +631,10 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         </div>
         {!isPlayer && hand && hand.length > 0 && (
           <div>
-            <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5">對手手牌</div>
-            <div className="flex justify-center items-end gap-0" style={{ marginLeft: 6 }}>
+            <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">對手手牌</div>
+            <div className="flex justify-center items-end gap-0" style={{ marginLeft: 4 }}>
               {hand.map((_, i) => (
-                <div key={i} className="w-8 h-10 sm:w-11 sm:h-14 rounded overflow-hidden shadow border border-amber-700/50" style={{ marginLeft: i > 0 ? -8 : 0 }}>
+                <div key={i} className="w-6 h-8 sm:w-8 sm:h-10 rounded overflow-hidden shadow border border-amber-700/50" style={{ marginLeft: i > 0 ? -6 : 0 }}>
                   <CardBack cardBackUrl={cardBackUrl} className="w-full h-full" />
                 </div>
               ))}
@@ -643,8 +643,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         )}
         {isPlayer && (
           <div>
-            <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5">手牌</div>
-            <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center">
+            <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">手牌</div>
+            <div className="flex flex-wrap gap-1 sm:gap-1.5 justify-center">
               {hand.map((c, i) => (
                 <div
                   key={i}
@@ -766,97 +766,103 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         .battle-screen-shake { animation: screenShake 0.4s ease-out; }
       `}</style>
       {/* 頂部：標題與訊息，不捲動 */}
-      <div className="flex-shrink-0 p-2 sm:p-3 max-w-2xl w-full mx-auto border-b border-amber-900/40 bg-slate-900/50">
-        <div className="flex justify-between items-center gap-2">
-          <h3 className="text-amber-300 font-bold text-base sm:text-lg truncate">對戰中</h3>
-          <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-sm px-3 py-2 rounded border border-gray-600 flex-shrink-0 min-h-[44px] touch-manipulation">離開</button>
+      <div className="flex-shrink-0 p-1.5 sm:p-2 max-w-2xl w-full mx-auto border-b border-amber-900/40 bg-slate-900/50">
+        <div className="flex justify-between items-center gap-1">
+          <h3 className="text-amber-300 font-bold text-sm sm:text-base truncate">對戰中</h3>
+          <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-[10px] sm:text-xs px-2 py-1.5 rounded border border-gray-600 flex-shrink-0 min-h-[36px] touch-manipulation">離開</button>
         </div>
-        {message && <p className="text-amber-100/90 text-xs sm:text-sm truncate mt-1">{message}</p>}
+        {message && <p className="text-amber-100/90 text-[10px] sm:text-xs truncate mt-0.5">{message}</p>}
       </div>
       {/* 中間：對戰場地，可捲動 */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-      <div className="p-2 sm:p-4 space-y-2 sm:space-y-4 max-w-2xl mx-auto">
-        <div className="flex gap-2 sm:gap-4">
-        <div className="flex-shrink-0 flex flex-col items-center justify-end gap-2">
-          <div className="flex flex-col items-center" aria-label="墓地">
-            <span className="text-gray-500 text-[10px] sm:text-xs">墓地</span>
-            <div className="w-10 h-12 sm:w-12 sm:h-14 rounded-lg border-2 border-gray-600 bg-gray-800/90 flex items-center justify-center">
-              <span className="text-amber-400/90 font-mono text-xs sm:text-sm font-bold">{playerGraveyardCount}</span>
+      <div className="p-1.5 sm:p-2 space-y-1.5 sm:space-y-2 max-w-2xl mx-auto">
+        {/* 敵方區域：牌堆與墓地在敵方那邊，與我方左右相對 */}
+        <div className="flex gap-1.5 sm:gap-2">
+          <div className="flex-shrink-0 flex flex-col items-center justify-end gap-1">
+            <div className="flex flex-col items-center" aria-label="敵方墓地">
+              <span className="text-gray-500 text-[8px] sm:text-[10px]">墓地</span>
+              <div className="w-8 h-10 sm:w-10 sm:h-12 rounded border border-gray-600 bg-gray-800/90 flex items-center justify-center">
+                <span className="text-amber-400/90 font-mono text-[10px] font-bold">{enemyGraveyardCount}</span>
+              </div>
             </div>
+            <div className="relative w-10 h-12 sm:w-12 sm:h-14 flex items-center justify-center" aria-label="敵方牌堆">
+              <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
+                <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
+              </div>
+              <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
+                <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
+              </div>
+              <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
+            </div>
+            <p className="text-amber-400 font-mono text-[10px] mt-0.5 font-semibold">{enemyDeckRemaining}</p>
           </div>
-          <div className="relative w-12 h-14 sm:w-16 sm:h-20 flex items-center justify-center" aria-label="牌堆">
-            <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
-              <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
-            </div>
-            <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
-              <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
-            </div>
-            <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <Field
+              side="enemy"
+              hero={enemy.hero}
+              heroEnergy={null}
+              heroSkills={null}
+              fieldFront={enemy.fieldFront}
+              fieldBack={enemy.fieldBack}
+              hand={enemy.hand}
+              isPlayer={false}
+              enemyDeckRemaining={enemyDeckRemaining}
+              enemySacrificePoints={enemy.sacrificePoints ?? 0}
+              cardBackUrl={enemyCardBackUrl ?? cardBackUrl}
+              onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
+              onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
+            />
           </div>
-          <p className="text-amber-400 font-mono text-xs sm:text-sm mt-1 font-semibold">{deckRemaining}</p>
         </div>
-        <div className="flex-1 min-w-0 space-y-2 sm:space-y-4 min-h-0 flex flex-col">
-          <Field
-            side="enemy"
-            hero={enemy.hero}
-            heroEnergy={null}
-            heroSkills={null}
-            fieldFront={enemy.fieldFront}
-            fieldBack={enemy.fieldBack}
-            hand={enemy.hand}
-            isPlayer={false}
-            enemyDeckRemaining={enemyDeckRemaining}
-            enemySacrificePoints={enemy.sacrificePoints ?? 0}
-            cardBackUrl={enemyCardBackUrl ?? cardBackUrl}
-            onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
-            onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
-          />
-          <hr className="border-gray-600 flex-shrink-0" />
-          <Field
-            side="player"
-            hero={player.hero}
-            heroEnergy={player.hero?.energy ?? 0}
-            heroSkills={player.hero?.skills}
-            fieldFront={player.fieldFront}
-            fieldBack={player.fieldBack}
-            hand={player.hand}
-            isPlayer={true}
-            sacrificePoints={player.sacrificePoints ?? 0}
-            drawInIndices={drawInIndices}
-            cardBackUrl={playerCardBackUrl ?? cardBackUrl}
-            onSelectHeroAttacker={canHeroAttack ? () => setSelectedAttacker(-1) : undefined}
-            onUseHeroSkill={useHeroSkill}
-            onSacrificeCard={sacrificeCard}
-            onPlayMinion={(i) => playMinion('player', i)}
-          />
-        </div>
-        <div className="flex-shrink-0 flex flex-col items-center justify-end gap-2">
-          <div className="flex flex-col items-center" aria-label="敵方墓地">
-            <span className="text-gray-500 text-[10px] sm:text-xs">墓地</span>
-            <div className="w-10 h-12 sm:w-12 sm:h-14 rounded-lg border-2 border-gray-600 bg-gray-800/90 flex items-center justify-center">
-              <span className="text-amber-400/90 font-mono text-xs sm:text-sm font-bold">{enemyGraveyardCount}</span>
+        <hr className="border-gray-600 flex-shrink-0" />
+        {/* 我方區域：牌堆與墓地在我方那邊 */}
+        <div className="flex gap-1.5 sm:gap-2">
+          <div className="flex-shrink-0 flex flex-col items-center justify-end gap-1">
+            <div className="flex flex-col items-center" aria-label="墓地">
+              <span className="text-gray-500 text-[8px] sm:text-[10px]">墓地</span>
+              <div className="w-8 h-10 sm:w-10 sm:h-12 rounded border border-gray-600 bg-gray-800/90 flex items-center justify-center">
+                <span className="text-amber-400/90 font-mono text-[10px] font-bold">{playerGraveyardCount}</span>
+              </div>
             </div>
+            <div className="relative w-10 h-12 sm:w-12 sm:h-14 flex items-center justify-center" aria-label="牌堆">
+              <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
+                <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
+              </div>
+              <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
+                <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
+              </div>
+              <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
+            </div>
+            <p className="text-amber-400 font-mono text-[10px] mt-0.5 font-semibold">{deckRemaining}</p>
           </div>
-          <div className="relative w-12 h-14 sm:w-16 sm:h-20 flex items-center justify-center" aria-label="敵方牌堆">
-            <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
-              <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
-            </div>
-            <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
-              <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
-            </div>
-            <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <Field
+              side="player"
+              hero={player.hero}
+              heroEnergy={player.hero?.energy ?? 0}
+              heroSkills={player.hero?.skills}
+              fieldFront={player.fieldFront}
+              fieldBack={player.fieldBack}
+              hand={player.hand}
+              isPlayer={true}
+              sacrificePoints={player.sacrificePoints ?? 0}
+              drawInIndices={drawInIndices}
+              cardBackUrl={playerCardBackUrl ?? cardBackUrl}
+              onSelectHeroAttacker={canHeroAttack ? () => setSelectedAttacker(-1) : undefined}
+              onUseHeroSkill={useHeroSkill}
+              onSacrificeCard={sacrificeCard}
+              onPlayMinion={(i) => playMinion('player', i)}
+            />
           </div>
-          <p className="text-amber-400 font-mono text-xs sm:text-sm mt-1 font-semibold">{enemyDeckRemaining}</p>
-        </div>
         </div>
       </div>
       </div>
       {/* 底部操作列：固定不捲動、易點擊，留出 safe area */}
       <div
-        className="flex-shrink-0 border-t border-amber-800/50 bg-slate-900/95 backdrop-blur-sm pt-2"
-        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))' }}
+        className="flex-shrink-0 border-t border-amber-800/50 bg-slate-900/95 backdrop-blur-sm pt-1"
+        style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom, 0px))' }}
       >
-        <div className="max-w-2xl mx-auto px-3 sm:px-4 flex flex-wrap items-center gap-3">
+        <div className="max-w-2xl mx-auto px-2 sm:px-3 flex flex-wrap items-center gap-2">
           {phase === 'sacrifice' && (
             <>
               <button
@@ -865,26 +871,26 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
                   setPhase('play')
                   setMessage(player.hand.length === 0 ? '無手牌可獻祭，出牌或進入攻擊階段' : '略過獻祭，出牌或進入攻擊階段')
                 }}
-                className="min-h-[48px] px-4 py-3 sm:px-5 sm:py-2.5 bg-amber-600 hover:bg-amber-500 text-gray-900 rounded-lg font-semibold text-sm touch-manipulation active:scale-[0.98]"
+                className="min-h-[40px] px-3 py-2 bg-amber-600 hover:bg-amber-500 text-gray-900 rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]"
               >
                 略過獻祭
               </button>
-              <span className="text-gray-400 text-xs sm:text-sm">或點擊手牌獻祭得 1 點</span>
+              <span className="text-gray-400 text-[10px] sm:text-xs">或點手牌獻祭得 1 點</span>
             </>
           )}
           {phase === 'play' && (
-            <button type="button" onClick={endPlayPhase} className="min-h-[48px] px-4 py-3 sm:px-5 sm:py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-900 rounded-lg font-semibold text-sm touch-manipulation active:scale-[0.98]">進入攻擊階段</button>
+            <button type="button" onClick={endPlayPhase} className="min-h-[40px] px-3 py-2 bg-amber-500 hover:bg-amber-400 text-gray-900 rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]">進入攻擊階段</button>
           )}
           {phase === 'attack' && (
-            <button type="button" onClick={endTurn} className="min-h-[48px] px-4 py-3 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-semibold text-sm touch-manipulation active:scale-[0.98]">結束回合</button>
+            <button type="button" onClick={endTurn} className="min-h-[40px] px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]">結束回合</button>
           )}
         </div>
-        <div className="max-w-2xl mx-auto px-3 sm:px-4 pt-1 pb-1">
-          <button type="button" onClick={() => setHintOpen((o) => !o)} className="text-amber-200/50 hover:text-amber-200/80 text-xs min-h-[32px] touch-manipulation">
+        <div className="max-w-2xl mx-auto px-2 sm:px-3 pt-0.5 pb-0.5">
+          <button type="button" onClick={() => setHintOpen((o) => !o)} className="text-amber-200/50 hover:text-amber-200/80 text-[10px] min-h-[28px] touch-manipulation">
             {hintOpen ? '收起規則' : '規則說明'}
           </button>
           {hintOpen && (
-            <p className="text-amber-200/60 text-[10px] sm:text-xs mt-1">
+            <p className="text-amber-200/60 text-[9px] sm:text-[10px] mt-0.5">
               前排小怪、後排裝備／效果／陷阱。英雄每回合+1能量，可消耗能量釋放技能；裝備放出後英雄可攻擊，依使用次數消耗。陷阱牌背向上，觸發後套用技能（之後擴充）。
             </p>
           )}
