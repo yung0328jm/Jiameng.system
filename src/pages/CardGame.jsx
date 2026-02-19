@@ -585,7 +585,7 @@ export default function CardGame({ onBack }) {
                         </div>
                       )
                     })}
-                    <button type="button" onClick={() => setCardForm((f) => ({ ...f, skills: [...(f.skills || []), { skillId: skillDefinitions[0]?.id || '', energyCost: 0 }] }))} className="text-amber-400 text-xs">+ 新增技能</button>
+                    <button type="button" onClick={() => setCardForm((f) => ({ ...f, skills: [...(f.skills || []), { skillId: skillDefinitions[0]?.id || '', energyCost: skillDefinitions[0]?.energyCost ?? 0 }] }))} className="text-amber-400 text-xs">+ 新增技能</button>
                   </div>
                 )}
                 {(cardForm.type === 'effect' || cardForm.type === 'trap') && (

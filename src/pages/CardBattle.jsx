@@ -551,7 +551,9 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
             <span className="text-gray-500 text-[10px]">英雄技能：</span>
             {(heroSkills || []).map((s, i) => {
               const sk = getSkillById(s.skillId)
-              const cost = Math.max(0, Number(s.energyCost ?? sk?.energyCost ?? 0))
+              const slotCost = Number(s.energyCost)
+              const defCost = Number(sk?.energyCost)
+              const cost = Math.max(0, (slotCost > 0 ? slotCost : defCost) || 0)
               const canUse = (heroEnergy ?? 0) >= cost
               return sk ? (
                 <button key={i} type="button" onClick={() => canUse && onUseHeroSkill?.(s.skillId, cost)} disabled={!canUse} className={`px-2 py-1 rounded text-xs ${canUse ? 'bg-amber-600 text-gray-900' : 'bg-gray-700 text-gray-500'}`}>
