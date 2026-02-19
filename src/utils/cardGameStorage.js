@@ -1,5 +1,5 @@
 // 卡牌對戰：卡牌定義、玩家牌庫、牌組、商城
-import { syncKeyToSupabase } from './supabaseSync'
+import { syncKeyToSupabase } from './supabaseSync.js'
 
 const CARD_DEFINITIONS_KEY = 'jiameng_card_definitions'
 const CARD_COLLECTION_KEY = 'jiameng_card_collection'
@@ -14,7 +14,7 @@ export const getCardDefinitions = () => {
     const raw = localStorage.getItem(CARD_DEFINITIONS_KEY)
     const list = raw ? JSON.parse(raw) : []
     return Array.isArray(list) ? list : []
-  } catch (_) {
+  } catch (e) {
     return []
   }
 }
@@ -71,7 +71,7 @@ export const getCollection = (account) => {
     const data = raw ? JSON.parse(raw) : {}
     const arr = data[account] || []
     return Array.isArray(arr) ? arr : []
-  } catch (_) {
+  } catch (e) {
     return []
   }
 }
@@ -87,7 +87,7 @@ export const addCardToCollection = (account, cardId, quantity = 1) => {
     try {
       const raw = localStorage.getItem(CARD_COLLECTION_KEY)
       return raw ? JSON.parse(raw) : {}
-    } catch (_) {
+    } catch (e) {
       return {}
     }
   })()
@@ -111,8 +111,9 @@ export const removeCardFromCollection = (account, cardId, quantity = 1) => {
     try {
       const raw = localStorage.getItem(CARD_COLLECTION_KEY)
       return raw ? JSON.parse(raw) : {}
-    } catch (_) {
+    } catch (e) {
       return {}
+    }
   })()
   if (!data[account]) return { success: false, message: '牌庫為空' }
   const arr = data[account]
@@ -135,7 +136,7 @@ export const getDecks = (account) => {
     const data = raw ? JSON.parse(raw) : {}
     const list = data[account] || []
     return Array.isArray(list) ? list : []
-  } catch (_) {
+  } catch (e) {
     return []
   }
 }
@@ -151,7 +152,7 @@ export const saveDeck = (account, deck) => {
     try {
       const raw = localStorage.getItem(CARD_DECKS_KEY)
       return raw ? JSON.parse(raw) : {}
-    } catch (_) {
+    } catch (e) {
       return {}
     }
   })()
@@ -170,7 +171,7 @@ export const deleteDeck = (account, deckId) => {
     try {
       const raw = localStorage.getItem(CARD_DECKS_KEY)
       return raw ? JSON.parse(raw) : {}
-    } catch (_) {
+    } catch (e) {
       return {}
     }
   })()
@@ -188,7 +189,7 @@ export const getShopPacks = () => {
     const data = raw ? JSON.parse(raw) : {}
     const list = data.packs || []
     return Array.isArray(list) ? list : []
-  } catch (_) {
+  } catch (e) {
     return []
   }
 }
