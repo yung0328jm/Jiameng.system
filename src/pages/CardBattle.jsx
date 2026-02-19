@@ -132,7 +132,10 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const initialDrawTimeoutRef = useRef(null)
 
   useEffect(() => {
-    return () => { if (attackAnimTimeoutRef.current) clearTimeout(attackAnimTimeoutRef.current) }
+    return () => {
+      if (attackAnimTimeoutRef.current) clearTimeout(attackAnimTimeoutRef.current)
+      if (initialDrawTimeoutRef.current) clearTimeout(initialDrawTimeoutRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -183,9 +186,6 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       }, step === 0 ? 400 : 500)
     }
     drawOne(0)
-    return () => {
-      if (initialDrawTimeoutRef.current) clearTimeout(initialDrawTimeoutRef.current)
-    }
   }, [player?.hand?.length, player?.deck?.length])
 
   useEffect(() => {
@@ -868,8 +868,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       {/* 中間：對戰場地，可捲動 */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
       <div className="p-1.5 sm:p-2 space-y-1.5 sm:space-y-2 max-w-2xl mx-auto">
-        {/* 敵方區域：牌堆與墓地在敵方那邊，與我方左右相對 */}
-        <div className="flex gap-1.5 sm:gap-2">
+        {/* 敵方區域：鏡像配置，場地在左、牌堆與墓地在右（與我方左右對稱） */}
+        <div className="flex flex-row-reverse gap-1.5 sm:gap-2">
           <div className="flex-shrink-0 flex flex-col items-center justify-end gap-1">
             <div className="flex flex-col items-center" aria-label="敵方墓地">
               <span className="text-gray-500 text-[8px] sm:text-[10px]">墓地</span>
