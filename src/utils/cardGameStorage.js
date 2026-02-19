@@ -7,9 +7,65 @@ const CARD_COLLECTION_LAST_WRITE_KEY = 'jiameng_card_collection_last_write'
 const CARD_DECKS_KEY = 'jiameng_card_decks'
 const CARD_SHOP_KEY = 'jiameng_card_shop'
 
+// --- 技能定義（英雄／效果／陷阱共用，之後可擴充效果邏輯）---
+// 格式: { id, name, energyCost, skillKey, description }
+const SKILL_DEFINITIONS_KEY = 'jiameng_skill_definitions'
+
+export const getSkillDefinitions = () => {
+  try {
+    const raw = localStorage.getItem(SKILL_DEFINITIONS_KEY)
+    const list = raw ? JSON.parse(raw) : []
+    return Array.isArray(list) ? list : []
+  } catch (e) {
+    return []
+  }
+}
+
+const persistSkillDefinitions = (list) => {
+  const val = JSON.stringify(list)
+  localStorage.setItem(SKILL_DEFINITIONS_KEY, val)
+  syncKeyToSupabase(SKILL_DEFINITIONS_KEY, val)
+}
+
+export const addSkillDefinition = (skill) => {
+  const list = getSkillDefinitions()
+  const id = `skill_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  const newSkill = {
+    id,
+    name: skill.name || '未命名技能',
+    energyCost: Math.max(0, Number(skill.energyCost) ?? 0),
+    skillKey: skill.skillKey || '',
+    description: skill.description || '',
+    createdAt: new Date().toISOString()
+  }
+  list.push(newSkill)
+  persistSkillDefinitions(list)
+  return { success: true, skill: newSkill }
+}
+
+export const updateSkillDefinition = (id, updates) => {
+  const list = getSkillDefinitions()
+  const idx = list.findIndex((s) => s.id === id)
+  if (idx === -1) return { success: false, message: '找不到技能' }
+  list[idx] = { ...list[idx], ...updates, id: list[idx].id }
+  persistSkillDefinitions(list)
+  return { success: true, skill: list[idx] }
+}
+
+export const deleteSkillDefinition = (id) => {
+  const list = getSkillDefinitions().filter((s) => s.id !== id)
+  persistSkillDefinitions(list)
+  return { success: true }
+}
+
+export const getSkillById = (id) => getSkillDefinitions().find((s) => s.id === id)
+
 // --- 卡牌定義（管理員自製）---
-// type: 'hero' | 'minion' | 'effect'
-// coverImage: 圖片 URL 或 base64
+// type: 'hero' | 'minion' | 'equipment' | 'effect' | 'trap'
+// hero: skills 陣列 [{ skillId, energyCost }]，每回合累積 1 能量，消耗能量釋放技能
+// equipment: attack, useCount（使用次數），放出後英雄可發動攻擊，每次攻擊消耗 1 次
+// effect / trap: skillKey 對應技能組，之後新增
+// trap 出牌時以牌背向上，觸發條件（如敵方攻擊我方英雄）後再套用技能
 export const getCardDefinitions = () => {
   try {
     const raw = localStorage.getItem(CARD_DEFINITIONS_KEY)
@@ -29,10 +85,11 @@ const persistCardDefinitions = (list) => {
 export const addCardDefinition = (card) => {
   const list = getCardDefinitions()
   const id = `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  const type = ['hero', 'minion', 'equipment', 'effect', 'trap'].includes(card.type) ? card.type : 'minion'
   const newCard = {
     id,
     name: card.name || '未命名',
-    type: card.type || 'minion',
+    type,
     coverImage: card.coverImage || '',
     description: card.description || '',
     attack: Number(card.attack) || 0,
@@ -43,6 +100,15 @@ export const addCardDefinition = (card) => {
     price: card.price != null ? Number(card.price) : null,
     priceCurrency: card.priceCurrency || 'coin',
     createdAt: new Date().toISOString()
+  }
+  if (type === 'hero') {
+    newCard.skills = Array.isArray(card.skills) ? card.skills.map((s) => ({ skillId: s.skillId, energyCost: Math.max(0, Number(s.energyCost) ?? 0) })) : []
+  }
+  if (type === 'equipment') {
+    newCard.useCount = Math.max(1, Number(card.useCount) ?? 1)
+  }
+  if (type === 'effect' || type === 'trap') {
+    newCard.skillKey = card.skillKey != null ? String(card.skillKey) : ''
   }
   list.push(newCard)
   persistCardDefinitions(list)

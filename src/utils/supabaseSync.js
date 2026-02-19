@@ -158,6 +158,7 @@ export const APP_DATA_KEYS = [
   'jiameng_coin_points_exchange',
   // 卡牌對戰：卡牌定義、牌庫、牌組、商城
   'jiameng_card_definitions',
+  'jiameng_skill_definitions',
   'jiameng_card_collection',
   'jiameng_card_decks',
   'jiameng_card_shop',
