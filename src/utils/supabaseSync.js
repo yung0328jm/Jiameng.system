@@ -162,7 +162,10 @@ export const APP_DATA_KEYS = [
   'jiameng_card_collection',
   'jiameng_card_decks',
   'jiameng_card_shop',
-  'jiameng_card_back_url'
+  'jiameng_card_back_url',
+  'jiameng_card_back_definitions',
+  'jiameng_card_back_owned',
+  'jiameng_card_back_equipped'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
@@ -476,18 +479,19 @@ export async function fetchRedEnvelopeConfigFromSupabase() {
 
 const CARD_DEFINITIONS_KEY = 'jiameng_card_definitions'
 const CARD_SHOP_KEY = 'jiameng_card_shop'
+const CARD_BACK_DEFINITIONS_KEY = 'jiameng_card_back_definitions'
 
 /** 僅拉取卡牌定義與商城並寫入 localStorage（供一般用戶在商城看到單卡與卡包；若初始 sync 因 RLS 或時序未回傳這些 key 可補拉） */
 export async function fetchCardShopDataFromSupabase() {
   const sb = getSupabaseClient()
   if (!sb) return
   try {
-    const { data: rows, error } = await sb.from('app_data').select('key, data').in('key', [CARD_DEFINITIONS_KEY, CARD_SHOP_KEY])
+    const { data: rows, error } = await sb.from('app_data').select('key, data').in('key', [CARD_DEFINITIONS_KEY, CARD_SHOP_KEY, CARD_BACK_DEFINITIONS_KEY])
     if (error || !Array.isArray(rows)) return
     for (const r of rows) {
       const key = r?.key
       if (!key) continue
-      const val = typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? (key === CARD_DEFINITIONS_KEY ? [] : {}))
+      const val = typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? (key === CARD_DEFINITIONS_KEY || key === CARD_BACK_DEFINITIONS_KEY ? [] : {}))
       localStorage.setItem(key, val)
       try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
     }

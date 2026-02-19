@@ -302,6 +302,9 @@ export const deleteShopPack = (packId) => {
 
 // --- 卡套背面（對戰時手牌/牌堆背面圖，可販售）---
 const CARD_BACK_URL_KEY = 'jiameng_card_back_url'
+const CARD_BACK_DEFINITIONS_KEY = 'jiameng_card_back_definitions'
+const CARD_BACK_OWNED_KEY = 'jiameng_card_back_owned'
+const CARD_BACK_EQUIPPED_KEY = 'jiameng_card_back_equipped'
 
 export const getCardBackUrl = () => {
   try {
@@ -317,4 +320,142 @@ export const setCardBackUrl = (url) => {
   localStorage.setItem(CARD_BACK_URL_KEY, val)
   syncKeyToSupabase(CARD_BACK_URL_KEY, val)
   return { success: true }
+}
+
+// --- 卡套背面販售定義（管理員新增，商城顯示）---
+// 格式: [ { id, name, imageUrl, price, priceCurrency } ]
+export const getCardBackDefinitions = () => {
+  try {
+    const raw = localStorage.getItem(CARD_BACK_DEFINITIONS_KEY)
+    const list = raw ? JSON.parse(raw) : []
+    return Array.isArray(list) ? list : []
+  } catch (e) {
+    return []
+  }
+}
+
+const persistCardBackDefinitions = (list) => {
+  const val = JSON.stringify(list)
+  localStorage.setItem(CARD_BACK_DEFINITIONS_KEY, val)
+  syncKeyToSupabase(CARD_BACK_DEFINITIONS_KEY, val)
+}
+
+export const addCardBackDefinition = (item) => {
+  const list = getCardBackDefinitions()
+  const id = `back_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  const newItem = {
+    id,
+    name: item.name || '未命名卡套',
+    imageUrl: (item.imageUrl != null && String(item.imageUrl).trim()) ? String(item.imageUrl).trim() : '',
+    price: Math.max(0, Number(item.price) ?? 0),
+    priceCurrency: item.priceCurrency === 'points' ? 'points' : 'coin'
+  }
+  list.push(newItem)
+  persistCardBackDefinitions(list)
+  return { success: true, item: newItem }
+}
+
+export const updateCardBackDefinition = (id, updates) => {
+  const list = getCardBackDefinitions()
+  const idx = list.findIndex((x) => x.id === id)
+  if (idx === -1) return { success: false, message: '找不到卡套' }
+  list[idx] = {
+    ...list[idx],
+    ...updates,
+    id: list[idx].id,
+    name: updates.name != null ? String(updates.name) : list[idx].name,
+    imageUrl: updates.imageUrl != null ? String(updates.imageUrl).trim() : list[idx].imageUrl,
+    price: updates.price != null ? Math.max(0, Number(updates.price)) : list[idx].price,
+    priceCurrency: updates.priceCurrency === 'points' ? 'points' : (updates.priceCurrency != null ? list[idx].priceCurrency : 'coin')
+  }
+  persistCardBackDefinitions(list)
+  return { success: true, item: list[idx] }
+}
+
+export const deleteCardBackDefinition = (id) => {
+  const list = getCardBackDefinitions().filter((x) => x.id !== id)
+  persistCardBackDefinitions(list)
+  return { success: true }
+}
+
+export const getCardBackById = (id) => getCardBackDefinitions().find((x) => x.id === id)
+
+// --- 用戶擁有的卡套背面（購買後加入）---
+// 格式: { [account]: [ id, id, ... ] }
+function getCardBackOwnedData() {
+  try {
+    const raw = localStorage.getItem(CARD_BACK_OWNED_KEY)
+    const data = raw ? JSON.parse(raw) : {}
+    return typeof data === 'object' ? data : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+const persistCardBackOwned = (data) => {
+  const val = JSON.stringify(data)
+  localStorage.setItem(CARD_BACK_OWNED_KEY, val)
+  syncKeyToSupabase(CARD_BACK_OWNED_KEY, val)
+}
+
+export const getOwnedCardBacks = (account) => {
+  if (!account) return []
+  const data = getCardBackOwnedData()
+  const arr = data[account]
+  return Array.isArray(arr) ? arr : []
+}
+
+export const hasOwnedCardBack = (account, cardBackId) => {
+  return getOwnedCardBacks(account).includes(cardBackId)
+}
+
+export const addOwnedCardBack = (account, cardBackId) => {
+  if (!account || !cardBackId) return { success: false }
+  const data = getCardBackOwnedData()
+  if (!data[account]) data[account] = []
+  if (data[account].includes(cardBackId)) return { success: true }
+  data[account].push(cardBackId)
+  persistCardBackOwned(data)
+  return { success: true }
+}
+
+// --- 用戶當前裝備的卡套背面 ---
+// 格式: { [account]: id | null }
+function getCardBackEquippedData() {
+  try {
+    const raw = localStorage.getItem(CARD_BACK_EQUIPPED_KEY)
+    const data = raw ? JSON.parse(raw) : {}
+    return typeof data === 'object' ? data : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+const persistCardBackEquipped = (data) => {
+  const val = JSON.stringify(data)
+  localStorage.setItem(CARD_BACK_EQUIPPED_KEY, val)
+  syncKeyToSupabase(CARD_BACK_EQUIPPED_KEY, val)
+}
+
+export const getEquippedCardBack = (account) => {
+  if (!account) return null
+  const data = getCardBackEquippedData()
+  const id = data[account]
+  return id != null && id !== '' ? id : null
+}
+
+export const setEquippedCardBack = (account, cardBackId) => {
+  if (!account) return { success: false }
+  const data = getCardBackEquippedData()
+  data[account] = cardBackId == null || cardBackId === '' ? null : cardBackId
+  persistCardBackEquipped(data)
+  return { success: true }
+}
+
+/** 取得當前用戶裝備的卡套背面圖片 URL；若未裝備或無則回傳 ''，由呼叫方 fallback 預設背面 */
+export const getEquippedCardBackUrl = (account) => {
+  const id = getEquippedCardBack(account)
+  if (!id) return ''
+  const def = getCardBackById(id)
+  return def && def.imageUrl ? String(def.imageUrl).trim() : ''
 }
