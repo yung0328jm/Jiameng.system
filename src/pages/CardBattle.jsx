@@ -119,6 +119,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const [gameOver, setGameOver] = useState(null) // 'win' | 'lose'
   const [selectedAttacker, setSelectedAttacker] = useState(null)
   const [drawInIndices, setDrawInIndices] = useState([])
+  const [enemyDrawInIndices, setEnemyDrawInIndices] = useState([])
   const [lastAttack, setLastAttack] = useState(null) // { attackerSide, attackerIndex, targetSide, targetHero, targetIndex }
   const [hintOpen, setHintOpen] = useState(false)
   const [playerGraveyardCount, setPlayerGraveyardCount] = useState(0)
@@ -126,15 +127,19 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const [handDetailIndex, setHandDetailIndex] = useState(null) // 點擊手牌放大預覽，再點或關閉後可獻祭/出牌需按鈕確認
   const [initialDrawComplete, setInitialDrawComplete] = useState(false)
   const prevHandLengthRef = useRef(0)
+  const prevEnemyHandLengthRef = useRef(0)
   const attackAnimTimeoutRef = useRef(null)
   const deathRemoveTimeoutRef = useRef(null)
   const initialDrawStartedRef = useRef(false)
   const initialDrawTimeoutRef = useRef(null)
+  const enemyInitialDrawStartedRef = useRef(false)
+  const enemyInitialDrawTimeoutRef = useRef(null)
 
   useEffect(() => {
     return () => {
       if (attackAnimTimeoutRef.current) clearTimeout(attackAnimTimeoutRef.current)
       if (initialDrawTimeoutRef.current) clearTimeout(initialDrawTimeoutRef.current)
+      if (enemyInitialDrawTimeoutRef.current) clearTimeout(enemyInitialDrawTimeoutRef.current)
     }
   }, [])
 
@@ -151,11 +156,10 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     }
     const eHero = getCard(playerDeck.heroId)
     const eDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
-    const { drawn: eHand } = drawCards(eDeck, Math.min(HAND_SIZE_START, eDeck.length))
     const e = {
       hero: eHero ? { ...eHero, currentHp: eHero.hp, maxHp: eHero.hp, energy: 0 } : null,
       deck: eDeck,
-      hand: eHand,
+      hand: [],
       fieldFront: [],
       fieldBack: [],
       sacrificePoints: 0
@@ -164,6 +168,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     setEnemy(e)
     setInitialDrawComplete(false)
     initialDrawStartedRef.current = false
+    enemyInitialDrawStartedRef.current = false
   }, [])
 
   useEffect(() => {
@@ -189,6 +194,28 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }, [player?.hand?.length, player?.deck?.length])
 
   useEffect(() => {
+    if (!enemy || enemyInitialDrawStartedRef.current) return
+    if (enemy.hand.length >= HAND_SIZE_START || enemy.deck.length === 0) return
+    enemyInitialDrawStartedRef.current = true
+    const drawOne = (step) => {
+      if (step >= HAND_SIZE_START) return
+      enemyInitialDrawTimeoutRef.current = setTimeout(() => {
+        setEnemy((prev) => {
+          if (!prev.deck.length || prev.hand.length >= HAND_SIZE_START) return prev
+          const card = prev.deck[0]
+          return {
+            ...prev,
+            deck: prev.deck.slice(1),
+            hand: [...prev.hand, card]
+          }
+        })
+        drawOne(step + 1)
+      }, step === 0 ? 400 : 500)
+    }
+    drawOne(0)
+  }, [enemy?.hand?.length, enemy?.deck?.length])
+
+  useEffect(() => {
     if (!player || !enemy) return
     const playerHp = player.hero?.currentHp ?? player.hero?.hp
     const enemyHp = enemy.hero?.currentHp ?? enemy.hero?.hp
@@ -209,10 +236,27 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }, [player?.hand?.length])
 
   useEffect(() => {
+    if (!enemy?.hand) return
+    const len = enemy.hand.length
+    if (len > prevEnemyHandLengthRef.current) {
+      const newIndices = []
+      for (let i = prevEnemyHandLengthRef.current; i < len; i++) newIndices.push(i)
+      setEnemyDrawInIndices(newIndices)
+    }
+    prevEnemyHandLengthRef.current = len
+  }, [enemy?.hand?.length])
+
+  useEffect(() => {
     if (drawInIndices.length === 0) return
     const t = setTimeout(() => setDrawInIndices([]), 750)
     return () => clearTimeout(t)
   }, [drawInIndices])
+
+  useEffect(() => {
+    if (enemyDrawInIndices.length === 0) return
+    const t = setTimeout(() => setEnemyDrawInIndices([]), 750)
+    return () => clearTimeout(t)
+  }, [enemyDrawInIndices])
 
   useEffect(() => {
     const hasDying = (arr) => Array.isArray(arr) && arr.some((m) => m?.dying === true)
@@ -672,7 +716,11 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
             <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">對手手牌</div>
             <div className="flex justify-center items-end gap-0" style={{ marginLeft: 4 }}>
               {hand.map((_, i) => (
-                <div key={i} className="w-6 h-8 sm:w-8 sm:h-10 rounded overflow-hidden shadow border border-amber-700/50" style={{ marginLeft: i > 0 ? -6 : 0 }}>
+                <div
+                  key={i}
+                  className={`${(drawInIndices || []).includes(i) ? 'card-draw-in' : ''} w-6 h-8 sm:w-8 sm:h-10 rounded overflow-hidden shadow border border-amber-700/50`}
+                  style={{ marginLeft: i > 0 ? -6 : 0, ...((drawInIndices || []).includes(i) ? { animationDelay: '0ms' } : {}) }}
+                >
                   <CardBack cardBackUrl={cardBackUrl} className="w-full h-full" />
                 </div>
               ))}
@@ -898,6 +946,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               fieldBack={enemy.fieldBack}
               hand={enemy.hand}
               isPlayer={false}
+              drawInIndices={enemyDrawInIndices}
               enemyDeckRemaining={enemyDeckRemaining}
               enemySacrificePoints={enemy.sacrificePoints ?? 0}
               cardBackUrl={enemyCardBackUrl ?? cardBackUrl}
