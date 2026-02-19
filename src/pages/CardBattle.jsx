@@ -1,8 +1,9 @@
 // 卡牌對戰：回合制 PvE，英雄血量歸 0 即敗
 import { useState, useEffect, useRef } from 'react'
-import { getCardById } from '../utils/cardGameStorage.js'
+import { getCardById, getSkillById } from '../utils/cardGameStorage.js'
 
-const MAX_FIELD = 5
+const MAX_FRONT = 5  // 前排小怪數量上限
+const MAX_BACK = 5   // 後排裝備/效果/陷阱數量上限
 const HAND_SIZE_START = 5
 const DECK_SIZE = 50
 const DRAW_PER_TURN = 1
@@ -123,20 +124,22 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
     const pDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
     const { drawn: hand } = drawCards(pDeck, Math.min(HAND_SIZE_START, pDeck.length))
     const p = {
-      hero: pHero ? { ...pHero, currentHp: pHero.hp, maxHp: pHero.hp } : null,
+      hero: pHero ? { ...pHero, currentHp: pHero.hp, maxHp: pHero.hp, energy: 1 } : null,
       deck: pDeck,
       hand,
-      field: [],
+      fieldFront: [],
+      fieldBack: [],
       sacrificePoints: 0
     }
     const eHero = getCard(playerDeck.heroId)
     const eDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
     const { drawn: eHand } = drawCards(eDeck, Math.min(HAND_SIZE_START, eDeck.length))
     const e = {
-      hero: eHero ? { ...eHero, currentHp: eHero.hp, maxHp: eHero.hp } : null,
+      hero: eHero ? { ...eHero, currentHp: eHero.hp, maxHp: eHero.hp, energy: 0 } : null,
       deck: eDeck,
       hand: eHand,
-      field: [],
+      fieldFront: [],
+      fieldBack: [],
       sacrificePoints: 0
     }
     setPlayer(p)
@@ -177,7 +180,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       ...prev,
       hand: newHand,
       sacrificePoints: (prev.sacrificePoints || 0) + 1,
-      field: (prev.field || []).map((m) => ({ ...m, canAttack: true }))
+      fieldFront: (prev.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     }))
     setPhase('play')
     setMessage(`獻祭了「${card.name}」，獲得 1 點獻祭點數。累積足夠點數才能打出卡牌（出場點數）。出牌或進入攻擊階段`)
@@ -187,10 +190,6 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
     if (turn !== 'player' || phase !== 'play') return
     const isPlayer = side === 'player'
     const state = isPlayer ? player : enemy
-    if (state.field.length >= MAX_FIELD) {
-      setMessage('場上已滿')
-      return
-    }
     const card = state.hand[handIndex]
     if (!card || card.type === 'hero') return
     const cost = card.cost ?? 0
@@ -202,43 +201,72 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       }
     }
     const newHand = state.hand.filter((_, i) => i !== handIndex)
-    const newField = [...state.field, { ...card, currentHp: card.hp, maxHp: card.hp, canAttack: false }]
-    if (isPlayer) {
-      setPlayer((prev) => ({
-        ...prev,
-        hand: newHand,
-        field: newField,
-        sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost)
-      }))
+    if (card.type === 'minion') {
+      if ((state.fieldFront || []).length >= MAX_FRONT) {
+        setMessage('前排已滿')
+        return
+      }
+      const newFront = [...(state.fieldFront || []), { ...card, currentHp: card.hp, maxHp: card.hp, canAttack: false }]
+      if (isPlayer) {
+        setPlayer((prev) => ({ ...prev, hand: newHand, fieldFront: newFront, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
+      } else {
+        setEnemy((prev) => ({ ...prev, hand: newHand, fieldFront: newFront }))
+      }
     } else {
-      setEnemy((prev) => ({ ...prev, hand: newHand, field: newField }))
+      if ((state.fieldBack || []).length >= MAX_BACK) {
+        setMessage('後排已滿')
+        return
+      }
+      const faceDown = card.type === 'trap'
+      const currentUseCount = card.type === 'equipment' ? (card.useCount ?? 1) : undefined
+      const slot = { card, faceDown, currentUseCount }
+      const newBack = [...(state.fieldBack || []), slot]
+      if (isPlayer) {
+        setPlayer((prev) => ({ ...prev, hand: newHand, fieldBack: newBack, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
+      } else {
+        setEnemy((prev) => ({ ...prev, hand: newHand, fieldBack: newBack }))
+      }
     }
     setMessage('')
   }
 
   const attack = (attackerSide, attackerFieldIndex, targetSide, targetFieldIndexOrHero) => {
     if (turn !== 'player' || phase !== 'attack') return
-    const attacker = (attackerSide === 'player' ? player : enemy).field[attackerFieldIndex]
-    if (!attacker || attacker.attack <= 0 || attacker.canAttack === false) return
+    const state = attackerSide === 'player' ? player : enemy
+    const front = state.fieldFront || []
+    let attacker
+    let attackValue
+    if (attackerFieldIndex === -1) {
+      const back = state.fieldBack || []
+      const eqSlot = back.find((s) => s.card?.type === 'equipment' && (s.currentUseCount ?? s.card?.useCount ?? 0) > 0)
+      if (!eqSlot) return
+      attackValue = eqSlot.card?.attack ?? 0
+      attacker = { name: '英雄（裝備）', attack: attackValue }
+    } else {
+      attacker = front[attackerFieldIndex]
+      if (!attacker || attacker.attack <= 0 || attacker.canAttack === false) return
+      attackValue = attacker.attack
+    }
+    if (attackValue <= 0) return
     const isTargetHero = targetFieldIndexOrHero === -1 || targetFieldIndexOrHero === undefined
     if (isTargetHero && targetSide === 'enemy') {
-      const enemyField = enemy.field || []
+      const enemyFront = enemy.fieldFront || []
       const canDirect = attacker.canAttackHeroDirect === true
-      if (enemyField.length > 0 && !canDirect) return
+      if (enemyFront.length > 0 && !canDirect) return
     }
     if (isTargetHero && targetSide === 'player') {
-      const playerField = player.field || []
-      if (playerField.length > 0) return
+      const playerFront = player.fieldFront || []
+      if (playerFront.length > 0) return
     }
     let target
     if (isTargetHero) {
       target = (targetSide === 'player' ? player : enemy).hero
       if (!target) return
     } else {
-      target = (targetSide === 'player' ? player : enemy).field[targetFieldIndexOrHero]
+      target = (targetSide === 'player' ? player : enemy).fieldFront[targetFieldIndexOrHero]
       if (!target) return
     }
-    const newHp = (target.currentHp ?? target.hp) - attacker.attack
+    const newHp = (target.currentHp ?? target.hp) - attackValue
     if (isTargetHero) {
       if (attackerSide === 'player') {
         setEnemy((prev) => ({
@@ -255,25 +283,36 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       const targetFieldIndex = targetFieldIndexOrHero
       if (newHp <= 0) {
         if (targetSide === 'player') {
-          setPlayer((prev) => ({ ...prev, field: prev.field.filter((_, i) => i !== targetFieldIndex) }))
+          setPlayer((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((_, i) => i !== targetFieldIndex) }))
         } else {
-          setEnemy((prev) => ({ ...prev, field: prev.field.filter((_, i) => i !== targetFieldIndex) }))
+          setEnemy((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((_, i) => i !== targetFieldIndex) }))
         }
       } else {
         if (targetSide === 'player') {
           setPlayer((prev) => {
-            const f = [...prev.field]
+            const f = [...(prev.fieldFront || [])]
             f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: newHp }
-            return { ...prev, field: f }
+            return { ...prev, fieldFront: f }
           })
         } else {
           setEnemy((prev) => {
-            const f = [...prev.field]
+            const f = [...(prev.fieldFront || [])]
             f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: newHp }
-            return { ...prev, field: f }
+            return { ...prev, fieldFront: f }
           })
         }
       }
+    }
+    if (attackerFieldIndex === -1 && attackerSide === 'player') {
+      setPlayer((prev) => {
+        const back = [...(prev.fieldBack || [])]
+        const idx = back.findIndex((s) => s.card?.type === 'equipment' && (s.currentUseCount ?? s.card?.useCount ?? 0) > 0)
+        if (idx !== -1) {
+          const used = (back[idx].currentUseCount ?? back[idx].card?.useCount ?? 1) - 1
+          back[idx] = { ...back[idx], currentUseCount: used }
+        }
+        return { ...prev, fieldBack: back }
+      })
     }
     setMessage(`${attacker.name} 攻擊！`)
     // 攻擊／受擊動畫
@@ -289,19 +328,20 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       setLastAttack(null)
       attackAnimTimeoutRef.current = null
     }, 650)
-    // 該單位本回合已攻擊，不可再攻擊
-    if (attackerSide === 'player') {
-      setPlayer((prev) => {
-        const f = [...(prev.field || [])]
-        if (f[attackerFieldIndex]) f[attackerFieldIndex] = { ...f[attackerFieldIndex], canAttack: false }
-        return { ...prev, field: f }
-      })
-    } else {
-      setEnemy((prev) => {
-        const f = [...(prev.field || [])]
-        if (f[attackerFieldIndex]) f[attackerFieldIndex] = { ...f[attackerFieldIndex], canAttack: false }
-        return { ...prev, field: f }
-      })
+    if (attackerFieldIndex >= 0) {
+      if (attackerSide === 'player') {
+        setPlayer((prev) => {
+          const f = [...(prev.fieldFront || [])]
+          if (f[attackerFieldIndex]) f[attackerFieldIndex] = { ...f[attackerFieldIndex], canAttack: false }
+          return { ...prev, fieldFront: f }
+        })
+      } else {
+        setEnemy((prev) => {
+          const f = [...(prev.fieldFront || [])]
+          if (f[attackerFieldIndex]) f[attackerFieldIndex] = { ...f[attackerFieldIndex], canAttack: false }
+          return { ...prev, fieldFront: f }
+        })
+      }
     }
   }
 
@@ -325,7 +365,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
   const aiTurn = () => {
     let e = { ...enemy }
     let p = { ...player }
-    e.field = (e.field || []).map((m) => ({ ...m, canAttack: true }))
+    e.fieldFront = (e.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     if (e.deck.length > 0 && e.hand.length < 10) {
       const drawn = e.deck.shift()
       e.hand = [...e.hand, drawn]
@@ -335,36 +375,38 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       e.sacrificePoints = (e.sacrificePoints || 0) + 1
       e.hand = e.hand.filter((_, i) => i !== sacrificeIdx)
     }
-    while (e.field.length < MAX_FIELD && e.hand.some((c) => c.type !== 'hero')) {
-      const idx = e.hand.findIndex((c) => c.type !== 'hero')
+    while ((e.fieldFront || []).length < MAX_FRONT && e.hand.some((c) => c && c.type === 'minion')) {
+      const idx = e.hand.findIndex((c) => c && c.type === 'minion')
       if (idx === -1) break
       const card = e.hand[idx]
       const cost = card.cost ?? 0
       if ((e.sacrificePoints || 0) < cost) break
       e.sacrificePoints = (e.sacrificePoints || 0) - cost
       e.hand = e.hand.filter((_, i) => i !== idx)
-      e.field = [...e.field, { ...card, currentHp: card.hp, maxHp: card.hp, canAttack: false }]
+      e.fieldFront = [...(e.fieldFront || []), { ...card, currentHp: card.hp, maxHp: card.hp, canAttack: false }]
     }
-    e.field.forEach((minion) => {
+    ;(e.fieldFront || []).forEach((minion) => {
       if (minion.attack <= 0 || minion.canAttack === false) return
       const canAttackHero = minion.canAttackHeroDirect === true
-      if (p.field.length > 0) {
-        const targetIdx = Math.floor(Math.random() * p.field.length)
-        const target = p.field[targetIdx]
+      const pFront = p.fieldFront || []
+      if (pFront.length > 0) {
+        const targetIdx = Math.floor(Math.random() * pFront.length)
+        const target = pFront[targetIdx]
         const newHp = (target.currentHp || target.hp) - minion.attack
         if (newHp <= 0) {
-          p.field = p.field.filter((_, j) => j !== targetIdx)
+          p.fieldFront = pFront.filter((_, j) => j !== targetIdx)
         } else {
-          p.field = p.field.map((m, j) => (j === targetIdx ? { ...m, currentHp: newHp } : m))
+          p.fieldFront = pFront.map((m, j) => (j === targetIdx ? { ...m, currentHp: newHp } : m))
         }
-      } else if (p.hero && (canAttackHero || p.field.length === 0)) {
+      } else if (p.hero && (canAttackHero || pFront.length === 0)) {
         const newHp = Math.max(0, (p.hero.currentHp || p.hero.hp) - minion.attack)
         p.hero = { ...p.hero, currentHp: newHp }
       }
     })
     setEnemy(e)
     const nextP = { ...p }
-    nextP.field = (nextP.field || []).map((m) => ({ ...m, canAttack: true }))
+    nextP.fieldFront = (nextP.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
+    nextP.hero = nextP.hero ? { ...nextP.hero, energy: (nextP.hero.energy ?? 0) + 1 } : null
     setPlayer(() => {
       if (nextP.deck.length > 0 && nextP.hand.length < 10) {
         const [drawn, ...rest] = nextP.deck
@@ -396,21 +438,45 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
 
   const handleSelectAttackTarget = (targetSide, targetFieldIndex) => {
     if (phase !== 'attack' || turn !== 'player' || targetSide !== 'enemy') return
-    if (selectedAttacker === null) return
+    if (selectedAttacker == null) return
     attack('player', selectedAttacker, targetSide, targetFieldIndex)
     setSelectedAttacker(null)
   }
 
   const handleSelectAttackTargetHero = () => {
     if (phase !== 'attack' || turn !== 'player') return
-    if (selectedAttacker === null) return
+    if (selectedAttacker == null) return
     attack('player', selectedAttacker, 'enemy', -1)
     setSelectedAttacker(null)
   }
 
-  const canAttackEnemyHero = enemy.field.length === 0
+  const canAttackEnemyHero = (enemy.fieldFront || []).length === 0
+  const playerBack = player?.fieldBack || []
+  const canHeroAttack = playerBack.some((s) => s.card?.type === 'equipment' && (s.currentUseCount ?? s.card?.useCount ?? 0) > 0)
 
-  const Field = ({ side, hero, field, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSacrificeCard, onPlayMinion }) => (
+  const useHeroSkill = (skillId, energyCost) => {
+    if (turn !== 'player' || !player?.hero) return
+    const energy = player.hero.energy ?? 0
+    if (energy < energyCost) return
+    const skill = getSkillById(skillId)
+    if (!skill) return
+    setPlayer((prev) => ({
+      ...prev,
+      hero: prev.hero ? { ...prev.hero, energy: (prev.hero.energy ?? 0) - energyCost } : null
+    }))
+    setMessage(`使用了「${skill.name}」`)
+    if (skill.skillKey === 'damage_all_minions_3') {
+      setEnemy((prev) => ({
+        ...prev,
+        fieldFront: (prev.fieldFront || []).map((m) => {
+          const newHp = (m.currentHp ?? m.hp) - 3
+          return newHp <= 0 ? null : { ...m, currentHp: newHp }
+        }).filter(Boolean)
+      }))
+    }
+  }
+
+  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion }) => (
     <div className={`rounded-lg sm:rounded-xl border border-amber-900/50 overflow-hidden flex-shrink-0 min-h-0 flex flex-col ${isPlayer ? 'bg-gradient-to-b from-gray-900/80 to-gray-800/60' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/80'}`}>
       <div className="px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2 flex-wrap border-b border-amber-800/40">
         <span className="text-amber-200/90 font-medium text-xs sm:text-base">{side === 'player' ? '我方' : '敵方'}</span>
@@ -427,23 +493,41 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
       </div>
       <div className="p-2 sm:p-3 space-y-2 sm:space-y-3 flex-1 min-h-0">
         <div>
-          <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5">英雄</div>
+          <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5 flex items-center justify-center gap-2">
+            英雄
+            {isPlayer && heroEnergy != null && <span className="text-amber-400">能量 {heroEnergy}</span>}
+          </div>
           <div className="flex justify-center">
             {hero && (
               <HeroSlot
                 hero={hero}
                 isTarget={onSelectTargetHero && side === 'enemy'}
-                onClick={onSelectTargetHero && side === 'enemy' ? onSelectTargetHero : undefined}
+                onClick={onSelectTargetHero && side === 'enemy' ? onSelectTargetHero : (onSelectHeroAttacker && side === 'player' ? onSelectHeroAttacker : undefined)}
                 className={side === 'enemy' && !onSelectTargetHero ? 'opacity-75 cursor-default' : 'cursor-pointer'}
                 hitAnim={lastAttack?.targetSide === side && lastAttack?.targetHero === true}
               />
             )}
           </div>
         </div>
+        {isPlayer && hero && (heroSkills || []).length > 0 && (phase === 'play' || phase === 'attack') && (
+          <div className="flex flex-wrap gap-1 justify-center items-center">
+            <span className="text-gray-500 text-[10px]">英雄技能：</span>
+            {(heroSkills || []).map((s, i) => {
+              const sk = getSkillById(s.skillId)
+              const cost = s.energyCost ?? sk?.energyCost ?? 0
+              const canUse = (heroEnergy ?? 0) >= cost
+              return sk ? (
+                <button key={i} type="button" onClick={() => canUse && onUseHeroSkill?.(s.skillId, cost)} disabled={!canUse} className={`px-2 py-1 rounded text-xs ${canUse ? 'bg-amber-600 text-gray-900' : 'bg-gray-700 text-gray-500'}`}>
+                  {sk.name}（耗{cost}）
+                </button>
+              ) : null
+            })}
+          </div>
+        )}
         <div>
-          <div className="text-gray-500 text-xs mb-1">場上單位</div>
+          <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5">前排（小怪）</div>
           <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center min-h-[80px] sm:min-h-[100px]">
-            {field.map((m, i) => (
+            {(fieldFront || []).map((m, i) => (
               <BattleCard
                 key={i}
                 card={m}
@@ -463,6 +547,28 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
                   }
                 }}
               />
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-gray-500 text-[10px] sm:text-xs mb-0.5">後排（裝備／效果／陷阱）</div>
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center min-h-[60px]">
+            {(fieldBack || []).map((slot, i) => (
+              slot.faceDown ? (
+                <div key={i} className="w-14 h-[72px] sm:w-[72px] sm:h-[96px] rounded-xl overflow-hidden border-2 border-amber-700/60 shadow-lg">
+                  <CardBack cardBackUrl={cardBackUrl} className="w-full h-full" />
+                </div>
+              ) : (
+                <BattleCard
+                  key={i}
+                  card={slot.card}
+                  attack={slot.card?.type === 'equipment' ? slot.card.attack : undefined}
+                  showCost
+                  currentHp={slot.currentUseCount != null ? slot.currentUseCount : undefined}
+                  maxHp={slot.card?.type === 'equipment' ? slot.card.useCount : undefined}
+                  className="opacity-90"
+                />
+              )
             ))}
           </div>
         </div>
@@ -596,7 +702,10 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
           <Field
             side="enemy"
             hero={enemy.hero}
-            field={enemy.field}
+            heroEnergy={null}
+            heroSkills={null}
+            fieldFront={enemy.fieldFront}
+            fieldBack={enemy.fieldBack}
             hand={enemy.hand}
             isPlayer={false}
             enemyDeckRemaining={enemyDeckRemaining}
@@ -609,11 +718,17 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
           <Field
             side="player"
             hero={player.hero}
-            field={player.field}
+            heroEnergy={player.hero?.energy ?? 0}
+            heroSkills={player.hero?.skills}
+            fieldFront={player.fieldFront}
+            fieldBack={player.fieldBack}
             hand={player.hand}
             isPlayer={true}
             sacrificePoints={player.sacrificePoints ?? 0}
             drawInIndices={drawInIndices}
+            cardBackUrl={cardBackUrl}
+            onSelectHeroAttacker={canHeroAttack ? () => setSelectedAttacker(-1) : undefined}
+            onUseHeroSkill={useHeroSkill}
             onSacrificeCard={sacrificeCard}
             onPlayMinion={(i) => playMinion('player', i)}
           />
@@ -655,7 +770,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
           </button>
           {hintOpen && (
             <p className="text-amber-200/60 text-[10px] sm:text-xs mt-1">
-              手牌僅自己可見。可略過獻祭或獻祭一張得 1 點，累積足夠（出場點數）才能打出。小怪每回合只能攻擊一次；本回合打出的單位下一回合才能攻擊。敵方場上有小怪時無法直擊英雄（特殊卡除外）。
+              前排小怪、後排裝備／效果／陷阱。英雄每回合+1能量，可消耗能量釋放技能；裝備放出後英雄可攻擊，依使用次數消耗。陷阱牌背向上，觸發後套用技能（之後擴充）。
             </p>
           )}
         </div>
