@@ -508,7 +508,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
   const enemyDeckRemaining = enemy?.deck?.length ?? 0
 
   return (
-    <div className="min-h-screen max-h-[100dvh] overflow-y-auto bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 flex flex-col">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900">
       <style>{`
         @keyframes cardDrawIn {
           from { transform: translateX(-90px) scale(0.85); opacity: 0.7; }
@@ -566,13 +566,18 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
           animation: heroHitBlood 0.55s ease-out forwards;
         }
       `}</style>
-      <div className="p-2 sm:p-4 space-y-2 sm:space-y-4 max-w-2xl mx-auto flex-1 min-h-0">
-        <div className="flex justify-between items-center gap-2 flex-shrink-0">
+      {/* 頂部：標題與訊息，不捲動 */}
+      <div className="flex-shrink-0 p-2 sm:p-3 max-w-2xl w-full mx-auto border-b border-amber-900/40 bg-slate-900/50">
+        <div className="flex justify-between items-center gap-2">
           <h3 className="text-amber-300 font-bold text-base sm:text-lg truncate">對戰中</h3>
-          <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-xs sm:text-sm px-2 py-1 rounded border border-gray-600 flex-shrink-0">離開</button>
+          <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-sm px-3 py-2 rounded border border-gray-600 flex-shrink-0 min-h-[44px] touch-manipulation">離開</button>
         </div>
-        {message && <p className="text-amber-100/90 text-xs sm:text-sm truncate flex-shrink-0">{message}</p>}
-        <div className="flex gap-2 sm:gap-4 min-h-0 flex-1">
+        {message && <p className="text-amber-100/90 text-xs sm:text-sm truncate mt-1">{message}</p>}
+      </div>
+      {/* 中間：對戰場地，可捲動 */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+      <div className="p-2 sm:p-4 space-y-2 sm:space-y-4 max-w-2xl mx-auto">
+        <div className="flex gap-2 sm:gap-4">
         <div className="flex-shrink-0 flex flex-col items-center justify-end">
           <div className="relative w-12 h-14 sm:w-16 sm:h-20 flex items-center justify-center" aria-label="牌堆">
             <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
@@ -615,38 +620,45 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, cardBack
         </div>
         </div>
       </div>
-      <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 flex gap-2 flex-wrap items-center flex-shrink-0">
-        {phase === 'sacrifice' && (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                setPhase('play')
-                setMessage(player.hand.length === 0 ? '無手牌可獻祭，出牌或進入攻擊階段' : '略過獻祭，出牌或進入攻擊階段')
-              }}
-              className="px-2 py-1.5 sm:px-3 sm:py-2 bg-gray-600 text-white rounded font-semibold text-xs sm:text-sm hover:bg-gray-500"
-            >
-              略過獻祭
-            </button>
-            <span className="text-gray-400 text-xs sm:text-sm">或點擊手牌獻祭得 1 點</span>
-          </>
-        )}
-        {phase === 'play' && (
-          <button type="button" onClick={endPlayPhase} className="px-2 py-1.5 sm:px-3 sm:py-2 bg-amber-500 text-gray-900 rounded font-semibold text-xs sm:text-sm">進入攻擊階段</button>
-        )}
-        {phase === 'attack' && (
-          <button type="button" onClick={endTurn} className="px-2 py-1.5 sm:px-3 sm:py-2 bg-gray-500 text-white rounded font-semibold text-xs sm:text-sm">結束回合</button>
-        )}
       </div>
-      <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-2 flex-shrink-0">
-        <button type="button" onClick={() => setHintOpen((o) => !o)} className="text-amber-200/50 hover:text-amber-200/80 text-[10px] sm:text-xs">
-          {hintOpen ? '收起規則' : '規則說明'}
-        </button>
-        {hintOpen && (
-          <p className="text-amber-200/60 text-[10px] sm:text-xs mt-1">
-            手牌僅自己可見。可略過獻祭或獻祭一張得 1 點，累積足夠（出場點數）才能打出。小怪每回合只能攻擊一次；本回合打出的單位下一回合才能攻擊。敵方場上有小怪時無法直擊英雄（特殊卡除外）。
-          </p>
-        )}
+      {/* 底部操作列：固定不捲動、易點擊，留出 safe area */}
+      <div
+        className="flex-shrink-0 border-t border-amber-800/50 bg-slate-900/95 backdrop-blur-sm pt-2"
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))' }}
+      >
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 flex flex-wrap items-center gap-3">
+          {phase === 'sacrifice' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setPhase('play')
+                  setMessage(player.hand.length === 0 ? '無手牌可獻祭，出牌或進入攻擊階段' : '略過獻祭，出牌或進入攻擊階段')
+                }}
+                className="min-h-[48px] px-4 py-3 sm:px-5 sm:py-2.5 bg-amber-600 hover:bg-amber-500 text-gray-900 rounded-lg font-semibold text-sm touch-manipulation active:scale-[0.98]"
+              >
+                略過獻祭
+              </button>
+              <span className="text-gray-400 text-xs sm:text-sm">或點擊手牌獻祭得 1 點</span>
+            </>
+          )}
+          {phase === 'play' && (
+            <button type="button" onClick={endPlayPhase} className="min-h-[48px] px-4 py-3 sm:px-5 sm:py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-900 rounded-lg font-semibold text-sm touch-manipulation active:scale-[0.98]">進入攻擊階段</button>
+          )}
+          {phase === 'attack' && (
+            <button type="button" onClick={endTurn} className="min-h-[48px] px-4 py-3 sm:px-5 sm:py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-semibold text-sm touch-manipulation active:scale-[0.98]">結束回合</button>
+          )}
+        </div>
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 pt-1 pb-1">
+          <button type="button" onClick={() => setHintOpen((o) => !o)} className="text-amber-200/50 hover:text-amber-200/80 text-xs min-h-[32px] touch-manipulation">
+            {hintOpen ? '收起規則' : '規則說明'}
+          </button>
+          {hintOpen && (
+            <p className="text-amber-200/60 text-[10px] sm:text-xs mt-1">
+              手牌僅自己可見。可略過獻祭或獻祭一張得 1 點，累積足夠（出場點數）才能打出。小怪每回合只能攻擊一次；本回合打出的單位下一回合才能攻擊。敵方場上有小怪時無法直擊英雄（特殊卡除外）。
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
