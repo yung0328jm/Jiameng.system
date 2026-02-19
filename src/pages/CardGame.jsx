@@ -17,7 +17,7 @@ import {
   saveShopPack,
   deleteShopPack,
   getCardQuantity as getCollectionQty
-} from '../utils/cardGameStorage'
+} from '../utils/cardGameStorage.js'
 import { getWalletBalance, subtractWalletBalance } from '../utils/walletStorage'
 import { getPointsBalance, subtractPointsBalance } from '../utils/pointsStorage'
 import CardBattle from './CardBattle'

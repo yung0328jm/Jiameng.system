@@ -1,6 +1,6 @@
 // 卡牌對戰：回合制 PvE，英雄血量歸 0 即敗
 import { useState, useEffect } from 'react'
-import { getCardById } from '../utils/cardGameStorage'
+import { getCardById } from '../utils/cardGameStorage.js'
 
 const MAX_FIELD = 5
 const HAND_SIZE_START = 5
