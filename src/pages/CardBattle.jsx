@@ -115,6 +115,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const [lastAttack, setLastAttack] = useState(null) // { attackerSide, attackerIndex, targetSide, targetHero, targetIndex }
   const [hintOpen, setHintOpen] = useState(false)
   const [playerGraveyardCount, setPlayerGraveyardCount] = useState(0)
+  const [enemyGraveyardCount, setEnemyGraveyardCount] = useState(0)
   const prevHandLengthRef = useRef(0)
   const attackAnimTimeoutRef = useRef(null)
   const deathRemoveTimeoutRef = useRef(null)
@@ -191,7 +192,12 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         if (dyingCount > 0) setPlayerGraveyardCount((c) => c + dyingCount)
         return { ...prev, fieldFront: front.filter((m) => !m.dying) }
       })
-      setEnemy((prev) => ({ ...prev, fieldFront: (prev.fieldFront || []).filter((m) => !m.dying) }))
+      setEnemy((prev) => {
+        const front = prev.fieldFront || []
+        const dyingCount = front.filter((m) => m.dying).length
+        if (dyingCount > 0) setEnemyGraveyardCount((c) => c + dyingCount)
+        return { ...prev, fieldFront: front.filter((m) => !m.dying) }
+      })
     }, 700)
     return () => {}
   }, [player?.fieldFront, enemy?.fieldFront])
@@ -785,9 +791,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
             <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
               <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
             </div>
-            <div className="absolute inset-0 rounded-lg border-2 border-amber-500 flex items-center justify-center bg-gray-800/90">
-              <span className="text-amber-400/90 text-[10px] sm:text-xs font-bold">牌庫</span>
-            </div>
+            <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
           </div>
           <p className="text-amber-400 font-mono text-xs sm:text-sm mt-1 font-semibold">{deckRemaining}</p>
         </div>
@@ -825,6 +829,24 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
             onSacrificeCard={sacrificeCard}
             onPlayMinion={(i) => playMinion('player', i)}
           />
+        </div>
+        <div className="flex-shrink-0 flex flex-col items-center justify-end gap-2">
+          <div className="flex flex-col items-center" aria-label="敵方墓地">
+            <span className="text-gray-500 text-[10px] sm:text-xs">墓地</span>
+            <div className="w-10 h-12 sm:w-12 sm:h-14 rounded-lg border-2 border-gray-600 bg-gray-800/90 flex items-center justify-center">
+              <span className="text-amber-400/90 font-mono text-xs sm:text-sm font-bold">{enemyGraveyardCount}</span>
+            </div>
+          </div>
+          <div className="relative w-12 h-14 sm:w-16 sm:h-20 flex items-center justify-center" aria-label="敵方牌堆">
+            <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
+              <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
+            </div>
+            <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
+              <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
+            </div>
+            <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
+          </div>
+          <p className="text-amber-400 font-mono text-xs sm:text-sm mt-1 font-semibold">{enemyDeckRemaining}</p>
         </div>
         </div>
       </div>
