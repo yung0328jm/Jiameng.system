@@ -20,6 +20,7 @@ import {
 } from '../utils/cardGameStorage.js'
 import { getWalletBalance, subtractWalletBalance } from '../utils/walletStorage'
 import { getPointsBalance, subtractPointsBalance } from '../utils/pointsStorage'
+import { fetchCardShopDataFromSupabase } from '../utils/supabaseSync'
 import CardBattle from './CardBattle'
 
 const TAB_BATTLE = 'battle'
@@ -59,6 +60,19 @@ export default function CardGame({ onBack }) {
       setCollection(getCollection(currentUser))
     }
   }, [currentUser, tab])
+
+  // 進入商城時從雲端補拉卡牌定義與卡包（一般用戶若初始 sync 未帶到這些 key 也能看到單卡與卡包）
+  useEffect(() => {
+    if (tab !== TAB_SHOP) return
+    let cancelled = false
+    fetchCardShopDataFromSupabase().then(() => {
+      if (!cancelled) {
+        setDefinitions(getCardDefinitions())
+        setShopPacks(getShopPacks())
+      }
+    })
+    return () => { cancelled = true }
+  }, [tab])
 
   const refresh = () => {
     setDefinitions(getCardDefinitions())
@@ -140,7 +154,8 @@ export default function CardGame({ onBack }) {
     }
     addCardToCollection(currentUser, card.id, 1)
     refresh()
-    alert('購買成功')
+    setTab(TAB_COLLECTION)
+    alert('購買成功，請在「牌庫」查看')
   }
 
   const handleBuyPack = (pack) => {
@@ -188,7 +203,8 @@ export default function CardGame({ onBack }) {
       addCardToCollection(currentUser, cardId, 1)
     }
     refresh()
-    alert(`已開啟卡包，獲得 ${count} 張卡`)
+    setTab(TAB_COLLECTION)
+    alert(`已開啟卡包，獲得 ${count} 張卡，請在「牌庫」查看`)
   }
 
   const startBattle = (deckId) => {
@@ -311,24 +327,28 @@ export default function CardGame({ onBack }) {
       {tab === TAB_SHOP && (
         <div className="space-y-4">
           <p className="text-gray-400 text-sm">單卡（有設定售價的卡牌）</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {definitions.filter((c) => c.price != null && c.price > 0).map((card) => (
-              <div key={card.id} className="bg-gray-700 rounded-lg p-2 border border-gray-600">
-                {card.coverImage ? (
-                  <img src={card.coverImage} alt={card.name} className="w-full aspect-[3/4] object-cover rounded" />
-                ) : (
-                  <div className="w-full aspect-[3/4] bg-gray-600 rounded flex items-center justify-center text-gray-400 text-xs">無圖</div>
-                )}
-                <div className="text-white text-sm font-medium truncate mt-1">{card.name}</div>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-yellow-400 text-xs">{card.price} {card.priceCurrency === 'coin' ? '佳盟幣' : '佳盟分'}</span>
-                  {currentUser && (
-                    <button type="button" onClick={() => handleBuyCard(card, card.priceCurrency)} className="text-xs bg-yellow-600 text-gray-900 px-2 py-0.5 rounded">購買</button>
+          {definitions.filter((c) => c.price != null && c.price > 0).length === 0 ? (
+            <p className="text-gray-500 text-sm">尚無可購買的單卡；若管理員已新增卡牌並設定售價，請重新進入商城或重整頁面。</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {definitions.filter((c) => c.price != null && c.price > 0).map((card) => (
+                <div key={card.id} className="bg-gray-700 rounded-lg p-2 border border-gray-600">
+                  {card.coverImage ? (
+                    <img src={card.coverImage} alt={card.name} className="w-full aspect-[3/4] object-cover rounded" />
+                  ) : (
+                    <div className="w-full aspect-[3/4] bg-gray-600 rounded flex items-center justify-center text-gray-400 text-xs">無圖</div>
                   )}
+                  <div className="text-white text-sm font-medium truncate mt-1">{card.name}</div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-yellow-400 text-xs">{card.price} {card.priceCurrency === 'coin' ? '佳盟幣' : '佳盟分'}</span>
+                    {currentUser && (
+                      <button type="button" onClick={() => handleBuyCard(card, card.priceCurrency)} className="text-xs bg-yellow-600 text-gray-900 px-2 py-0.5 rounded">購買</button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           <p className="text-gray-400 text-sm mt-4">卡包</p>
           {shopPacks.length === 0 ? (
             <p className="text-gray-500 text-sm">尚無卡包，管理員可在「卡牌管理」新增卡包。</p>
