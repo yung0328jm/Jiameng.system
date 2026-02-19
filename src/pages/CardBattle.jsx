@@ -28,7 +28,18 @@ function drawCards(deck, count) {
   return { deck, drawn }
 }
 
-export default function CardBattle({ playerDeck, playerAccount, onExit }) {
+function CardBack({ cardBackUrl, className = '' }) {
+  if (cardBackUrl) {
+    return <img src={cardBackUrl} alt="" className={`w-full h-full object-cover rounded border border-gray-600 ${className}`} />
+  }
+  return (
+    <div className={`w-full h-full rounded border-2 border-amber-600/50 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center ${className}`}>
+      <span className="text-amber-400/60 text-[8px]">背面</span>
+    </div>
+  )
+}
+
+export default function CardBattle({ playerDeck, playerAccount, onExit, cardBackUrl }) {
   const getCard = (id) => getCardById(id)
   const [player, setPlayer] = useState(null)
   const [enemy, setEnemy] = useState(null)
@@ -305,12 +316,16 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
 
   const canAttackEnemyHero = enemy.field.length === 0
 
-  const Field = ({ side, hero, field, hand, isPlayer, sacrificePoints, drawInIndices, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSacrificeCard, onPlayMinion }) => (
+  const Field = ({ side, hero, field, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSacrificeCard, onPlayMinion }) => (
     <div className="space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-gray-400 text-sm">{side === 'player' ? '我方' : '敵方'}</span>
         {!isPlayer && (
-          <span className="text-gray-500 text-sm">手牌：{hand?.length ?? 0} 張（對手不可見）</span>
+          <>
+            <span className="text-amber-400/90 text-sm">獻祭點數 {enemySacrificePoints ?? 0}</span>
+            <span className="text-gray-400 text-sm">牌庫 {enemyDeckRemaining ?? 0}/{DECK_SIZE}</span>
+            <span className="text-gray-500 text-sm">手牌 {hand?.length ?? 0} 張</span>
+          </>
         )}
         {isPlayer && sacrificePoints != null && (
           <span className="text-amber-400 text-sm">獻祭點數 {sacrificePoints}</span>
@@ -347,6 +362,15 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
           </div>
         ))}
       </div>
+      {!isPlayer && hand && hand.length > 0 && (
+        <div className="flex flex-wrap gap-0.5 mt-2 items-end">
+          {hand.map((_, i) => (
+            <div key={i} className="w-12 h-16 rounded border border-gray-600 overflow-hidden shadow" style={{ marginLeft: i > 0 ? '-8px' : 0 }}>
+              <CardBack cardBackUrl={cardBackUrl} className="w-full h-full" />
+            </div>
+          ))}
+        </div>
+      )}
       {isPlayer && (
         <div className="flex flex-wrap gap-1 mt-2">
           {hand.map((c, i) => (
@@ -368,6 +392,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
   )
 
   const deckRemaining = player?.deck?.length ?? 0
+  const enemyDeckRemaining = enemy?.deck?.length ?? 0
 
   return (
     <div className="p-4 space-y-4">
@@ -386,9 +411,13 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
       <div className="flex gap-4">
         <div className="flex-shrink-0 flex flex-col items-center justify-end">
           <div className="relative w-16 h-20 flex items-center justify-center" aria-label="牌堆">
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg border-2 border-amber-600/60 shadow-lg" style={{ transform: 'translateY(2px)' }} />
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-600 to-gray-700 rounded-lg border-2 border-amber-500/40" style={{ transform: 'translateY(4px)' }} />
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border-2 border-amber-500 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
+              <CardBack cardBackUrl={cardBackUrl} className="w-full h-full rounded-lg" />
+            </div>
+            <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
+              <CardBack cardBackUrl={cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
+            </div>
+            <div className="absolute inset-0 rounded-lg border-2 border-amber-500 flex items-center justify-center bg-gray-800/90">
               <span className="text-amber-400/90 text-xs font-bold">牌庫</span>
             </div>
           </div>
@@ -401,6 +430,9 @@ export default function CardBattle({ playerDeck, playerAccount, onExit }) {
             field={enemy.field}
             hand={enemy.hand}
             isPlayer={false}
+            enemyDeckRemaining={enemyDeckRemaining}
+            enemySacrificePoints={enemy.sacrificePoints ?? 0}
+            cardBackUrl={cardBackUrl}
             onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
             onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
           />

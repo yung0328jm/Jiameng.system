@@ -16,7 +16,9 @@ import {
   getShopPacks,
   saveShopPack,
   deleteShopPack,
-  getCardQuantity as getCollectionQty
+  getCardQuantity as getCollectionQty,
+  getCardBackUrl,
+  setCardBackUrl
 } from '../utils/cardGameStorage.js'
 import { getWalletBalance, subtractWalletBalance } from '../utils/walletStorage'
 import { getPointsBalance, subtractPointsBalance } from '../utils/pointsStorage'
@@ -78,6 +80,10 @@ export default function CardGame({ onBack }) {
   const [battleDeckId, setBattleDeckId] = useState(null)
   const [battleStarted, setBattleStarted] = useState(false)
   const [collectionDetail, setCollectionDetail] = useState(null)
+  const [cardBackUrlInput, setCardBackUrlInput] = useState('')
+  useEffect(() => {
+    if (tab === TAB_ADMIN) setCardBackUrlInput(getCardBackUrl())
+  }, [tab])
   useEffect(() => {
     if (!collectionDetail) return
     const onKey = (e) => { if (e.key === 'Escape') setCollectionDetail(null) }
@@ -266,6 +272,7 @@ export default function CardGame({ onBack }) {
           playerDeck={deck}
           playerAccount={currentUser}
           onExit={() => { setBattleStarted(false); setBattleDeckId(null); refresh() }}
+          cardBackUrl={getCardBackUrl()}
         />
       )
     }
@@ -454,6 +461,26 @@ export default function CardGame({ onBack }) {
 
       {tab === TAB_ADMIN && (
         <div className="space-y-4">
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <h4 className="text-amber-400 text-sm mb-2">卡套背面（可販售卡套）</h4>
+            <p className="text-gray-400 text-xs mb-2">對戰時對手手牌、牌堆會顯示此背面圖。設為圖片 URL 即可用於販售卡套。</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                placeholder="卡套背面圖片 URL"
+                value={cardBackUrlInput}
+                onChange={(e) => setCardBackUrlInput(e.target.value)}
+                className="flex-1 min-w-[200px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm"
+              />
+              <button type="button" onClick={() => { setCardBackUrl(cardBackUrlInput); refresh(); alert('已儲存卡套背面'); }} className="px-3 py-1.5 bg-amber-500 text-gray-900 rounded text-sm font-semibold">儲存</button>
+            </div>
+            {cardBackUrlInput && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-gray-500 text-xs">預覽：</span>
+                <img src={cardBackUrlInput} alt="卡套背面" className="h-14 w-10 object-cover rounded border border-gray-600" onError={(e) => { e.target.style.display = 'none' }} />
+              </div>
+            )}
+          </div>
           <h3 className="text-white font-semibold">卡牌定義</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
