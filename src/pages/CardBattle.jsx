@@ -5,6 +5,7 @@ import { getCardById, getSkillById } from '../utils/cardGameStorage.js'
 const MAX_FRONT = 5  // 前排小怪數量上限
 const MAX_BACK = 5   // 後排裝備/效果/陷阱數量上限
 const HAND_SIZE_START = 5
+const MAX_HAND_SIZE = 9
 const MIN_DECK_SIZE = 30
 const MAX_DECK_SIZE = 50
 const DRAW_PER_TURN = 1
@@ -41,33 +42,38 @@ function CardBack({ cardBackUrl, className = '' }) {
   )
 }
 
-function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, selected, dimmed, onClick, className = '', attackAnim, hitAnim, dying }) {
+function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, selected, dimmed, onClick, className = '', attackAnim, hitAnim, dying, compact }) {
   const atk = attack ?? card?.attack ?? 0
   const health = currentHp ?? hp ?? card?.hp ?? 0
   const maxHealth = maxHp ?? card?.maxHp ?? card?.hp ?? 0
   const name = card?.name || '—'
   const cover = card?.coverImage
+  const sizeClass = compact
+    ? 'w-9 h-[44px] sm:w-10 sm:h-[52px] rounded-md'
+    : 'w-11 h-[56px] sm:w-14 sm:h-[68px] md:w-16 md:h-20 rounded-lg'
+  const badgeClass = compact ? 'w-4 h-4 text-[7px]' : 'w-5 h-5 text-[8px]'
+  const nameClass = compact ? 'text-[6px] sm:text-[7px]' : 'text-[7px] sm:text-[8px]'
   return (
     <button
       type="button"
       onClick={dying ? undefined : onClick}
-      className={`relative w-11 h-[56px] sm:w-14 sm:h-[68px] md:w-16 md:h-20 rounded-lg overflow-visible border-2 shadow-md transition-all ${selected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-amber-700/60 hover:border-amber-500'} ${dimmed ? 'opacity-60' : ''} ${attackAnim ? 'card-attack-lunge' : ''} ${hitAnim ? 'card-hit' : ''} ${dying ? 'card-death pointer-events-none' : ''} ${className}`}
+      className={`relative ${sizeClass} overflow-visible border-2 shadow-md transition-all ${selected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-amber-700/60 hover:border-amber-500'} ${dimmed ? 'opacity-60' : ''} ${attackAnim ? 'card-attack-lunge' : ''} ${hitAnim ? 'card-hit' : ''} ${dying ? 'card-death pointer-events-none' : ''} ${className}`}
     >
-      <div className="absolute inset-0 rounded-md overflow-hidden bg-gray-900">
+      <div className="absolute inset-0 rounded overflow-hidden bg-gray-900">
         {cover ? (
           <img src={cover} alt="" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-gray-500 text-[8px]">無圖</div>
+          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-gray-500 text-[7px]">無圖</div>
         )}
       </div>
-      <div className="absolute inset-0 rounded-md overflow-hidden bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+      <div className="absolute inset-0 rounded overflow-hidden bg-gradient-to-t from-black/80 via-transparent to-transparent" />
       {showCost && (card?.cost != null && card.cost > 0) && (
-        <div className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-amber-600 flex items-center justify-center text-[8px] font-bold text-gray-900">{card.cost}</div>
+        <div className={`absolute top-0.5 left-0.5 rounded-full bg-amber-600 flex items-center justify-center font-bold text-gray-900 ${compact ? 'w-3 h-3 text-[6px]' : 'w-4 h-4 text-[8px]'}`}>{card.cost}</div>
       )}
       <div className="absolute bottom-0 left-0 right-0 p-0.5 flex items-center justify-between gap-0.5">
-        <span className="w-5 h-5 rounded-full bg-red-900/90 flex items-center justify-center text-[8px] font-bold text-red-200" title="攻擊">{atk}</span>
-        <span className="text-white text-[7px] sm:text-[8px] truncate flex-1 text-center drop-shadow">{name}</span>
-        <span className="w-5 h-5 rounded-full bg-green-900/90 flex items-center justify-center text-[8px] font-bold text-green-200" title="血量">{currentHp != null ? `${currentHp}/${maxHealth}` : health}</span>
+        <span className={`rounded-full bg-red-900/90 flex items-center justify-center font-bold text-red-200 ${badgeClass}`} title="攻擊">{atk}</span>
+        <span className={`text-white truncate flex-1 text-center drop-shadow ${nameClass}`}>{name}</span>
+        <span className={`rounded-full bg-green-900/90 flex items-center justify-center font-bold text-green-200 ${badgeClass}`} title="血量">{currentHp != null ? `${currentHp}/${maxHealth}` : health}</span>
       </div>
     </button>
   )
@@ -116,6 +122,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const [hintOpen, setHintOpen] = useState(false)
   const [playerGraveyardCount, setPlayerGraveyardCount] = useState(0)
   const [enemyGraveyardCount, setEnemyGraveyardCount] = useState(0)
+  const [handDetailIndex, setHandDetailIndex] = useState(null) // 點擊手牌放大預覽，再點或關閉後可獻祭/出牌需按鈕確認
   const prevHandLengthRef = useRef(0)
   const attackAnimTimeoutRef = useRef(null)
   const deathRemoveTimeoutRef = useRef(null)
@@ -406,7 +413,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     let p = { ...player }
     let playerDeathsThisTurn = 0
     e.fieldFront = (e.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
-    if (e.deck.length > 0 && e.hand.length < 10) {
+    if (e.deck.length > 0 && e.hand.length < MAX_HAND_SIZE) {
       const drawn = e.deck.shift()
       e.hand = [...e.hand, drawn]
     }
@@ -450,7 +457,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     nextP.fieldFront = (nextP.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     nextP.hero = nextP.hero ? { ...nextP.hero, energy: (nextP.hero.energy ?? 0) + 1 } : null
     setPlayer(() => {
-      if (nextP.deck.length > 0 && nextP.hand.length < 10) {
+      if (nextP.deck.length > 0 && nextP.hand.length < MAX_HAND_SIZE) {
         const [drawn, ...rest] = nextP.deck
         return { ...nextP, deck: rest, hand: [...nextP.hand, drawn] }
       }
@@ -530,7 +537,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     })
   }
 
-  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion }) => (
+  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion, onHandCardClick, handDetailIndex, handCardCompact }) => (
     <div className={`rounded-lg border border-amber-900/50 overflow-hidden flex-shrink-0 min-h-0 flex flex-col ${isPlayer ? 'bg-gradient-to-b from-gray-900/80 to-gray-800/60' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/80'}`}>
       <div className="px-1.5 py-0.5 sm:px-2 sm:py-1 flex items-center gap-1 sm:gap-2 flex-wrap border-b border-amber-800/40">
         <span className="text-amber-200/90 font-medium text-[10px] sm:text-xs">{side === 'player' ? '我方' : '敵方'}</span>
@@ -643,20 +650,21 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         )}
         {isPlayer && (
           <div>
-            <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">手牌</div>
-            <div className="flex flex-wrap gap-1 sm:gap-1.5 justify-center">
+            <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">手牌（點擊預覽，獻祭/出牌在預覽內確認）</div>
+            <div className="flex flex-wrap gap-0.5 sm:gap-1 justify-center">
               {hand.map((c, i) => (
                 <div
                   key={i}
-                  className={`${(drawInIndices || []).includes(i) ? 'card-draw-in' : ''}`}
+                  className={`${(drawInIndices || []).includes(i) ? 'card-draw-in' : ''} ${handDetailIndex === i ? 'ring-2 ring-amber-400 rounded' : ''}`}
                   style={(drawInIndices || []).includes(i) ? { animationDelay: `${Math.min(i, 4) * 80}ms` } : undefined}
                 >
                   <BattleCard
                     card={c}
                     showCost
-                    selected={false}
-                    onClick={() => phase === 'sacrifice' ? (onSacrificeCard && onSacrificeCard(i)) : (onPlayMinion && onPlayMinion(i))}
-                    className={phase === 'sacrifice' ? 'border-amber-500/80' : ''}
+                    compact={handCardCompact}
+                    selected={handDetailIndex === i}
+                    onClick={() => onHandCardClick && onHandCardClick(i)}
+                    className={handDetailIndex === i ? 'border-amber-400' : ''}
                   />
                 </div>
               ))}
@@ -850,9 +858,12 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               cardBackUrl={playerCardBackUrl ?? cardBackUrl}
               onSelectHeroAttacker={canHeroAttack ? () => setSelectedAttacker(-1) : undefined}
               onUseHeroSkill={useHeroSkill}
-              onSacrificeCard={sacrificeCard}
-              onPlayMinion={(i) => playMinion('player', i)}
-            />
+            onSacrificeCard={sacrificeCard}
+            onPlayMinion={(i) => playMinion('player', i)}
+            onHandCardClick={(i) => setHandDetailIndex((prev) => (prev === i ? null : i))}
+            handDetailIndex={handDetailIndex}
+            handCardCompact={true}
+          />
           </div>
         </div>
       </div>
@@ -875,7 +886,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               >
                 略過獻祭
               </button>
-              <span className="text-gray-400 text-[10px] sm:text-xs">或點手牌獻祭得 1 點</span>
+              <span className="text-gray-400 text-[10px] sm:text-xs">點手牌預覽後於彈窗內按獻祭</span>
             </>
           )}
           {phase === 'play' && (
@@ -896,6 +907,57 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
           )}
         </div>
       </div>
+
+      {/* 手牌預覽：點擊手牌放大，關閉／獻祭／出牌需按鈕確認 */}
+      {handDetailIndex != null && player?.hand?.[handDetailIndex] && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3"
+          onClick={() => setHandDetailIndex(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-gray-800 rounded-xl border border-amber-600/60 shadow-xl max-w-[280px] w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3 flex justify-center">
+              <div className="scale-[1.8] origin-center pointer-events-none">
+                <BattleCard
+                  card={player.hand[handDetailIndex]}
+                  showCost
+                  attack={player.hand[handDetailIndex]?.attack}
+                  hp={player.hand[handDetailIndex]?.hp}
+                  className="cursor-default"
+                />
+              </div>
+            </div>
+              <div className="mt-2 text-center text-white text-sm font-medium">{player.hand[handDetailIndex]?.name}</div>
+              <div className="mt-1 text-gray-400 text-xs text-center">
+                {player.hand[handDetailIndex]?.type === 'minion' && `小怪 · 攻${player.hand[handDetailIndex]?.attack ?? 0} 血${player.hand[handDetailIndex]?.hp ?? 0}`}
+                {player.hand[handDetailIndex]?.type === 'equipment' && `裝備 · 攻${player.hand[handDetailIndex]?.attack ?? 0}`}
+                {player.hand[handDetailIndex]?.type === 'effect' && '效果'}
+                {player.hand[handDetailIndex]?.type === 'trap' && '陷阱'}
+                {player.hand[handDetailIndex]?.cost != null && player.hand[handDetailIndex].cost > 0 && ` · 消耗 ${player.hand[handDetailIndex].cost} 獻祭點`}
+              </div>
+              {player.hand[handDetailIndex]?.description && (
+                <p className="mt-1 text-gray-500 text-[10px] text-center line-clamp-3">{player.hand[handDetailIndex].description}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 p-3 border-t border-gray-700">
+              <button type="button" onClick={() => setHandDetailIndex(null)} className="flex-1 min-w-[60px] py-2 bg-gray-600 text-white rounded-lg text-xs font-medium touch-manipulation">關閉</button>
+              {phase === 'sacrifice' && (
+                <button type="button" onClick={() => { sacrificeCard(handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-amber-600 text-gray-900 rounded-lg text-xs font-medium touch-manipulation">獻祭</button>
+              )}
+              {phase === 'play' && player.hand[handDetailIndex]?.type === 'minion' && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && (player.fieldFront?.length ?? 0) < MAX_FRONT && (
+                <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
+              )}
+              {phase === 'play' && (player.hand[handDetailIndex]?.type === 'equipment' || player.hand[handDetailIndex]?.type === 'effect' || player.hand[handDetailIndex]?.type === 'trap') && (player.sacrificePoints ?? 0) >= (player.hand[handDetailIndex]?.cost ?? 0) && (player.fieldBack?.length ?? 0) < MAX_BACK && (
+                <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
