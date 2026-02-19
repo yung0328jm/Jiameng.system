@@ -67,7 +67,7 @@ function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, sele
         )}
       </div>
       <div className="absolute inset-0 rounded overflow-hidden bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-      {showCost && (card?.cost != null && card.cost > 0) && (
+      {showCost && (card?.cost != null && (card.cost || 0) >= 1) && (
         <div className={`absolute top-0.5 left-0.5 rounded-full bg-amber-600 flex items-center justify-center font-bold text-gray-900 ${compact ? 'w-3 h-3 text-[6px]' : 'w-4 h-4 text-[8px]'}`}>{card.cost}</div>
       )}
       <div className="absolute bottom-0 left-0 right-0 p-0.5 flex items-center justify-between gap-0.5">
@@ -937,7 +937,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
                 {player.hand[handDetailIndex]?.type === 'equipment' && `裝備 · 攻${player.hand[handDetailIndex]?.attack ?? 0}`}
                 {player.hand[handDetailIndex]?.type === 'effect' && '效果'}
                 {player.hand[handDetailIndex]?.type === 'trap' && '陷阱'}
-                {player.hand[handDetailIndex]?.cost != null && player.hand[handDetailIndex].cost > 0 && ` · 消耗 ${player.hand[handDetailIndex].cost} 獻祭點`}
+                {player.hand[handDetailIndex]?.cost != null && (player.hand[handDetailIndex].cost || 0) >= 1 && ` · 消耗 ${player.hand[handDetailIndex].cost} 獻祭點`}
               </div>
               {player.hand[handDetailIndex]?.description && (
                 <p className="mt-1 text-gray-500 text-[10px] text-center line-clamp-3">{player.hand[handDetailIndex].description}</p>
