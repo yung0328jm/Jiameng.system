@@ -38,6 +38,8 @@ export const addCardDefinition = (card) => {
     attack: Number(card.attack) || 0,
     hp: Number(card.hp) || 0,
     skillText: card.skillText || '',
+    cost: Math.max(0, Number(card.cost) ?? 0),
+    canAttackHeroDirect: !!card.canAttackHeroDirect,
     price: card.price != null ? Number(card.price) : null,
     priceCurrency: card.priceCurrency || 'coin',
     createdAt: new Date().toISOString()
