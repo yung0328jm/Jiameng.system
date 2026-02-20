@@ -153,7 +153,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       hand: [],
       fieldFront: [],
       fieldBack: [],
-      sacrificePoints: 0
+      sacrificePoints: 0,
+      sacrificeMax: 0
     }
     const eHero = getCard(playerDeck.heroId)
     const eDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
@@ -163,7 +164,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       hand: [],
       fieldFront: [],
       fieldBack: [],
-      sacrificePoints: 0
+      sacrificePoints: 0,
+      sacrificeMax: 0
     }
     setPlayer(p)
     setEnemy(e)
@@ -290,14 +292,18 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     const card = player.hand[handIndex]
     if (!card) return
     const newHand = player.hand.filter((_, i) => i !== handIndex)
-    setPlayer((prev) => ({
-      ...prev,
-      hand: newHand,
-      sacrificePoints: (prev.sacrificePoints || 0) + 1,
-      fieldFront: (prev.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
-    }))
+    setPlayer((prev) => {
+      const newMax = (prev.sacrificeMax ?? 0) + 1
+      return {
+        ...prev,
+        hand: newHand,
+        sacrificePoints: (prev.sacrificePoints ?? 0) + 1,
+        sacrificeMax: newMax,
+        fieldFront: (prev.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
+      }
+    })
     setPhase('play')
-    setMessage(`獻祭了「${card.name}」，獲得 1 點獻祭點數。累積足夠點數才能打出卡牌（出場點數）。出牌或進入攻擊階段`)
+    setMessage(`獻祭了「${card.name}」，獻祭上限+1，本輪可用+1。出牌只會扣本輪可用，上限保留到下一輪。`)
   }
 
   const playMinion = (side, handIndex) => {
@@ -310,7 +316,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     if (isPlayer) {
       const points = state.sacrificePoints ?? 0
       if (points < cost) {
-        setMessage(`獻祭點數不足（需要 ${cost}，目前 ${points}）`)
+        setMessage(`本輪可用獻祭點不足（需要 ${cost}，目前可用 ${points}）`)
         return
       }
     }
@@ -324,7 +330,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       if (isPlayer) {
         setPlayer((prev) => ({ ...prev, hand: newHand, fieldFront: newFront, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       } else {
-        setEnemy((prev) => ({ ...prev, hand: newHand, fieldFront: newFront }))
+        setEnemy((prev) => ({ ...prev, hand: newHand, fieldFront: newFront, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       }
     } else {
       if ((state.fieldBack || []).length >= MAX_BACK) {
@@ -338,7 +344,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       if (isPlayer) {
         setPlayer((prev) => ({ ...prev, hand: newHand, fieldBack: newBack, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       } else {
-        setEnemy((prev) => ({ ...prev, hand: newHand, fieldBack: newBack }))
+        setEnemy((prev) => ({ ...prev, hand: newHand, fieldBack: newBack, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       }
     }
     setMessage('')
@@ -488,6 +494,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     let e = { ...enemy }
     let p = { ...player }
     let playerDeathsThisTurn = 0
+    e.sacrificePoints = e.sacrificeMax ?? e.sacrificePoints ?? 0
     e.fieldFront = (e.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     if (e.deck.length > 0 && e.hand.length < MAX_HAND_SIZE) {
       const drawn = e.deck.shift()
@@ -495,7 +502,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     }
     const sacrificeIdx = e.hand.findIndex((c) => c && c.type !== 'hero')
     if (sacrificeIdx !== -1) {
-      e.sacrificePoints = (e.sacrificePoints || 0) + 1
+      e.sacrificeMax = (e.sacrificeMax ?? 0) + 1
+      e.sacrificePoints = (e.sacrificePoints ?? 0) + 1
       e.hand = e.hand.filter((_, i) => i !== sacrificeIdx)
     }
     while ((e.fieldFront || []).length < MAX_FRONT && e.hand.some((c) => c && c.type === 'minion')) {
@@ -532,6 +540,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     const nextP = { ...p }
     nextP.fieldFront = (nextP.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     nextP.hero = nextP.hero ? { ...nextP.hero, energy: (nextP.hero.energy ?? 0) + 1 } : null
+    nextP.sacrificePoints = nextP.sacrificeMax ?? nextP.sacrificePoints ?? 0
     setPlayer(() => {
       if (nextP.deck.length > 0 && nextP.hand.length < MAX_HAND_SIZE) {
         const [drawn, ...rest] = nextP.deck
@@ -541,7 +550,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     })
     setTurn('player')
     setPhase('sacrifice')
-    setMessage('你的回合 · 請獻祭一張手牌（點擊手牌）')
+    setMessage('你的回合 · 獻祭上限保留，本輪可用已補滿。請獻祭一張手牌（點擊手牌）')
   }
 
   if (!player || !enemy) {
@@ -613,19 +622,19 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     })
   }
 
-  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, drawInIndices, enemyDeckRemaining, enemySacrificePoints, cardBackUrl, onViewHero, onViewField, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion, onHandCardClick, handDetailIndex, handCardCompact }) => (
+  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, sacrificeMax, drawInIndices, enemyDeckRemaining, enemySacrificePoints, enemySacrificeMax, cardBackUrl, onViewHero, onViewField, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion, onHandCardClick, handDetailIndex, handCardCompact }) => (
     <div className={`rounded-lg border border-amber-900/50 overflow-hidden flex-shrink-0 min-h-0 flex flex-col ${isPlayer ? 'bg-gradient-to-b from-gray-900/80 to-gray-800/60' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/80'}`}>
       <div className="px-1.5 py-0.5 sm:px-2 sm:py-1 flex items-center gap-1 sm:gap-2 flex-wrap border-b border-amber-800/40">
         <span className="text-amber-200/90 font-medium text-[10px] sm:text-xs">{side === 'player' ? '我方' : '敵方'}</span>
         {!isPlayer && (
           <>
-            <span className="text-amber-400/90 text-[9px] sm:text-xs">獻祭 {enemySacrificePoints ?? 0}</span>
+            <span className="text-amber-400/90 text-[9px] sm:text-xs">獻祭 {enemySacrificeMax ?? enemySacrificePoints ?? 0}/{enemySacrificePoints ?? 0}</span>
             <span className="text-gray-400 text-[9px] sm:text-xs">牌庫 {enemyDeckRemaining ?? 0}</span>
             <span className="text-gray-400 text-[9px] sm:text-xs">手牌 {hand?.length ?? 0}</span>
           </>
         )}
-        {isPlayer && sacrificePoints != null && (
-          <span className="text-amber-400 text-[9px] sm:text-xs">獻祭 {sacrificePoints}</span>
+        {isPlayer && (sacrificeMax != null || sacrificePoints != null) && (
+          <span className="text-amber-400 text-[9px] sm:text-xs">獻祭 {sacrificeMax ?? sacrificePoints ?? 0}/{sacrificePoints ?? 0}</span>
         )}
       </div>
       <div className="p-1 sm:p-2 space-y-1 sm:space-y-2 flex-1 min-h-0">
@@ -1113,6 +1122,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               drawInIndices={enemyDrawInIndices}
               enemyDeckRemaining={enemyDeckRemaining}
               enemySacrificePoints={enemy.sacrificePoints ?? 0}
+              enemySacrificeMax={enemy.sacrificeMax ?? 0}
               cardBackUrl={enemyCardBackUrl ?? cardBackUrl}
               onViewHero={(s) => setViewDetail({ type: 'hero', side: s })}
               onViewField={(s, row, idx) => setViewDetail({ type: 'field', side: s, row, index: idx })}
@@ -1153,6 +1163,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               hand={player.hand}
               isPlayer={true}
               sacrificePoints={player.sacrificePoints ?? 0}
+              sacrificeMax={player.sacrificeMax ?? 0}
               drawInIndices={drawInIndices}
               cardBackUrl={playerCardBackUrl ?? cardBackUrl}
               onViewHero={(s) => setViewDetail({ type: 'hero', side: s })}
