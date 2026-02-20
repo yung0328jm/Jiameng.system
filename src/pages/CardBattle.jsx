@@ -1,7 +1,9 @@
-// 卡牌對戰：回合制 PvE，英雄血量歸 0 即敗
+// 卡牌對戰：回合制 PvE / 同機雙人 / 線上房間雙人
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCardById, getSkillById } from '../utils/cardGameStorage.js'
+import { getRoom, updateGameState, dispatchRoomAction } from '../utils/cardBattleRoomsStorage'
+import { reduceGameState } from '../utils/cardBattleReducer'
 
 const MAX_FRONT = 5  // 前排小怪數量上限
 const MAX_BACK = 5   // 後排裝備/效果/陷阱數量上限
@@ -108,23 +110,35 @@ function HeroSlot({ hero, isTarget, onClick, className = '', hitAnim }) {
   )
 }
 
-export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExit, playerCardBackUrl, enemyCardBackUrl }) {
-  const isPvP = enemyDeck != null
+export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExit, playerCardBackUrl, enemyCardBackUrl, roomId, mySide }) {
+  const isOnline = Boolean(roomId && mySide)
+  const isPvP = enemyDeck != null || isOnline
   const cardBackUrl = playerCardBackUrl ?? enemyCardBackUrl ?? '' // fallback for legacy
   const getCard = (id) => getCardById(id)
-  const [player, setPlayer] = useState(null)
-  const [enemy, setEnemy] = useState(null)
-  const [turn, setTurn] = useState('player')
-  const [phase, setPhase] = useState('sacrifice') // 'sacrifice' | 'play' | 'attack'
-  const [message, setMessage] = useState('請獻祭一張手牌（點擊手牌）')
-  const [gameOver, setGameOver] = useState(null) // 'win' | 'lose'
+  const [onlineGameState, setOnlineGameState] = useState(null)
+  const [onlineRoom, setOnlineRoom] = useState(null)
+  const [playerState, setPlayerState] = useState(null)
+  const [enemyState, setEnemyState] = useState(null)
+  const [turnState, setTurnState] = useState('player')
+  const [phaseState, setPhaseState] = useState('sacrifice') // 'sacrifice' | 'play' | 'attack'
+  const [messageState, setMessageState] = useState('請獻祭一張手牌（點擊手牌）')
+  const [gameOverState, setGameOverState] = useState(null) // 'win' | 'lose'
   const [selectedAttacker, setSelectedAttacker] = useState(null)
   const [drawInIndices, setDrawInIndices] = useState([])
   const [enemyDrawInIndices, setEnemyDrawInIndices] = useState([])
-  const [lastAttack, setLastAttack] = useState(null) // { attackerSide, attackerIndex, targetSide, targetHero, targetIndex }
+  const [lastAttackState, setLastAttackState] = useState(null) // { attackerSide, attackerIndex, targetSide, targetHero, targetIndex }
   const [hintOpen, setHintOpen] = useState(false)
-  const [playerGraveyardCount, setPlayerGraveyardCount] = useState(0)
-  const [enemyGraveyardCount, setEnemyGraveyardCount] = useState(0)
+  const [playerGraveyardCountState, setPlayerGraveyardCountState] = useState(0)
+  const [enemyGraveyardCountState, setEnemyGraveyardCountState] = useState(0)
+  const player = isOnline && onlineGameState ? (mySide === 'host' ? onlineGameState.hostSide : onlineGameState.guestSide) : playerState
+  const enemy = isOnline && onlineGameState ? (mySide === 'host' ? onlineGameState.guestSide : onlineGameState.hostSide) : enemyState
+  const turn = isOnline && onlineGameState ? (onlineGameState.turn === mySide ? 'player' : 'enemy') : turnState
+  const phase = isOnline && onlineGameState ? onlineGameState.phase : phaseState
+  const message = isOnline && onlineGameState ? onlineGameState.message : messageState
+  const gameOver = isOnline && onlineGameState ? (onlineGameState.gameOver === mySide ? 'win' : (onlineGameState.gameOver ? 'lose' : null)) : gameOverState
+  const lastAttack = isOnline && onlineGameState ? (onlineGameState.lastAttack ? { ...onlineGameState.lastAttack, attackerSide: onlineGameState.lastAttack.attackerSide === mySide ? 'player' : 'enemy', targetSide: onlineGameState.lastAttack.targetSide === mySide ? 'player' : 'enemy' } : null) : lastAttackState
+  const playerGraveyardCount = isOnline && onlineGameState ? (mySide === 'host' ? onlineGameState.playerGraveyardCount : onlineGameState.enemyGraveyardCount) : playerGraveyardCountState
+  const enemyGraveyardCount = isOnline && onlineGameState ? (mySide === 'host' ? onlineGameState.enemyGraveyardCount : onlineGameState.playerGraveyardCount) : enemyGraveyardCountState
   const [handDetailIndex, setHandDetailIndex] = useState(null) // 點擊手牌放大預覽，再點或關閉後可獻祭/出牌需按鈕確認
   const [viewDetail, setViewDetail] = useState(null) // { type: 'hero', side } | { type: 'field', side, row, index } 點擊英雄或場上卡瀏覽
   const [initialDrawComplete, setInitialDrawComplete] = useState(false)
@@ -146,9 +160,10 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
   }, [])
 
   useEffect(() => {
+    if (isOnline) return
     const deckForEnemy = enemyDeck ?? playerDeck
-    const pHero = getCard(playerDeck.heroId)
-    const pDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
+    const pHero = getCard(playerDeck?.heroId)
+    const pDeck = shuffle((playerDeck?.cardIds || []).map((id) => getCard(id)).filter(Boolean))
     const p = {
       hero: pHero ? { ...pHero, currentHp: pHero.hp, maxHp: pHero.hp, energy: 1 } : null,
       deck: pDeck,
@@ -158,8 +173,8 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       sacrificePoints: 0,
       sacrificeMax: 0
     }
-    const eHero = getCard(deckForEnemy.heroId)
-    const eDeck = shuffle((deckForEnemy.cardIds || []).map((id) => getCard(id)).filter(Boolean))
+    const eHero = getCard(deckForEnemy?.heroId)
+    const eDeck = shuffle((deckForEnemy?.cardIds || []).map((id) => getCard(id)).filter(Boolean))
     const e = {
       hero: eHero ? { ...eHero, currentHp: eHero.hp, maxHp: eHero.hp, energy: 0 } : null,
       deck: eDeck,
@@ -169,12 +184,29 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       sacrificePoints: 0,
       sacrificeMax: 0
     }
-    setPlayer(p)
-    setEnemy(e)
+    setPlayerState(p)
+    setEnemyState(e)
     setInitialDrawComplete(false)
     initialDrawStartedRef.current = false
     enemyInitialDrawStartedRef.current = false
-  }, [])
+  }, [isOnline])
+
+  useEffect(() => {
+    if (!roomId || !mySide) return
+    const room = getRoom(roomId)
+    setOnlineRoom(room || null)
+    if (room?.gameState) setOnlineGameState(room.gameState)
+  }, [roomId, mySide])
+
+  useEffect(() => {
+    if (!roomId || !mySide) return
+    const t = setInterval(() => {
+      const room = getRoom(roomId)
+      setOnlineRoom(room || null)
+      if (room?.gameState) setOnlineGameState(room.gameState)
+    }, 2500)
+    return () => clearInterval(t)
+  }, [roomId, mySide])
 
   useEffect(() => {
     if (!player || initialDrawStartedRef.current) return
@@ -183,7 +215,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     const drawOne = (step) => {
       if (step >= HAND_SIZE_START) return
       initialDrawTimeoutRef.current = setTimeout(() => {
-        setPlayer((prev) => {
+        setPlayerState((prev) => {
           if (!prev.deck.length || prev.hand.length >= HAND_SIZE_START) return prev
           const card = prev.deck[0]
           return {
@@ -205,7 +237,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     const drawOne = (step) => {
       if (step >= HAND_SIZE_START) return
       enemyInitialDrawTimeoutRef.current = setTimeout(() => {
-        setEnemy((prev) => {
+        setEnemyState((prev) => {
           if (!prev.deck.length || prev.hand.length >= HAND_SIZE_START) return prev
           const card = prev.deck[0]
           return {
@@ -224,8 +256,8 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     if (!player || !enemy) return
     const playerHp = player.hero?.currentHp ?? player.hero?.hp
     const enemyHp = enemy.hero?.currentHp ?? enemy.hero?.hp
-    if (player.hero != null && playerHp <= 0) setGameOver('lose')
-    else if (enemy.hero != null && enemyHp <= 0) setGameOver('win')
+    if (player.hero != null && playerHp <= 0) setGameOverState('lose')
+    else if (enemy.hero != null && enemyHp <= 0) setGameOverState('win')
   }, [player?.hero?.currentHp, player?.hero?.hp, enemy?.hero?.currentHp, enemy?.hero?.hp])
 
   useEffect(() => {
@@ -273,16 +305,16 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     if (deathRemoveTimeoutRef.current != null) return
     deathRemoveTimeoutRef.current = setTimeout(() => {
       deathRemoveTimeoutRef.current = null
-      setPlayer((prev) => {
+      setPlayerState((prev) => {
         const front = prev.fieldFront || []
         const dyingCount = front.filter((m) => m.dying).length
-        if (dyingCount > 0) setPlayerGraveyardCount((c) => c + dyingCount)
+        if (dyingCount > 0) setPlayerGraveyardCountState((c) => c + dyingCount)
         return { ...prev, fieldFront: front.filter((m) => !m.dying) }
       })
-      setEnemy((prev) => {
+      setEnemyState((prev) => {
         const front = prev.fieldFront || []
         const dyingCount = front.filter((m) => m.dying).length
-        if (dyingCount > 0) setEnemyGraveyardCount((c) => c + dyingCount)
+        if (dyingCount > 0) setEnemyGraveyardCountState((c) => c + dyingCount)
         return { ...prev, fieldFront: front.filter((m) => !m.dying) }
       })
     }, 700)
@@ -291,6 +323,15 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
 
   const sacrificeCard = (handIndex) => {
     if (phase !== 'sacrifice') return
+    if (isOnline && onlineGameState) {
+      const action = { type: 'SACRIFICE', side: mySide, handIndex }
+      const next = reduceGameState(onlineGameState, action)
+      if (next && next !== onlineGameState) {
+        updateGameState(roomId, next)
+        setOnlineGameState(next)
+      }
+      return
+    }
     const state = turn === 'player' ? player : enemy
     const card = state.hand[handIndex]
     if (!card) return
@@ -305,14 +346,26 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
         fieldFront: (prev.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
       }
     }
-    if (turn === 'player') setPlayer(updater)
-    else setEnemy(updater)
-    setPhase('play')
-    setMessage(turn === 'player' ? `獻祭了「${card.name}」，獻祭上限+1，本輪可用+1。` : `對手獻祭了「${card.name}」。`)
+    if (turn === 'player') setPlayerState(updater)
+    else setEnemyState(updater)
+    setPhaseState('play')
+    setMessageState(turn === 'player' ? `獻祭了「${card.name}」，獻祭上限+1，本輪可用+1。` : `對手獻祭了「${card.name}」。`)
   }
 
   const playMinion = (side, handIndex) => {
     if (phase !== 'play' || turn !== side) return
+    if (isOnline && onlineGameState) {
+      const s = mySide === 'host' ? onlineGameState.hostSide : onlineGameState.guestSide
+      const card = s?.hand?.[handIndex]
+      if (!card || card.type === 'hero') return
+      const action = card.type === 'minion' ? { type: 'PLAY_MINION', side: mySide, handIndex } : { type: 'PLAY_BACK', side: mySide, handIndex }
+      const next = reduceGameState(onlineGameState, action)
+      if (next && next !== onlineGameState) {
+        updateGameState(roomId, next)
+        setOnlineGameState(next)
+      }
+      return
+    }
     const isPlayer = side === 'player'
     const state = isPlayer ? player : enemy
     const card = state.hand[handIndex]
@@ -321,25 +374,25 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     if (isPlayer) {
       const points = state.sacrificePoints ?? 0
       if (points < cost) {
-        setMessage(`本輪可用獻祭點不足（需要 ${cost}，目前可用 ${points}）`)
+        setMessageState(`本輪可用獻祭點不足（需要 ${cost}，目前可用 ${points}）`)
         return
       }
     }
     const newHand = state.hand.filter((_, i) => i !== handIndex)
     if (card.type === 'minion') {
       if ((state.fieldFront || []).length >= MAX_FRONT) {
-        setMessage('前排已滿')
+        setMessageState('前排已滿')
         return
       }
       const newFront = [...(state.fieldFront || []), { ...card, currentHp: card.hp, maxHp: card.hp, canAttack: false }]
       if (isPlayer) {
-        setPlayer((prev) => ({ ...prev, hand: newHand, fieldFront: newFront, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
+        setPlayerState((prev) => ({ ...prev, hand: newHand, fieldFront: newFront, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       } else {
-        setEnemy((prev) => ({ ...prev, hand: newHand, fieldFront: newFront, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
+        setEnemyState((prev) => ({ ...prev, hand: newHand, fieldFront: newFront, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       }
     } else {
       if ((state.fieldBack || []).length >= MAX_BACK) {
-        setMessage('後排已滿')
+        setMessageState('後排已滿')
         return
       }
       const faceDown = card.type === 'trap'
@@ -347,16 +400,27 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       const slot = { card, faceDown, currentUseCount }
       const newBack = [...(state.fieldBack || []), slot]
       if (isPlayer) {
-        setPlayer((prev) => ({ ...prev, hand: newHand, fieldBack: newBack, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
+        setPlayerState((prev) => ({ ...prev, hand: newHand, fieldBack: newBack, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       } else {
-        setEnemy((prev) => ({ ...prev, hand: newHand, fieldBack: newBack, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
+        setEnemyState((prev) => ({ ...prev, hand: newHand, fieldBack: newBack, sacrificePoints: Math.max(0, (prev.sacrificePoints || 0) - cost) }))
       }
     }
-    setMessage('')
+    setMessageState('')
   }
 
   const attack = (attackerSide, attackerFieldIndex, targetSide, targetFieldIndexOrHero) => {
-    if (turn !== 'player' || phase !== 'attack') return
+    if (phase !== 'attack' || turn !== attackerSide) return
+    if (isOnline && onlineGameState) {
+      const targetSideRoom = targetSide === 'enemy' ? (mySide === 'host' ? 'guest' : 'host') : mySide
+      const action = { type: 'ATTACK', attackerSide: mySide, attackerIndex: attackerFieldIndex, targetSide: targetSideRoom, targetFieldIndexOrHero: targetFieldIndexOrHero ?? -1 }
+      const next = reduceGameState(onlineGameState, action)
+      if (next && next !== onlineGameState) {
+        updateGameState(roomId, next)
+        setOnlineGameState(next)
+      }
+      setSelectedAttacker(null)
+      return
+    }
     const state = attackerSide === 'player' ? player : enemy
     const front = state.fieldFront || []
     let attacker
@@ -394,12 +458,12 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     const newHp = (target.currentHp ?? target.hp) - attackValue
     if (isTargetHero) {
       if (attackerSide === 'player') {
-        setEnemy((prev) => ({
+        setEnemyState((prev) => ({
           ...prev,
           hero: prev.hero ? { ...prev.hero, currentHp: Math.max(0, newHp) } : null
         }))
       } else {
-        setPlayer((prev) => ({
+        setPlayerState((prev) => ({
           ...prev,
           hero: prev.hero ? { ...prev.hero, currentHp: Math.max(0, newHp) } : null
         }))
@@ -408,13 +472,13 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       const targetFieldIndex = targetFieldIndexOrHero
       if (newHp <= 0) {
         if (targetSide === 'player') {
-          setPlayer((prev) => {
+          setPlayerState((prev) => {
             const f = [...(prev.fieldFront || [])]
             if (f[targetFieldIndex]) f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: 0, dying: true }
             return { ...prev, fieldFront: f }
           })
         } else {
-          setEnemy((prev) => {
+          setEnemyState((prev) => {
             const f = [...(prev.fieldFront || [])]
             if (f[targetFieldIndex]) f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: 0, dying: true }
             return { ...prev, fieldFront: f }
@@ -422,13 +486,13 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
         }
       } else {
         if (targetSide === 'player') {
-          setPlayer((prev) => {
+          setPlayerState((prev) => {
             const f = [...(prev.fieldFront || [])]
             f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: newHp }
             return { ...prev, fieldFront: f }
           })
         } else {
-          setEnemy((prev) => {
+          setEnemyState((prev) => {
             const f = [...(prev.fieldFront || [])]
             f[targetFieldIndex] = { ...f[targetFieldIndex], currentHp: newHp }
             return { ...prev, fieldFront: f }
@@ -437,7 +501,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       }
     }
     if (attackerFieldIndex === -1 && attackerSide === 'player') {
-      setPlayer((prev) => {
+      setPlayerState((prev) => {
         const back = [...(prev.fieldBack || [])]
         const idx = back.findIndex((s) => s.card?.type === 'equipment' && (s.currentUseCount ?? s.card?.useCount ?? 0) > 0)
         if (idx !== -1) {
@@ -447,10 +511,10 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
         return { ...prev, fieldBack: back }
       })
     }
-    setMessage(`${attacker.name} 攻擊！`)
+    setMessageState(`${attacker.name} 攻擊！`)
     // 攻擊／受擊動畫
     if (attackAnimTimeoutRef.current) clearTimeout(attackAnimTimeoutRef.current)
-    setLastAttack({
+    setLastAttackState({
       attackerSide,
       attackerIndex: attackerFieldIndex,
       targetSide,
@@ -458,18 +522,18 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       targetIndex: isTargetHero ? -1 : targetFieldIndexOrHero
     })
     attackAnimTimeoutRef.current = setTimeout(() => {
-      setLastAttack(null)
+      setLastAttackState(null)
       attackAnimTimeoutRef.current = null
     }, 650)
     if (attackerFieldIndex >= 0) {
       if (attackerSide === 'player') {
-        setPlayer((prev) => {
+        setPlayerState((prev) => {
           const f = [...(prev.fieldFront || [])]
           if (f[attackerFieldIndex]) f[attackerFieldIndex] = { ...f[attackerFieldIndex], canAttack: false }
           return { ...prev, fieldFront: f }
         })
       } else {
-        setEnemy((prev) => {
+        setEnemyState((prev) => {
           const f = [...(prev.fieldFront || [])]
           if (f[attackerFieldIndex]) f[attackerFieldIndex] = { ...f[attackerFieldIndex], canAttack: false }
           return { ...prev, fieldFront: f }
@@ -480,12 +544,17 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
 
   const endPlayPhase = () => {
     if (phase !== 'play') return
-    setPhase('attack')
-    setMessage(turn === 'player' ? '選擇己方單位攻擊。敵方場上有小怪時須先擊倒小怪才能攻擊英雄。' : '選擇己方單位攻擊。')
+    if (isOnline && onlineGameState) {
+      const next = reduceGameState(onlineGameState, { type: 'END_PLAY_PHASE' })
+      if (next) { updateGameState(roomId, next); setOnlineGameState(next) }
+      return
+    }
+    setPhaseState('attack')
+    setMessageState(turn === 'player' ? '選擇己方單位攻擊。敵方場上有小怪時須先擊倒小怪才能攻擊英雄。' : '選擇己方單位攻擊。')
   }
 
   const startEnemyTurn = () => {
-    setEnemy((prev) => {
+    setEnemyState((prev) => {
       const next = { ...prev }
       next.sacrificePoints = next.sacrificeMax ?? next.sacrificePoints ?? 0
       next.fieldFront = (next.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
@@ -499,7 +568,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
   }
 
   const startPlayerTurn = () => {
-    setPlayer((prev) => {
+    setPlayerState((prev) => {
       const next = { ...prev }
       next.sacrificePoints = next.sacrificeMax ?? next.sacrificePoints ?? 0
       next.fieldFront = (next.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
@@ -515,25 +584,37 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
 
   const endTurn = () => {
     if (turn !== 'player') return
+    if (isOnline && onlineGameState) {
+      const next = reduceGameState(onlineGameState, { type: 'END_TURN' })
+      if (next) { updateGameState(roomId, next); setOnlineGameState(next) }
+      setSelectedAttacker(null)
+      return
+    }
     setSelectedAttacker(null)
-    setPhase('sacrifice')
-    setTurn('enemy')
+    setPhaseState('sacrifice')
+    setTurnState('enemy')
     if (isPvP) {
       startEnemyTurn()
-      setMessage('對手回合 · 請獻祭一張手牌（點擊手牌）')
+      setMessageState('對手回合 · 請獻祭一張手牌（點擊手牌）')
     } else {
-      setMessage('敵方回合')
+      setMessageState('敵方回合')
       setTimeout(() => aiTurn(), 800)
     }
   }
 
   const enemyEndTurn = () => {
     if (turn !== 'enemy' || !isPvP) return
+    if (isOnline && onlineGameState) {
+      const next = reduceGameState(onlineGameState, { type: 'END_TURN' })
+      if (next) { updateGameState(roomId, next); setOnlineGameState(next) }
+      setSelectedAttacker(null)
+      return
+    }
     setSelectedAttacker(null)
-    setPhase('sacrifice')
-    setTurn('player')
+    setPhaseState('sacrifice')
+    setTurnState('player')
     startPlayerTurn()
-    setMessage('你的回合 · 請獻祭一張手牌（點擊手牌）')
+    setMessageState('你的回合 · 請獻祭一張手牌（點擊手牌）')
   }
 
   const aiTurn = () => {
@@ -581,24 +662,41 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
         p.hero = { ...p.hero, currentHp: newHp }
       }
     })
-    setEnemy(e)
-    if (playerDeathsThisTurn > 0) setPlayerGraveyardCount((c) => c + playerDeathsThisTurn)
+    setEnemyState(e)
+    if (playerDeathsThisTurn > 0) setPlayerGraveyardCountState((c) => c + playerDeathsThisTurn)
     const nextP = { ...p }
     nextP.fieldFront = (nextP.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
     nextP.hero = nextP.hero ? { ...nextP.hero, energy: (nextP.hero.energy ?? 0) + 1 } : null
     nextP.sacrificePoints = nextP.sacrificeMax ?? nextP.sacrificePoints ?? 0
-    setPlayer(() => {
+    setPlayerState(() => {
       if (nextP.deck.length > 0 && nextP.hand.length < MAX_HAND_SIZE) {
         const [drawn, ...rest] = nextP.deck
         return { ...nextP, deck: rest, hand: [...nextP.hand, drawn] }
       }
       return nextP
     })
-    setTurn('player')
-    setPhase('sacrifice')
-    setMessage('你的回合 · 獻祭上限保留，本輪可用已補滿。請獻祭一張手牌（點擊手牌）')
+    setTurnState('player')
+    setPhaseState('sacrifice')
+    setMessageState('你的回合 · 獻祭上限保留，本輪可用已補滿。請獻祭一張手牌（點擊手牌）')
   }
 
+  if (isOnline && !onlineGameState) {
+    const waiting = onlineRoom?.status === 'waiting'
+    return (
+      <div className="p-4 text-white max-w-md mx-auto">
+        {waiting ? (
+          <>
+            <p className="text-amber-300 font-medium">等待對手加入</p>
+            <p className="mt-2 text-lg font-mono tracking-widest bg-gray-800 px-4 py-3 rounded text-center">{onlineRoom?.shortCode || '—'}</p>
+            <p className="mt-1 text-gray-400 text-sm">請將上方房間代碼分享給對手，對方在「對戰」→「線上雙人」→「加入房間」輸入代碼並選擇牌組即可加入。</p>
+          </>
+        ) : (
+          <p>載入房間中…</p>
+        )}
+        <button type="button" onClick={onExit} className="mt-4 px-3 py-1.5 bg-gray-600 rounded text-sm">離開房間</button>
+      </div>
+    )
+  }
   if (!player || !enemy) {
     return (
       <div className="p-4 text-white">
@@ -648,7 +746,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     const key = skill.skillKey || ''
     const damageAllMatch = key.match(/^damage_all_minions_(\d+)$/)
     const healHeroMatch = key.match(/^heal_hero_(\d+)$/)
-    setMessage(turn === 'player' ? `使用了「${skill.name}」` : `對手使用了「${skill.name}」`)
+    setMessageState(turn === 'player' ? `使用了「${skill.name}」` : `對手使用了「${skill.name}」`)
     const setAttacker = turn === 'player' ? setPlayer : setEnemy
     const setTarget = turn === 'player' ? setEnemy : setPlayer
     if (damageAllMatch) {
@@ -1154,7 +1252,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
           <h3 className="text-amber-300 font-bold text-sm sm:text-base truncate">對戰中</h3>
           <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-[10px] sm:text-xs px-2 py-1.5 rounded border border-gray-600 flex-shrink-0 min-h-[36px] touch-manipulation">離開</button>
         </div>
-        <p className="text-amber-100/90 text-[10px] sm:text-xs truncate mt-0.5">{initialDrawComplete ? message : '抽牌中...'}</p>
+        <p className="text-amber-100/90 text-[10px] sm:text-xs truncate mt-0.5">{(isOnline || initialDrawComplete) ? message : '抽牌中...'}</p>
       </div>
       {/* 中間：對戰場地，可捲動 */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
@@ -1261,9 +1359,9 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
               <button
                 type="button"
                 onClick={() => {
-                  setPhase('play')
+                  setPhaseState('play')
                   const currentHand = turn === 'player' ? player.hand : enemy.hand
-                  setMessage(currentHand.length === 0 ? '無手牌可獻祭，出牌或進入攻擊階段' : '略過獻祭，出牌或進入攻擊階段')
+                  setMessageState(currentHand.length === 0 ? '無手牌可獻祭，出牌或進入攻擊階段' : '略過獻祭，出牌或進入攻擊階段')
                 }}
                 className="min-h-[40px] px-3 py-2 bg-amber-600 hover:bg-amber-500 text-gray-900 rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]"
               >
