@@ -55,6 +55,14 @@ function Calendar() {
     proposedCollaborators: [], // [{ name, targetQuantity }]
     proposedContentRows: [] // 多列工作內容（申請改為）[{ id, workContent, targetQuantity, actualQuantity }]
   })
+  const [vehicleReturnMileageChangeReq, setVehicleReturnMileageChangeReq] = useState({
+    open: false,
+    scheduleId: '',
+    vehicle: '',
+    currentReturnMileage: '',
+    proposedReturnMileage: '',
+    reason: ''
+  })
   const [topicFormData, setTopicFormData] = useState({
     title: '',
     date: '',
@@ -92,6 +100,7 @@ function Calendar() {
   const responsiblePersonDropdownRefs = useRef({})
   const scheduleModalBodyRef = useRef(null)
   const changeReqScrollYRef = useRef(0) // 異動申請 Modal 關閉時還原捲動用
+  const originalVehicleReturnMileageLockedRef = useRef(new Set()) // 編輯排程時：已有回程里程的車牌（輸入後鎖定，需異動申請才能改）
   const emptyVehicleEntry = () => ({
     vehicle: '',
     departureDriver: '',
@@ -144,7 +153,9 @@ function Calendar() {
 
   const hasPendingChangeRequest = (schedule) => {
     const items = Array.isArray(schedule?.workItems) ? schedule.workItems : []
-    return items.some((wi) => String(wi?.changeRequest?.status || '') === 'pending')
+    const workPending = items.some((wi) => String(wi?.changeRequest?.status || '') === 'pending')
+    const vehicleReturnPending = (Array.isArray(schedule?.vehicleReturnMileageChangeRequests) ? schedule.vehicleReturnMileageChangeRequests : []).some((r) => String(r?.status || '') === 'pending')
+    return workPending || vehicleReturnPending
   }
 
   // 行事曆規則：
@@ -168,6 +179,55 @@ function Calendar() {
   }
 
   const closeChangeActionModal = () => setChangeAction({ open: false, scheduleId: '', itemId: '' })
+
+  const openVehicleReturnMileageChangeReq = (scheduleId, entry) => {
+    setVehicleReturnMileageChangeReq({
+      open: true,
+      scheduleId: String(scheduleId || ''),
+      vehicle: String(entry?.vehicle || '').trim(),
+      currentReturnMileage: entry?.returnMileage ?? '',
+      proposedReturnMileage: entry?.returnMileage ?? '',
+      reason: ''
+    })
+  }
+  const closeVehicleReturnMileageChangeReq = () => setVehicleReturnMileageChangeReq({ open: false, scheduleId: '', vehicle: '', currentReturnMileage: '', proposedReturnMileage: '', reason: '' })
+
+  const submitVehicleReturnMileageChangeReq = () => {
+    const sid = String(vehicleReturnMileageChangeReq.scheduleId || '').trim()
+    const vehicle = String(vehicleReturnMileageChangeReq.vehicle || '').trim()
+    const reason = String(vehicleReturnMileageChangeReq.reason || '').trim()
+    const proposed = String(vehicleReturnMileageChangeReq.proposedReturnMileage ?? '').trim()
+    if (!sid || !vehicle) return
+    if (!reason) {
+      alert('請填寫異動原因')
+      return
+    }
+    const schedule = schedules.find((s) => String(s?.id) === sid)
+    if (!schedule) return
+    const existing = Array.isArray(schedule.vehicleReturnMileageChangeRequests) ? schedule.vehicleReturnMileageChangeRequests : []
+    const alreadyPending = existing.some((r) => String(r?.vehicle || '').trim() === vehicle && String(r?.status || '') === 'pending')
+    if (alreadyPending) {
+      alert('此車輛已有回程里程異動申請待審中')
+      return
+    }
+    const newRequest = {
+      vehicle,
+      proposedReturnMileage: proposed,
+      reason,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      requestedBy: currentUser || ''
+    }
+    updateSchedule(sid, { vehicleReturnMileageChangeRequests: [...existing, newRequest] })
+    setSchedules(getSchedules())
+    if (editingScheduleId === sid) {
+      const updated = getSchedules().find((s) => String(s?.id) === sid)
+      if (updated?.vehicleReturnMileageChangeRequests) {
+        setScheduleFormData((prev) => ({ ...prev })) // 觸發重繪以顯示待審提示
+      }
+    }
+    closeVehicleReturnMileageChangeReq()
+  }
 
   const submitCancelRequest = (scheduleId, itemId) => {
     const sid = String(scheduleId || '')
@@ -403,6 +463,45 @@ function Calendar() {
     setSchedules(getSchedules())
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
       setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+    }
+  }
+
+  const approveVehicleReturnMileageChangeRequest = (scheduleId, request) => {
+    if (currentRole !== 'admin') return
+    if (String(request?.status || '') !== 'pending') return
+    const schedule = schedules.find((s) => String(s?.id) === String(scheduleId))
+    if (!schedule) return
+    const entries = Array.isArray(schedule.vehicleEntries) ? [...schedule.vehicleEntries] : []
+    const vehicle = String(request?.vehicle || '').trim()
+    const proposed = String(request?.proposedReturnMileage ?? '').trim()
+    const nextEntries = entries.map((e) => (String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e))
+    const nextRequests = (Array.isArray(schedule.vehicleReturnMileageChangeRequests) ? schedule.vehicleReturnMileageChangeRequests : []).filter(
+      (r) => !(String(r?.vehicle || '').trim() === vehicle && String(r?.status || '') === 'pending' && r?.requestedAt === request?.requestedAt)
+    )
+    updateSchedule(scheduleId, { vehicleEntries: nextEntries, vehicleReturnMileageChangeRequests: nextRequests })
+    setSchedules(getSchedules())
+    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
+      const updated = getSchedules().find((s) => String(s?.id) === String(scheduleId))
+      setSelectedDetailItem((prev) => ({ ...prev, vehicleEntries: updated?.vehicleEntries ?? prev.vehicleEntries, vehicleReturnMileageChangeRequests: updated?.vehicleReturnMileageChangeRequests ?? [] }))
+    }
+  }
+
+  const rejectVehicleReturnMileageChangeRequest = (scheduleId, request) => {
+    if (currentRole !== 'admin') return
+    if (String(request?.status || '') !== 'pending') return
+    const schedule = schedules.find((s) => String(s?.id) === String(scheduleId))
+    if (!schedule) return
+    const vehicle = String(request?.vehicle || '').trim()
+    const nextRequests = (Array.isArray(schedule.vehicleReturnMileageChangeRequests) ? schedule.vehicleReturnMileageChangeRequests : []).map((r) =>
+      String(r?.vehicle || '').trim() === vehicle && r?.requestedAt === request?.requestedAt
+        ? { ...r, status: 'rejected', reviewedAt: new Date().toISOString(), reviewedBy: currentUser || '' }
+        : r
+    )
+    updateSchedule(scheduleId, { vehicleReturnMileageChangeRequests: nextRequests })
+    setSchedules(getSchedules())
+    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
+      const updated = getSchedules().find((s) => String(s?.id) === String(scheduleId))
+      setSelectedDetailItem((prev) => ({ ...prev, vehicleReturnMileageChangeRequests: updated?.vehicleReturnMileageChangeRequests ?? [] }))
     }
   }
 
@@ -992,6 +1091,14 @@ function Calendar() {
         if (id) baseIds[id] = true
       })
       setOriginalWorkItemIdMap(baseIds)
+      // 記住已有回程里程的車牌（輸入後鎖定，需異動申請才能改）
+      const vehiclesWithReturnMileage = new Set(
+        (Array.isArray(selectedDetailItem.vehicleEntries) ? selectedDetailItem.vehicleEntries : [])
+          .filter((e) => e?.returnMileage != null && String(e.returnMileage).trim() !== '')
+          .map((e) => String(e.vehicle || '').trim())
+          .filter(Boolean)
+      )
+      originalVehicleReturnMileageLockedRef.current = vehiclesWithReturnMileage
       // 关闭详情弹窗，打开编辑表单
       setShowDetailModal(false)
       setShowScheduleForm(true)
@@ -1481,6 +1588,7 @@ function Calendar() {
       setShowScheduleModal(false)
       setEditingScheduleId(null)
       setOriginalWorkItemIdMap({})
+      originalVehicleReturnMileageLockedRef.current = new Set()
       setSelectedDateForSchedule(null)
     } else {
       alert(result.message || '保存失敗')
@@ -1507,6 +1615,7 @@ function Calendar() {
     setNewVehicleInput('')
     setEditingScheduleId(null)
     setOriginalWorkItemIdMap({})
+    originalVehicleReturnMileageLockedRef.current = new Set()
     if (showScheduleForm) {
       // 如果是从主题表单打开的，返回主题表单
       setShowScheduleForm(false)
@@ -2641,6 +2750,32 @@ function Calendar() {
                     </div>
                   )}
 
+                  {/* 回程里程異動申請審核（管理員） */}
+                  {selectedDetailType === 'schedule' && !isLeaveScheduleItem(selectedDetailItem) && currentRole === 'admin' && (() => {
+                    const reqs = Array.isArray(selectedDetailItem?.vehicleReturnMileageChangeRequests) ? selectedDetailItem.vehicleReturnMileageChangeRequests : []
+                    const pendingReqs = reqs.filter((r) => String(r?.status || '') === 'pending')
+                    if (pendingReqs.length === 0) return null
+                    return (
+                      <div className="mt-3 bg-blue-950/30 border border-purple-500/30 rounded-lg p-3">
+                        <div className="text-purple-200 font-semibold text-sm mb-2">回程里程異動申請審核</div>
+                        <div className="space-y-2">
+                          {pendingReqs.map((r, ri) => (
+                            <div key={ri} className="text-blue-100 text-sm space-y-1 border border-gray-600 rounded p-2 bg-gray-800/50">
+                              <div><span className="text-blue-300">車輛:</span> {String(r?.vehicle || '').trim() || '—'}</div>
+                              <div><span className="text-blue-300">申請人:</span> {String(getDisplayNameForAccount(r?.requestedBy || '') || r?.requestedBy || '').trim() || '—'}</div>
+                              <div><span className="text-blue-300">異動原因:</span> {String(r?.reason || '').trim() || '—'}</div>
+                              <div><span className="text-blue-300">申請改為回程里程:</span> {String(r?.proposedReturnMileage ?? '').trim() || '—'} km</div>
+                              <div className="flex gap-2 mt-2">
+                                <button type="button" onClick={() => approveVehicleReturnMileageChangeRequest(selectedDetailItem.id, r)} className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded">核准</button>
+                                <button type="button" onClick={() => rejectVehicleReturnMileageChangeRequest(selectedDetailItem.id, r)} className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded">退回</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   {/* 行程回報紀錄：依此排程案場（siteName）顯示；名子套用特效邏輯 */}
                   {selectedDetailType === 'schedule' && !isLeaveScheduleItem(selectedDetailItem) && (() => {
                     const siteName = (selectedDetailItem?.siteName || '').trim()
@@ -2713,7 +2848,7 @@ function Calendar() {
                   )}
                   {selectedDetailType === 'schedule' && hasPendingChangeRequest(selectedDetailItem) && (
                     <div className="mt-3 bg-purple-600/20 border border-purple-500/40 rounded-lg p-3 text-purple-100 text-sm">
-                      此排程有工作項目「異動/取消」待審，待審期間暫不列入績效評分。
+                      此排程有工作項目或回程里程「異動/取消」待審，待審期間暫不列入績效評分。
                     </div>
                   )}
                       </>
@@ -3247,6 +3382,59 @@ function Calendar() {
         </div>
       )}
 
+      {/* 回程里程異動申請 Modal */}
+      {vehicleReturnMileageChangeReq.open && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[105] p-4">
+          <div className="w-full max-w-md bg-gray-900 border border-gray-700 rounded-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">回程里程異動申請</h3>
+              <button type="button" onClick={closeVehicleReturnMileageChangeReq} className="text-gray-300 hover:text-white">關閉</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <span className="text-gray-400 text-sm">車輛：</span>
+                <span className="text-yellow-400 font-medium">{vehicleReturnMileageChangeReq.vehicle || '—'}</span>
+              </div>
+              <div>
+                <span className="text-gray-400 text-sm">目前回程里程：</span>
+                <span className="text-white">{vehicleReturnMileageChangeReq.currentReturnMileage || '—'} km</span>
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">異動原因 *</label>
+                <textarea
+                  value={vehicleReturnMileageChangeReq.reason}
+                  onChange={(e) => setVehicleReturnMileageChangeReq((prev) => ({ ...prev, reason: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  rows={3}
+                  placeholder="請說明為何需要異動回程里程"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">申請改為（回程里程）</label>
+                <input
+                  type="number"
+                  value={vehicleReturnMileageChangeReq.proposedReturnMileage}
+                  onChange={(e) => setVehicleReturnMileageChangeReq((prev) => ({ ...prev, proposedReturnMileage: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+                  min="0"
+                  step="0.1"
+                  placeholder="請輸入新的回程里程"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={submitVehicleReturnMileageChangeReq} className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500">
+                  送出申請
+                </button>
+                <button type="button" onClick={closeVehicleReturnMileageChangeReq} className="flex-1 bg-gray-800 text-white font-semibold py-2 rounded-lg hover:bg-gray-700">
+                  取消
+                </button>
+              </div>
+              <p className="text-gray-500 text-xs">送出後將進入待審，由管理員核准後套用新回程里程。</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 新增/编辑排程模态框 */}
       {(showScheduleForm || showScheduleModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -3637,8 +3825,11 @@ function Calendar() {
                 {/* 每台車一組：出發/回程駕駛、里程、加油、發票；車牌旁顯示上次回程里程供出發里程參考 */}
                 {(() => {
                   const lastReturnMap = getLastReturnMileageByVehicle()
+                  const editingSchedule = schedules.find((s) => String(s?.id) === editingScheduleId)
+                  const pendingReturnMileageReqs = (Array.isArray(editingSchedule?.vehicleReturnMileageChangeRequests) ? editingSchedule.vehicleReturnMileageChangeRequests : []).filter((r) => String(r?.status || '') === 'pending')
                   return (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map((entry, idx) => {
                     const lastReturn = entry.vehicle ? lastReturnMap[String(entry.vehicle).trim()] : null
+                    const hasPendingReturnMileageReq = pendingReturnMileageReqs.some((r) => String(r?.vehicle || '').trim() === String(entry.vehicle || '').trim())
                     return (
                   <div key={entry.vehicle || idx} className="space-y-3 p-4 bg-gray-800/50 border border-gray-600 rounded-lg">
                     <h3 className="text-yellow-400 font-medium text-sm border-b border-gray-600 pb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -3691,15 +3882,38 @@ function Calendar() {
                       </div>
                       <div>
                         <label className="block text-gray-300 text-sm mb-1">回程里程</label>
-                        <input
-                          type="number"
-                          value={entry.returnMileage || ''}
-                          onChange={(e) => handleVehicleEntryChange(idx, 'returnMileage', e.target.value)}
-                          placeholder="請輸入回程里程"
-                          className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
-                          min="0"
-                          step="0.1"
-                        />
+                        {(() => {
+                          const isReturnMileageLocked = !!editingScheduleId && originalVehicleReturnMileageLockedRef.current.has(String(entry.vehicle || '').trim())
+                          return (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <input
+                                type="number"
+                                value={entry.returnMileage || ''}
+                                onChange={(e) => handleVehicleEntryChange(idx, 'returnMileage', e.target.value)}
+                                placeholder="請輸入回程里程"
+                                className={`w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm ${isReturnMileageLocked ? 'opacity-80 cursor-not-allowed' : ''}`}
+                                min="0"
+                                step="0.1"
+                                disabled={isReturnMileageLocked}
+                                readOnly={isReturnMileageLocked}
+                              />
+                              {isReturnMileageLocked && (
+                                <>
+                                  {hasPendingReturnMileageReq && (
+                                    <span className="text-xs px-2 py-1 rounded bg-purple-600/30 text-purple-200 border border-purple-500/40">回程里程異動待審</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => openVehicleReturnMileageChangeReq(editingScheduleId, entry)}
+                                    className="shrink-0 text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40 hover:bg-blue-600/40"
+                                  >
+                                    異動申請
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-4">
