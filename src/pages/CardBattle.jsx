@@ -967,12 +967,29 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         }
         .card-draw-in { animation: cardDrawIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
         @keyframes cardAttackLunge {
-          0% { transform: translateY(0) scale(1); }
-          35% { transform: translateY(-12px) scale(1.08); }
-          70% { transform: translateY(-6px) scale(1.04); }
-          100% { transform: translateY(0) scale(1); }
+          0% { transform: translateY(0) translateX(0) scale(1); box-shadow: 0 0 0 0 rgba(251,191,36,0); filter: brightness(1); }
+          15% { transform: translateY(-4px) translateX(0) scale(1.02); box-shadow: 0 -2px 12px 2px rgba(251,191,36,0.4); filter: brightness(1.1); }
+          35% { transform: translateY(-18px) translateX(2px) scale(1.12); box-shadow: 0 -8px 28px 6px rgba(251,191,36,0.85), 0 -4px 14px 2px rgba(255,255,255,0.5); filter: brightness(1.35); }
+          50% { transform: translateY(-14px) translateX(1px) scale(1.08); box-shadow: 0 -6px 24px 4px rgba(251,191,36,0.6); filter: brightness(1.2); }
+          70% { transform: translateY(-8px) translateX(0) scale(1.04); box-shadow: 0 -2px 14px 2px rgba(251,191,36,0.3); filter: brightness(1.05); }
+          100% { transform: translateY(0) translateX(0) scale(1); box-shadow: 0 0 0 0 rgba(251,191,36,0); filter: brightness(1); }
         }
-        .card-attack-lunge { animation: cardAttackLunge 0.5s ease-out forwards; }
+        @keyframes cardAttackBurst {
+          0% { opacity: 0; transform: scale(1); }
+          25% { opacity: 0.9; transform: scale(1.4); }
+          50% { opacity: 0.5; transform: scale(1.7); }
+          100% { opacity: 0; transform: scale(2); }
+        }
+        .card-attack-lunge { animation: cardAttackLunge 0.6s ease-out forwards; position: relative; overflow: visible; }
+        .card-attack-lunge::before {
+          content: '';
+          position: absolute;
+          inset: -12px;
+          border-radius: inherit;
+          background: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(255,255,255,0.7) 0%, rgba(251,191,36,0.6) 25%, rgba(245,158,11,0.25) 50%, transparent 70%);
+          pointer-events: none;
+          animation: cardAttackBurst 0.6s ease-out forwards;
+        }
         @keyframes cardHitShake {
           0%, 100% { transform: translateX(0); }
           20% { transform: translateX(-4px); }
