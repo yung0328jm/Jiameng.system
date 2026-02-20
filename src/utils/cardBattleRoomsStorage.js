@@ -2,7 +2,7 @@
 import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
 import { getCardById } from './cardGameStorage'
-import { getInitialGameState, reduceGameState } from './cardBattleReducer'
+import { getInitialGameState, reduceGameState } from './cardBattleReducer.js'
 
 const STORAGE_KEY = 'jiameng_card_battle_rooms'
 const LAST_JOINED_KEY = 'jiameng_card_battle_last_joined'
