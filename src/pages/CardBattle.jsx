@@ -108,7 +108,8 @@ function HeroSlot({ hero, isTarget, onClick, className = '', hitAnim }) {
   )
 }
 
-export default function CardBattle({ playerDeck, playerAccount, onExit, playerCardBackUrl, enemyCardBackUrl }) {
+export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExit, playerCardBackUrl, enemyCardBackUrl }) {
+  const isPvP = enemyDeck != null
   const cardBackUrl = playerCardBackUrl ?? enemyCardBackUrl ?? '' // fallback for legacy
   const getCard = (id) => getCardById(id)
   const [player, setPlayer] = useState(null)
@@ -145,6 +146,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }, [])
 
   useEffect(() => {
+    const deckForEnemy = enemyDeck ?? playerDeck
     const pHero = getCard(playerDeck.heroId)
     const pDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
     const p = {
@@ -156,8 +158,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       sacrificePoints: 0,
       sacrificeMax: 0
     }
-    const eHero = getCard(playerDeck.heroId)
-    const eDeck = shuffle((playerDeck.cardIds || []).map((id) => getCard(id)).filter(Boolean))
+    const eHero = getCard(deckForEnemy.heroId)
+    const eDeck = shuffle((deckForEnemy.cardIds || []).map((id) => getCard(id)).filter(Boolean))
     const e = {
       hero: eHero ? { ...eHero, currentHp: eHero.hp, maxHp: eHero.hp, energy: 0 } : null,
       deck: eDeck,
@@ -288,11 +290,12 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }, [player?.fieldFront, enemy?.fieldFront])
 
   const sacrificeCard = (handIndex) => {
-    if (turn !== 'player' || phase !== 'sacrifice') return
-    const card = player.hand[handIndex]
+    if (phase !== 'sacrifice') return
+    const state = turn === 'player' ? player : enemy
+    const card = state.hand[handIndex]
     if (!card) return
-    const newHand = player.hand.filter((_, i) => i !== handIndex)
-    setPlayer((prev) => {
+    const newHand = state.hand.filter((_, i) => i !== handIndex)
+    const updater = (prev) => {
       const newMax = (prev.sacrificeMax ?? 0) + 1
       return {
         ...prev,
@@ -301,13 +304,15 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         sacrificeMax: newMax,
         fieldFront: (prev.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
       }
-    })
+    }
+    if (turn === 'player') setPlayer(updater)
+    else setEnemy(updater)
     setPhase('play')
-    setMessage(`獻祭了「${card.name}」，獻祭上限+1，本輪可用+1。出牌只會扣本輪可用，上限保留到下一輪。`)
+    setMessage(turn === 'player' ? `獻祭了「${card.name}」，獻祭上限+1，本輪可用+1。` : `對手獻祭了「${card.name}」。`)
   }
 
   const playMinion = (side, handIndex) => {
-    if (turn !== 'player' || phase !== 'play') return
+    if (phase !== 'play' || turn !== side) return
     const isPlayer = side === 'player'
     const state = isPlayer ? player : enemy
     const card = state.hand[handIndex]
@@ -474,9 +479,38 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }
 
   const endPlayPhase = () => {
-    if (turn !== 'player' || phase !== 'play') return
+    if (phase !== 'play') return
     setPhase('attack')
-    setMessage('選擇己方單位攻擊。敵方場上有小怪時須先擊倒小怪才能攻擊英雄。')
+    setMessage(turn === 'player' ? '選擇己方單位攻擊。敵方場上有小怪時須先擊倒小怪才能攻擊英雄。' : '選擇己方單位攻擊。')
+  }
+
+  const startEnemyTurn = () => {
+    setEnemy((prev) => {
+      const next = { ...prev }
+      next.sacrificePoints = next.sacrificeMax ?? next.sacrificePoints ?? 0
+      next.fieldFront = (next.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
+      if (next.deck.length > 0 && next.hand.length < MAX_HAND_SIZE) {
+        const drawn = next.deck[0]
+        next.deck = next.deck.slice(1)
+        next.hand = [...next.hand, drawn]
+      }
+      return next
+    })
+  }
+
+  const startPlayerTurn = () => {
+    setPlayer((prev) => {
+      const next = { ...prev }
+      next.sacrificePoints = next.sacrificeMax ?? next.sacrificePoints ?? 0
+      next.fieldFront = (next.fieldFront || []).map((m) => ({ ...m, canAttack: true }))
+      next.hero = next.hero ? { ...next.hero, energy: (next.hero.energy ?? 0) + 1 } : null
+      if (next.deck.length > 0 && next.hand.length < MAX_HAND_SIZE) {
+        const drawn = next.deck[0]
+        next.deck = next.deck.slice(1)
+        next.hand = [...next.hand, drawn]
+      }
+      return next
+    })
   }
 
   const endTurn = () => {
@@ -484,10 +518,22 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
     setSelectedAttacker(null)
     setPhase('sacrifice')
     setTurn('enemy')
-    setMessage('敵方回合')
-    setTimeout(() => {
-      aiTurn()
-    }, 800)
+    if (isPvP) {
+      startEnemyTurn()
+      setMessage('對手回合 · 請獻祭一張手牌（點擊手牌）')
+    } else {
+      setMessage('敵方回合')
+      setTimeout(() => aiTurn(), 800)
+    }
+  }
+
+  const enemyEndTurn = () => {
+    if (turn !== 'enemy' || !isPvP) return
+    setSelectedAttacker(null)
+    setPhase('sacrifice')
+    setTurn('player')
+    startPlayerTurn()
+    setMessage('你的回合 · 請獻祭一張手牌（點擊手牌）')
   }
 
   const aiTurn = () => {
@@ -571,37 +617,43 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }
 
   const handleSelectAttackTarget = (targetSide, targetFieldIndex) => {
-    if (phase !== 'attack' || turn !== 'player' || targetSide !== 'enemy') return
-    if (selectedAttacker == null) return
-    attack('player', selectedAttacker, targetSide, targetFieldIndex)
+    if (phase !== 'attack' || selectedAttacker == null) return
+    if (turn === 'player' && targetSide !== 'enemy') return
+    if (turn === 'enemy' && targetSide !== 'player') return
+    attack(turn, selectedAttacker, targetSide, targetFieldIndex)
     setSelectedAttacker(null)
   }
 
   const handleSelectAttackTargetHero = () => {
-    if (phase !== 'attack' || turn !== 'player') return
-    if (selectedAttacker == null) return
-    attack('player', selectedAttacker, 'enemy', -1)
+    if (phase !== 'attack' || selectedAttacker == null) return
+    const targetSide = turn === 'player' ? 'enemy' : 'player'
+    attack(turn, selectedAttacker, targetSide, -1)
     setSelectedAttacker(null)
   }
 
   const canAttackEnemyHero = (enemy.fieldFront || []).length === 0
+  const canAttackPlayerHero = (player?.fieldFront || []).length === 0
   const playerBack = player?.fieldBack || []
   const canHeroAttack = playerBack.some((s) => s.card?.type === 'equipment' && (s.currentUseCount ?? s.card?.useCount ?? 0) > 0)
+  const canEnemyHeroAttack = (enemy?.fieldBack || []).some((s) => s.card?.type === 'equipment' && (s.currentUseCount ?? s.card?.useCount ?? 0) > 0)
 
   const useHeroSkill = (skillId, energyCost) => {
     const cost = Math.max(0, Number(energyCost) || 0)
-    if (turn !== 'player' || !player?.hero) return
-    const energy = player.hero.energy ?? 0
+    const state = turn === 'player' ? player : enemy
+    if (!state?.hero) return
+    const energy = state.hero.energy ?? 0
     if (energy < cost) return
     const skill = getSkillById(skillId)
     if (!skill) return
     const key = skill.skillKey || ''
     const damageAllMatch = key.match(/^damage_all_minions_(\d+)$/)
     const healHeroMatch = key.match(/^heal_hero_(\d+)$/)
-    setMessage(`使用了「${skill.name}」`)
+    setMessage(turn === 'player' ? `使用了「${skill.name}」` : `對手使用了「${skill.name}」`)
+    const setAttacker = turn === 'player' ? setPlayer : setEnemy
+    const setTarget = turn === 'player' ? setEnemy : setPlayer
     if (damageAllMatch) {
       const damage = Math.max(0, parseInt(damageAllMatch[1], 10) || 3)
-      setEnemy((prev) => ({
+      setTarget((prev) => ({
         ...prev,
         fieldFront: (prev.fieldFront || []).map((m) => {
           const newHp = (m.currentHp ?? m.hp) - damage
@@ -609,7 +661,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         })
       }))
     }
-    setPlayer((prev) => {
+    setAttacker((prev) => {
       const newEnergy = (prev.hero?.energy ?? 0) - cost
       let heroUpdate = prev.hero ? { ...prev.hero, energy: Math.max(0, newEnergy) } : null
       if (healHeroMatch && heroUpdate) {
@@ -768,6 +820,20 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   const deckRemaining = player?.deck?.length ?? 0
   const enemyDeckRemaining = enemy?.deck?.length ?? 0
 
+  const topSide = (turn === 'enemy' && isPvP) ? 'player' : 'enemy'
+  const topState = topSide === 'player' ? player : enemy
+  const bottomSide = (turn === 'enemy' && isPvP) ? 'enemy' : 'player'
+  const bottomState = bottomSide === 'player' ? player : enemy
+  const showBottomHand = turn === 'player' || (turn === 'enemy' && isPvP)
+  const topDeckRemaining = topState?.deck?.length ?? 0
+  const topGraveyardCount = topSide === 'enemy' ? enemyGraveyardCount : playerGraveyardCount
+  const bottomDeckRemaining = bottomState?.deck?.length ?? 0
+  const bottomGraveyardCount = bottomSide === 'enemy' ? enemyGraveyardCount : playerGraveyardCount
+  const topCardBackUrl = topSide === 'enemy' ? (enemyCardBackUrl ?? cardBackUrl) : (playerCardBackUrl ?? cardBackUrl)
+  const bottomCardBackUrl = bottomSide === 'enemy' ? (enemyCardBackUrl ?? cardBackUrl) : (playerCardBackUrl ?? cardBackUrl)
+  const topCanSelectTarget = (turn === 'player' && topSide === 'enemy') || (turn === 'enemy' && isPvP && topSide === 'player')
+  const topCanAttackHero = (topSide === 'enemy' && canAttackEnemyHero) || (topSide === 'player' && canAttackPlayerHero)
+
   const playerHeroJustHit = lastAttack?.targetSide === 'player' && lastAttack?.targetHero === true
   const fieldFrontHasSpace = (player?.fieldFront?.length ?? 0) <= MAX_FRONT - 1
   const fieldBackHasSpace = (player?.fieldBack?.length ?? 0) <= MAX_BACK - 1
@@ -824,7 +890,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
             )}
             <div className="flex flex-wrap gap-2 p-3 border-t border-gray-700">
               <button type="button" onClick={closeView} className="flex-1 min-w-[60px] py-2 bg-gray-600 text-white rounded-lg text-xs font-medium touch-manipulation">關閉</button>
-              {side === 'enemy' && inAttackPhase && isPlayerTurn && selectedAttacker != null && canAttackEnemyHero && (
+              {side !== turn && inAttackPhase && selectedAttacker != null && (side === 'enemy' ? canAttackEnemyHero : canAttackPlayerHero) && (
                 <button
                   type="button"
                   onClick={() => { handleSelectAttackTargetHero(); closeView(); }}
@@ -853,8 +919,8 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       const attack = m?.attack ?? card?.attack ?? 0
       const currentHp = isFront ? (m?.currentHp ?? card?.hp) : (slot?.currentUseCount ?? slot?.card?.useCount)
       const maxHp = isFront ? (m?.maxHp ?? card?.hp) : (slot?.card?.type === 'equipment' ? slot?.card?.useCount : undefined)
-      const canSelectAsAttacker = isPlayerTurn && inAttackPhase && side === 'player' && isFront && m?.attack > 0 && m?.canAttack !== false
-      const canSelectAsTarget = isPlayerTurn && inAttackPhase && side === 'enemy' && isFront
+      const canSelectAsAttacker = inAttackPhase && side === turn && isFront && m?.attack > 0 && m?.canAttack !== false
+      const canSelectAsTarget = inAttackPhase && side !== turn && isFront
       const modalContent = (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
@@ -902,7 +968,7 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               {canSelectAsTarget && (
                 <button
                   type="button"
-                  onClick={() => { handleSelectAttackTarget('enemy', index); closeView(); }}
+                  onClick={() => { handleSelectAttackTarget(side, index); closeView(); }}
                   className="flex-1 min-w-[80px] py-2 bg-red-600 text-white rounded-lg text-xs font-medium touch-manipulation"
                 >
                   選為攻擊目標
@@ -918,11 +984,15 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
   }
 
   const renderHandDetailModal = () => {
-    if (handDetailIndex == null || !player?.hand?.[handDetailIndex]) return null
-    const card = player.hand[handDetailIndex]
+    const currentState = turn === 'player' ? player : enemy
+    const currentHand = currentState?.hand
+    if (handDetailIndex == null || !currentHand?.[handDetailIndex]) return null
+    const card = currentHand[handDetailIndex]
+    const frontHasSpace = (currentState?.fieldFront?.length ?? 0) <= MAX_FRONT - 1
+    const backHasSpace = (currentState?.fieldBack?.length ?? 0) <= MAX_BACK - 1
     const canSacrifice = phase === 'sacrifice'
-    const canPlayMinion = phase === 'play' && card?.type === 'minion' && (player.sacrificePoints ?? 0) >= (card?.cost ?? 0) && fieldFrontHasSpace
-    const canPlayBack = phase === 'play' && (card?.type === 'equipment' || card?.type === 'effect' || card?.type === 'trap') && (player.sacrificePoints ?? 0) >= (card?.cost ?? 0) && fieldBackHasSpace
+    const canPlayMinion = phase === 'play' && card?.type === 'minion' && (currentState.sacrificePoints ?? 0) >= (card?.cost ?? 0) && frontHasSpace
+    const canPlayBack = phase === 'play' && (card?.type === 'equipment' || card?.type === 'effect' || card?.type === 'trap') && (currentState.sacrificePoints ?? 0) >= (card?.cost ?? 0) && backHasSpace
     const modalContent = (
       <div
         className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
@@ -954,10 +1024,10 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               <button type="button" onClick={() => { sacrificeCard(handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-amber-600 text-gray-900 rounded-lg text-xs font-medium touch-manipulation">獻祭</button>
             )}
             {canPlayMinion && (
-              <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
+              <button type="button" onClick={() => { playMinion(turn, handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
             )}
             {canPlayBack && (
-              <button type="button" onClick={() => { playMinion('player', handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
+              <button type="button" onClick={() => { playMinion(turn, handDetailIndex); setHandDetailIndex(null); }} className="flex-1 min-w-[60px] py-2 bg-green-600 text-white rounded-lg text-xs font-medium touch-manipulation">出牌</button>
             )}
           </div>
         </div>
@@ -1089,89 +1159,89 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
       {/* 中間：對戰場地，可捲動 */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
       <div className="p-1.5 sm:p-2 space-y-1.5 sm:space-y-2 max-w-2xl mx-auto">
-        {/* 敵方區域：與我方相同排列，英雄最靠近對方，依序為前排、後排、手牌 */}
+        {/* 上方區域：PvP 時若為對手回合則顯示我方（作為攻擊目標） */}
         <div className="flex gap-1.5 sm:gap-2">
           <div className="flex-shrink-0 flex flex-col items-center justify-end gap-1">
-            <div className="flex flex-col items-center" aria-label="敵方墓地">
+            <div className="flex flex-col items-center" aria-label={topSide === 'enemy' ? '敵方墓地' : '墓地'}>
               <span className="text-gray-500 text-[8px] sm:text-[10px]">墓地</span>
               <div className="w-8 h-10 sm:w-10 sm:h-12 rounded border border-gray-600 bg-gray-800/90 flex items-center justify-center">
-                <span className="text-amber-400/90 font-mono text-[10px] font-bold">{enemyGraveyardCount}</span>
+                <span className="text-amber-400/90 font-mono text-[10px] font-bold">{topGraveyardCount}</span>
               </div>
             </div>
-            <div className="relative w-10 h-12 sm:w-12 sm:h-14 flex items-center justify-center" aria-label="敵方牌堆">
+            <div className="relative w-10 h-12 sm:w-12 sm:h-14 flex items-center justify-center" aria-label={topSide === 'enemy' ? '敵方牌堆' : '牌堆'}>
               <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
-                <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
+                <CardBack cardBackUrl={topCardBackUrl} className="w-full h-full rounded-lg" />
               </div>
               <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
-                <CardBack cardBackUrl={enemyCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
+                <CardBack cardBackUrl={topCardBackUrl} className="w-full h-full rounded-lg opacity-90" />
               </div>
               <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
             </div>
-            <p className="text-amber-400 font-mono text-[10px] mt-0.5 font-semibold">{enemyDeckRemaining}</p>
+            <p className="text-amber-400 font-mono text-[10px] mt-0.5 font-semibold">{topDeckRemaining}</p>
           </div>
           <div className="flex-1 min-w-0">
             <Field
-              side="enemy"
-              hero={enemy.hero}
-              heroEnergy={null}
-              heroSkills={null}
-              fieldFront={enemy.fieldFront}
-              fieldBack={enemy.fieldBack}
-              hand={enemy.hand}
+              side={topSide}
+              hero={topState.hero}
+              heroEnergy={topSide === 'player' ? (topState.hero?.energy ?? 0) : null}
+              heroSkills={topSide === 'player' ? topState.hero?.skills : null}
+              fieldFront={topState.fieldFront}
+              fieldBack={topState.fieldBack}
+              hand={topState.hand}
               isPlayer={false}
-              drawInIndices={enemyDrawInIndices}
-              enemyDeckRemaining={enemyDeckRemaining}
-              enemySacrificePoints={enemy.sacrificePoints ?? 0}
-              enemySacrificeMax={enemy.sacrificeMax ?? 0}
-              cardBackUrl={enemyCardBackUrl ?? cardBackUrl}
+              drawInIndices={topSide === 'enemy' ? enemyDrawInIndices : []}
+              enemyDeckRemaining={topDeckRemaining}
+              enemySacrificePoints={topState.sacrificePoints ?? 0}
+              enemySacrificeMax={topState.sacrificeMax ?? 0}
+              cardBackUrl={topCardBackUrl}
               onViewHero={(s) => setViewDetail({ type: 'hero', side: s })}
               onViewField={(s, row, idx) => setViewDetail({ type: 'field', side: s, row, index: idx })}
-              onSelectTarget={(i) => handleSelectAttackTarget('enemy', i)}
-              onSelectTargetHero={canAttackEnemyHero ? handleSelectAttackTargetHero : undefined}
+              onSelectTarget={topCanSelectTarget ? (i) => handleSelectAttackTarget(topSide, i) : undefined}
+              onSelectTargetHero={topCanSelectTarget && topCanAttackHero ? handleSelectAttackTargetHero : undefined}
             />
           </div>
         </div>
         <hr className="border-gray-600 flex-shrink-0" />
-        {/* 我方區域：牌堆與墓地在我方那邊 */}
+        {/* 下方區域：當前回合方，PvP 時對手回合顯示對手手牌與操作 */}
         <div className="flex gap-1.5 sm:gap-2">
           <div className="flex-shrink-0 flex flex-col items-center justify-end gap-1">
-            <div className="flex flex-col items-center" aria-label="墓地">
+            <div className="flex flex-col items-center" aria-label={bottomSide === 'player' ? '墓地' : '敵方墓地'}>
               <span className="text-gray-500 text-[8px] sm:text-[10px]">墓地</span>
               <div className="w-8 h-10 sm:w-10 sm:h-12 rounded border border-gray-600 bg-gray-800/90 flex items-center justify-center">
-                <span className="text-amber-400/90 font-mono text-[10px] font-bold">{playerGraveyardCount}</span>
+                <span className="text-amber-400/90 font-mono text-[10px] font-bold">{bottomGraveyardCount}</span>
               </div>
             </div>
-            <div className="relative w-10 h-12 sm:w-12 sm:h-14 flex items-center justify-center" aria-label="牌堆">
+            <div className="relative w-10 h-12 sm:w-12 sm:h-14 flex items-center justify-center" aria-label={bottomSide === 'player' ? '牌堆' : '敵方牌堆'}>
               <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ transform: 'translateY(2px)' }}>
-                <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg" />
+                <CardBack cardBackUrl={bottomCardBackUrl} className="w-full h-full rounded-lg" />
               </div>
               <div className="absolute inset-0 rounded-lg overflow-hidden bg-gray-800/80" style={{ transform: 'translateY(4px)' }}>
-                <CardBack cardBackUrl={playerCardBackUrl ?? cardBackUrl} className="w-full h-full rounded-lg opacity-90" />
+                <CardBack cardBackUrl={bottomCardBackUrl} className="w-full h-full rounded-lg opacity-90" />
               </div>
               <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
             </div>
-            <p className="text-amber-400 font-mono text-[10px] mt-0.5 font-semibold">{deckRemaining}</p>
+            <p className="text-amber-400 font-mono text-[10px] mt-0.5 font-semibold">{bottomDeckRemaining}</p>
           </div>
           <div className="flex-1 min-w-0">
             <Field
-              side="player"
-              hero={player.hero}
-              heroEnergy={player.hero?.energy ?? 0}
-              heroSkills={player.hero?.skills}
-              fieldFront={player.fieldFront}
-              fieldBack={player.fieldBack}
-              hand={player.hand}
-              isPlayer={true}
-              sacrificePoints={player.sacrificePoints ?? 0}
-              sacrificeMax={player.sacrificeMax ?? 0}
-              drawInIndices={drawInIndices}
-              cardBackUrl={playerCardBackUrl ?? cardBackUrl}
+              side={bottomSide}
+              hero={bottomState.hero}
+              heroEnergy={bottomSide === 'player' ? (bottomState.hero?.energy ?? 0) : null}
+              heroSkills={bottomSide === 'player' ? bottomState.hero?.skills : null}
+              fieldFront={bottomState.fieldFront}
+              fieldBack={bottomState.fieldBack}
+              hand={bottomState.hand}
+              isPlayer={showBottomHand}
+              sacrificePoints={bottomState.sacrificePoints ?? 0}
+              sacrificeMax={bottomState.sacrificeMax ?? 0}
+              drawInIndices={bottomSide === 'player' ? drawInIndices : enemyDrawInIndices}
+              cardBackUrl={bottomCardBackUrl}
               onViewHero={(s) => setViewDetail({ type: 'hero', side: s })}
               onViewField={(s, row, idx) => setViewDetail({ type: 'field', side: s, row, index: idx })}
-              onSelectHeroAttacker={canHeroAttack ? () => setSelectedAttacker(-1) : undefined}
+              onSelectHeroAttacker={(bottomSide === 'player' ? canHeroAttack : canEnemyHeroAttack) ? () => setSelectedAttacker(-1) : undefined}
               onUseHeroSkill={useHeroSkill}
               onSacrificeCard={sacrificeCard}
-              onPlayMinion={(i) => playMinion('player', i)}
+              onPlayMinion={(i) => playMinion(bottomSide, i)}
               onHandCardClick={(i) => setHandDetailIndex((prev) => (prev === i ? null : i))}
               handDetailIndex={handDetailIndex}
               handCardCompact={true}
@@ -1186,13 +1256,14 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
         style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom, 0px))' }}
       >
         <div className="max-w-2xl mx-auto px-2 sm:px-3 flex flex-wrap items-center gap-2">
-          {phase === 'sacrifice' && (
+          {showBottomHand && phase === 'sacrifice' && (
             <>
               <button
                 type="button"
                 onClick={() => {
                   setPhase('play')
-                  setMessage(player.hand.length === 0 ? '無手牌可獻祭，出牌或進入攻擊階段' : '略過獻祭，出牌或進入攻擊階段')
+                  const currentHand = turn === 'player' ? player.hand : enemy.hand
+                  setMessage(currentHand.length === 0 ? '無手牌可獻祭，出牌或進入攻擊階段' : '略過獻祭，出牌或進入攻擊階段')
                 }}
                 className="min-h-[40px] px-3 py-2 bg-amber-600 hover:bg-amber-500 text-gray-900 rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]"
               >
@@ -1201,11 +1272,13 @@ export default function CardBattle({ playerDeck, playerAccount, onExit, playerCa
               <span className="text-gray-400 text-[10px] sm:text-xs">點手牌預覽後於彈窗內按獻祭</span>
             </>
           )}
-          {phase === 'play' && (
+          {showBottomHand && phase === 'play' && (
             <button type="button" onClick={endPlayPhase} className="min-h-[40px] px-3 py-2 bg-amber-500 hover:bg-amber-400 text-gray-900 rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]">進入攻擊階段</button>
           )}
-          {phase === 'attack' && (
-            <button type="button" onClick={endTurn} className="min-h-[40px] px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]">結束回合</button>
+          {showBottomHand && phase === 'attack' && (
+            turn === 'player'
+              ? <button type="button" onClick={endTurn} className="min-h-[40px] px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]">結束回合</button>
+              : <button type="button" onClick={enemyEndTurn} className="min-h-[40px] px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-semibold text-xs touch-manipulation active:scale-[0.98]">結束回合</button>
           )}
         </div>
         <div className="max-w-2xl mx-auto px-2 sm:px-3 pt-0.5 pb-0.5">
