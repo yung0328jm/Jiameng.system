@@ -40,6 +40,7 @@ import { getWalletBalance, subtractWalletBalance } from '../utils/walletStorage'
 import { getPointsBalance, subtractPointsBalance } from '../utils/pointsStorage'
 import { fetchCardShopDataFromSupabase } from '../utils/supabaseSync'
 import CardBattle from './CardBattle'
+import { createRoom, joinRoom } from '../utils/cardBattleRoomsStorage'
 
 const TAB_BATTLE = 'battle'
 const TAB_DECKS = 'decks'
@@ -97,7 +98,11 @@ export default function CardGame({ onBack }) {
   const [battleDeckId, setBattleDeckId] = useState(null)
   const [battleP2DeckId, setBattleP2DeckId] = useState(null)
   const [battleStarted, setBattleStarted] = useState(false)
-  const [battleMode, setBattleMode] = useState('pve') // 'pve' | 'pvp'
+  const [battleMode, setBattleMode] = useState('pve') // 'pve' | 'pvp' | 'online'
+  const [battleRoomId, setBattleRoomId] = useState(null)
+  const [battleMySide, setBattleMySide] = useState(null) // 'host' | 'guest'
+  const [onlineJoinCode, setOnlineJoinCode] = useState('')
+  const [onlineJoinDeckId, setOnlineJoinDeckId] = useState(null)
   const [collectionDetail, setCollectionDetail] = useState(null)
   const [cardBackUrlInput, setCardBackUrlInput] = useState('')
   useEffect(() => {
@@ -372,6 +377,18 @@ export default function CardGame({ onBack }) {
     setBattleStarted(true)
   }
 
+  if (battleStarted && battleRoomId && battleMySide && currentUser) {
+    return (
+      <CardBattle
+        roomId={battleRoomId}
+        mySide={battleMySide}
+        playerAccount={currentUser}
+        onExit={() => { setBattleStarted(false); setBattleRoomId(null); setBattleMySide(null); refresh() }}
+        playerCardBackUrl={getEquippedCardBackUrl(currentUser) || getCardBackUrl()}
+        enemyCardBackUrl={getEquippedCardBackUrl(currentUser) || getCardBackUrl()}
+      />
+    )
+  }
   if (battleStarted && battleDeckId && currentUser) {
     const deck = decks.find((d) => d.id === battleDeckId)
     const enemyDeck = battleP2DeckId ? decks.find((d) => d.id === battleP2DeckId) : null
@@ -439,7 +456,14 @@ export default function CardGame({ onBack }) {
               onClick={() => setBattleMode('pvp')}
               className={`px-3 py-1.5 rounded text-sm ${battleMode === 'pvp' ? 'bg-yellow-500 text-gray-900 font-semibold' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
             >
-              雙人 (PvP)
+              雙人同機
+            </button>
+            <button
+              type="button"
+              onClick={() => setBattleMode('online')}
+              className={`px-3 py-1.5 rounded text-sm ${battleMode === 'online' ? 'bg-yellow-500 text-gray-900 font-semibold' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              線上雙人
             </button>
           </div>
           {battleMode === 'pve' && (
@@ -522,6 +546,99 @@ export default function CardGame({ onBack }) {
                   >
                     開始雙人對戰
                   </button>
+                </div>
+              )}
+            </>
+          )}
+          {battleMode === 'online' && (
+            <>
+              <p className="text-gray-400 text-sm">建立房間或輸入房間代碼加入，與另一裝置的玩家對戰（需同步 app 資料）。</p>
+              {decks.length === 0 ? (
+                <p className="text-gray-500">尚無牌組，請先到「牌組」組牌。</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-gray-800 rounded-lg border border-gray-600">
+                    <p className="text-amber-300 text-xs font-medium mb-2">建立房間（房主先手）</p>
+                    <p className="text-gray-400 text-xs mb-2">選擇牌組後建立房間，將產生的代碼分享給對手。</p>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {decks.map((d) => {
+                        const hero = getCardById(d.heroId)
+                        const selected = battleDeckId === d.id && !onlineJoinCode
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => { setBattleDeckId(d.id); setOnlineJoinCode('') }}
+                            className={`p-2 rounded-lg border text-left text-sm ${selected ? 'border-yellow-500 bg-yellow-500/20' : 'border-gray-600 bg-gray-700 hover:border-yellow-500/50'}`}
+                          >
+                            <span className="font-medium text-white">{d.name}</span>
+                            <span className="text-xs text-gray-400 ml-1">· {hero ? hero.name : '-'}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!battleDeckId}
+                      onClick={() => {
+                        const deck = decks.find((d) => d.id === battleDeckId)
+                        if (!deck) return
+                        const res = createRoom(currentUser, deck)
+                        if (!res.ok) { alert(res.error); return }
+                        setBattleRoomId(res.roomId)
+                        setBattleMySide('host')
+                        setBattleStarted(true)
+                      }}
+                      className="px-3 py-1.5 bg-amber-500 text-gray-900 font-medium rounded text-sm disabled:opacity-50"
+                    >
+                      建立房間
+                    </button>
+                  </div>
+                  <div className="p-3 bg-gray-800 rounded-lg border border-gray-600">
+                    <p className="text-amber-300 text-xs font-medium mb-2">加入房間（對手後手）</p>
+                    <p className="text-gray-400 text-xs mb-2">輸入房主分享的 6 碼房間代碼，選擇你的牌組後加入。</p>
+                    <input
+                      type="text"
+                      placeholder="房間代碼（6 碼）"
+                      maxLength={6}
+                      value={onlineJoinCode}
+                      onChange={(e) => setOnlineJoinCode(String(e.target.value).toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                      className="w-full max-w-[8rem] px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-white font-mono text-sm mb-2"
+                    />
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {decks.map((d) => {
+                        const hero = getCardById(d.heroId)
+                        const selected = onlineJoinDeckId === d.id
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => setOnlineJoinDeckId(d.id)}
+                            className={`p-2 rounded-lg border text-left text-sm ${selected ? 'border-yellow-500 bg-yellow-500/20' : 'border-gray-600 bg-gray-700 hover:border-yellow-500/50'}`}
+                          >
+                            <span className="font-medium text-white">{d.name}</span>
+                            <span className="text-xs text-gray-400 ml-1">· {hero ? hero.name : '-'}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!onlineJoinCode.trim() || !onlineJoinDeckId}
+                      onClick={() => {
+                        const deck = decks.find((d) => d.id === onlineJoinDeckId)
+                        if (!deck) return
+                        const res = joinRoom(onlineJoinCode.trim(), currentUser, deck)
+                        if (!res.ok) { alert(res.error); return }
+                        setBattleRoomId(res.room.id)
+                        setBattleMySide('guest')
+                        setBattleStarted(true)
+                      }}
+                      className="px-3 py-1.5 bg-green-600 text-white font-medium rounded text-sm disabled:opacity-50"
+                    >
+                      加入房間
+                    </button>
+                  </div>
                 </div>
               )}
             </>

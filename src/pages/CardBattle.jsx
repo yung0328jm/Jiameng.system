@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCardById, getSkillById } from '../utils/cardGameStorage.js'
-import { getRoom, updateGameState, dispatchRoomAction } from '../utils/cardBattleRoomsStorage'
-import { reduceGameState } from '../utils/cardBattleReducer'
+import { getRoom, updateGameState, dispatchRoomAction } from '../utils/cardBattleRoomsStorage.js'
+import { reduceGameState } from '../utils/cardBattleReducer.js'
 
 const MAX_FRONT = 5  // 前排小怪數量上限
 const MAX_BACK = 5   // 後排裝備/效果/陷阱數量上限
