@@ -26,6 +26,7 @@ import { getUsers, getPendingAdvances, getAdvancesByAccount } from '../utils/sto
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getUserInventory, addItemToInventory } from '../utils/inventoryStorage'
 import { getPendingExchangeRequests, approveExchangeRequest, rejectExchangeRequest, deleteExchangeRequest } from '../utils/exchangeRequestStorage'
+import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
 import { removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
@@ -451,6 +452,13 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     const requests = getPendingExchangeRequests()
     setPendingExchangeRequests(requests)
   }
+
+  // 管理員開啟兌換請求 Modal 時，先從雲端拉取最新列表再顯示（避免漏接 Realtime 時看不到部分用戶的請求）
+  useEffect(() => {
+    if (showExchangeRequestModal && userRole === 'admin') {
+      refreshAppDataKeyFromSupabase('jiameng_exchange_requests').then(() => loadPendingExchangeRequests())
+    }
+  }, [showExchangeRequestModal, userRole])
 
   // 即時同步：錢包、用戶、道具、兌換請求變更時重讀，不需登出再登入
   const refetchDashboard = () => {
