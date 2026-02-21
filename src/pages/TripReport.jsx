@@ -30,25 +30,46 @@ function TripReport() {
     return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
   }
 
+  /** 與行事曆一致：多案場時每個案場一筆，單一案場則一筆；僅取 siteName 供行程回報案場列表 */
+  const getScheduleSegments = (schedule) => {
+    if (!schedule) return []
+    const segs = Array.isArray(schedule.segments) ? schedule.segments : null
+    if (segs && segs.length > 0) {
+      return segs.map((s) => ({ siteName: String(s?.siteName ?? '').trim() }))
+    }
+    const siteName = String(schedule.siteName ?? '').trim()
+    return siteName ? [{ siteName }] : []
+  }
+
   const buildSiteLists = (allSchedules, todayStr, userAccount, role) => {
     const list = Array.isArray(allSchedules) ? allSchedules : []
     // 行程回報只顯示「案場排程」，請假僅供行事曆查看狀態，不需回報
     const todaySchedules = list.filter((s) => (s.date || '') === todayStr).filter((s) => !isLeaveSchedule(s))
-    const all = [...new Set(todaySchedules.map((s) => (s.siteName || '').trim()).filter(Boolean))].sort()
+    // 一天多案場時分開：每個案場一張卡片，可分別回報（從 schedule.segments 展開）
+    const siteNameList = []
+    todaySchedules.forEach((s) => {
+      getScheduleSegments(s).forEach((seg) => {
+        const name = seg.siteName || ''
+        if (name) siteNameList.push(name)
+      })
+    })
+    const all = [...new Set(siteNameList)].sort()
     // 管理員：全部可操作
     if (role === 'admin') return { all, allowed: all }
-    // 一般用戶：僅能看自己在 participants 裡的案場
+    // 一般用戶：僅能看自己在 participants 裡的案場（該排程下所有案場皆可回報）
     const nameAliases = new Set(getDisplayNamesForAccount(userAccount || '').map((x) => String(x || '').trim()).filter(Boolean))
     const ok = new Set()
     todaySchedules.forEach((s) => {
-      const site = String(s?.siteName || '').trim()
-      if (!site) return
       const parts = String(s?.participants || '')
         .split(',')
         .map((p) => String(p || '').trim())
         .filter(Boolean)
       const isParticipant = parts.some((p) => nameAliases.has(p))
-      if (isParticipant) ok.add(site)
+      if (!isParticipant) return
+      getScheduleSegments(s).forEach((seg) => {
+        const name = seg.siteName || ''
+        if (name) ok.add(name)
+      })
     })
     return { all, allowed: Array.from(ok).sort() }
   }
