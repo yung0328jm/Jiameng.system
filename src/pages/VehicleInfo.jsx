@@ -2,6 +2,33 @@ import { useState, useEffect } from 'react'
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
+/** 與 Calendar 一致：取得排程的案場段落（多案場時每個案場一筆，含 siteName + vehicleEntries） */
+function getScheduleSegments(schedule) {
+  if (!schedule) return []
+  const segs = Array.isArray(schedule.segments) ? schedule.segments : null
+  if (segs && segs.length > 0) {
+    return segs.map((s) => ({
+      siteName: String(s?.siteName ?? '').trim(),
+      vehicleEntries: Array.isArray(s?.vehicleEntries) ? s.vehicleEntries : []
+    }))
+  }
+  const siteName = String(schedule.siteName ?? '').trim()
+  const vehicleEntries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
+    ? schedule.vehicleEntries
+    : (() => {
+        const v = String(schedule.vehicle ?? '').trim()
+        if (!v) return []
+        return v.split(',').map((s) => s.trim()).filter(Boolean).map((vehicle) => ({
+          vehicle,
+          departureMileage: schedule.departureMileage || '',
+          returnMileage: schedule.returnMileage || '',
+          needRefuel: schedule.needRefuel || false,
+          fuelCost: schedule.fuelCost || ''
+        }))
+      })()
+  return [{ siteName, vehicleEntries }]
+}
+
 function VehicleInfo() {
   const [vehicleData, setVehicleData] = useState({})
 
@@ -25,14 +52,14 @@ function VehicleInfo() {
       return key
     }
 
+    /** 每案場每台車一筆：活動名 + 該段里程，供後續依案場分別累加出車次數與里程 */
     const processOneVehicle = (vehicleKey, ymd, activity, departure, returnMile, needRefuel, fuelCost) => {
       const key = ensureVehicle(vehicleKey)
       if (!key) return
       if (!dayByVehicle[key]) dayByVehicle[key] = {}
-      if (!dayByVehicle[key][ymd]) dayByVehicle[key][ymd] = { mileage: 0, activities: new Set() }
-      if (activity) dayByVehicle[key][ymd].activities.add(activity)
+      if (!dayByVehicle[key][ymd]) dayByVehicle[key][ymd] = { activityDeltas: [] }
       const delta = returnMile > departure ? (returnMile - departure) : 0
-      if (delta > dayByVehicle[key][ymd].mileage) dayByVehicle[key][ymd].mileage = delta
+      if (activity) dayByVehicle[key][ymd].activityDeltas.push({ activity, delta })
       // 記錄該車最後一次回程公里數（取日期最新的一筆，方便下次出發填寫）
       if (ymd && (returnMile != null && returnMile !== '')) {
         const ret = parseFloat(returnMile) || 0
@@ -69,46 +96,46 @@ function VehicleInfo() {
       }
     }
 
-    schedules.forEach(schedule => {
+    schedules.forEach((schedule) => {
       const ymd = String(schedule.date || '').slice(0, 10)
       if (!ymd) return
-      const activity = String(schedule.siteName || '').trim()
 
-      if (Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0) {
-        schedule.vehicleEntries.forEach((entry) => {
+      const segments = getScheduleSegments(schedule)
+      segments.forEach((seg) => {
+        const activity = seg.siteName || ''
+        const entries = Array.isArray(seg.vehicleEntries) && seg.vehicleEntries.length > 0
+          ? seg.vehicleEntries
+          : (() => {
+              const vehicleStr = String(schedule.vehicle || '').trim()
+              if (!vehicleStr) return []
+              const dep = parseFloat(schedule.departureMileage) || 0
+              const ret = parseFloat(schedule.returnMileage) || 0
+              return vehicleStr.split(',').map((v) => String(v).trim()).filter(Boolean).map((vehicle) => ({
+                vehicle,
+                departureMileage: dep,
+                returnMileage: ret,
+                needRefuel: schedule.needRefuel,
+                fuelCost: schedule.fuelCost
+              }))
+            })()
+        entries.forEach((entry) => {
           const vehicleKey = String(entry?.vehicle || '').trim()
           if (!vehicleKey) return
           const dep = parseFloat(entry.departureMileage) || 0
           const ret = parseFloat(entry.returnMileage) || 0
           processOneVehicle(vehicleKey, ymd, activity, dep, ret, !!entry.needRefuel, entry.fuelCost)
         })
-      } else {
-        const vehicleStr = String(schedule.vehicle || '').trim()
-        if (!vehicleStr) return
-        const dep = parseFloat(schedule.departureMileage) || 0
-        const ret = parseFloat(schedule.returnMileage) || 0
-        const needRefuel = !!schedule.needRefuel
-        const fuelCost = schedule.fuelCost
-        // 舊資料可能 vehicle 為 "車牌A, 車牌B"，依逗號拆開讓每台車各一張卡
-        const vehicleKeys = vehicleStr.split(',').map((v) => String(v).trim()).filter(Boolean)
-        if (vehicleKeys.length === 0) return
-        vehicleKeys.forEach((vehicleKey) => {
-          processOneVehicle(vehicleKey, ymd, activity, dep, ret, needRefuel, fuelCost)
-        })
-      }
+      })
     })
 
-    // 依 vehicle/day 產生活動統計：里程平均分攤到當天所有活動
+    // 依案場分別累加：每個案場各自出車次數 + 該案場里程（不再合併為一筆、不再平均）
     Object.keys(dayByVehicle).forEach((vehicle) => {
       const days = dayByVehicle[vehicle]
       Object.keys(days).forEach((ymd) => {
         const d = days[ymd]
-        const activities = Array.from(d.activities || [])
-
-        if (!(d.mileage > 0) || activities.length === 0) return
-
-        const share = d.mileage / activities.length
-        activities.forEach((activity) => {
+        const list = d.activityDeltas || []
+        list.forEach(({ activity, delta }) => {
+          if (!activity) return
           if (!vehicleSummary[vehicle].activities[activity]) {
             vehicleSummary[vehicle].activities[activity] = {
               activity,
@@ -116,8 +143,7 @@ function VehicleInfo() {
               tripCount: 0
             }
           }
-          vehicleSummary[vehicle].activities[activity].totalMileage += share
-          // 出車次數：以「同車同日曾到此案場」計 1 次
+          vehicleSummary[vehicle].activities[activity].totalMileage += delta
           vehicleSummary[vehicle].activities[activity].tripCount += 1
         })
       })
