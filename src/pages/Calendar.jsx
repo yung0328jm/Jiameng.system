@@ -4060,7 +4060,12 @@ function Calendar() {
                   <p className="text-gray-500 text-xs mt-1">輸入後按「加入選單」可新增選項，再從上方勾選一或多台車輛</p>
                 </div>
 
-                {/* 每台車一組：出發/回程駕駛、里程、加油、發票；車牌旁顯示上次回程里程供出發里程參考 */}
+                {/* 每台車一組：出發/回程駕駛、里程、加油、發票；多案場時每案場的車輛里程個別填寫 */}
+                {Array.isArray(scheduleFormData.segments) && scheduleFormData.segments.length > 1 && (
+                  <p className="text-amber-200/90 text-sm mb-2">
+                    以下為目前編輯案場「{scheduleFormData.segments[editingFormSegmentIndex]?.siteName || '案場'}」的車輛，出發／回程里程請依案場個別填寫。
+                  </p>
+                )}
                 {(() => {
                   const lastReturnMap = getLastReturnMileageByVehicle()
                   const editingSchedule = schedules.find((s) => String(s?.id) === editingScheduleId)
