@@ -36,6 +36,8 @@ function Calendar() {
   const [showDetailModal, setShowDetailModal] = useState(false) // 显示详情弹窗
   const [selectedDetailItem, setSelectedDetailItem] = useState(null) // 选中的详情项（主题或排程）
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
+  const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
+  const [editingFormSegmentIndex, setEditingFormSegmentIndex] = useState(0) // 表單內編輯多處行程時，目前編輯的案場索引
   const [editingScheduleId, setEditingScheduleId] = useState(null) // 正在编辑的排程ID
   const [selectedDateForSchedule, setSelectedDateForSchedule] = useState(null)
   const [expandedSchedules, setExpandedSchedules] = useState({}) // 展开的排程ID
@@ -89,10 +91,12 @@ function Calendar() {
   const [responsiblePersonOptions, setResponsiblePersonOptions] = useState([])
   const [projectSiteOptions, setProjectSiteOptions] = useState([]) // 專案管理案場（用於「活動」下拉；含狀態標籤）
   const [siteStatusFilter, setSiteStatusFilter] = useState('all') // all | in_progress | planning | completed | on_hold
+  const [siteSearchQuery, setSiteSearchQuery] = useState('') // 多案場勾選時的搜尋關鍵字
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false)
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false)
   const [newVehicleInput, setNewVehicleInput] = useState('') // 用於「新增車輛到選單」的輸入，不直接寫入 vehicle
   const [showSiteDropdown, setShowSiteDropdown] = useState(false)
+  const [selectedSiteNamesForPicker, setSelectedSiteNamesForPicker] = useState([]) // 多案場勾選時暫存的已選案場（套用後寫入 siteName）
   const [showResponsiblePersonDropdown, setShowResponsiblePersonDropdown] = useState({}) // 每个工作项目的下拉選單状态
   const participantDropdownRef = useRef(null)
   const vehicleDropdownRef = useRef(null)
@@ -786,14 +790,60 @@ function Calendar() {
     setNewVehicleInput(e.target.value)
   }
 
-  // 处理活動（案場）输入/选择
-  const handleSiteInput = (e) => {
-    const value = e.target.value
-    setScheduleFormData(prev => ({ ...prev, siteName: value }))
+  // 解析活動名稱為案場陣列（支援 、，, 與空白分隔）
+  const parseSiteNameToArray = (name) => {
+    if (!name || typeof name !== 'string') return []
+    return name.split(/[,、，\s]+/).map((s) => s.trim()).filter(Boolean)
   }
-  const handleSiteSelect = (value) => {
-    setScheduleFormData(prev => ({ ...prev, siteName: value }))
+
+  // 開啟多案場勾選：從目前 siteName 帶入已選
+  const openSitePicker = () => {
+    setSelectedSiteNamesForPicker(parseSiteNameToArray(scheduleFormData.siteName))
+    setSiteSearchQuery('')
+    setShowSiteDropdown(true)
+  }
+
+  // 多案場勾選：切換單一案場
+  const toggleSiteInPicker = (siteName) => {
+    const s = String(siteName || '').trim()
+    if (!s) return
+    setSelectedSiteNamesForPicker((prev) => {
+      if (prev.includes(s)) return prev.filter((x) => x !== s)
+      return [...prev, s]
+    })
+  }
+
+  // 套用多案場 → 寫入排程活動名稱；若多處案場則建立 segments（每案場一張卡片）
+  const applySitePicker = () => {
+    const names = selectedSiteNamesForPicker
+    const name = names.length > 0 ? names.join('、') : ''
+    setScheduleFormData((prev) => {
+      if (names.length > 1) {
+        const existingSegments = Array.isArray(prev.segments) ? prev.segments : []
+        const bySite = new Map(existingSegments.map((s) => [String(s?.siteName || '').trim(), s]))
+        const segments = names.map((siteName) => {
+          const existing = bySite.get(siteName)
+          return existing
+            ? { siteName, workItems: existing.workItems || [], vehicleEntries: existing.vehicleEntries || [] }
+            : { siteName, workItems: [], vehicleEntries: [] }
+        })
+        return { ...prev, siteName: name, segments }
+      }
+      if (names.length === 1) {
+        return {
+          ...prev,
+          siteName: name,
+          segments: [{ siteName: name, workItems: prev.workItems || [], vehicleEntries: prev.vehicleEntries || [] }]
+        }
+      }
+      return { ...prev, siteName: name, segments: [] }
+    })
     setShowSiteDropdown(false)
+  }
+
+  // 保留：手動輸入活動（單一或逗號分隔）時仍可編輯
+  const handleSiteInput = (e) => {
+    setScheduleFormData(prev => ({ ...prev, siteName: e.target.value }))
   }
 
   // 添加新的參與人員到下拉選單
@@ -967,10 +1017,43 @@ function Calendar() {
     }))
   }
 
+  /** 將排程正規化為「依案場分段」陣列，供詳情 modal 切換案場與依案場顯示工作項目／車輛。有 segments 用 segments，否則單一 segment。 */
+  const getScheduleSegments = (schedule) => {
+    if (!schedule) return []
+    const segs = Array.isArray(schedule.segments) ? schedule.segments : null
+    if (segs && segs.length > 0) {
+      return segs.map((s) => ({
+        siteName: String(s?.siteName ?? '').trim(),
+        workItems: Array.isArray(s?.workItems) ? s.workItems : [],
+        vehicleEntries: Array.isArray(s?.vehicleEntries) ? s.vehicleEntries : []
+      }))
+    }
+    const siteName = String(schedule.siteName ?? '').trim()
+    const workItems = Array.isArray(schedule.workItems) ? schedule.workItems : []
+    const vehicleEntries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
+      ? schedule.vehicleEntries
+      : (() => {
+          const v = String(schedule.vehicle ?? '').trim()
+          if (!v) return []
+          return v.split(',').map((s) => s.trim()).filter(Boolean).map((vehicle) => ({
+            vehicle,
+            departureDriver: schedule.departureDriver || '',
+            returnDriver: schedule.returnDriver || '',
+            departureMileage: schedule.departureMileage || '',
+            returnMileage: schedule.returnMileage || '',
+            needRefuel: schedule.needRefuel || false,
+            fuelCost: schedule.fuelCost || '',
+            invoiceReturned: schedule.invoiceReturned || false
+          }))
+        })()
+    return [{ siteName, workItems, vehicleEntries }]
+  }
+
   const handleScheduleClick = (e, schedule) => {
     e.stopPropagation()
     setSelectedDetailItem(schedule)
     setSelectedDetailType('schedule')
+    setSelectedDetailSegmentIndex(0)
     setShowDetailModal(true)
   }
 
@@ -1046,22 +1129,26 @@ function Calendar() {
         alert('請假排程為自動帶入紀錄，無需編輯。')
         return
       }
-      // 填充编辑表单数据
+      // 填充编辑表单数据（支援多處行程 segments）
       (() => {
-        const vehicleStr = selectedDetailItem.vehicle || ''
-        const entries = Array.isArray(selectedDetailItem.vehicleEntries) && selectedDetailItem.vehicleEntries.length > 0
-          ? selectedDetailItem.vehicleEntries.map((e) => ({ ...emptyVehicleEntry(), ...e, vehicle: e.vehicle || '' }))
-          : vehicleStr.split(',').map((s) => s.trim()).filter(Boolean).map((v) => ({
-              ...emptyVehicleEntry(),
-              vehicle: v,
-              departureDriver: selectedDetailItem.departureDriver || '',
-              returnDriver: selectedDetailItem.returnDriver || '',
-              departureMileage: selectedDetailItem.departureMileage || '',
-              returnMileage: selectedDetailItem.returnMileage || '',
-              needRefuel: selectedDetailItem.needRefuel || false,
-              fuelCost: selectedDetailItem.fuelCost || '',
-              invoiceReturned: selectedDetailItem.invoiceReturned || false
-            }))
+        const segs = getScheduleSegments(selectedDetailItem)
+        const first = segs[0] || {}
+        const entries = Array.isArray(first.vehicleEntries) && first.vehicleEntries.length > 0
+          ? first.vehicleEntries.map((e) => ({ ...emptyVehicleEntry(), ...e, vehicle: e.vehicle || '' }))
+          : (() => {
+              const vehicleStr = selectedDetailItem.vehicle || ''
+              return vehicleStr.split(',').map((s) => s.trim()).filter(Boolean).map((v) => ({
+                ...emptyVehicleEntry(),
+                vehicle: v,
+                departureDriver: selectedDetailItem.departureDriver || '',
+                returnDriver: selectedDetailItem.returnDriver || '',
+                departureMileage: selectedDetailItem.departureMileage || '',
+                returnMileage: selectedDetailItem.returnMileage || '',
+                needRefuel: selectedDetailItem.needRefuel || false,
+                fuelCost: selectedDetailItem.fuelCost || '',
+                invoiceReturned: selectedDetailItem.invoiceReturned || false
+              }))
+            })()
         setScheduleFormData({
           siteName: selectedDetailItem.siteName || '',
           date: selectedDetailItem.date || '',
@@ -1069,7 +1156,7 @@ function Calendar() {
           startTime: selectedDetailItem.startTime || '',
           endTime: selectedDetailItem.endTime || '',
           participants: selectedDetailItem.participants || '',
-          vehicle: vehicleStr,
+          vehicle: selectedDetailItem.vehicle || '',
           vehicleEntries: entries,
           departureDriver: selectedDetailItem.departureDriver || '',
           returnDriver: selectedDetailItem.returnDriver || '',
@@ -1078,11 +1165,13 @@ function Calendar() {
           needRefuel: selectedDetailItem.needRefuel || false,
           fuelCost: selectedDetailItem.fuelCost || '',
           invoiceReturned: selectedDetailItem.invoiceReturned || false,
-          workItems: selectedDetailItem.workItems || [],
+          workItems: first.workItems || selectedDetailItem.workItems || [],
+          segments: segs.length > 0 ? segs : undefined,
           createdBy: selectedDetailItem.createdBy || '',
           createdAt: selectedDetailItem.createdAt || '',
           tag: selectedDetailItem.tag || 'blue'
         })
+        setEditingFormSegmentIndex(0)
       })()
       // 記住「原本就存在」的工作項目 id，避免新加空白項目也被鎖
       const baseIds = {}
@@ -1419,9 +1508,11 @@ function Calendar() {
       // 注意：這裡不能直接 return，因為還需要保存排程，只是不累加到排行榜
     } else {
       // 今天當天的排程（在24:00前）或之後的排程，都會執行累加邏輯
-      // 只有當天或之後的排程才會執行累加邏輯
-      // 遍歷所有工作項目（含獨立負責的 contentRows 展開為多筆）
-      const logicalItems = expandWorkItemsToLogical(scheduleFormData.workItems)
+      // 遍歷所有工作項目（含多處行程各案場、contentRows 展開）
+      const allWorkItemsForLb = (Array.isArray(scheduleFormData.segments) && scheduleFormData.segments.length > 1)
+        ? scheduleFormData.segments.flatMap((s) => s.workItems || [])
+        : (scheduleFormData.workItems || [])
+      const logicalItems = expandWorkItemsToLogical(allWorkItemsForLb)
       logicalItems.forEach(rawItem => {
         const workItem = normalizeWorkItem(rawItem)
         if (!workItem.workContent) return
@@ -1520,9 +1611,16 @@ function Calendar() {
       })
     }
 
+    // 多處行程：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments
+    let segmentsToSave = scheduleFormData.segments
+    if (Array.isArray(segmentsToSave) && segmentsToSave.length > 1) {
+      segmentsToSave = segmentsToSave.map((s, i) => (i === editingFormSegmentIndex
+        ? { ...s, workItems: scheduleFormData.workItems || [], vehicleEntries: scheduleFormData.vehicleEntries || [] }
+        : s))
+    }
+
     let result
     if (editingScheduleId) {
-      // 更新现有排程
       const prev = schedules.find((s) => String(s?.id) === String(editingScheduleId))
       const entriesEdit = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
       const payloadEdit = {
@@ -1531,6 +1629,11 @@ function Calendar() {
         id: editingScheduleId,
         createdBy: scheduleFormData?.createdBy || prev?.createdBy || '',
         createdAt: scheduleFormData?.createdAt || prev?.createdAt || ''
+      }
+      if (segmentsToSave && segmentsToSave.length > 1) {
+        payloadEdit.segments = segmentsToSave
+        payloadEdit.siteName = segmentsToSave.map((s) => s.siteName).join('、')
+        payloadEdit.workItems = segmentsToSave.flatMap((s) => s.workItems || [])
       }
       if (entriesEdit.length === 1) {
         payloadEdit.departureDriver = entriesEdit[0].departureDriver || ''
@@ -1543,12 +1646,16 @@ function Calendar() {
       }
       result = updateSchedule(editingScheduleId, payloadEdit)
     } else {
-      // 新增排程
       const entriesNew = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
       const payloadNew = {
         ...scheduleFormData,
         createdBy: scheduleFormData?.createdBy || currentUser || '',
         vehicleEntries: entriesNew
+      }
+      if (segmentsToSave && segmentsToSave.length > 1) {
+        payloadNew.segments = segmentsToSave
+        payloadNew.siteName = segmentsToSave.map((s) => s.siteName).join('、')
+        payloadNew.workItems = segmentsToSave.flatMap((s) => s.workItems || [])
       }
       if (entriesNew.length === 1) {
         payloadNew.departureDriver = entriesNew[0].departureDriver || ''
@@ -1581,12 +1688,14 @@ function Calendar() {
         fuelCost: '',
         invoiceReturned: false,
         workItems: [],
+        segments: undefined,
         tag: 'blue'
       })
       setNewVehicleInput('')
       setShowScheduleForm(false)
       setShowScheduleModal(false)
       setEditingScheduleId(null)
+      setEditingFormSegmentIndex(0)
       setOriginalWorkItemIdMap({})
       originalVehicleReturnMileageLockedRef.current = new Set()
       setSelectedDateForSchedule(null)
@@ -1610,10 +1719,12 @@ function Calendar() {
       fuelCost: '',
       invoiceReturned: false,
       workItems: [],
+      segments: undefined,
       tag: 'blue'
     })
     setNewVehicleInput('')
     setEditingScheduleId(null)
+    setEditingFormSegmentIndex(0)
     setOriginalWorkItemIdMap({})
     originalVehicleReturnMileageLockedRef.current = new Set()
     if (showScheduleForm) {
@@ -2494,9 +2605,37 @@ function Calendar() {
                       </div>
                     ) : (
                       <>
-                        {/* 活動 */}
-                        <div className="text-lg font-semibold">{selectedDetailItem.siteName || '未命名'}</div>
-                        
+                        {/* 多處行程：案場切換按鈕（紅框位置） */}
+                        {(() => {
+                          const segments = getScheduleSegments(selectedDetailItem)
+                          const currentSegment = segments[selectedDetailSegmentIndex] || segments[0]
+                          return (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2 mb-3">
+                                {segments.map((seg, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setSelectedDetailSegmentIndex(idx)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                                      selectedDetailSegmentIndex === idx
+                                        ? 'bg-yellow-500 text-black ring-2 ring-yellow-300'
+                                        : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                                    }`}
+                                  >
+                                    {seg.siteName || `案場 ${idx + 1}`}
+                                  </button>
+                                ))}
+                              </div>
+                              {currentSegment && (
+                                <div className="text-lg font-semibold text-yellow-400 mb-1">
+                                  活動：{currentSegment.siteName || '未命名'}
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
+
                         {/* 日期 */}
                         {selectedDetailItem.date && (
                           <div>
@@ -2529,50 +2668,62 @@ function Calendar() {
                           </div>
                         )}
 
-                        {/* 車輛：多台時依 vehicleEntries 分組顯示 */}
-                        {selectedDetailItem.vehicle && (
-                          <div>
-                            <span className="text-blue-300">車輛:</span>
-                            <span className="ml-2">{selectedDetailItem.vehicle}</span>
-                          </div>
-                        )}
-                        {Array.isArray(selectedDetailItem.vehicleEntries) && selectedDetailItem.vehicleEntries.length > 0 ? (
-                          selectedDetailItem.vehicleEntries.map((entry, idx) => (
-                            <div key={idx} className="bg-gray-800/60 border border-gray-600 rounded-lg p-3 space-y-2">
-                              <div className="text-yellow-400 font-medium text-sm">車輛 {idx + 1}：{entry.vehicle || '—'}</div>
-                              {entry.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{entry.departureDriver}</span></div>}
-                              {entry.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{entry.returnDriver}</span></div>}
-                              {entry.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{entry.departureMileage} km</span></div>}
-                              {entry.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{entry.returnMileage} km</span></div>}
-                              {entry.departureMileage && entry.returnMileage && (
-                                <div><span className="text-blue-300">今日總里程:</span><span className="ml-2">{Math.max(0, (parseFloat(entry.returnMileage) || 0) - (parseFloat(entry.departureMileage) || 0))} km</span></div>
+                        {/* 車輛：依目前選擇的案場顯示該案場的車輛資訊（個別計算，非平均） */}
+                        {(() => {
+                          const seg = getScheduleSegments(selectedDetailItem)[selectedDetailSegmentIndex] || getScheduleSegments(selectedDetailItem)[0]
+                          const entries = Array.isArray(seg?.vehicleEntries) ? seg.vehicleEntries : []
+                          const vehicleLabel = entries.length > 0 ? entries.map((e) => e.vehicle).filter(Boolean).join(', ') : selectedDetailItem.vehicle
+                          return (
+                            <>
+                              {vehicleLabel && (
+                                <div>
+                                  <span className="text-blue-300">車輛:</span>
+                                  <span className="ml-2">{vehicleLabel}</span>
+                                </div>
                               )}
-                              <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{entry.needRefuel ? '是' : '否'}</span></div>
-                              {entry.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(entry.fuelCost).toLocaleString()}</span></div>}
-                              <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{entry.invoiceReturned ? '是' : '否'}</span></div>
-                            </div>
-                          ))
-                        ) : (
-                          <>
-                            {selectedDetailItem.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{selectedDetailItem.departureDriver}</span></div>}
-                            {selectedDetailItem.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{selectedDetailItem.returnDriver}</span></div>}
-                            {selectedDetailItem.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{selectedDetailItem.departureMileage} km</span></div>}
-                            {selectedDetailItem.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{selectedDetailItem.returnMileage} km</span></div>}
-                            {selectedDetailItem.departureMileage && selectedDetailItem.returnMileage && (
-                              <div><span className="text-blue-300">今日總里程:</span><span className="ml-2">{Math.max(0, (parseFloat(selectedDetailItem.returnMileage) || 0) - (parseFloat(selectedDetailItem.departureMileage) || 0))} km</span></div>
-                            )}
-                            <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span></div>
-                            {selectedDetailItem.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(selectedDetailItem.fuelCost).toLocaleString()}</span></div>}
-                            <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span></div>
-                          </>
-                        )}
+                              {entries.length > 0 ? (
+                                entries.map((entry, idx) => (
+                                  <div key={idx} className="bg-gray-800/60 border border-gray-600 rounded-lg p-3 space-y-2">
+                                    <div className="text-yellow-400 font-medium text-sm">車輛 {idx + 1}：{entry.vehicle || '—'}</div>
+                                    {entry.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{entry.departureDriver}</span></div>}
+                                    {entry.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{entry.returnDriver}</span></div>}
+                                    {entry.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{entry.departureMileage} km</span></div>}
+                                    {entry.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{entry.returnMileage} km</span></div>}
+                                    {entry.departureMileage && entry.returnMileage && (
+                                      <div><span className="text-blue-300">本段里程:</span><span className="ml-2">{Math.max(0, (parseFloat(entry.returnMileage) || 0) - (parseFloat(entry.departureMileage) || 0))} km</span></div>
+                                    )}
+                                    <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{entry.needRefuel ? '是' : '否'}</span></div>
+                                    {entry.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(entry.fuelCost).toLocaleString()}</span></div>}
+                                    <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{entry.invoiceReturned ? '是' : '否'}</span></div>
+                                  </div>
+                                ))
+                              ) : (
+                                <>
+                                  {selectedDetailItem.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{selectedDetailItem.departureDriver}</span></div>}
+                                  {selectedDetailItem.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{selectedDetailItem.returnDriver}</span></div>}
+                                  {selectedDetailItem.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{selectedDetailItem.departureMileage} km</span></div>}
+                                  {selectedDetailItem.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{selectedDetailItem.returnMileage} km</span></div>}
+                                  {selectedDetailItem.departureMileage && selectedDetailItem.returnMileage && (
+                                    <div><span className="text-blue-300">今日總里程:</span><span className="ml-2">{Math.max(0, (parseFloat(selectedDetailItem.returnMileage) || 0) - (parseFloat(selectedDetailItem.departureMileage) || 0))} km</span></div>
+                                  )}
+                                  <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span></div>
+                                  {selectedDetailItem.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(selectedDetailItem.fuelCost).toLocaleString()}</span></div>}
+                                  <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span></div>
+                                </>
+                              )}
+                            </>
+                          )
+                        })()}
 
-                  {/* 工作項目 */}
-                  {selectedDetailItem.workItems && selectedDetailItem.workItems.length > 0 && (
+                  {/* 工作項目：依目前選擇的案場顯示該案場的卡片 */}
+                  {(() => {
+                    const seg = getScheduleSegments(selectedDetailItem)[selectedDetailSegmentIndex] || getScheduleSegments(selectedDetailItem)[0]
+                    const workItems = Array.isArray(seg?.workItems) ? seg.workItems : []
+                    return workItems.length > 0 ? (
                     <div className="mt-4">
                       <div className="text-blue-300 mb-2">工作項目:</div>
                       <div className="space-y-2">
-                        {selectedDetailItem.workItems.map((item, idx) => {
+                        {workItems.map((item, idx) => {
                           const it = normalizeWorkItem(item)
                           const collabs = getWorkItemCollaborators(it)
                           const isCollab = !!it?.isCollaborative
@@ -2748,7 +2899,8 @@ function Calendar() {
                         })}
                       </div>
                     </div>
-                  )}
+                  ) : null
+                  })()}
 
                   {/* 回程里程異動申請審核（管理員） */}
                   {selectedDetailType === 'schedule' && !isLeaveScheduleItem(selectedDetailItem) && currentRole === 'admin' && (() => {
@@ -3462,88 +3614,131 @@ function Calendar() {
 
             <form onSubmit={handleScheduleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 活動（套用專案管理案場下拉） */}
+                {/* 活動（多案場勾選，套用後為排程內活動名稱） */}
                 <div className="relative" ref={siteDropdownRef}>
                   <label className="block text-gray-300 text-sm mb-2">
                     活動 <span className="text-red-400">*</span>
                   </label>
-                  <div className="relative">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       name="siteName"
                       value={scheduleFormData.siteName}
                       onChange={handleSiteInput}
-                      onFocus={() => setShowSiteDropdown(true)}
-                      placeholder="請選擇案場（可輸入搜尋）"
-                      className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                      placeholder="請選擇案場（可多選）或直接輸入"
+                      className="flex-1 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
                       required
                     />
-                    {showSiteDropdown && projectSiteOptions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {/* 狀態標籤：點擊後篩選案場 */}
-                        <div className="px-3 py-2 border-b border-gray-700 bg-gray-900/40 sticky top-0 z-10">
-                          <div className="flex flex-wrap gap-2">
-                            {[
-                              { id: 'all', label: '全部' },
-                              { id: 'in_progress', label: '進行中' },
-                              { id: 'planning', label: '規劃中' },
-                              { id: 'completed', label: '已完成' },
-                              { id: 'on_hold', label: '暫停' }
-                            ].map((t) => (
-                              <button
-                                key={t.id}
-                                type="button"
-                                onClick={() => setSiteStatusFilter(t.id)}
-                                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                                  siteStatusFilter === t.id
-                                    ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200'
-                                    : 'bg-gray-800 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200'
-                                }`}
-                              >
-                                {t.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        {projectSiteOptions
-                          .filter((opt) => {
-                            const q = (scheduleFormData.siteName || '').trim()
-                            if (!q) return true
-                            const name = String(opt?.name || '')
-                            const label = String(opt?.label || '')
-                            const status = String(opt?.status || '')
-                            return name.includes(q) || label.includes(q) || status.includes(q)
-                          })
-                          .filter((opt) => {
-                            if (siteStatusFilter === 'all') return true
-                            return String(opt?.status || '') === siteStatusFilter
-                          })
-                          .slice(0, 200)
-                          .map((option) => (
-                            <div
-                              key={option?.name}
-                              onClick={() => handleSiteSelect(option?.name)}
-                              className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-white text-sm flex items-center justify-between gap-2"
-                            >
-                              <span className="truncate">{option?.name}</span>
-                              <span
-                                className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full border ${
-                                  option?.label === '進行中'
-                                    ? 'bg-green-600/20 border-green-500/40 text-green-200'
-                                    : option?.label === '規劃中'
-                                      ? 'bg-blue-600/20 border-blue-500/40 text-blue-200'
-                                      : option?.label === '已完成'
-                                        ? 'bg-gray-600/20 border-gray-500/40 text-gray-200'
-                                        : 'bg-yellow-600/20 border-yellow-500/40 text-yellow-200'
-                                }`}
-                              >
-                                {option?.label}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={openSitePicker}
+                      className="shrink-0 px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-600 text-black font-medium text-sm whitespace-nowrap"
+                    >
+                      選擇案場
+                    </button>
                   </div>
+                  {scheduleFormData.siteName && (
+                    <p className="text-gray-500 text-xs mt-1">排程內活動名稱：{scheduleFormData.siteName}</p>
+                  )}
+                  {showSiteDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg overflow-hidden min-w-[280px] max-h-[320px] flex flex-col">
+                      <div className="px-3 py-2 border-b border-gray-700 bg-gray-900/40 shrink-0">
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {[
+                            { id: 'all', label: '全部' },
+                            { id: 'in_progress', label: '進行中' },
+                            { id: 'planning', label: '規劃中' },
+                            { id: 'completed', label: '已完成' },
+                            { id: 'on_hold', label: '暫停' }
+                          ].map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => setSiteStatusFilter(t.id)}
+                              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                                siteStatusFilter === t.id
+                                  ? 'bg-yellow-500/20 border-yellow-400 text-yellow-200'
+                                  : 'bg-gray-800 border-gray-600 text-gray-200 hover:border-yellow-400 hover:text-yellow-200'
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={siteSearchQuery}
+                            onChange={(e) => setSiteSearchQuery(e.target.value)}
+                            placeholder="搜尋案場名稱"
+                            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-yellow-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={applySitePicker}
+                            className="shrink-0 px-3 py-1.5 rounded bg-yellow-500 hover:bg-yellow-600 text-black font-semibold text-sm"
+                          >
+                            套用
+                          </button>
+                        </div>
+                        {selectedSiteNamesForPicker.length > 0 && (
+                          <p className="text-amber-200/90 text-xs mt-1.5">已選 {selectedSiteNamesForPicker.length} 個案場</p>
+                        )}
+                      </div>
+                      <div className="overflow-y-auto max-h-48 p-2">
+                        {(() => {
+                          const filtered = projectSiteOptions
+                            .filter((opt) => {
+                              if (siteStatusFilter !== 'all' && String(opt?.status || '') !== siteStatusFilter) return false
+                              const q = (siteSearchQuery || '').trim()
+                              if (!q) return true
+                              const name = String(opt?.name || '')
+                              const label = String(opt?.label || '')
+                              return name.includes(q) || label.includes(q)
+                            })
+                            .slice(0, 200)
+                          if (filtered.length === 0) {
+                            return (
+                              <p className="text-gray-500 text-sm py-4 text-center">
+                                {projectSiteOptions.length === 0 ? '尚無案場，請至專案管理新增' : '無符合的案場'}
+                              </p>
+                            )
+                          }
+                          return filtered.map((option) => {
+                            const name = option?.name || ''
+                            const checked = selectedSiteNamesForPicker.includes(name)
+                            return (
+                              <label
+                                key={name}
+                                className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-700 rounded cursor-pointer text-white text-sm"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleSiteInPicker(name)}
+                                  className="w-4 h-4 rounded border-gray-500 text-yellow-400 focus:ring-yellow-400"
+                                />
+                                <span className="truncate flex-1">{name}</span>
+                                <span
+                                  className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full border ${
+                                    option?.label === '進行中'
+                                      ? 'bg-green-600/20 border-green-500/40 text-green-200'
+                                      : option?.label === '規劃中'
+                                        ? 'bg-blue-600/20 border-blue-500/40 text-blue-200'
+                                        : option?.label === '已完成'
+                                          ? 'bg-gray-600/20 border-gray-500/40 text-gray-200'
+                                          : 'bg-yellow-600/20 border-yellow-500/40 text-yellow-200'
+                                  }`}
+                                >
+                                  {option?.label}
+                                </span>
+                              </label>
+                            )
+                          })
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 日期 */}
@@ -3660,6 +3855,49 @@ function Calendar() {
                     </button>
                   </div>
                 </div>
+
+                {/* 多處行程：切換編輯案場（每個案場獨自一張卡片：工作項目 + 車輛） */}
+                {Array.isArray(scheduleFormData.segments) && scheduleFormData.segments.length > 1 && (
+                  <div className="md:col-span-2">
+                    <label className="block text-gray-300 text-sm mb-2">目前編輯案場</label>
+                    <div className="flex flex-wrap gap-2">
+                      {scheduleFormData.segments.map((seg, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setScheduleFormData((prev) => {
+                              const segs = [...(prev.segments || [])]
+                              if (segs[editingFormSegmentIndex]) {
+                                segs[editingFormSegmentIndex] = {
+                                  ...segs[editingFormSegmentIndex],
+                                  workItems: prev.workItems || [],
+                                  vehicleEntries: prev.vehicleEntries || []
+                                }
+                              }
+                              const next = segs[idx] || {}
+                              return {
+                                ...prev,
+                                segments: segs,
+                                workItems: next.workItems || [],
+                                vehicleEntries: next.vehicleEntries || []
+                              }
+                            })
+                            setEditingFormSegmentIndex(idx)
+                          }}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                            editingFormSegmentIndex === idx
+                              ? 'bg-yellow-500 text-black ring-2 ring-yellow-300'
+                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
+                        >
+                          {seg.siteName || `案場 ${idx + 1}`}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-gray-500 text-xs mt-1">下方「工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。</p>
+                  </div>
+                )}
 
                 {/* 參與人員 */}
                 <div className="relative" ref={participantDropdownRef}>
