@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getGlobalMessages, addGlobalMessage, getOrCreateGlobalTopic, clearGlobalMessages, getTopics, restoreMemosFromBackup } from '../utils/memoStorage'
-import { refreshMemosFromSupabase, syncKeyToSupabase, fetchRedEnvelopeConfigFromSupabase } from '../utils/supabaseSync'
+import { refreshMemosFromSupabase, syncKeyToSupabase } from '../utils/supabaseSync'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getItem, getItems, ITEM_TYPES } from '../utils/itemStorage'
 import { getUserInventory, hasItem, useItem, getItemQuantity, addItemToInventory, removeItemFromInventory } from '../utils/inventoryStorage'
@@ -24,8 +24,6 @@ import {
   markKeywordRewardClaimed,
   matchKeywordReward
 } from '../utils/keywordRewardStorage'
-import { getRedEnvelopeConfig, saveRedEnvelopeConfig, getRedEnvelopeClaimedCount, grabRedEnvelope } from '../utils/redEnvelopeStorage'
-
 function Memo() {
   const [userRole, setUserRole] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
@@ -52,12 +50,6 @@ function Memo() {
   })
   const [keywordRewardNotice, setKeywordRewardNotice] = useState('')
   const keywordRewardNoticeTimerRef = useRef(null)
-  const [showRedEnvelopeConfig, setShowRedEnvelopeConfig] = useState(false)
-  const [redEnvelopeForm, setRedEnvelopeForm] = useState(() => getRedEnvelopeConfig())
-  const [redEnvelopeConfig, setRedEnvelopeConfig] = useState(() => getRedEnvelopeConfig())
-  const [showRedEnvelopeFirework, setShowRedEnvelopeFirework] = useState(false)
-  const [showRedEnvelopeBlessingModal, setShowRedEnvelopeBlessingModal] = useState(false)
-  const [redEnvelopeBlessingText, setRedEnvelopeBlessingText] = useState('')
   const [isChatCollapsed, setIsChatCollapsed] = useState(false)
   const chatScrollRef = useRef(null)
   const [stickToBottom, setStickToBottom] = useState(true)
@@ -255,13 +247,10 @@ function Memo() {
       'jiameng_effect_display_config',
       'jiameng_leaderboard_items',
       'jiameng_keyword_reward_rules',
-      'jiameng_keyword_reward_claims',
-      'jiameng_red_envelope_config',
-      'jiameng_red_envelope_claims'
+      'jiameng_keyword_reward_claims'
     ],
     () => {
       refetchMemo()
-      setRedEnvelopeConfig(getRedEnvelopeConfig())
     }
   )
 
@@ -274,35 +263,6 @@ function Memo() {
     return () => {
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', refresh)
-    }
-  }, [])
-
-  // 搶紅包成功後煙火約 12 秒後關閉
-  useEffect(() => {
-    if (!showRedEnvelopeFirework) return
-    const t = setTimeout(() => setShowRedEnvelopeFirework(false), 12000)
-    return () => clearTimeout(t)
-  }, [showRedEnvelopeFirework])
-
-  // 一般用戶進入交流區時主動向雲端拉取搶紅包設定（避免初始 sync 未帶回此 key 或 RLS 僅對管理員回傳）
-  useEffect(() => {
-    const refresh = () => setRedEnvelopeConfig(getRedEnvelopeConfig())
-    const fetchThenRefresh = async () => {
-      await fetchRedEnvelopeConfigFromSupabase()
-      refresh()
-    }
-    refresh()
-    fetchThenRefresh()
-    const t1 = setTimeout(fetchThenRefresh, 500)
-    const t2 = setTimeout(fetchThenRefresh, 2000)
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchThenRefresh() }
-    window.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', fetchThenRefresh)
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-      window.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', fetchThenRefresh)
     }
   }, [])
 
@@ -863,21 +823,13 @@ function Memo() {
         }
       `}</style>
       <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-0 flex flex-col overflow-y-auto">
-      {/* 過年主題標題 */}
-      <div className="mb-6 shrink-0 flex items-center justify-center gap-3 flex-wrap">
-        <span className="text-2xl">🧧</span>
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 via-amber-400 to-red-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]">
-          交流區 · 喜迎新春
-        </h2>
-        <span className="text-2xl">🏮</span>
+      {/* 交流區標題 */}
+      <div className="mb-6 shrink-0">
+        <h2 className="text-2xl font-bold text-yellow-400">交流區</h2>
       </div>
 
       {/* 交流區：對話框 + 彈幕（公佈欄已移至首頁） */}
-      <div className="rounded-xl p-6 relative overflow-hidden" style={{
-        background: 'linear-gradient(135deg, rgba(127,29,29,0.4) 0%, rgba(185,28,28,0.25) 50%, rgba(127,29,29,0.4) 100%)',
-        border: '2px solid rgba(220,38,38,0.5)',
-        boxShadow: '0 0 24px rgba(251,191,36,0.15), inset 0 1px 0 rgba(255,255,255,0.08)'
-      }}>
+      <div className="rounded-xl p-6 relative overflow-hidden bg-gray-800/80 border border-gray-600">
         
         {/* 彈幕動畫樣式 */}
         <style>{`
@@ -970,9 +922,7 @@ function Memo() {
         `}</style>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-bold text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]">
-              <span className="text-red-400">福</span> 交流區 <span className="text-red-400">春</span>
-            </h3>
+            <h3 className="text-lg font-bold text-yellow-400">交流區</h3>
             {userRole === 'admin' && (
               <button
                 type="button"
@@ -1011,11 +961,10 @@ function Memo() {
               disabled={!hasDanmuItem || danmuItemQuantity <= 0}
               className={`font-semibold px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 border ${
                 hasDanmuItem && danmuItemQuantity > 0
-                  ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600 text-white border-amber-400/50'
+                  ? 'bg-yellow-500 hover:bg-yellow-600 text-black border-gray-500'
                   : 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
               }`}
             >
-              <span>🧧</span>
               <span>發彈幕</span>
             </button>
             
@@ -1052,77 +1001,12 @@ function Memo() {
               </button>
             )}
 
-            {/* 搶紅包設定（管理員） */}
-            {userRole === 'admin' && (
-              <button
-                type="button"
-                onClick={() => {
-                  setRedEnvelopeForm(getRedEnvelopeConfig())
-                  setShowRedEnvelopeConfig(true)
-                }}
-                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded text-sm transition-colors border border-amber-400/50 flex items-center gap-1.5"
-                title="搶紅包設定"
-              >
-                <span>🧧</span>
-                <span>搶紅包設定</span>
-              </button>
-            )}
-
-            {/* 搶紅包：須在交流區輸入「新年快樂」後才顯示按鈕 */}
-            {(() => {
-              const config = getRedEnvelopeConfig()
-              if (!(config.itemIds?.length > 0 && config.maxPerUser > 0)) return null
-              const hasSaidNewYear = currentUser && (getGlobalMessages() || []).some(
-                (m) => String(m?.author || '').trim() === String(currentUser).trim() && String(m?.content || '').includes('新年快樂')
-              )
-              if (!hasSaidNewYear) {
-                return (
-                  <span className="text-amber-200/90 text-xs shrink-0 px-2 py-1.5 rounded bg-gray-700/80 border border-amber-400/30">
-                    在交流區輸入「新年快樂」即可解鎖搶紅包 🧧
-                  </span>
-                )
-              }
-              return (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!currentUser) { alert('請先登入'); return }
-                    const claimed = getRedEnvelopeClaimedCount(currentUser)
-                    if (claimed >= 1) {
-                      alert('今日已搶過，明天再來～')
-                      return
-                    }
-                    const res = grabRedEnvelope(currentUser)
-                    if (res.success) {
-                      setRedEnvelopeConfig(getRedEnvelopeConfig())
-                      setShowRedEnvelopeBlessingModal(true)
-                      setRedEnvelopeBlessingText('')
-                    } else {
-                      alert(res.message || '領取失敗')
-                    }
-                  }}
-                  className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 border border-amber-400/50 shrink-0"
-                >
-                  <span>🧧</span>
-                  <span>搶紅包</span>
-                  {currentUser && (
-                    <span className="text-amber-200 text-xs">
-                      （{getRedEnvelopeClaimedCount(currentUser) >= 1 ? '今日已搶' : '每日可搶一次'}）
-                    </span>
-                  )}
-                </button>
-              )
-            })()}
           </div>
         </div>
 
         {/* 彈幕牆：固定在交流區這個區塊內（不覆蓋整頁） */}
         {danmuEnabled && (
-          <div className="relative mb-4 h-32 sm:h-36 overflow-hidden pointer-events-none rounded-lg" style={{
-            background: 'linear-gradient(180deg, rgba(127,29,29,0.3) 0%, rgba(30,27,27,0.6) 100%)',
-            border: '1px solid rgba(220,38,38,0.35)',
-            boxShadow: 'inset 0 0 20px rgba(251,191,36,0.06)'
-          }}>
+          <div className="relative mb-4 h-32 sm:h-36 overflow-hidden pointer-events-none rounded-lg bg-gray-900/60 border border-gray-600">
           {screenDanmus.map((danmu) => {
             const anim = danmu?._anim || {}
             const danmuId = `danmu-${danmu.id}`
@@ -1671,294 +1555,6 @@ function Memo() {
       </div>
       </div>
 
-      {/* 搶紅包成功：煙火特效層（固定全螢幕，不阻擋點擊下方彈窗） */}
-      {showRedEnvelopeFirework && (
-        <div className="fixed inset-0 z-40 pointer-events-none overflow-hidden" aria-hidden="true">
-          <style>{`
-            @keyframes firework-burst {
-              0% { transform: translate(0,0) scale(0); opacity: 1; }
-              70% { opacity: 0.9; }
-              100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
-            }
-            .firework-dot {
-              position: absolute;
-              left: 50%;
-              top: 50%;
-              width: 8px;
-              height: 8px;
-              border-radius: 50%;
-              animation: firework-burst 2.2s ease-out forwards;
-              pointer-events: none;
-            }
-          `}</style>
-          {/* 第一發 */}
-          {[...Array(24)].map((_, i) => {
-            const angle = (i / 24) * Math.PI * 2
-            const dist = 120 + (i % 3) * 60
-            const dx = Math.cos(angle) * dist
-            const dy = Math.sin(angle) * dist
-            const colors = ['#fbbf24', '#f59e0b', '#ef4444', '#f97316', '#eab308']
-            return (
-              <div
-                key={i}
-                className="firework-dot"
-                style={{
-                  '--dx': `${dx}px`,
-                  '--dy': `${dy}px`,
-                  background: colors[i % colors.length],
-                  animationDelay: `${(i % 6) * 0.05}s`,
-                  boxShadow: '0 0 10px currentColor'
-                }}
-              />
-            )
-          })}
-          {[...Array(16)].map((_, i) => {
-            const angle = (i / 16) * Math.PI * 2 + 0.4
-            const dist = 80 + (i % 2) * 40
-            const dx = Math.cos(angle) * dist
-            const dy = Math.sin(angle) * dist
-            return (
-              <div
-                key={`b-${i}`}
-                className="firework-dot"
-                style={{
-                  '--dx': `${dx}px`,
-                  '--dy': `${dy}px`,
-                  background: i % 2 ? '#fef3c7' : '#fde68a',
-                  animationDelay: `${0.3 + (i % 4) * 0.04}s`,
-                  width: '6px',
-                  height: '6px'
-                }}
-              />
-            )
-          })}
-          {/* 第二發（約 2.5 秒後） */}
-          {[...Array(20)].map((_, i) => {
-            const angle = (i / 20) * Math.PI * 2 + 0.7
-            const dist = 100 + (i % 4) * 45
-            const dx = Math.cos(angle) * dist
-            const dy = Math.sin(angle) * dist
-            const colors = ['#ef4444', '#f97316', '#fbbf24', '#eab308']
-            return (
-              <div
-                key={`c-${i}`}
-                className="firework-dot"
-                style={{
-                  '--dx': `${dx}px`,
-                  '--dy': `${dy}px`,
-                  background: colors[i % colors.length],
-                  animationDelay: `${2.5 + (i % 5) * 0.04}s`,
-                  boxShadow: '0 0 8px currentColor'
-                }}
-              />
-            )
-          })}
-          {/* 第三發（約 5 秒後） */}
-          {[...Array(18)].map((_, i) => {
-            const angle = (i / 18) * Math.PI * 2 + 0.2
-            const dist = 90 + (i % 3) * 50
-            const dx = Math.cos(angle) * dist
-            const dy = Math.sin(angle) * dist
-            return (
-              <div
-                key={`d-${i}`}
-                className="firework-dot"
-                style={{
-                  '--dx': `${dx}px`,
-                  '--dy': `${dy}px`,
-                  background: i % 2 ? '#fde68a' : '#fef3c7',
-                  animationDelay: `${5 + (i % 4) * 0.05}s`,
-                  width: '7px',
-                  height: '7px'
-                }}
-              />
-            )
-          })}
-          {/* 第四發（約 7.5 秒後） */}
-          {[...Array(22)].map((_, i) => {
-            const angle = (i / 22) * Math.PI * 2 + 1.1
-            const dist = 110 + (i % 3) * 55
-            const dx = Math.cos(angle) * dist
-            const dy = Math.sin(angle) * dist
-            const colors = ['#f59e0b', '#ef4444', '#fbbf24']
-            return (
-              <div
-                key={`e-${i}`}
-                className="firework-dot"
-                style={{
-                  '--dx': `${dx}px`,
-                  '--dy': `${dy}px`,
-                  background: colors[i % colors.length],
-                  animationDelay: `${7.5 + (i % 6) * 0.04}s`
-                }}
-              />
-            )
-          })}
-        </div>
-      )}
-
-      {/* 搶紅包成功：祝福語彈窗，發送至對話框 */}
-      {showRedEnvelopeBlessingModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl border-2 border-amber-500/80 w-full max-w-md p-6 shadow-2xl shadow-amber-900/20">
-            <h3 className="text-xl font-bold text-amber-400 flex items-center gap-2 mb-2">
-              <span>🧧</span> 恭喜搶到紅包！寫下祝福語
-            </h3>
-            <p className="text-gray-400 text-sm mb-4">請輸入祝福語並發送至交流區對話框，與大家分享喜氣。</p>
-            <textarea
-              value={redEnvelopeBlessingText}
-              onChange={(e) => setRedEnvelopeBlessingText(e.target.value)}
-              placeholder="例如：新年快樂、恭喜發財、萬事如意..."
-              rows={3}
-              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/50 resize-none"
-            />
-            <div className="flex justify-end mt-4">
-              <button
-                type="button"
-                disabled={!redEnvelopeBlessingText.trim()}
-                onClick={() => {
-                  const text = redEnvelopeBlessingText.trim()
-                  const result = addGlobalMessage(text, currentUser)
-                  if (result.success) {
-                    loadMessages()
-                    setShowRedEnvelopeBlessingModal(false)
-                    setRedEnvelopeBlessingText('')
-                    setShowRedEnvelopeFirework(true)
-                    setTimeout(scrollToBottom, 100)
-                  } else {
-                    alert(result.message || '發送失敗')
-                  }
-                }}
-                className="px-6 py-2.5 bg-gradient-to-r from-red-500 to-amber-500 text-white rounded-lg font-semibold border border-amber-400/50 disabled:opacity-50 disabled:cursor-not-allowed hover:disabled:opacity-50"
-              >
-                發送至對話框
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 搶紅包設定彈窗（管理員） */}
-      {showRedEnvelopeConfig && userRole === 'admin' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg border border-red-500 w-full max-w-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-amber-400 flex items-center gap-2">
-                <span>🧧</span> 搶紅包設定
-              </h2>
-              <button
-                onClick={() => setShowRedEnvelopeConfig(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <p className="text-gray-400 text-sm mb-4">可多選紅包卡道具，用戶搶紅包時會隨機發放其中一種。每用戶最多可搶次數由您設定。</p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-gray-300 text-sm mb-1">紅包卡道具（可多選，隨機發放）*</label>
-                <div className="max-h-48 overflow-y-auto border border-gray-600 rounded-lg p-3 bg-gray-700/50 space-y-2">
-                  {(getItems() || []).length === 0 ? (
-                    <p className="text-gray-500 text-sm">尚無道具，請先新增紅包卡等道具</p>
-                  ) : (
-                    (getItems() || []).map((item) => {
-                      const ids = Array.isArray(redEnvelopeForm.itemIds) ? redEnvelopeForm.itemIds : []
-                      const checked = ids.includes(item.id)
-                      return (
-                        <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700/50 rounded px-2 py-1.5">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const next = e.target.checked
-                                ? (ids.includes(item.id) ? ids : [...ids, item.id])
-                                : ids.filter((id) => id !== item.id)
-                              setRedEnvelopeForm({ ...redEnvelopeForm, itemIds: next })
-                            }}
-                            className="w-4 h-4 rounded border-gray-500 text-red-500 focus:ring-red-500"
-                          />
-                          <span className="text-white text-sm">{item.icon || '📦'} {item.name || item.id}</span>
-                        </label>
-                      )
-                    })
-                  )}
-                </div>
-                {Array.isArray(redEnvelopeForm.itemIds) && redEnvelopeForm.itemIds.length > 0 && (
-                  <p className="text-amber-200/80 text-xs mt-1">已選 {redEnvelopeForm.itemIds.length} 種，發放時隨機抽一種</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-gray-300 text-sm mb-1">每用戶最多可搶次數 *</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={redEnvelopeForm.maxPerUser != null ? String(redEnvelopeForm.maxPerUser) : ''}
-                  onChange={(e) => {
-                    const raw = e.target.value.trim()
-                    if (raw === '') {
-                      setRedEnvelopeForm({ ...redEnvelopeForm, maxPerUser: 0 })
-                      return
-                    }
-                    const num = parseInt(raw, 10)
-                    if (!Number.isNaN(num) && num >= 0) {
-                      setRedEnvelopeForm({ ...redEnvelopeForm, maxPerUser: num })
-                    }
-                  }}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
-                  placeholder="0 = 關閉活動"
-                />
-                <p className="text-gray-500 text-xs mt-1">設為 0 則不顯示搶紅包按鈕（關閉活動）。每次搶會隨機發放一種已選道具。</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-300 text-sm mb-1">每次最少數量</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={redEnvelopeForm.minQtyPerGrab}
-                    onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, minQtyPerGrab: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-300 text-sm mb-1">每次最多數量</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={redEnvelopeForm.maxQtyPerGrab}
-                    onChange={(e) => setRedEnvelopeForm({ ...redEnvelopeForm, maxQtyPerGrab: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => setShowRedEnvelopeConfig(false)}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => {
-                  const res = saveRedEnvelopeConfig(redEnvelopeForm)
-                  if (res.success) {
-                    setRedEnvelopeConfig(res.config)
-                    setShowRedEnvelopeConfig(false)
-                    alert('已儲存')
-                  } else {
-                    alert(res.message || '儲存失敗')
-                  }
-                }}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 font-semibold"
-              >
-                儲存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }
