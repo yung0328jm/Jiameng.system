@@ -278,6 +278,32 @@ async function _doUpsert(sb, key, value) {
     } catch (_) {}
   }
 
+  // 兌換請求：先拉雲端現況再合併，避免用戶端 localStorage 只有自己的請求而覆蓋掉其他人的請求（管理員看不到部分兌換）
+  if (key === 'jiameng_exchange_requests') {
+    try {
+      const incoming = Array.isArray(data) ? data : []
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      const cloudRaw = cloudRow?.data
+      const cloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      const byId = new Map()
+      ;[...cloud, ...incoming].forEach((r) => {
+        const id = String(r?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, r); return }
+        const ta = Date.parse(prev?.updatedAt || prev?.createdAt || '') || 0
+        const tb = Date.parse(r?.updatedAt || r?.createdAt || '') || 0
+        byId.set(id, tb >= ta ? r : prev)
+      })
+      data = Array.from(byId.values()).sort((a, b) => (Date.parse(a?.createdAt || '') || 0) - (Date.parse(b?.createdAt || '') || 0))
+    } catch (_) {
+      // 雲端讀取失敗時仍以本次傳入的資料寫入
+    }
+  }
+
   const { error } = await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
   if (error) throw error
 }
@@ -474,6 +500,19 @@ export async function fetchRedEnvelopeConfigFromSupabase() {
     const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? {})
     localStorage.setItem(RED_ENVELOPE_CONFIG_KEY, val)
     try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: RED_ENVELOPE_CONFIG_KEY } })) } catch (_) {}
+  } catch (_) {}
+}
+
+/** 從雲端拉取單一 app_data key 並寫入 localStorage（供管理員開啟兌換請求等畫面時強制取得最新列表） */
+export async function refreshAppDataKeyFromSupabase(key) {
+  const sb = getSupabaseClient()
+  if (!sb || !key) return
+  try {
+    const { data: row, error } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+    if (error || row == null) return
+    const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? (Array.isArray(row.data) ? [] : {}))
+    localStorage.setItem(key, val)
+    try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
   } catch (_) {}
 }
 
