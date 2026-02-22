@@ -4,8 +4,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 const TRACK_LENGTH_PX = 340
 const BLOCK_SIZE = 22
 const TRACK_HEIGHT = 88
+const BLOCK_DEPTH = 16
 const CUBE_SIZE = 40
 const RUN_CYCLE_MS = 90
+const TRACK_3D_ANGLE = 14
 const BASE_SPEED = 98
 const BOOST_FROM_ITEM = 140
 const JUMP_DURATION = 0.4
@@ -465,62 +467,97 @@ function HorizontalRunner({ onBack }) {
           </div>
         </div>
 
-        {/* 單一賽道：所有人同場奔跑 - 天空+雲、3D 地、障礙、道具、終點、角色 */}
+        {/* 橫向 3D 賽道：透視 + 立體方塊地面，所有人同場奔跑 */}
         <div
-          className="relative rounded-2xl overflow-hidden mb-5 shadow-2xl border-4 border-amber-900/50"
+          className="relative rounded-2xl overflow-visible mb-5 shadow-2xl border-4 border-amber-900/50"
           style={{
             width: TRACK_LENGTH_PX + 8,
-            height: TRACK_HEIGHT + 36,
+            height: TRACK_HEIGHT + BLOCK_DEPTH + 48,
+            perspective: 900,
             boxShadow: 'inset 0 0 0 2px rgba(0,0,0,0.2), 0 12px 24px rgba(0,0,0,0.4)'
           }}
         >
-          {/* 天空漸層 + 白雲 */}
-          <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-400 to-sky-500" />
+          {/* 天空漸層 + 白雲（不參與 3D 旋轉） */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-sky-300 via-sky-400 to-sky-500" />
           <div className="absolute top-2 left-[15%] w-12 h-6 rounded-full bg-white/70 shadow" />
           <div className="absolute top-4 right-[20%] w-10 h-5 rounded-full bg-white/60 shadow" />
-          <div className="absolute bottom-[45%] left-[40%] w-8 h-4 rounded-full bg-white/50 shadow" />
-          {/* 賽道主體：一張地圖 */}
-          <div className="absolute left-1 right-1 bottom-1 top-8 rounded-xl overflow-hidden" style={{ width: TRACK_LENGTH_PX, height: TRACK_HEIGHT }}>
-            {/* 3D 方塊地面（單一跑道） */}
-            <div className="absolute left-0 top-0 flex" style={{ height: TRACK_HEIGHT }}>
+          <div className="absolute bottom-[50%] left-[40%] w-8 h-4 rounded-full bg-white/50 shadow" />
+          {/* 3D 賽道主體：透視 + 繞 X 軸傾斜，露出頂面與前緣 */}
+          <div
+            className="absolute left-1 right-1 rounded-xl overflow-visible"
+            style={{
+              width: TRACK_LENGTH_PX,
+              height: TRACK_HEIGHT + BLOCK_DEPTH,
+              bottom: 1,
+              top: 8,
+              transformStyle: 'preserve-3d',
+              transform: `rotateX(${TRACK_3D_ANGLE}deg)`,
+              transformOrigin: 'center bottom'
+            }}
+          >
+            {/* 橫向 3D 方塊地面：每格有頂面(草) + 前緣(土)，整條賽道透視傾斜 */}
+            <div className="absolute left-0 flex" style={{ bottom: 0, height: TRACK_HEIGHT + BLOCK_DEPTH }}>
               {Array.from({ length: blockCount }, (_, i) => (
-                <div key={i} className="relative shrink-0" style={{ width: BLOCK_SIZE, height: TRACK_HEIGHT }}>
+                <div
+                  key={i}
+                  className="relative shrink-0 rounded-sm overflow-hidden"
+                  style={{
+                    width: BLOCK_SIZE,
+                    height: TRACK_HEIGHT + BLOCK_DEPTH,
+                    boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.15), inset -1px 0 0 rgba(0,0,0,0.2)'
+                  }}
+                >
+                  {/* 頂面（草地）：角色站立的平面，由上到下漸深 */}
                   <div
-                    className="absolute inset-0 rounded-sm"
+                    className="absolute left-0 right-0 top-0 rounded-t-sm"
                     style={{
-                      background: 'linear-gradient(180deg, #6b8e23 0%, #5a7a1e 8px, #8B6914 8px, #6d4e0a 100%)',
-                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.2)',
-                      border: '1px solid rgba(0,0,0,0.15)'
+                      height: TRACK_HEIGHT,
+                      background: 'linear-gradient(180deg, #8bc34a 0%, #7cb342 15%, #6b8e23 50%, #5a7a1e 100%)',
+                      boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.15)',
+                      border: '1px solid rgba(0,0,0,0.1)',
+                      borderBottom: 'none'
+                    }}
+                  />
+                  {/* 前緣（土塊厚度）：3D 方塊的「正面」 */}
+                  <div
+                    className="absolute left-0 right-0 bottom-0 rounded-b-sm"
+                    style={{
+                      height: BLOCK_DEPTH,
+                      background: 'linear-gradient(180deg, #9a7b4f 0%, #8B6914 25%, #6d4e0a 60%, #5c3d0a 100%)',
+                      boxShadow: 'inset 2px 0 0 rgba(255,255,255,0.12), inset -2px 0 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.2)',
+                      border: '1px solid rgba(0,0,0,0.3)',
+                      borderTop: '1px solid rgba(0,0,0,0.2)'
                     }}
                   />
                 </div>
               ))}
             </div>
-            {/* 障礙：尖刺陷阱（全場共用） */}
+            {/* 障礙：尖刺陷阱（帶立體底座） */}
             {OBSTACLES.map((obs, oi) => (
-              <div key={oi} className="absolute bottom-0 flex flex-col items-center z-[5]" style={{ left: obs.x, width: obs.w, height: TRACK_HEIGHT }}>
-                <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" />
+              <div key={oi} className="absolute bottom-0 flex flex-col items-center z-[5]" style={{ left: obs.x, width: obs.w, height: TRACK_HEIGHT + BLOCK_DEPTH }}>
+                <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.4)' }} />
+                <div className="w-full h-1.5 bg-stone-700/90 border-x border-stone-600" />
                 <div
                   className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[18px] border-b-red-600 mt-0"
-                  style={{ filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.3))' }}
+                  style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.35))' }}
                 />
                 <div className="w-full h-1 bg-red-800/80 rounded-b" />
               </div>
             ))}
-            {/* 道具箱：任一玩家未撿即顯示 */}
+            {/* 道具箱：任一玩家未撿即顯示（帶 3D 陰影） */}
             {ITEM_BOXES.map((box) => {
               const anyNotCollected = runners.some((r) => !(r.collectedBoxes || []).includes(box.x))
               if (!anyNotCollected) return null
               return (
                 <div key={box.x} className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center z-[6]" style={{ left: box.x, width: box.w, height: TRACK_HEIGHT }}>
                   <div
-                    className="w-7 h-7 rounded-md flex items-center justify-center text-base border-2 border-amber-600"
+                    className="w-7 h-7 rounded-md flex items-center justify-center text-base border-2 border-amber-600 relative"
                     style={{
                       background: 'linear-gradient(145deg, #fcd34d 0%, #f59e0b 50%, #d97706 100%)',
-                      boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 1px 0 rgba(255,255,255,0.5), 0 3px 6px rgba(0,0,0,0.25)'
+                      boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 1px 0 rgba(255,255,255,0.5), 0 4px 0 #92400e, 0 6px 12px rgba(0,0,0,0.3)'
                     }}
                   >
-                    <span className="drop-shadow-sm">★</span>
+                    <span className="drop-shadow-sm relative z-10">★</span>
                   </div>
                 </div>
               )
@@ -543,7 +580,7 @@ function HorizontalRunner({ onBack }) {
                 </div>
               </div>
             </div>
-            {/* 所有角色同場：依 x 排序繪製（領先者在最前），略錯開 Y 避免完全疊在一起 */}
+            {/* 所有角色同場：依 x 排序繪製 */}
             {[...runners]
               .sort((a, b) => a.x - b.x)
               .map((r, sortedIndex) => {
