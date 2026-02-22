@@ -1,30 +1,28 @@
-// 多人跑步橫向移動（魔方賽跑：自動前進 + 時機跳躍，不是狂按鈕）
+// 魔方賽跑風格：卡通角色、3D 方塊場地、遊戲感 UI
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const TRACK_LENGTH_PX = 320
-const BLOCK_SIZE = 20
-const LANE_HEIGHT = 56
-const CUBE_SIZE = 36
-const BASE_SPEED = 98 // 跑者自動前進速度，不靠按鈕
-const BOOST_FROM_ITEM = 140 // 僅道具「衝刺」使用時暫時加速
+const TRACK_LENGTH_PX = 340
+const BLOCK_SIZE = 22
+const LANE_HEIGHT = 64
+const CUBE_SIZE = 40
+const BASE_SPEED = 98
+const BOOST_FROM_ITEM = 140
 const JUMP_DURATION = 0.4
 const STUN_DURATION = 0.85
 const ATTACK_STUN = 1.2
 const SHIELD_DURATION = 2
-const ITEM_BOOST_DURATION = 0.9 // 衝刺道具生效時間
+const ITEM_BOOST_DURATION = 0.9
 
-// 障礙物位置（每條跑道相同）
 const OBSTACLES = [
-  { x: 70, w: 22 },
-  { x: 150, w: 22 },
-  { x: 230, w: 22 }
+  { x: 75, w: 24 },
+  { x: 160, w: 24 },
+  { x: 245, w: 24 }
 ]
 
-// 道具箱位置（觸碰取得，隨機獲得 衝刺/護盾/攻擊）
 const ITEM_BOXES = [
-  { x: 95, w: 24 },
-  { x: 175, w: 24 },
-  { x: 255, w: 24 }
+  { x: 100, w: 26 },
+  { x: 185, w: 26 },
+  { x: 270, w: 26 }
 ]
 
 const ITEM_TYPES = [
@@ -35,34 +33,108 @@ const ITEM_TYPES = [
 
 const RANK_LABELS = ['1st', '2nd', '3rd', '4th']
 
-// 可選角色（魔方賽跑風格：各有名字與代表色）
+// 魔方賽跑風格角色：膚色、髮色、衣服色（卡通感）
 const CHARACTERS = [
-  { id: 0, name: '小紅', short: '紅', bg: 'bg-amber-500', border: 'border-amber-400', text: 'text-amber-900', headBg: 'bg-amber-300', bodyBg: 'bg-amber-600' },
-  { id: 1, name: '小綠', short: '綠', bg: 'bg-emerald-500', border: 'border-emerald-400', text: 'text-emerald-900', headBg: 'bg-emerald-300', bodyBg: 'bg-emerald-600' },
-  { id: 2, name: '小藍', short: '藍', bg: 'bg-sky-500', border: 'border-sky-400', text: 'text-sky-900', headBg: 'bg-sky-300', bodyBg: 'bg-sky-600' },
-  { id: 3, name: '小粉', short: '粉', bg: 'bg-rose-500', border: 'border-rose-400', text: 'text-rose-900', headBg: 'bg-rose-300', bodyBg: 'bg-rose-600' }
+  { id: 0, name: '小紅', short: '紅', skin: '#f5d0a9', hair: '#5c3317', shirt: '#e74c3c', shortColor: '#2c3e50', bg: 'bg-red-500', border: 'border-red-400', text: 'text-red-900', headBg: 'bg-amber-200', bodyBg: 'bg-red-500' },
+  { id: 1, name: '小綠', short: '綠', skin: '#f5d0a9', hair: '#1a472a', shirt: '#27ae60', shortColor: '#1e3a2a', bg: 'bg-emerald-500', border: 'border-emerald-400', text: 'text-emerald-900', headBg: 'bg-amber-200', bodyBg: 'bg-emerald-500' },
+  { id: 2, name: '小藍', short: '藍', skin: '#f5d0a9', hair: '#1e3a5f', shirt: '#3498db', shortColor: '#1a365d', bg: 'bg-sky-500', border: 'border-sky-400', text: 'text-sky-900', headBg: 'bg-amber-200', bodyBg: 'bg-sky-500' },
+  { id: 3, name: '小粉', short: '粉', skin: '#f5d0a9', hair: '#6b2d5c', shirt: '#e91e63', shortColor: '#4a1942', bg: 'bg-pink-500', border: 'border-pink-400', text: 'text-pink-900', headBg: 'bg-amber-200', bodyBg: 'bg-pink-500' }
 ]
 
-/** 賽道上的角色造型：頭 + 身體，跳躍時上浮 */
-function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 36 }) {
+/** 魔方賽跑風格跑者：側面 Q 版、跑步姿勢、陰影 */
+function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40 }) {
   const c = character || CHARACTERS[0]
+  const s = size / 40
   return (
     <div
-      className={`absolute flex flex-col items-center justify-end transition-all duration-100 ${
-        stunned ? 'opacity-60' : ''
-      } ${shield ? 'ring-2 ring-cyan-400 ring-offset-1 rounded-full' : ''} ${boost ? 'ring-2 ring-yellow-300 rounded-full' : ''}`}
+      className={`absolute transition-all duration-100 ${stunned ? 'opacity-70' : ''} ${shield ? 'drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]' : ''} ${boost ? 'drop-shadow-[0_0_8px_rgba(250,204,21,0.9)]' : ''}`}
       style={{
         width: size,
         height: size,
-        transform: isJumping ? 'translateY(-8px)' : undefined
+        transform: isJumping ? `translateY(-${10 * s}px) scale(1.05)` : undefined
       }}
     >
-      <div className={`w-3 h-3 rounded-full border-2 ${c.headBg} ${c.border} shrink-0`} />
-      <div className={`w-4 h-3 rounded-sm ${c.bodyBg} border border-gray-800/30 -mt-0.5`} />
-      <div className="flex gap-0.5 -mt-0.5">
-        <div className={`w-1.5 h-2 rounded-b ${c.bodyBg}`} />
-        <div className={`w-1.5 h-2 rounded-b ${c.bodyBg}`} />
-      </div>
+      {/* 地面陰影 */}
+      <div
+        className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-black/25"
+        style={{ width: size * 0.6, height: size * 0.12 }}
+      />
+      {/* 頭（膚色 + 髮片） */}
+      <div
+        className="absolute rounded-full border-2 border-amber-800/30"
+        style={{
+          left: size * 0.5,
+          top: 0,
+          width: size * 0.4,
+          height: size * 0.4,
+          backgroundColor: c.skin,
+          transform: 'translateX(-50%)',
+          boxShadow: 'inset -2px -2px 0 rgba(0,0,0,0.1)'
+        }}
+      />
+      <div
+        className="absolute rounded-full border border-amber-900/20"
+        style={{
+          left: size * 0.52,
+          top: size * 0.02,
+          width: size * 0.32,
+          height: size * 0.2,
+          backgroundColor: c.hair,
+          transform: 'translateX(-50%)',
+          clipPath: 'ellipse(80% 50% at 50% 50%)'
+        }}
+      />
+      {/* 身體（上衣） */}
+      <div
+        className="absolute rounded-md border-2 border-black/15"
+        style={{
+          left: size * 0.35,
+          top: size * 0.38,
+          width: size * 0.45,
+          height: size * 0.28,
+          backgroundColor: c.shirt,
+          transform: 'skewX(-5deg)',
+          boxShadow: 'inset 2px 0 0 rgba(255,255,255,0.2), inset -1px -1px 0 rgba(0,0,0,0.15)'
+        }}
+      />
+      {/* 前臂（跑步擺臂） */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: size * 0.72,
+          top: size * 0.42,
+          width: size * 0.18,
+          height: size * 0.12,
+          backgroundColor: c.skin,
+          transform: 'rotate(-25deg)',
+          boxShadow: '1px 1px 0 rgba(0,0,0,0.1)'
+        }}
+      />
+      {/* 腿（跑步） */}
+      <div
+        className="absolute rounded-b"
+        style={{
+          left: size * 0.42,
+          top: size * 0.62,
+          width: size * 0.12,
+          height: size * 0.22,
+          backgroundColor: c.shortColor,
+          transform: 'rotate(15deg)',
+          boxShadow: '1px 1px 0 rgba(0,0,0,0.15)'
+        }}
+      />
+      <div
+        className="absolute rounded-b"
+        style={{
+          left: size * 0.58,
+          top: size * 0.66,
+          width: size * 0.12,
+          height: size * 0.2,
+          backgroundColor: c.shortColor,
+          transform: 'rotate(-20deg)',
+          boxShadow: '1px 1px 0 rgba(0,0,0,0.15)'
+        }}
+      />
     </div>
   )
 }
@@ -267,45 +339,53 @@ function HorizontalRunner({ onBack }) {
 
   if (phase === 'setup') {
     return (
-      <div className="flex flex-col items-center w-full max-w-[340px]">
-        <div className="flex justify-between w-full mb-3">
-          <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline">← 返回</button>
+      <div className="flex flex-col items-center w-full max-w-[360px]">
+        <div className="flex justify-between w-full mb-2">
+          <button type="button" onClick={onBack} className="px-3 py-1.5 rounded-lg bg-gray-700/80 text-gray-300 hover:bg-gray-600 text-sm border border-gray-600">← 返回</button>
         </div>
-        <h3 className="text-xl font-bold text-yellow-400 mb-1">魔方賽跑</h3>
-        <p className="text-gray-400 text-sm mb-4 text-center">跑者自動前進，看準障礙按跳躍；★道具箱可取得衝刺／護盾／攻擊。</p>
-        <p className="text-gray-500 text-xs mb-2">參賽人數</p>
-        <div className="flex gap-3 mb-5">
+        {/* 遊戲 Logo 風格標題 */}
+        <div className="mb-4 px-6 py-3 rounded-2xl border-2 border-amber-500/60 shadow-lg" style={{ background: 'linear-gradient(180deg, #f59e0b 0%, #d97706 50%, #b45309 100%)', boxShadow: '0 4px 0 #92400e, 0 6px 12px rgba(0,0,0,0.3)' }}>
+          <h2 className="text-2xl font-black text-amber-100 drop-shadow-md tracking-wide">魔方賽跑</h2>
+          <p className="text-amber-200/90 text-xs mt-0.5">Cube Run</p>
+        </div>
+        <p className="text-gray-400 text-sm mb-4 text-center max-w-[280px]">跑者自動前進，看準障礙按跳躍；★ 道具箱可取得衝刺／護盾／攻擊。</p>
+        <p className="text-amber-200/80 text-xs font-semibold mb-2 uppercase tracking-wider">參賽人數</p>
+        <div className="flex gap-2 mb-5">
           {[2, 3, 4].map((n) => (
             <button
               key={n}
               type="button"
               onClick={() => setPlayerCount(n)}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all ${
-                playerCount === n ? 'bg-yellow-400 text-gray-900 ring-2 ring-yellow-300' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+              className={`px-5 py-2.5 rounded-xl font-bold transition-all border-2 ${
+                playerCount === n
+                  ? 'bg-amber-400 text-gray-900 border-amber-300 shadow-lg shadow-amber-500/30 scale-105'
+                  : 'bg-gray-600 text-gray-300 border-gray-500 hover:bg-gray-500 hover:border-gray-400'
               }`}
             >
               {n} 人
             </button>
           ))}
         </div>
-        <p className="text-gray-500 text-xs mb-2">選擇角色（每位玩家選一個）</p>
-        <div className="space-y-3 mb-6 w-full">
+        <p className="text-amber-200/80 text-xs font-semibold mb-2 uppercase tracking-wider">選擇角色（每位玩家選一個）</p>
+        <div className="space-y-4 mb-6 w-full">
           {Array.from({ length: playerCount }, (_, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm w-8">{i + 1}P</span>
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-amber-400 font-black text-sm w-8 h-8 rounded-full bg-gray-700 border-2 border-amber-500/50 flex items-center justify-center">{i + 1}P</span>
               <div className="flex gap-2 flex-wrap">
                 {CHARACTERS.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => setCharacterFor(i, c.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
                       characterPicks[i] === c.id
-                        ? `${c.bg} ${c.text} ${c.border} ring-2 ring-offset-1 ring-offset-gray-800`
-                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:border-gray-500'
+                        ? `${c.bg} ${c.text} border-2 shadow-lg ring-2 ring-amber-300/50 ring-offset-2 ring-offset-gray-800`
+                        : 'bg-gray-700/80 border-gray-600 text-gray-400 hover:border-gray-500 hover:bg-gray-600'
                     }`}
                   >
-                    <span className={`w-6 h-6 rounded-full ${c.headBg} border-2 ${c.border}`} />
+                    <span className="w-8 h-8 rounded-full border-2 flex items-center justify-center" style={{ backgroundColor: c.skin, borderColor: characterPicks[i] === c.id ? 'currentColor' : '#4b5563' }}>
+                      <span className="w-4 h-3 rounded-full opacity-80" style={{ backgroundColor: c.hair }} />
+                    </span>
                     <span>{c.name}</span>
                   </button>
                 ))}
@@ -316,7 +396,8 @@ function HorizontalRunner({ onBack }) {
         <button
           type="button"
           onClick={startRace}
-          className="px-8 py-3 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold rounded-xl"
+          className="px-10 py-3.5 rounded-2xl font-black text-lg text-amber-950 border-2 border-amber-300 shadow-lg transition-all hover:scale-105 active:scale-95"
+          style={{ background: 'linear-gradient(180deg, #fcd34d 0%, #f59e0b 50%, #d97706 100%)', boxShadow: '0 4px 0 #b45309, 0 8px 20px rgba(245,158,11,0.4)' }}
         >
           開始賽跑
         </button>
@@ -331,76 +412,135 @@ function HorizontalRunner({ onBack }) {
 
     return (
       <div className="flex flex-col items-center w-full max-w-[360px]">
-        {/* 頂部：返回 + 遊戲標題 + 進度條 + 角色頭像與名次 */}
+        {/* 頂部：返回 + 遊戲標題 + 進度條（軌道感）+ 角色頭像與名次徽章 */}
         <div className="w-full mb-3">
           <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline">← 返回</button>
-            <span className="text-yellow-400 font-bold text-sm">魔方賽跑</span>
+            <button type="button" onClick={onBack} className="px-2.5 py-1 rounded-lg bg-gray-700/80 text-gray-300 hover:bg-gray-600 text-xs border border-gray-600">← 返回</button>
+            <span className="text-amber-400 font-black text-sm drop-shadow">魔方賽跑</span>
           </div>
-          <div className="h-2 bg-gray-700 rounded-full overflow-hidden border border-gray-600">
+          <div className="h-3 rounded-full overflow-hidden border-2 border-amber-900/50 bg-gray-800 shadow-inner" style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
             <div
-              className="h-full bg-green-500 rounded-full transition-all duration-150"
-              style={{ width: `${progressPct}%` }}
+              className="h-full rounded-full transition-all duration-150 flex items-center justify-end pr-0.5"
+              style={{
+                width: `${progressPct}%`,
+                background: 'linear-gradient(90deg, #22c55e 0%, #4ade80 50%, #86efac 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 0 8px rgba(34,197,94,0.4)'
+              }}
             />
           </div>
           <div className="flex flex-wrap gap-2 mt-2 justify-center">
             {runners.map((r) => (
               <div
                 key={r.id}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border ${r.bg} ${r.border} ${r.text}`}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border-2 shadow-md ${r.bg} ${r.border} ${r.text}`}
+                style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}
               >
-                <span className={`w-5 h-5 rounded-full ${r.character?.headBg ?? r.bg} border border-current`} />
-                <span className="text-xs font-bold">{RANK_LABELS[rankById[r.id] ?? 0]} {r.character?.name ?? r.name}</span>
+                <span className="relative flex">
+                  <span
+                    className="w-7 h-7 rounded-full border-2 border-current flex items-center justify-center"
+                    style={{ backgroundColor: r.character?.skin ?? '#f5d0a9' }}
+                  >
+                    <span className="w-3 h-2.5 rounded-full opacity-80" style={{ backgroundColor: r.character?.hair ?? '#5c3317' }} />
+                  </span>
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-400 text-[9px] font-black text-amber-900 flex items-center justify-center border border-amber-600 shadow">
+                    {RANK_LABELS[rankById[r.id] ?? 0].replace('st', '').replace('nd', '').replace('rd', '').replace('th', '')}
+                  </span>
+                </span>
+                <span className="text-xs font-bold">{r.character?.name ?? r.name}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* 賽道區：天空 + 方塊地形 + 障礙 + 道具箱 + 終點旗 + 角色 */}
+        {/* 賽道區：魔方賽跑風格 - 天空+雲、3D方塊地、障礙、道具箱、終點旗、角色 */}
         <div
-          className="relative rounded-xl overflow-hidden border-2 border-gray-600 mb-4 shadow-xl"
-          style={{ width: TRACK_LENGTH_PX, height: runners.length * LANE_HEIGHT + 28 }}
+          className="relative rounded-2xl overflow-hidden mb-5 shadow-2xl border-4 border-amber-900/50"
+          style={{
+            width: TRACK_LENGTH_PX + 8,
+            height: runners.length * LANE_HEIGHT + 36,
+            boxShadow: 'inset 0 0 0 2px rgba(0,0,0,0.2), 0 12px 24px rgba(0,0,0,0.4)'
+          }}
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-sky-400 to-sky-600" />
-          <div className="relative" style={{ width: TRACK_LENGTH_PX, height: runners.length * LANE_HEIGHT }}>
+          {/* 天空漸層 + 白雲 */}
+          <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-400 to-sky-500" />
+          <div className="absolute top-2 left-[15%] w-12 h-6 rounded-full bg-white/70 shadow" />
+          <div className="absolute top-4 right-[20%] w-10 h-5 rounded-full bg-white/60 shadow" />
+          <div className="absolute bottom-[45%] left-[40%] w-8 h-4 rounded-full bg-white/50 shadow" />
+          {/* 賽道主體 */}
+          <div className="absolute left-1 right-1 bottom-1 top-8 rounded-xl overflow-hidden" style={{ width: TRACK_LENGTH_PX, height: runners.length * LANE_HEIGHT }}>
             {runners.map((r, laneIndex) => (
               <div key={r.id} className="absolute left-0 right-0 flex" style={{ top: laneIndex * LANE_HEIGHT, height: LANE_HEIGHT }}>
+                {/* 3D 方塊地面：土塊 + 草皮頂（有厚度感） */}
                 {Array.from({ length: blockCount }, (_, i) => (
-                  <div key={i} className="relative shrink-0 border border-amber-800/50" style={{ width: BLOCK_SIZE, height: LANE_HEIGHT }}>
-                    <div className="absolute inset-0 bg-amber-800/90" />
-                    <div className="absolute left-0 right-0 top-0 h-2 bg-green-600 border-b border-green-500/80" />
+                  <div key={i} className="relative shrink-0" style={{ width: BLOCK_SIZE, height: LANE_HEIGHT }}>
+                    <div
+                      className="absolute inset-0 rounded-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #6b8e23 0%, #5a7a1e 8px, #8B6914 8px, #6d4e0a 100%)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.2)',
+                        border: '1px solid rgba(0,0,0,0.15)'
+                      }}
+                    />
                   </div>
                 ))}
+                {/* 跑道分隔線（白線） */}
+                {laneIndex > 0 && (
+                  <div className="absolute left-0 right-0 top-0 h-0.5 bg-white/60 z-10" style={{ boxShadow: '0 1px 0 rgba(0,0,0,0.2)' }} />
+                )}
+                {/* 障礙：尖刺陷阱（底座+三角刺） */}
                 {OBSTACLES.map((obs, oi) => (
-                  <div key={oi} className="absolute top-0 bottom-0 flex items-end justify-center pb-0.5" style={{ left: obs.x, width: obs.w, height: LANE_HEIGHT }}>
-                    <div className="w-full h-5 bg-gray-700 border-2 border-gray-500 rounded-t flex items-center justify-center">
-                      <span className="text-red-500 text-xs">◆</span>
-                    </div>
+                  <div key={oi} className="absolute bottom-0 flex flex-col items-center" style={{ left: obs.x, width: obs.w, height: LANE_HEIGHT }}>
+                    <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" />
+                    <div
+                      className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[18px] border-b-red-600 mt-0"
+                      style={{ filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.3))' }}
+                    />
+                    <div className="w-full h-1 bg-red-800/80 rounded-b" />
                   </div>
                 ))}
+                {/* 道具箱：金色方塊 + 星 + 光暈 */}
                 {ITEM_BOXES.map((box) =>
                   !(r.collectedBoxes || []).includes(box.x) ? (
-                    <div key={box.x} className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center" style={{ left: box.x, width: box.w, height: LANE_HEIGHT }}>
-                      <div className="w-6 h-6 rounded bg-yellow-400 border-2 border-yellow-500 flex items-center justify-center text-sm shadow">★</div>
+                    <div key={box.x} className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center z-10" style={{ left: box.x, width: box.w, height: LANE_HEIGHT }}>
+                      <div
+                        className="w-7 h-7 rounded-md flex items-center justify-center text-base border-2 border-amber-600"
+                        style={{
+                          background: 'linear-gradient(145deg, #fcd34d 0%, #f59e0b 50%, #d97706 100%)',
+                          boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 1px 0 rgba(255,255,255,0.5), 0 3px 6px rgba(0,0,0,0.25)'
+                        }}
+                      >
+                        <span className="drop-shadow-sm">★</span>
+                      </div>
                     </div>
                   ) : null
                 )}
-                {/* 終點：旗桿 + 旗子 */}
-                <div className="absolute top-0 bottom-0 flex items-stretch" style={{ left: TRACK_LENGTH_PX - 20 }}>
-                  <div className="w-1 bg-gray-700" />
-                  <div className="w-5 bg-green-500 border-l-2 border-green-600 flex items-center justify-center">
-                    <span className="text-white text-[9px] font-bold">終點</span>
+                {/* 終點：旗桿 + 黑白格紋旗 + GOAL 橫幅 */}
+                <div className="absolute top-0 bottom-0 flex items-end z-10" style={{ left: TRACK_LENGTH_PX - 32 }}>
+                  <div className="flex flex-col items-start h-full">
+                    <div className="text-[8px] font-black text-white bg-gray-900 px-1.5 py-0.5 rounded mb-0.5 border border-amber-600 shadow">GOAL</div>
+                    <div className="flex-1 flex items-stretch min-h-[24px]">
+                      <div className="w-1 bg-gradient-to-b from-stone-400 to-stone-600 rounded-full shadow-inner" style={{ boxShadow: 'inset 0 0 2px rgba(0,0,0,0.3)' }} />
+                      <div
+                        className="w-5 flex-shrink-0 border-l-2 border-amber-900/30"
+                        style={{
+                          backgroundImage: 'linear-gradient(90deg, #fff 50%, #1a1a1a 50%), linear-gradient(#fff 50%, #1a1a1a 50%)',
+                          backgroundSize: '3px 3px',
+                          backgroundPosition: '0 0, 1.5px 1.5px',
+                          boxShadow: '2px 0 4px rgba(0,0,0,0.2)'
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-                {/* 角色（跑者造型） */}
+                {/* 角色 */}
                 <div
-                  className="absolute left-0 top-0"
+                  className="absolute left-0 top-0 z-20 transition-transform duration-75"
                   style={{
                     width: CUBE_SIZE,
                     height: LANE_HEIGHT,
                     left: Math.max(0, r.x),
                     top: (LANE_HEIGHT - CUBE_SIZE) / 2,
-                    transform: r.isJumping ? 'translateY(-6px)' : undefined
+                    transform: r.jumpEndAt > performance.now() / 1000 ? 'translateY(-8px)' : undefined
                   }}
                 >
                   <RunnerSprite
@@ -417,24 +557,36 @@ function HorizontalRunner({ onBack }) {
           </div>
         </div>
 
-        {/* 底部：每位角色頭像 + 名字 + 跳躍 / 使用道具 */}
-        <div className="flex flex-wrap justify-center gap-4 w-full">
+        {/* 底部：每位角色卡片 + 手遊風按鈕（跳躍 / 道具） */}
+        <div className="flex flex-wrap justify-center gap-3 w-full">
           {runners.map((r) => {
             const itemInfo = ITEM_TYPES.find((it) => it.id === r.item)
             return (
-              <div key={r.id} className={`rounded-xl border-2 ${r.border} ${r.bg} p-3 min-w-[140px]`}>
+              <div key={r.id} className={`rounded-2xl border-2 shadow-lg p-3 min-w-[130px] ${r.border} ${r.bg} ${r.text}`} style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`w-8 h-8 rounded-full ${r.character?.headBg ?? r.bg} border-2 border-current flex items-center justify-center text-xs font-bold ${r.text}`}>
-                    {r.character?.short ?? r.name.charAt(0)}
+                  <span className="w-8 h-8 rounded-full border-2 border-current flex items-center justify-center text-xs font-bold shadow-inner" style={{ backgroundColor: r.character?.skin ?? '#f5d0a9' }}>
+                    <span className="w-4 h-3 rounded-full opacity-80" style={{ backgroundColor: r.character?.hair ?? '#5c3317' }} />
                   </span>
                   <div>
                     <div className="font-bold text-sm">{r.character?.name ?? r.name}</div>
-                    {itemInfo && <span className="text-[10px]" title={itemInfo.label}>{itemInfo.icon} 道具</span>}
+                    {itemInfo && <span className="text-[10px] opacity-90" title={itemInfo.label}>{itemInfo.icon} {itemInfo.label}</span>}
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => jump(r.id)} className="flex-1 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-sm font-bold border border-yellow-600 touch-manipulation active:scale-95">⬆ 跳躍</button>
-                  <button type="button" onClick={() => useItem(r.id)} disabled={!r.item} className={`flex-1 py-2 rounded-lg text-sm font-bold border-2 touch-manipulation ${r.item ? 'bg-yellow-500/30 border-yellow-400 text-yellow-200' : 'bg-gray-700/50 border-gray-600 text-gray-500 cursor-not-allowed'}`}>
+                  <button
+                    type="button"
+                    onClick={() => jump(r.id)}
+                    className="flex-1 py-2.5 rounded-xl text-gray-900 text-sm font-bold border-2 border-amber-600 touch-manipulation active:scale-95 transition-transform"
+                    style={{ background: 'linear-gradient(180deg, #fde047 0%, #f59e0b 100%)', boxShadow: '0 2px 0 #b45309, 0 4px 8px rgba(0,0,0,0.2)' }}
+                  >
+                    ⬆ 跳躍
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => useItem(r.id)}
+                    disabled={!r.item}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 touch-manipulation transition-all ${r.item ? 'border-amber-400 bg-amber-500/40 text-amber-100 shadow' : 'bg-gray-700/50 border-gray-600 text-gray-500 cursor-not-allowed'}`}
+                  >
                     {itemInfo ? itemInfo.icon : '—'}
                   </button>
                 </div>
@@ -449,23 +601,30 @@ function HorizontalRunner({ onBack }) {
 
   const winnerRunner = runners.find((r) => r.id === winner)
   return (
-    <div className="flex flex-col items-center w-full max-w-[320px]">
-      <div className="flex justify-between w-full mb-3">
-        <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline">← 返回</button>
+    <div className="flex flex-col items-center w-full max-w-[340px]">
+      <div className="flex justify-between w-full mb-2">
+        <button type="button" onClick={onBack} className="px-3 py-1.5 rounded-lg bg-gray-700/80 text-gray-300 hover:bg-gray-600 text-sm border border-gray-600">← 返回</button>
       </div>
-      <h3 className="text-xl font-bold text-yellow-400 mb-3">🏁 抵達終點</h3>
+      <div className="mb-4 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/50">
+        <h3 className="text-lg font-black text-amber-400">🏁 抵達終點</h3>
+      </div>
       {winnerRunner && (
-        <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl border-2 ${winnerRunner.border} ${winnerRunner.bg} ${winnerRunner.text} mb-4`}>
-          <span className={`w-12 h-12 rounded-full ${winnerRunner.character?.headBg ?? winnerRunner.bg} border-2 border-current flex items-center justify-center text-xl font-bold`}>
-            {winnerRunner.character?.short ?? winnerRunner.name.charAt(0)}
+        <div className={`flex items-center gap-4 px-6 py-5 rounded-2xl border-2 shadow-xl mb-4 ${winnerRunner.border} ${winnerRunner.bg} ${winnerRunner.text}`} style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}>
+          <span className="w-14 h-14 rounded-full border-2 border-current flex items-center justify-center text-2xl font-bold shadow-inner" style={{ backgroundColor: winnerRunner.character?.skin ?? '#f5d0a9' }}>
+            <span className="w-7 h-5 rounded-full opacity-80" style={{ backgroundColor: winnerRunner.character?.hair ?? '#5c3317' }} />
           </span>
           <div>
-            <div className="text-lg font-bold">{winnerRunner.character?.name ?? winnerRunner.name} 獲勝</div>
-            <div className="text-sm opacity-90">恭喜率先衝過終點</div>
+            <div className="text-xl font-black">{winnerRunner.character?.name ?? winnerRunner.name} 獲勝</div>
+            <div className="text-sm opacity-90">恭喜率先衝過終點！</div>
           </div>
         </div>
       )}
-      <button type="button" onClick={() => { setPhase('setup'); setRunners([]) }} className="px-6 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm">
+      <button
+        type="button"
+        onClick={() => { setPhase('setup'); setRunners([]) }}
+        className="px-8 py-3 rounded-2xl font-bold text-amber-100 border-2 border-amber-500/60 hover:bg-amber-500/30 transition-all"
+        style={{ background: 'linear-gradient(180deg, #78716c 0%, #57534e 100%)', boxShadow: '0 4px 0 #44403c, 0 6px 12px rgba(0,0,0,0.3)' }}
+      >
         再玩一次
       </button>
     </div>
