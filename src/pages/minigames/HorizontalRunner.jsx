@@ -1,13 +1,14 @@
 // 魔方賽跑風格：卡通角色、3D 方塊場地、遊戲感 UI
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const TRACK_LENGTH_PX = 340
-const BLOCK_SIZE = 22
-const TRACK_HEIGHT = 88
-const BLOCK_DEPTH = 16
+const TRACK_LENGTH_PX = 360
+const BLOCK_SIZE = 24
+const TRACK_HEIGHT = 96
+const BLOCK_DEPTH = 20
 const CUBE_SIZE = 40
 const RUN_CYCLE_MS = 90
-const TRACK_3D_ANGLE = 14
+const TRACK_3D_ANGLE = 16
+const FENCE_HEIGHT = 12
 const BASE_SPEED = 98
 const BOOST_FROM_ITEM = 140
 const JUMP_DURATION = 0.4
@@ -17,15 +18,15 @@ const SHIELD_DURATION = 2
 const ITEM_BOOST_DURATION = 0.9
 
 const OBSTACLES = [
-  { x: 75, w: 24 },
-  { x: 160, w: 24 },
-  { x: 245, w: 24 }
+  { x: 70, w: 28, type: 'crate' },
+  { x: 155, w: 28, type: 'spike' },
+  { x: 240, w: 28, type: 'crate' }
 ]
 
 const ITEM_BOXES = [
-  { x: 100, w: 26 },
-  { x: 185, w: 26 },
-  { x: 270, w: 26 }
+  { x: 105, w: 28 },
+  { x: 190, w: 28 },
+  { x: 275, w: 28 }
 ]
 
 const ITEM_TYPES = [
@@ -65,6 +66,14 @@ function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40,
         transform: totalY !== 0 ? `translateY(${totalY}px)${isJumping ? ' scale(1.05)' : ''}` : undefined
       }}
     >
+      {/* 跑步動線（魔方賽跑參考：速度感） */}
+      {isRunning && (
+        <>
+          <div className="absolute rounded-full border-2 border-white/40 pointer-events-none" style={{ left: -size * 0.5, top: size * 0.2, width: size * 0.5, height: size * 0.5 }} />
+          <div className="absolute rounded-full border-2 border-white/30 pointer-events-none" style={{ left: -size * 0.7, top: size * 0.35, width: size * 0.4, height: size * 0.4 }} />
+          <div className="absolute rounded-full border border-white/25 pointer-events-none" style={{ left: -size * 0.4, top: size * 0.5, width: size * 0.35, height: size * 0.35 }} />
+        </>
+      )}
       {/* 地面陰影 */}
       <div
         className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-black/25"
@@ -289,7 +298,6 @@ function HorizontalRunner({ onBack }) {
               }
             }
           }
-
           if (!stunned) {
             x = Math.min(r.x + moveSpeed * dt, TRACK_LENGTH_PX - CUBE_SIZE)
           }
@@ -426,22 +434,27 @@ function HorizontalRunner({ onBack }) {
     const progressPct = Math.min(100, Math.round((leadingX / (TRACK_LENGTH_PX - CUBE_SIZE)) * 100))
 
     return (
-      <div className="flex flex-col items-center w-full max-w-[360px]">
+      <div className="flex flex-col items-center w-full max-w-[380px]">
         {/* 頂部：返回 + 遊戲標題 + 進度條（軌道感）+ 角色頭像與名次徽章 */}
         <div className="w-full mb-3">
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={onBack} className="px-2.5 py-1 rounded-lg bg-gray-700/80 text-gray-300 hover:bg-gray-600 text-xs border border-gray-600">← 返回</button>
             <span className="text-amber-400 font-black text-sm drop-shadow">魔方賽跑</span>
           </div>
-          <div className="h-3 rounded-full overflow-hidden border-2 border-amber-900/50 bg-gray-800 shadow-inner" style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
+          <div className="relative h-3.5 rounded-lg overflow-hidden border-2 border-stone-600 bg-stone-800 shadow-inner flex items-center" style={{ boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.4)' }}>
             <div
-              className="h-full rounded-full transition-all duration-150 flex items-center justify-end pr-0.5"
+              className="h-full rounded-md transition-all duration-150 flex items-center justify-end pr-0.5 relative"
               style={{
                 width: `${progressPct}%`,
-                background: 'linear-gradient(90deg, #22c55e 0%, #4ade80 50%, #86efac 100%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 0 8px rgba(34,197,94,0.4)'
+                background: 'linear-gradient(90deg, #16a34a 0%, #22c55e 40%, #4ade80 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 0 10px rgba(34,197,94,0.5)'
               }}
-            />
+            >
+              {progressPct > 5 && progressPct < 98 && (
+                <span className="absolute right-0.5 w-4 h-4 rounded-full border-2 border-white shadow bg-amber-400" style={{ transform: 'translateY(-50%)' }} />
+              )}
+            </div>
+            <span className="absolute right-2 text-xs opacity-70">🏁</span>
           </div>
           <div className="flex flex-wrap gap-2 mt-2 justify-center">
             {runners.map((r) => (
@@ -467,120 +480,151 @@ function HorizontalRunner({ onBack }) {
           </div>
         </div>
 
-        {/* 橫向 3D 賽道：透視 + 立體方塊地面，所有人同場奔跑 */}
+        {/* 魔方賽跑風格：立體方塊賽道 + 背景層 + 紅欄杆 + 箭頭紋 + 稜鏡道具箱 */}
         <div
-          className="relative rounded-2xl overflow-visible mb-5 shadow-2xl border-4 border-amber-900/50"
+          className="relative rounded-2xl overflow-hidden mb-5 shadow-2xl"
           style={{
-            width: TRACK_LENGTH_PX + 8,
-            height: TRACK_HEIGHT + BLOCK_DEPTH + 48,
-            perspective: 900,
-            boxShadow: 'inset 0 0 0 2px rgba(0,0,0,0.2), 0 12px 24px rgba(0,0,0,0.4)'
+            width: TRACK_LENGTH_PX + 12,
+            height: TRACK_HEIGHT + BLOCK_DEPTH + 56,
+            perspective: 800,
+            boxShadow: '0 0 0 3px rgba(0,0,0,0.15), 0 16px 32px rgba(0,0,0,0.35)'
           }}
         >
-          {/* 天空漸層 + 白雲（不參與 3D 旋轉） */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-sky-300 via-sky-400 to-sky-500" />
-          <div className="absolute top-2 left-[15%] w-12 h-6 rounded-full bg-white/70 shadow" />
-          <div className="absolute top-4 right-[20%] w-10 h-5 rounded-full bg-white/60 shadow" />
-          <div className="absolute bottom-[50%] left-[40%] w-8 h-4 rounded-full bg-white/50 shadow" />
-          {/* 3D 賽道主體：透視 + 繞 X 軸傾斜，露出頂面與前緣 */}
+          {/* 背景層：天空 + 白雲 + 遠景（紅頂屋、樹） */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-sky-200 via-sky-300 to-sky-400" />
+          <div className="absolute top-1 left-[12%] w-14 h-7 rounded-full bg-white/80 shadow-md" />
+          <div className="absolute top-5 right-[18%] w-11 h-6 rounded-full bg-white/70 shadow" />
+          <div className="absolute top-3 left-[45%] w-9 h-5 rounded-full bg-white/60 shadow" />
+          {/* 遠景：紅頂白牆屋 + 樹 */}
+          <div className="absolute right-2 bottom-[42%] flex flex-col items-end gap-0.5 opacity-90" style={{ transform: 'scale(0.85)' }}>
+            <div className="w-10 h-6 rounded-t border border-amber-900/30" style={{ background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)' }} />
+            <div className="w-11 h-7 border-x border-b border-stone-300 bg-white" />
+            <div className="flex gap-1 mt-1">
+              <div className="w-4 h-5 rounded-full border border-green-800/40" style={{ background: 'linear-gradient(180deg, #22c55e 0%, #15803d 100%)' }} />
+              <div className="w-5 h-5 rounded-full border border-green-800/40" style={{ background: 'linear-gradient(180deg, #4ade80 0%, #16a34a 100%)' }} />
+              <div className="w-3 h-4 rounded-full border border-amber-800/50" style={{ background: 'linear-gradient(90deg, #a16207 0%, #713f12 100%)' }} />
+            </div>
+          </div>
+          <div className="absolute left-[20%] bottom-[38%] flex items-end gap-0.5 opacity-85" style={{ transform: 'scale(0.7)' }}>
+            <div className="w-6 h-6 rounded-full border border-green-800/40" style={{ background: 'linear-gradient(145deg, #22c55e 0%, #166534 100%)' }} />
+            <div className="w-4 h-5 rounded-sm border border-amber-800/50" style={{ background: 'linear-gradient(90deg, #92400e 0%, #78350f 100%)' }} />
+          </div>
+          <div className="absolute right-[35%] bottom-[40%] flex items-end gap-0.5 opacity-80" style={{ transform: 'scale(0.6)' }}>
+            <div className="w-5 h-5 rounded-full border border-green-800/40" style={{ background: 'linear-gradient(145deg, #16a34a 0%, #14532d 100%)' }} />
+            <div className="w-3 h-4 rounded-sm border border-amber-800/50" style={{ background: '#78350f' }} />
+          </div>
+
+          {/* 3D 賽道主體：透視傾斜，露出頂面 + 前緣 */}
           <div
-            className="absolute left-1 right-1 rounded-xl overflow-visible"
+            className="absolute left-1.5 right-1.5 rounded-xl overflow-visible"
             style={{
               width: TRACK_LENGTH_PX,
-              height: TRACK_HEIGHT + BLOCK_DEPTH,
+              height: TRACK_HEIGHT + BLOCK_DEPTH + FENCE_HEIGHT,
               bottom: 1,
-              top: 8,
+              top: 10,
               transformStyle: 'preserve-3d',
               transform: `rotateX(${TRACK_3D_ANGLE}deg)`,
               transformOrigin: 'center bottom'
             }}
           >
-            {/* 橫向 3D 方塊地面：每格有頂面(草) + 前緣(土)，整條賽道透視傾斜 */}
+            {/* 立體方塊地面：每格頂面(草) + 前緣(土) + 左側面陰影 */}
             <div className="absolute left-0 flex" style={{ bottom: 0, height: TRACK_HEIGHT + BLOCK_DEPTH }}>
               {Array.from({ length: blockCount }, (_, i) => (
                 <div
                   key={i}
-                  className="relative shrink-0 rounded-sm overflow-hidden"
+                  className="relative shrink-0"
                   style={{
                     width: BLOCK_SIZE,
                     height: TRACK_HEIGHT + BLOCK_DEPTH,
-                    boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.15), inset -1px 0 0 rgba(0,0,0,0.2)'
+                    transformStyle: 'preserve-3d'
                   }}
                 >
-                  {/* 頂面（草地）：角色站立的平面，由上到下漸深 */}
+                  {/* 頂面：草地 + 箭頭紋（參考圖黑色/深綠 V 字） */}
                   <div
-                    className="absolute left-0 right-0 top-0 rounded-t-sm"
+                    className="absolute left-0 right-0 top-0 rounded-t-sm overflow-hidden"
                     style={{
                       height: TRACK_HEIGHT,
-                      background: 'linear-gradient(180deg, #8bc34a 0%, #7cb342 15%, #6b8e23 50%, #5a7a1e 100%)',
-                      boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.15)',
-                      border: '1px solid rgba(0,0,0,0.1)',
+                      background: `
+                        linear-gradient(180deg, #9ccc65 0%, #7cb342 12%, #558b2f 50%, #33691e 100%),
+                        repeating-linear-gradient(105deg, transparent 0, transparent 6px, rgba(0,0,0,0.12) 6px, rgba(0,0,0,0.12) 8px),
+                        repeating-linear-gradient(75deg, transparent 0, transparent 6px, rgba(0,0,0,0.08) 6px, rgba(0,0,0,0.08) 8px)
+                      `,
+                      boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.2), 1px 0 0 rgba(0,0,0,0.08)',
+                      border: '1px solid rgba(0,0,0,0.12)',
                       borderBottom: 'none'
                     }}
                   />
-                  {/* 前緣（土塊厚度）：3D 方塊的「正面」 */}
+                  {/* 前緣：土色立體面 */}
                   <div
                     className="absolute left-0 right-0 bottom-0 rounded-b-sm"
                     style={{
                       height: BLOCK_DEPTH,
-                      background: 'linear-gradient(180deg, #9a7b4f 0%, #8B6914 25%, #6d4e0a 60%, #5c3d0a 100%)',
-                      boxShadow: 'inset 2px 0 0 rgba(255,255,255,0.12), inset -2px 0 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.2)',
-                      border: '1px solid rgba(0,0,0,0.3)',
-                      borderTop: '1px solid rgba(0,0,0,0.2)'
+                      background: 'linear-gradient(180deg, #a67c52 0%, #8B6914 20%, #6d4e0a 55%, #4a3520 100%)',
+                      boxShadow: 'inset 3px 0 0 rgba(255,255,255,0.1), inset -3px 0 0 rgba(0,0,0,0.3), 0 3px 6px rgba(0,0,0,0.25)',
+                      border: '1px solid rgba(0,0,0,0.35)'
                     }}
                   />
                 </div>
               ))}
             </div>
-            {/* 障礙：尖刺陷阱（帶立體底座） */}
+
+            {/* 跑道邊界：紅欄杆（參考圖） */}
+            <div className="absolute left-0 top-0 h-3 z-[4]" style={{ width: TRACK_LENGTH_PX, background: 'linear-gradient(180deg, #ef4444 0%, #dc2626 40%, #b91c1c 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.2)', borderBottom: '2px solid #991b1b' }} />
+            <div className="absolute left-0 bottom-0 h-3 z-[4]" style={{ width: TRACK_LENGTH_PX, background: 'linear-gradient(0deg, #ef4444 0%, #dc2626 40%, #b91c1c 100%)', boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.2), 0 -2px 4px rgba(0,0,0,0.2)', borderTop: '2px solid #991b1b' }} />
+
+            {/* 障礙：木箱（棕色+深色綁帶） / 尖刺 */}
             {OBSTACLES.map((obs, oi) => (
               <div key={oi} className="absolute bottom-0 flex flex-col items-center z-[5]" style={{ left: obs.x, width: obs.w, height: TRACK_HEIGHT + BLOCK_DEPTH }}>
-                <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.4)' }} />
-                <div className="w-full h-1.5 bg-stone-700/90 border-x border-stone-600" />
-                <div
-                  className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[18px] border-b-red-600 mt-0"
-                  style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.35))' }}
-                />
-                <div className="w-full h-1 bg-red-800/80 rounded-b" />
+                {obs.type === 'crate' ? (
+                  <div className="w-full h-10 rounded-sm border-2 border-amber-900/60 flex items-center justify-center" style={{ background: 'linear-gradient(145deg, #a16207 0%, #78350f 50%, #713f12 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 8px rgba(0,0,0,0.3)' }}>
+                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, transparent 0%, transparent 45%, rgba(0,0,0,0.35) 50%, transparent 55%)', backgroundSize: '100% 100%' }} />
+                    <div className="w-3/4 h-0.5 rounded-full bg-amber-950/80" />
+                    <div className="absolute w-0.5 h-full bg-amber-950/70 left-1/2 -translate-x-1/2" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" />
+                    <div className="w-0 h-0 border-l-[11px] border-l-transparent border-r-[11px] border-r-transparent border-b-[20px] border-b-red-600" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }} />
+                    <div className="w-full h-1 bg-red-900/90 rounded-b" />
+                  </>
+                )}
               </div>
             ))}
-            {/* 道具箱：任一玩家未撿即顯示（帶 3D 陰影） */}
+
+            {/* 道具箱：稜鏡/彩虹閃爍方塊（參考圖） */}
             {ITEM_BOXES.map((box) => {
               const anyNotCollected = runners.some((r) => !(r.collectedBoxes || []).includes(box.x))
               if (!anyNotCollected) return null
               return (
                 <div key={box.x} className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center z-[6]" style={{ left: box.x, width: box.w, height: TRACK_HEIGHT }}>
                   <div
-                    className="w-7 h-7 rounded-md flex items-center justify-center text-base border-2 border-amber-600 relative"
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-lg relative overflow-hidden"
                     style={{
-                      background: 'linear-gradient(145deg, #fcd34d 0%, #f59e0b 50%, #d97706 100%)',
-                      boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 1px 0 rgba(255,255,255,0.5), 0 4px 0 #92400e, 0 6px 12px rgba(0,0,0,0.3)'
+                      background: 'linear-gradient(135deg, rgba(255,100,150,0.5) 0%, rgba(100,200,255,0.5) 25%, rgba(150,255,150,0.5) 50%, rgba(255,220,100,0.5) 75%, rgba(200,150,255,0.5) 100%)',
+                      boxShadow: '0 0 20px rgba(200,150,255,0.6), 0 0 40px rgba(100,200,255,0.3), inset 0 0 20px rgba(255,255,255,0.4), 0 4px 12px rgba(0,0,0,0.25)',
+                      border: '2px solid rgba(255,255,255,0.6)',
+                      animation: 'shimmer 2.5s ease-in-out infinite'
                     }}
                   >
-                    <span className="drop-shadow-sm relative z-10">★</span>
+                    <style>{`@keyframes shimmer { 0%,100%{ filter: brightness(1) hue-rotate(0deg); } 50%{ filter: brightness(1.2) hue-rotate(15deg); } }`}</style>
+                    <span className="drop-shadow-md z-10">?</span>
                   </div>
                 </div>
               )
             })}
-            {/* 終點：旗桿 + 黑白格紋旗 + GOAL */}
-            <div className="absolute top-0 bottom-0 flex items-end z-[5]" style={{ left: TRACK_LENGTH_PX - 32 }}>
+
+            {/* 終點：旗桿 + 黑白格紋 + GOAL */}
+            <div className="absolute top-0 bottom-0 flex items-end z-[5]" style={{ left: TRACK_LENGTH_PX - 36 }}>
               <div className="flex flex-col items-start h-full">
-                <div className="text-[8px] font-black text-white bg-gray-900 px-1.5 py-0.5 rounded mb-0.5 border border-amber-600 shadow">GOAL</div>
-                <div className="flex-1 flex items-stretch min-h-[24px]">
-                  <div className="w-1 bg-gradient-to-b from-stone-400 to-stone-600 rounded-full shadow-inner" style={{ boxShadow: 'inset 0 0 2px rgba(0,0,0,0.3)' }} />
-                  <div
-                    className="w-5 flex-shrink-0 border-l-2 border-amber-900/30"
-                    style={{
-                      backgroundImage: 'linear-gradient(90deg, #fff 50%, #1a1a1a 50%), linear-gradient(#fff 50%, #1a1a1a 50%)',
-                      backgroundSize: '3px 3px',
-                      backgroundPosition: '0 0, 1.5px 1.5px',
-                      boxShadow: '2px 0 4px rgba(0,0,0,0.2)'
-                    }}
-                  />
+                <div className="text-[9px] font-black text-white px-2 py-0.5 rounded border-2 border-amber-500 shadow-lg" style={{ background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)' }}>GOAL</div>
+                <div className="flex-1 flex items-stretch min-h-[28px]">
+                  <div className="w-1.5 bg-gradient-to-b from-stone-500 to-stone-700 rounded-full shadow-inner" />
+                  <div className="w-6 border-l-2 border-stone-600" style={{ backgroundImage: 'linear-gradient(90deg, #fff 50%, #1a1a1a 50%), linear-gradient(#fff 50%, #1a1a1a 50%)', backgroundSize: '4px 4px', backgroundPosition: '0 0, 2px 2px', boxShadow: '2px 0 6px rgba(0,0,0,0.25)' }} />
                 </div>
               </div>
             </div>
-            {/* 所有角色同場：依 x 排序繪製 */}
+
+            {/* 角色：同場、依 x 排序 */}
             {[...runners]
               .sort((a, b) => a.x - b.x)
               .map((r, sortedIndex) => {
@@ -630,12 +674,16 @@ function HorizontalRunner({ onBack }) {
                     {itemInfo && <span className="text-[10px] opacity-90" title={itemInfo.label}>{itemInfo.icon} {itemInfo.label}</span>}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <button
                     type="button"
                     onClick={() => jump(r.id)}
-                    className="flex-1 py-2.5 rounded-xl text-gray-900 text-sm font-bold border-2 border-amber-600 touch-manipulation active:scale-95 transition-transform"
-                    style={{ background: 'linear-gradient(180deg, #fde047 0%, #f59e0b 100%)', boxShadow: '0 2px 0 #b45309, 0 4px 8px rgba(0,0,0,0.2)' }}
+                    className="flex-1 py-2.5 text-gray-900 text-sm font-bold border-2 border-amber-500 touch-manipulation active:scale-95 transition-transform flex items-center justify-center"
+                    style={{
+                      clipPath: 'polygon(28% 0%, 72% 0%, 100% 50%, 72% 100%, 28% 100%, 0% 50%)',
+                      background: 'linear-gradient(180deg, #fef3c7 0%, #fcd34d 30%, #f59e0b 100%)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 3px 0 #b45309, 0 6px 12px rgba(0,0,0,0.25)'
+                    }}
                   >
                     ⬆ 跳躍
                   </button>
