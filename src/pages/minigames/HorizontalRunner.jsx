@@ -3,16 +3,41 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 const TRACK_LENGTH_PX = 360
 const BLOCK_SIZE = 24
-const TRACK_HEIGHT = 96
-const BLOCK_DEPTH = 20
+const PLATFORM_THICK = 22
 const CUBE_SIZE = 40
 const RUN_CYCLE_MS = 90
-const TRACK_3D_ANGLE = 16
-const FENCE_HEIGHT = 12
+const TRACK_3D_ANGLE = 14
+const FENCE_HEIGHT = 10
+const SCENE_HEIGHT = 100
+const LOWER_Y = 72
+const UPPER_Y = 26
+const JUMP_PEAK_PX = 38
 const BASE_SPEED = 98
 const BOOST_FROM_ITEM = 140
-const JUMP_DURATION = 0.4
+const JUMP_DURATION = 0.5
 const STUN_DURATION = 0.85
+
+/** 地面高度（角色腳底 y）：有高有低 + 斜坡過渡 */
+function getGroundY(x) {
+  if (x < 78) return LOWER_Y
+  if (x < 98) return LOWER_Y + (UPPER_Y - LOWER_Y) * (x - 78) / 20
+  if (x < 178) return UPPER_Y
+  if (x < 198) return UPPER_Y + (LOWER_Y - UPPER_Y) * (x - 178) / 20
+  if (x < 268) return LOWER_Y
+  if (x < 288) return LOWER_Y + (UPPER_Y - LOWER_Y) * (x - 268) / 20
+  return UPPER_Y
+}
+
+/** 地形平台 + 斜坡區段（用於繪製） */
+const TERRAIN_SEGMENTS = [
+  { xStart: 0, xEnd: 78, yGround: LOWER_Y, type: 'flat' },
+  { xStart: 78, xEnd: 98, yGround: null, yFrom: LOWER_Y, yTo: UPPER_Y, type: 'ramp' },
+  { xStart: 98, xEnd: 178, yGround: UPPER_Y, type: 'flat' },
+  { xStart: 178, xEnd: 198, yGround: null, yFrom: UPPER_Y, yTo: LOWER_Y, type: 'ramp' },
+  { xStart: 198, xEnd: 268, yGround: LOWER_Y, type: 'flat' },
+  { xStart: 268, xEnd: 288, yGround: null, yFrom: LOWER_Y, yTo: UPPER_Y, type: 'ramp' },
+  { xStart: 288, xEnd: TRACK_LENGTH_PX + 20, yGround: UPPER_Y, type: 'flat' }
+]
 const ATTACK_STUN = 1.2
 const SHIELD_DURATION = 2
 const ITEM_BOOST_DURATION = 0.9
@@ -45,7 +70,7 @@ const CHARACTERS = [
   { id: 3, name: '小粉', short: '粉', skin: '#f5d0a9', hair: '#6b2d5c', shirt: '#e91e63', shortColor: '#4a1942', bg: 'bg-pink-500', border: 'border-pink-400', text: 'text-pink-900', headBg: 'bg-amber-200', bodyBg: 'bg-pink-500' }
 ]
 
-/** 魔方賽跑風格跑者：側面 Q 版、跑步循環動畫（手腳擺動 + 輕微起伏） */
+/** 魔方賽跑風格跑者：跑步循環 + 跳躍時縮放/傾斜（位置由世界 y 決定，此地只做生動感） */
 function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40, runPhase = 0 }) {
   const c = character || CHARACTERS[0]
   const s = size / 40
@@ -54,16 +79,17 @@ function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40,
   const rightLegRot = isRunning ? (runPhase === 0 ? -20 : 12) : -20
   const armRot = isRunning ? (runPhase === 0 ? -25 : 12) : -25
   const bobY = isRunning ? (runPhase === 0 ? 0 : -2 * s) : 0
-  const jumpY = isJumping ? -10 * s : 0
-  const totalY = jumpY + bobY
   return (
     <div
       className={`absolute will-change-transform ${stunned ? 'opacity-70' : ''} ${shield ? 'drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]' : ''} ${boost ? 'drop-shadow-[0_0_8px_rgba(250,204,21,0.9)]' : ''}`}
       style={{
         width: size,
         height: size,
-        transition: isJumping ? 'none' : 'transform 0.08s ease-out',
-        transform: totalY !== 0 ? `translateY(${totalY}px)${isJumping ? ' scale(1.05)' : ''}` : undefined
+        transition: isJumping ? 'transform 0.06s ease-out' : 'transform 0.08s ease-out',
+        transform: [
+          bobY !== 0 ? `translateY(${bobY}px)` : '',
+          isJumping ? 'scale(1.08) rotate(-3deg)' : 'scale(1) rotate(0deg)'
+        ].filter(Boolean).join(' ') || undefined
       }}
     >
       {/* 跑步動線（魔方賽跑參考：速度感） */}
@@ -181,8 +207,9 @@ function HorizontalRunner({ onBack }) {
         characterId: char?.id ?? i,
         character: char ?? CHARACTERS[i % CHARACTERS.length],
         x: 0,
-        isJumping: false,
+        y: getGroundY(0),
         jumpEndAt: 0,
+        jumpStartY: null,
         stunnedUntil: 0,
         shieldUntil: 0,
         boostUntil: 0,
@@ -215,7 +242,9 @@ function HorizontalRunner({ onBack }) {
     const now = performance.now() / 1000
     setRunners((prev) =>
       prev.map((r) =>
-        r.id === runnerId ? { ...r, isJumping: true, jumpEndAt: now + JUMP_DURATION } : r
+        r.id === runnerId
+          ? { ...r, jumpEndAt: now + JUMP_DURATION, jumpStartY: r.y ?? getGroundY(r.x) }
+          : r
       )
     )
   }, [phase])
@@ -302,6 +331,15 @@ function HorizontalRunner({ onBack }) {
             x = Math.min(r.x + moveSpeed * dt, TRACK_LENGTH_PX - CUBE_SIZE)
           }
 
+          let y = r.y
+          if (isJumping && r.jumpStartY != null) {
+            const elapsed = t - (r.jumpEndAt - JUMP_DURATION)
+            const progress = Math.min(1, Math.max(0, elapsed / JUMP_DURATION))
+            y = r.jumpStartY - 4 * JUMP_PEAK_PX * progress * (1 - progress)
+          } else {
+            y = getGroundY(x)
+          }
+
           if (x >= TRACK_LENGTH_PX - CUBE_SIZE - 2 && !hasWinner) {
             hasWinner = true
             winnerId = r.id
@@ -310,8 +348,9 @@ function HorizontalRunner({ onBack }) {
           return {
             ...r,
             x,
-            isJumping,
+            y,
             jumpEndAt: r.jumpEndAt,
+            jumpStartY: r.jumpStartY,
             stunnedUntil: r.stunnedUntil,
             shieldUntil: r.shieldUntil,
             boostUntil: r.boostUntil,
@@ -429,7 +468,6 @@ function HorizontalRunner({ onBack }) {
   }
 
   if (phase === 'racing') {
-    const blockCount = Math.ceil(TRACK_LENGTH_PX / BLOCK_SIZE)
     const leadingX = runners.length ? Math.max(...runners.map((r) => r.x)) : 0
     const progressPct = Math.min(100, Math.round((leadingX / (TRACK_LENGTH_PX - CUBE_SIZE)) * 100))
 
@@ -480,23 +518,20 @@ function HorizontalRunner({ onBack }) {
           </div>
         </div>
 
-        {/* 魔方賽跑風格：立體方塊賽道 + 背景層 + 紅欄杆 + 箭頭紋 + 稜鏡道具箱 */}
+        {/* 有高有低的地形 + 生動跳躍弧線 */}
         <div
           className="relative rounded-2xl overflow-hidden mb-5 shadow-2xl"
           style={{
             width: TRACK_LENGTH_PX + 12,
-            height: TRACK_HEIGHT + BLOCK_DEPTH + 56,
-            perspective: 800,
+            height: SCENE_HEIGHT + 20,
             boxShadow: '0 0 0 3px rgba(0,0,0,0.15), 0 16px 32px rgba(0,0,0,0.35)'
           }}
         >
-          {/* 背景層：天空 + 白雲 + 遠景（紅頂屋、樹） */}
+          {/* 背景 */}
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-sky-200 via-sky-300 to-sky-400" />
           <div className="absolute top-1 left-[12%] w-14 h-7 rounded-full bg-white/80 shadow-md" />
           <div className="absolute top-5 right-[18%] w-11 h-6 rounded-full bg-white/70 shadow" />
-          <div className="absolute top-3 left-[45%] w-9 h-5 rounded-full bg-white/60 shadow" />
-          {/* 遠景：紅頂白牆屋 + 樹 */}
-          <div className="absolute right-2 bottom-[42%] flex flex-col items-end gap-0.5 opacity-90" style={{ transform: 'scale(0.85)' }}>
+          <div className="absolute right-2 bottom-[45%] flex flex-col items-end gap-0.5 opacity-90" style={{ transform: 'scale(0.85)' }}>
             <div className="w-10 h-6 rounded-t border border-amber-900/30" style={{ background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)' }} />
             <div className="w-11 h-7 border-x border-b border-stone-300 bg-white" />
             <div className="flex gap-1 mt-1">
@@ -505,103 +540,102 @@ function HorizontalRunner({ onBack }) {
               <div className="w-3 h-4 rounded-full border border-amber-800/50" style={{ background: 'linear-gradient(90deg, #a16207 0%, #713f12 100%)' }} />
             </div>
           </div>
-          <div className="absolute left-[20%] bottom-[38%] flex items-end gap-0.5 opacity-85" style={{ transform: 'scale(0.7)' }}>
-            <div className="w-6 h-6 rounded-full border border-green-800/40" style={{ background: 'linear-gradient(145deg, #22c55e 0%, #166534 100%)' }} />
-            <div className="w-4 h-5 rounded-sm border border-amber-800/50" style={{ background: 'linear-gradient(90deg, #92400e 0%, #78350f 100%)' }} />
-          </div>
-          <div className="absolute right-[35%] bottom-[40%] flex items-end gap-0.5 opacity-80" style={{ transform: 'scale(0.6)' }}>
-            <div className="w-5 h-5 rounded-full border border-green-800/40" style={{ background: 'linear-gradient(145deg, #16a34a 0%, #14532d 100%)' }} />
-            <div className="w-3 h-4 rounded-sm border border-amber-800/50" style={{ background: '#78350f' }} />
-          </div>
 
-          {/* 3D 賽道主體：透視傾斜，露出頂面 + 前緣 */}
-          <div
-            className="absolute left-1.5 right-1.5 rounded-xl overflow-visible"
-            style={{
-              width: TRACK_LENGTH_PX,
-              height: TRACK_HEIGHT + BLOCK_DEPTH + FENCE_HEIGHT,
-              bottom: 1,
-              top: 10,
-              transformStyle: 'preserve-3d',
-              transform: `rotateX(${TRACK_3D_ANGLE}deg)`,
-              transformOrigin: 'center bottom'
-            }}
-          >
-            {/* 立體方塊地面：每格頂面(草) + 前緣(土) + 左側面陰影 */}
-            <div className="absolute left-0 flex" style={{ bottom: 0, height: TRACK_HEIGHT + BLOCK_DEPTH }}>
-              {Array.from({ length: blockCount }, (_, i) => (
+          {/* 地形：高低平台 + 斜坡（依 TERRAIN_SEGMENTS 繪製） */}
+          <div className="absolute left-1.5 right-1.5 top-0 bottom-0" style={{ width: TRACK_LENGTH_PX }}>
+            {TERRAIN_SEGMENTS.map((seg, si) => {
+              if (seg.type === 'flat') {
+                const w = seg.xEnd - seg.xStart
+                const blockN = Math.ceil(w / BLOCK_SIZE)
+                return (
+                  <div key={si} className="absolute flex" style={{ left: seg.xStart, top: seg.yGround, height: PLATFORM_THICK, width: w }}>
+                    {Array.from({ length: blockN }, (_, i) => (
+                      <div key={i} className="relative shrink-0" style={{ width: BLOCK_SIZE, height: PLATFORM_THICK }}>
+                        <div
+                          className="absolute left-0 right-0 top-0 rounded-t-sm"
+                          style={{
+                            height: Math.min(10, PLATFORM_THICK - 8),
+                            background: 'linear-gradient(180deg, #9ccc65 0%, #7cb342 50%, #558b2f 100%)',
+                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 1px 0 0 rgba(0,0,0,0.08)',
+                            border: '1px solid rgba(0,0,0,0.1)'
+                          }}
+                        />
+                        <div
+                          className="absolute left-0 right-0 bottom-0 rounded-b-sm"
+                          style={{
+                            height: PLATFORM_THICK - 10,
+                            background: 'linear-gradient(180deg, #a67c52 0%, #8B6914 30%, #6d4e0a 100%)',
+                            boxShadow: 'inset 2px 0 0 rgba(255,255,255,0.1), inset -2px 0 0 rgba(0,0,0,0.25)',
+                            border: '1px solid rgba(0,0,0,0.3)'
+                          }}
+                        />
+                      </div>
+                    ))}
+                    <div className="absolute left-0 right-0 top-0 h-1 z-[3]" style={{ background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%)', boxShadow: '0 1px 0 rgba(0,0,0,0.2)' }} />
+                  </div>
+                )
+              }
+              const rampH = Math.abs(seg.yTo - seg.yFrom)
+              const rampUp = seg.yTo < seg.yFrom
+              return (
                 <div
-                  key={i}
-                  className="relative shrink-0"
+                  key={si}
+                  className="absolute overflow-hidden z-[2]"
                   style={{
-                    width: BLOCK_SIZE,
-                    height: TRACK_HEIGHT + BLOCK_DEPTH,
-                    transformStyle: 'preserve-3d'
+                    left: seg.xStart,
+                    top: Math.min(seg.yFrom, seg.yTo),
+                    width: seg.xEnd - seg.xStart,
+                    height: rampH + PLATFORM_THICK,
+                    clipPath: rampUp ? 'polygon(0 100%, 100% 0%, 100% 100%, 0 100%)' : 'polygon(0 0%, 100% 100%, 0 100%)'
                   }}
                 >
-                  {/* 頂面：草地 + 箭頭紋（參考圖黑色/深綠 V 字） */}
                   <div
-                    className="absolute left-0 right-0 top-0 rounded-t-sm overflow-hidden"
+                    className="absolute inset-0"
                     style={{
-                      height: TRACK_HEIGHT,
-                      background: `
-                        linear-gradient(180deg, #9ccc65 0%, #7cb342 12%, #558b2f 50%, #33691e 100%),
-                        repeating-linear-gradient(105deg, transparent 0, transparent 6px, rgba(0,0,0,0.12) 6px, rgba(0,0,0,0.12) 8px),
-                        repeating-linear-gradient(75deg, transparent 0, transparent 6px, rgba(0,0,0,0.08) 6px, rgba(0,0,0,0.08) 8px)
-                      `,
-                      boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.2), 1px 0 0 rgba(0,0,0,0.08)',
-                      border: '1px solid rgba(0,0,0,0.12)',
-                      borderBottom: 'none'
+                      background: 'linear-gradient(180deg, #9ccc65 0%, #7cb342 15%, #6d4e0a 50%, #5c3d0a 100%)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+                      border: '1px solid rgba(0,0,0,0.2)'
                     }}
                   />
-                  {/* 前緣：土色立體面 */}
-                  <div
-                    className="absolute left-0 right-0 bottom-0 rounded-b-sm"
-                    style={{
-                      height: BLOCK_DEPTH,
-                      background: 'linear-gradient(180deg, #a67c52 0%, #8B6914 20%, #6d4e0a 55%, #4a3520 100%)',
-                      boxShadow: 'inset 3px 0 0 rgba(255,255,255,0.1), inset -3px 0 0 rgba(0,0,0,0.3), 0 3px 6px rgba(0,0,0,0.25)',
-                      border: '1px solid rgba(0,0,0,0.35)'
-                    }}
-                  />
+                  <div className="absolute left-0 right-0 top-0 h-1 z-[3]" style={{ background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)' }} />
                 </div>
-              ))}
-            </div>
+              )
+            })}
 
-            {/* 跑道邊界：紅欄杆（參考圖） */}
-            <div className="absolute left-0 top-0 h-3 z-[4]" style={{ width: TRACK_LENGTH_PX, background: 'linear-gradient(180deg, #ef4444 0%, #dc2626 40%, #b91c1c 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.2)', borderBottom: '2px solid #991b1b' }} />
-            <div className="absolute left-0 bottom-0 h-3 z-[4]" style={{ width: TRACK_LENGTH_PX, background: 'linear-gradient(0deg, #ef4444 0%, #dc2626 40%, #b91c1c 100%)', boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.2), 0 -2px 4px rgba(0,0,0,0.2)', borderTop: '2px solid #991b1b' }} />
+            {/* 障礙：依所在平台高度放置 */}
+            {OBSTACLES.map((obs, oi) => {
+              const groundY = getGroundY(obs.x + obs.w / 2)
+              const obsHeight = obs.type === 'crate' ? 36 : 20
+              return (
+                <div key={oi} className="absolute flex flex-col items-center z-[5]" style={{ left: obs.x, top: groundY - obsHeight, width: obs.w }}>
+                  {obs.type === 'crate' ? (
+                    <div className="w-full h-9 rounded-sm border-2 border-amber-900/60 flex items-center justify-center" style={{ background: 'linear-gradient(145deg, #a16207 0%, #78350f 50%, #713f12 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 8px rgba(0,0,0,0.3)' }}>
+                      <div className="w-3/4 h-0.5 rounded-full bg-amber-950/80" />
+                      <div className="absolute w-0.5 h-full bg-amber-950/70 left-1/2 -translate-x-1/2" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700" />
+                      <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[16px] border-b-red-600" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }} />
+                      <div className="w-full h-1 bg-red-900/90 rounded-b" />
+                    </>
+                  )}
+                </div>
+              )
+            })}
 
-            {/* 障礙：木箱（棕色+深色綁帶） / 尖刺 */}
-            {OBSTACLES.map((obs, oi) => (
-              <div key={oi} className="absolute bottom-0 flex flex-col items-center z-[5]" style={{ left: obs.x, width: obs.w, height: TRACK_HEIGHT + BLOCK_DEPTH }}>
-                {obs.type === 'crate' ? (
-                  <div className="w-full h-10 rounded-sm border-2 border-amber-900/60 flex items-center justify-center" style={{ background: 'linear-gradient(145deg, #a16207 0%, #78350f 50%, #713f12 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 8px rgba(0,0,0,0.3)' }}>
-                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, transparent 0%, transparent 45%, rgba(0,0,0,0.35) 50%, transparent 55%)', backgroundSize: '100% 100%' }} />
-                    <div className="w-3/4 h-0.5 rounded-full bg-amber-950/80" />
-                    <div className="absolute w-0.5 h-full bg-amber-950/70 left-1/2 -translate-x-1/2" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" />
-                    <div className="w-0 h-0 border-l-[11px] border-l-transparent border-r-[11px] border-r-transparent border-b-[20px] border-b-red-600" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }} />
-                    <div className="w-full h-1 bg-red-900/90 rounded-b" />
-                  </>
-                )}
-              </div>
-            ))}
-
-            {/* 道具箱：稜鏡/彩虹閃爍方塊（參考圖） */}
+            {/* 道具箱：依平台高度 */}
             {ITEM_BOXES.map((box) => {
               const anyNotCollected = runners.some((r) => !(r.collectedBoxes || []).includes(box.x))
               if (!anyNotCollected) return null
+              const groundY = getGroundY(box.x + box.w / 2)
               return (
-                <div key={box.x} className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center z-[6]" style={{ left: box.x, width: box.w, height: TRACK_HEIGHT }}>
+                <div key={box.x} className="absolute flex items-center justify-center z-[6]" style={{ left: box.x, top: groundY - 20, width: box.w, height: 24 }}>
                   <div
-                    className="w-8 h-8 rounded-md flex items-center justify-center text-lg relative overflow-hidden"
+                    className="w-7 h-7 rounded-md flex items-center justify-center text-base relative overflow-hidden"
                     style={{
                       background: 'linear-gradient(135deg, rgba(255,100,150,0.5) 0%, rgba(100,200,255,0.5) 25%, rgba(150,255,150,0.5) 50%, rgba(255,220,100,0.5) 75%, rgba(200,150,255,0.5) 100%)',
-                      boxShadow: '0 0 20px rgba(200,150,255,0.6), 0 0 40px rgba(100,200,255,0.3), inset 0 0 20px rgba(255,255,255,0.4), 0 4px 12px rgba(0,0,0,0.25)',
+                      boxShadow: '0 0 16px rgba(200,150,255,0.6), inset 0 0 12px rgba(255,255,255,0.3), 0 3px 10px rgba(0,0,0,0.25)',
                       border: '2px solid rgba(255,255,255,0.6)',
                       animation: 'shimmer 2.5s ease-in-out infinite'
                     }}
@@ -613,40 +647,38 @@ function HorizontalRunner({ onBack }) {
               )
             })}
 
-            {/* 終點：旗桿 + 黑白格紋 + GOAL */}
-            <div className="absolute top-0 bottom-0 flex items-end z-[5]" style={{ left: TRACK_LENGTH_PX - 36 }}>
-              <div className="flex flex-col items-start h-full">
-                <div className="text-[9px] font-black text-white px-2 py-0.5 rounded border-2 border-amber-500 shadow-lg" style={{ background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)' }}>GOAL</div>
-                <div className="flex-1 flex items-stretch min-h-[28px]">
-                  <div className="w-1.5 bg-gradient-to-b from-stone-500 to-stone-700 rounded-full shadow-inner" />
-                  <div className="w-6 border-l-2 border-stone-600" style={{ backgroundImage: 'linear-gradient(90deg, #fff 50%, #1a1a1a 50%), linear-gradient(#fff 50%, #1a1a1a 50%)', backgroundSize: '4px 4px', backgroundPosition: '0 0, 2px 2px', boxShadow: '2px 0 6px rgba(0,0,0,0.25)' }} />
-                </div>
+            {/* 終點：在上層平台 */}
+            <div className="absolute flex flex-col items-start z-[5]" style={{ left: TRACK_LENGTH_PX - 34, top: UPPER_Y - 28 }}>
+              <div className="text-[9px] font-black text-white px-2 py-0.5 rounded border-2 border-amber-500 shadow" style={{ background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)' }}>GOAL</div>
+              <div className="flex items-stretch mt-0.5" style={{ minHeight: 24 }}>
+                <div className="w-1.5 bg-gradient-to-b from-stone-500 to-stone-700 rounded-full shadow-inner" />
+                <div className="w-5 border-l-2 border-stone-600" style={{ backgroundImage: 'linear-gradient(90deg, #fff 50%, #1a1a1a 50%), linear-gradient(#fff 50%, #1a1a1a 50%)', backgroundSize: '3px 3px', backgroundPosition: '0 0, 1.5px 1.5px' }} />
               </div>
             </div>
 
-            {/* 角色：同場、依 x 排序 */}
+            {/* 角色：依世界 (x, y) 定位，y 為腳底，跳躍為拋物線 */}
             {[...runners]
               .sort((a, b) => a.x - b.x)
               .map((r, sortedIndex) => {
                 const now = performance.now() / 1000
+                const isJumping = r.jumpEndAt > now
                 const runPhase = Math.floor((performance.now() / 1000) * (1000 / RUN_CYCLE_MS)) % 2
-                const baseTop = (TRACK_HEIGHT - CUBE_SIZE) / 2
-                const offsetY = r.id * 5
+                const displayY = (r.y ?? getGroundY(r.x)) - CUBE_SIZE
                 return (
                   <div
                     key={r.id}
-                    className="absolute left-0 top-0"
+                    className="absolute left-0 transition-none"
                     style={{
                       width: CUBE_SIZE,
                       height: CUBE_SIZE,
                       left: Math.max(0, r.x),
-                      top: baseTop + offsetY,
+                      top: displayY,
                       zIndex: 10 + sortedIndex
                     }}
                   >
                     <RunnerSprite
                       character={r.character}
-                      isJumping={r.jumpEndAt > now}
+                      isJumping={isJumping}
                       stunned={r.stunnedUntil > now}
                       shield={r.shieldUntil > now}
                       boost={r.boostUntil > now}
