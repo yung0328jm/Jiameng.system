@@ -15,6 +15,7 @@ import Undercover from './minigames/Undercover'
 import RockPaperScissors from './minigames/RockPaperScissors'
 import Niuniu from './minigames/Niuniu'
 import CardGame from './CardGame'
+import HorizontalRunner from './minigames/HorizontalRunner'
 
 export default function MiniGames() {
   const [selectedGame, setSelectedGame] = useState(null)
@@ -135,7 +136,8 @@ export default function MiniGames() {
     { id: 'slot3', name: '誰是臥底', description: '輪流發言投票找出臥底', comingSoon: false },
     { id: 'slot4', name: '猜拳', description: '兩人對戰五戰三勝，佳盟幣下注', comingSoon: false },
     { id: 'slot5', name: '妞妞', description: '兩人對戰，依序發牌比牛，佳盟幣下注', comingSoon: false },
-    { id: 'slot6', name: '卡牌對戰', description: '1 英雄 + 50 張牌，回合制對戰', comingSoon: false }
+    { id: 'slot6', name: '卡牌對戰', description: '1 英雄 + 50 張牌，回合制對戰', comingSoon: false },
+    { id: 'slot7', name: '3D 方塊賽跑', description: '立體賽道、紅欄杆、問號方塊，看準時機跳躍', comingSoon: false }
   ]
 
   return (
@@ -330,7 +332,12 @@ export default function MiniGames() {
           <CardGame onBack={() => setSelectedGame(null)} />
         </div>
       )}
-      {selectedGame && selectedGame !== 'slot1' && selectedGame !== 'slot2' && selectedGame !== 'slot3' && selectedGame !== 'slot4' && selectedGame !== 'slot5' && selectedGame !== 'slot6' && (
+      {selectedGame === 'slot7' && (
+        <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
+          <HorizontalRunner onBack={() => setSelectedGame(null)} />
+        </div>
+      )}
+      {selectedGame && selectedGame !== 'slot1' && selectedGame !== 'slot2' && selectedGame !== 'slot3' && selectedGame !== 'slot4' && selectedGame !== 'slot5' && selectedGame !== 'slot6' && selectedGame !== 'slot7' && (
         <div className="mt-6 p-4 bg-gray-700 rounded-xl border border-gray-600">
           <p className="text-gray-300 text-sm">遊戲內容可在此區塊擴充。</p>
           <button type="button" onClick={() => setSelectedGame(null)} className="mt-3 text-yellow-400 text-sm hover:underline">
