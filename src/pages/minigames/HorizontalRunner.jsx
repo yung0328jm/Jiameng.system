@@ -3,8 +3,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 const TRACK_LENGTH_PX = 340
 const BLOCK_SIZE = 22
-const LANE_HEIGHT = 64
+const TRACK_HEIGHT = 88
 const CUBE_SIZE = 40
+const RUN_CYCLE_MS = 90
 const BASE_SPEED = 98
 const BOOST_FROM_ITEM = 140
 const JUMP_DURATION = 0.4
@@ -41,17 +42,25 @@ const CHARACTERS = [
   { id: 3, name: '小粉', short: '粉', skin: '#f5d0a9', hair: '#6b2d5c', shirt: '#e91e63', shortColor: '#4a1942', bg: 'bg-pink-500', border: 'border-pink-400', text: 'text-pink-900', headBg: 'bg-amber-200', bodyBg: 'bg-pink-500' }
 ]
 
-/** 魔方賽跑風格跑者：側面 Q 版、跑步姿勢、陰影 */
-function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40 }) {
+/** 魔方賽跑風格跑者：側面 Q 版、跑步循環動畫（手腳擺動 + 輕微起伏） */
+function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40, runPhase = 0 }) {
   const c = character || CHARACTERS[0]
   const s = size / 40
+  const isRunning = !stunned && !isJumping
+  const leftLegRot = isRunning ? (runPhase === 0 ? 15 : -18) : 15
+  const rightLegRot = isRunning ? (runPhase === 0 ? -20 : 12) : -20
+  const armRot = isRunning ? (runPhase === 0 ? -25 : 12) : -25
+  const bobY = isRunning ? (runPhase === 0 ? 0 : -2 * s) : 0
+  const jumpY = isJumping ? -10 * s : 0
+  const totalY = jumpY + bobY
   return (
     <div
-      className={`absolute transition-all duration-100 ${stunned ? 'opacity-70' : ''} ${shield ? 'drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]' : ''} ${boost ? 'drop-shadow-[0_0_8px_rgba(250,204,21,0.9)]' : ''}`}
+      className={`absolute will-change-transform ${stunned ? 'opacity-70' : ''} ${shield ? 'drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]' : ''} ${boost ? 'drop-shadow-[0_0_8px_rgba(250,204,21,0.9)]' : ''}`}
       style={{
         width: size,
         height: size,
-        transform: isJumping ? `translateY(-${10 * s}px) scale(1.05)` : undefined
+        transition: isJumping ? 'none' : 'transform 0.08s ease-out',
+        transform: totalY !== 0 ? `translateY(${totalY}px)${isJumping ? ' scale(1.05)' : ''}` : undefined
       }}
     >
       {/* 地面陰影 */}
@@ -97,7 +106,7 @@ function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40 
           boxShadow: 'inset 2px 0 0 rgba(255,255,255,0.2), inset -1px -1px 0 rgba(0,0,0,0.15)'
         }}
       />
-      {/* 前臂（跑步擺臂） */}
+      {/* 前臂（跑步擺臂，隨 runPhase 前後擺動） */}
       <div
         className="absolute rounded-full"
         style={{
@@ -106,11 +115,12 @@ function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40 
           width: size * 0.18,
           height: size * 0.12,
           backgroundColor: c.skin,
-          transform: 'rotate(-25deg)',
+          transform: `rotate(${armRot}deg)`,
+          transition: 'transform 0.08s ease-out',
           boxShadow: '1px 1px 0 rgba(0,0,0,0.1)'
         }}
       />
-      {/* 腿（跑步） */}
+      {/* 左腿（跑步循環） */}
       <div
         className="absolute rounded-b"
         style={{
@@ -119,10 +129,12 @@ function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40 
           width: size * 0.12,
           height: size * 0.22,
           backgroundColor: c.shortColor,
-          transform: 'rotate(15deg)',
+          transform: `rotate(${leftLegRot}deg)`,
+          transition: 'transform 0.08s ease-out',
           boxShadow: '1px 1px 0 rgba(0,0,0,0.15)'
         }}
       />
+      {/* 右腿（跑步循環） */}
       <div
         className="absolute rounded-b"
         style={{
@@ -131,7 +143,8 @@ function RunnerSprite({ character, isJumping, stunned, shield, boost, size = 40 
           width: size * 0.12,
           height: size * 0.2,
           backgroundColor: c.shortColor,
-          transform: 'rotate(-20deg)',
+          transform: `rotate(${rightLegRot}deg)`,
+          transition: 'transform 0.08s ease-out',
           boxShadow: '1px 1px 0 rgba(0,0,0,0.15)'
         }}
       />
@@ -452,12 +465,12 @@ function HorizontalRunner({ onBack }) {
           </div>
         </div>
 
-        {/* 賽道區：魔方賽跑風格 - 天空+雲、3D方塊地、障礙、道具箱、終點旗、角色 */}
+        {/* 單一賽道：所有人同場奔跑 - 天空+雲、3D 地、障礙、道具、終點、角色 */}
         <div
           className="relative rounded-2xl overflow-hidden mb-5 shadow-2xl border-4 border-amber-900/50"
           style={{
             width: TRACK_LENGTH_PX + 8,
-            height: runners.length * LANE_HEIGHT + 36,
+            height: TRACK_HEIGHT + 36,
             boxShadow: 'inset 0 0 0 2px rgba(0,0,0,0.2), 0 12px 24px rgba(0,0,0,0.4)'
           }}
         >
@@ -466,94 +479,102 @@ function HorizontalRunner({ onBack }) {
           <div className="absolute top-2 left-[15%] w-12 h-6 rounded-full bg-white/70 shadow" />
           <div className="absolute top-4 right-[20%] w-10 h-5 rounded-full bg-white/60 shadow" />
           <div className="absolute bottom-[45%] left-[40%] w-8 h-4 rounded-full bg-white/50 shadow" />
-          {/* 賽道主體 */}
-          <div className="absolute left-1 right-1 bottom-1 top-8 rounded-xl overflow-hidden" style={{ width: TRACK_LENGTH_PX, height: runners.length * LANE_HEIGHT }}>
-            {runners.map((r, laneIndex) => (
-              <div key={r.id} className="absolute left-0 right-0 flex" style={{ top: laneIndex * LANE_HEIGHT, height: LANE_HEIGHT }}>
-                {/* 3D 方塊地面：土塊 + 草皮頂（有厚度感） */}
-                {Array.from({ length: blockCount }, (_, i) => (
-                  <div key={i} className="relative shrink-0" style={{ width: BLOCK_SIZE, height: LANE_HEIGHT }}>
-                    <div
-                      className="absolute inset-0 rounded-sm"
-                      style={{
-                        background: 'linear-gradient(180deg, #6b8e23 0%, #5a7a1e 8px, #8B6914 8px, #6d4e0a 100%)',
-                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.2)',
-                        border: '1px solid rgba(0,0,0,0.15)'
-                      }}
-                    />
-                  </div>
-                ))}
-                {/* 跑道分隔線（白線） */}
-                {laneIndex > 0 && (
-                  <div className="absolute left-0 right-0 top-0 h-0.5 bg-white/60 z-10" style={{ boxShadow: '0 1px 0 rgba(0,0,0,0.2)' }} />
-                )}
-                {/* 障礙：尖刺陷阱（底座+三角刺） */}
-                {OBSTACLES.map((obs, oi) => (
-                  <div key={oi} className="absolute bottom-0 flex flex-col items-center" style={{ left: obs.x, width: obs.w, height: LANE_HEIGHT }}>
-                    <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" />
-                    <div
-                      className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[18px] border-b-red-600 mt-0"
-                      style={{ filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.3))' }}
-                    />
-                    <div className="w-full h-1 bg-red-800/80 rounded-b" />
-                  </div>
-                ))}
-                {/* 道具箱：金色方塊 + 星 + 光暈 */}
-                {ITEM_BOXES.map((box) =>
-                  !(r.collectedBoxes || []).includes(box.x) ? (
-                    <div key={box.x} className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center z-10" style={{ left: box.x, width: box.w, height: LANE_HEIGHT }}>
-                      <div
-                        className="w-7 h-7 rounded-md flex items-center justify-center text-base border-2 border-amber-600"
-                        style={{
-                          background: 'linear-gradient(145deg, #fcd34d 0%, #f59e0b 50%, #d97706 100%)',
-                          boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 1px 0 rgba(255,255,255,0.5), 0 3px 6px rgba(0,0,0,0.25)'
-                        }}
-                      >
-                        <span className="drop-shadow-sm">★</span>
-                      </div>
-                    </div>
-                  ) : null
-                )}
-                {/* 終點：旗桿 + 黑白格紋旗 + GOAL 橫幅 */}
-                <div className="absolute top-0 bottom-0 flex items-end z-10" style={{ left: TRACK_LENGTH_PX - 32 }}>
-                  <div className="flex flex-col items-start h-full">
-                    <div className="text-[8px] font-black text-white bg-gray-900 px-1.5 py-0.5 rounded mb-0.5 border border-amber-600 shadow">GOAL</div>
-                    <div className="flex-1 flex items-stretch min-h-[24px]">
-                      <div className="w-1 bg-gradient-to-b from-stone-400 to-stone-600 rounded-full shadow-inner" style={{ boxShadow: 'inset 0 0 2px rgba(0,0,0,0.3)' }} />
-                      <div
-                        className="w-5 flex-shrink-0 border-l-2 border-amber-900/30"
-                        style={{
-                          backgroundImage: 'linear-gradient(90deg, #fff 50%, #1a1a1a 50%), linear-gradient(#fff 50%, #1a1a1a 50%)',
-                          backgroundSize: '3px 3px',
-                          backgroundPosition: '0 0, 1.5px 1.5px',
-                          boxShadow: '2px 0 4px rgba(0,0,0,0.2)'
-                        }}
-                      />
-                    </div>
+          {/* 賽道主體：一張地圖 */}
+          <div className="absolute left-1 right-1 bottom-1 top-8 rounded-xl overflow-hidden" style={{ width: TRACK_LENGTH_PX, height: TRACK_HEIGHT }}>
+            {/* 3D 方塊地面（單一跑道） */}
+            <div className="absolute left-0 top-0 flex" style={{ height: TRACK_HEIGHT }}>
+              {Array.from({ length: blockCount }, (_, i) => (
+                <div key={i} className="relative shrink-0" style={{ width: BLOCK_SIZE, height: TRACK_HEIGHT }}>
+                  <div
+                    className="absolute inset-0 rounded-sm"
+                    style={{
+                      background: 'linear-gradient(180deg, #6b8e23 0%, #5a7a1e 8px, #8B6914 8px, #6d4e0a 100%)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.2)',
+                      border: '1px solid rgba(0,0,0,0.15)'
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            {/* 障礙：尖刺陷阱（全場共用） */}
+            {OBSTACLES.map((obs, oi) => (
+              <div key={oi} className="absolute bottom-0 flex flex-col items-center z-[5]" style={{ left: obs.x, width: obs.w, height: TRACK_HEIGHT }}>
+                <div className="w-full h-2 rounded-t bg-stone-600 border border-stone-700 shadow-inner" />
+                <div
+                  className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[18px] border-b-red-600 mt-0"
+                  style={{ filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.3))' }}
+                />
+                <div className="w-full h-1 bg-red-800/80 rounded-b" />
+              </div>
+            ))}
+            {/* 道具箱：任一玩家未撿即顯示 */}
+            {ITEM_BOXES.map((box) => {
+              const anyNotCollected = runners.some((r) => !(r.collectedBoxes || []).includes(box.x))
+              if (!anyNotCollected) return null
+              return (
+                <div key={box.x} className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center z-[6]" style={{ left: box.x, width: box.w, height: TRACK_HEIGHT }}>
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center text-base border-2 border-amber-600"
+                    style={{
+                      background: 'linear-gradient(145deg, #fcd34d 0%, #f59e0b 50%, #d97706 100%)',
+                      boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 1px 0 rgba(255,255,255,0.5), 0 3px 6px rgba(0,0,0,0.25)'
+                    }}
+                  >
+                    <span className="drop-shadow-sm">★</span>
                   </div>
                 </div>
-                {/* 角色 */}
-                <div
-                  className="absolute left-0 top-0 z-20 transition-transform duration-75"
-                  style={{
-                    width: CUBE_SIZE,
-                    height: LANE_HEIGHT,
-                    left: Math.max(0, r.x),
-                    top: (LANE_HEIGHT - CUBE_SIZE) / 2,
-                    transform: r.jumpEndAt > performance.now() / 1000 ? 'translateY(-8px)' : undefined
-                  }}
-                >
-                  <RunnerSprite
-                    character={r.character}
-                    isJumping={r.jumpEndAt > performance.now() / 1000}
-                    stunned={r.stunnedUntil > performance.now() / 1000}
-                    shield={r.shieldUntil > performance.now() / 1000}
-                    boost={r.boostUntil > performance.now() / 1000}
-                    size={CUBE_SIZE}
+              )
+            })}
+            {/* 終點：旗桿 + 黑白格紋旗 + GOAL */}
+            <div className="absolute top-0 bottom-0 flex items-end z-[5]" style={{ left: TRACK_LENGTH_PX - 32 }}>
+              <div className="flex flex-col items-start h-full">
+                <div className="text-[8px] font-black text-white bg-gray-900 px-1.5 py-0.5 rounded mb-0.5 border border-amber-600 shadow">GOAL</div>
+                <div className="flex-1 flex items-stretch min-h-[24px]">
+                  <div className="w-1 bg-gradient-to-b from-stone-400 to-stone-600 rounded-full shadow-inner" style={{ boxShadow: 'inset 0 0 2px rgba(0,0,0,0.3)' }} />
+                  <div
+                    className="w-5 flex-shrink-0 border-l-2 border-amber-900/30"
+                    style={{
+                      backgroundImage: 'linear-gradient(90deg, #fff 50%, #1a1a1a 50%), linear-gradient(#fff 50%, #1a1a1a 50%)',
+                      backgroundSize: '3px 3px',
+                      backgroundPosition: '0 0, 1.5px 1.5px',
+                      boxShadow: '2px 0 4px rgba(0,0,0,0.2)'
+                    }}
                   />
                 </div>
               </div>
-            ))}
+            </div>
+            {/* 所有角色同場：依 x 排序繪製（領先者在最前），略錯開 Y 避免完全疊在一起 */}
+            {[...runners]
+              .sort((a, b) => a.x - b.x)
+              .map((r, sortedIndex) => {
+                const now = performance.now() / 1000
+                const runPhase = Math.floor((performance.now() / 1000) * (1000 / RUN_CYCLE_MS)) % 2
+                const baseTop = (TRACK_HEIGHT - CUBE_SIZE) / 2
+                const offsetY = r.id * 5
+                return (
+                  <div
+                    key={r.id}
+                    className="absolute left-0 top-0"
+                    style={{
+                      width: CUBE_SIZE,
+                      height: CUBE_SIZE,
+                      left: Math.max(0, r.x),
+                      top: baseTop + offsetY,
+                      zIndex: 10 + sortedIndex
+                    }}
+                  >
+                    <RunnerSprite
+                      character={r.character}
+                      isJumping={r.jumpEndAt > now}
+                      stunned={r.stunnedUntil > now}
+                      shield={r.shieldUntil > now}
+                      boost={r.boostUntil > now}
+                      size={CUBE_SIZE}
+                      runPhase={runPhase}
+                    />
+                  </div>
+                )
+              })}
           </div>
         </div>
 
