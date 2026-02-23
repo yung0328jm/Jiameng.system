@@ -1129,10 +1129,10 @@ function Calendar() {
         alert('請假排程為自動帶入紀錄，無需編輯。')
         return
       }
+      const segs = getScheduleSegments(selectedDetailItem)
+      const first = segs[0] || {}
       // 填充编辑表单数据（支援多處行程 segments）
       (() => {
-        const segs = getScheduleSegments(selectedDetailItem)
-        const first = segs[0] || {}
         const entries = Array.isArray(first.vehicleEntries) && first.vehicleEntries.length > 0
           ? first.vehicleEntries.map((e) => ({ ...emptyVehicleEntry(), ...e, vehicle: e.vehicle || '' }))
           : (() => {
