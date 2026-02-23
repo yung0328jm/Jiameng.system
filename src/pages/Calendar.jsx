@@ -105,6 +105,7 @@ function Calendar() {
   const scheduleModalBodyRef = useRef(null)
   const changeReqScrollYRef = useRef(0) // 異動申請 Modal 關閉時還原捲動用
   const originalVehicleReturnMileageLockedRef = useRef(new Set()) // 編輯排程時：已有回程里程的車牌（輸入後鎖定，需異動申請才能改）
+  const editFormSyncedRef = useRef(false) // 編輯表單是否已從排程同步過（避免重複覆蓋）
   const emptyVehicleEntry = () => ({
     vehicle: '',
     departureDriver: '',
@@ -637,6 +638,72 @@ function Calendar() {
   useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
 
+  // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
+  useEffect(() => {
+    if (!showScheduleForm || !editingScheduleId) {
+      if (!showScheduleForm) editFormSyncedRef.current = false
+      return
+    }
+    if (editFormSyncedRef.current) return
+    const schedule = schedules.find((s) => String(s?.id) === String(editingScheduleId))
+    if (!schedule || isLeaveScheduleItem(schedule)) return
+    editFormSyncedRef.current = true
+    const segs = getScheduleSegments(schedule)
+    const first = segs[0] || {}
+    const entries = Array.isArray(first.vehicleEntries) && first.vehicleEntries.length > 0
+      ? first.vehicleEntries.map((e) => ({ ...emptyVehicleEntry(), ...e, vehicle: e.vehicle || '' }))
+      : (() => {
+          const vehicleStr = schedule.vehicle || ''
+          return vehicleStr.split(',').map((s) => s.trim()).filter(Boolean).map((v) => ({
+            ...emptyVehicleEntry(),
+            vehicle: v,
+            departureDriver: schedule.departureDriver || '',
+            returnDriver: schedule.returnDriver || '',
+            departureMileage: schedule.departureMileage || '',
+            returnMileage: schedule.returnMileage || '',
+            needRefuel: schedule.needRefuel || false,
+            fuelCost: schedule.fuelCost || '',
+            invoiceReturned: schedule.invoiceReturned || false
+          }))
+        })()
+    setScheduleFormData({
+      siteName: schedule.siteName || '',
+      date: schedule.date || '',
+      isAllDay: schedule.isAllDay !== undefined ? schedule.isAllDay : true,
+      startTime: schedule.startTime || '',
+      endTime: schedule.endTime || '',
+      participants: schedule.participants || '',
+      vehicle: schedule.vehicle || '',
+      vehicleEntries: entries,
+      departureDriver: schedule.departureDriver || '',
+      returnDriver: schedule.returnDriver || '',
+      departureMileage: schedule.departureMileage || '',
+      returnMileage: schedule.returnMileage || '',
+      needRefuel: schedule.needRefuel || false,
+      fuelCost: schedule.fuelCost || '',
+      invoiceReturned: schedule.invoiceReturned || false,
+      workItems: first.workItems || schedule.workItems || [],
+      segments: segs.length > 0 ? segs : undefined,
+      createdBy: schedule.createdBy || '',
+      createdAt: schedule.createdAt || '',
+      tag: schedule.tag || 'blue'
+    })
+    setEditingFormSegmentIndex(0)
+    const baseIds = {}
+    ;(Array.isArray(first.workItems) ? first.workItems : (Array.isArray(schedule.workItems) ? schedule.workItems : [])).forEach((wi) => {
+      const id = String(wi?.id || '').trim()
+      if (id) baseIds[id] = true
+    })
+    setOriginalWorkItemIdMap(baseIds)
+    const vehiclesWithReturnMileage = new Set(
+      (Array.isArray(first.vehicleEntries) ? first.vehicleEntries : [])
+        .filter((e) => e?.returnMileage != null && String(e.returnMileage).trim() !== '')
+        .map((e) => String(e.vehicle || '').trim())
+        .filter(Boolean)
+    )
+    originalVehicleReturnMileageLockedRef.current = vehiclesWithReturnMileage
+  }, [showScheduleForm, editingScheduleId, schedules])
+
   // 点击外部关闭下拉選單
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1129,69 +1196,10 @@ function Calendar() {
         alert('請假排程為自動帶入紀錄，無需編輯。')
         return
       }
-      const segs = getScheduleSegments(selectedDetailItem)
-      const first = segs[0] || {}
-      // 填充编辑表单数据（支援多處行程 segments）
-      (() => {
-        const entries = Array.isArray(first.vehicleEntries) && first.vehicleEntries.length > 0
-          ? first.vehicleEntries.map((e) => ({ ...emptyVehicleEntry(), ...e, vehicle: e.vehicle || '' }))
-          : (() => {
-              const vehicleStr = selectedDetailItem.vehicle || ''
-              return vehicleStr.split(',').map((s) => s.trim()).filter(Boolean).map((v) => ({
-                ...emptyVehicleEntry(),
-                vehicle: v,
-                departureDriver: selectedDetailItem.departureDriver || '',
-                returnDriver: selectedDetailItem.returnDriver || '',
-                departureMileage: selectedDetailItem.departureMileage || '',
-                returnMileage: selectedDetailItem.returnMileage || '',
-                needRefuel: selectedDetailItem.needRefuel || false,
-                fuelCost: selectedDetailItem.fuelCost || '',
-                invoiceReturned: selectedDetailItem.invoiceReturned || false
-              }))
-            })()
-        setScheduleFormData({
-          siteName: selectedDetailItem.siteName || '',
-          date: selectedDetailItem.date || '',
-          isAllDay: selectedDetailItem.isAllDay !== undefined ? selectedDetailItem.isAllDay : true,
-          startTime: selectedDetailItem.startTime || '',
-          endTime: selectedDetailItem.endTime || '',
-          participants: selectedDetailItem.participants || '',
-          vehicle: selectedDetailItem.vehicle || '',
-          vehicleEntries: entries,
-          departureDriver: selectedDetailItem.departureDriver || '',
-          returnDriver: selectedDetailItem.returnDriver || '',
-          departureMileage: selectedDetailItem.departureMileage || '',
-          returnMileage: selectedDetailItem.returnMileage || '',
-          needRefuel: selectedDetailItem.needRefuel || false,
-          fuelCost: selectedDetailItem.fuelCost || '',
-          invoiceReturned: selectedDetailItem.invoiceReturned || false,
-          workItems: first.workItems || selectedDetailItem.workItems || [],
-          segments: segs.length > 0 ? segs : undefined,
-          createdBy: selectedDetailItem.createdBy || '',
-          createdAt: selectedDetailItem.createdAt || '',
-          tag: selectedDetailItem.tag || 'blue'
-        })
-        setEditingFormSegmentIndex(0)
-      })()
-      // 記住「原本就存在」的工作項目 id，避免新加空白項目也被鎖
-      const baseIds = {}
-      ;(Array.isArray(selectedDetailItem.workItems) ? selectedDetailItem.workItems : []).forEach((wi) => {
-        const id = String(wi?.id || '').trim()
-        if (id) baseIds[id] = true
-      })
-      setOriginalWorkItemIdMap(baseIds)
-      // 記住已有回程里程的車牌（輸入後鎖定，需異動申請才能改）
-      const vehiclesWithReturnMileage = new Set(
-        (Array.isArray(first.vehicleEntries) ? first.vehicleEntries : [])
-          .filter((e) => e?.returnMileage != null && String(e.returnMileage).trim() !== '')
-          .map((e) => String(e.vehicle || '').trim())
-          .filter(Boolean)
-      )
-      originalVehicleReturnMileageLockedRef.current = vehiclesWithReturnMileage
-      // 关闭详情弹窗，打开编辑表单
+      // 由 useEffect（編輯表單開啟時）從 schedules 同步表單資料，避免表單空白
+      editFormSyncedRef.current = false
       setShowDetailModal(false)
       setShowScheduleForm(true)
-      // 保存编辑ID
       setEditingScheduleId(selectedDetailItem.id)
     }
   }
