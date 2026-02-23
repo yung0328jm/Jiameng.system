@@ -1182,7 +1182,7 @@ function Calendar() {
       setOriginalWorkItemIdMap(baseIds)
       // 記住已有回程里程的車牌（輸入後鎖定，需異動申請才能改）
       const vehiclesWithReturnMileage = new Set(
-        (Array.isArray(selectedDetailItem.vehicleEntries) ? selectedDetailItem.vehicleEntries : [])
+        (Array.isArray(first.vehicleEntries) ? first.vehicleEntries : [])
           .filter((e) => e?.returnMileage != null && String(e.returnMileage).trim() !== '')
           .map((e) => String(e.vehicle || '').trim())
           .filter(Boolean)
@@ -1611,9 +1611,9 @@ function Calendar() {
       })
     }
 
-    // 多處行程：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments
+    // 多處行程（或單一案場）：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments，並一律寫回
     let segmentsToSave = scheduleFormData.segments
-    if (Array.isArray(segmentsToSave) && segmentsToSave.length > 1) {
+    if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
       segmentsToSave = segmentsToSave.map((s, i) => (i === editingFormSegmentIndex
         ? { ...s, workItems: scheduleFormData.workItems || [], vehicleEntries: scheduleFormData.vehicleEntries || [] }
         : s))
@@ -1630,9 +1630,11 @@ function Calendar() {
         createdBy: scheduleFormData?.createdBy || prev?.createdBy || '',
         createdAt: scheduleFormData?.createdAt || prev?.createdAt || ''
       }
-      if (segmentsToSave && segmentsToSave.length > 1) {
+      if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadEdit.segments = segmentsToSave
-        payloadEdit.siteName = segmentsToSave.map((s) => s.siteName).join('、')
+        payloadEdit.siteName = segmentsToSave.length > 1
+          ? segmentsToSave.map((s) => s.siteName).join('、')
+          : (segmentsToSave[0]?.siteName || payloadEdit.siteName || '')
         payloadEdit.workItems = segmentsToSave.flatMap((s) => s.workItems || [])
       }
       if (entriesEdit.length === 1) {
@@ -1652,9 +1654,11 @@ function Calendar() {
         createdBy: scheduleFormData?.createdBy || currentUser || '',
         vehicleEntries: entriesNew
       }
-      if (segmentsToSave && segmentsToSave.length > 1) {
+      if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadNew.segments = segmentsToSave
-        payloadNew.siteName = segmentsToSave.map((s) => s.siteName).join('、')
+        payloadNew.siteName = segmentsToSave.length > 1
+          ? segmentsToSave.map((s) => s.siteName).join('、')
+          : (segmentsToSave[0]?.siteName || payloadNew.siteName || '')
         payloadNew.workItems = segmentsToSave.flatMap((s) => s.workItems || [])
       }
       if (entriesNew.length === 1) {
