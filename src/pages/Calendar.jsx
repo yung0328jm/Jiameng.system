@@ -2411,11 +2411,11 @@ function Calendar() {
           }}
         >
           <div
-            className={`${selectedDetailType === 'schedule' ? 'bg-blue-900 border-blue-500' : 'bg-charcoal border-yellow-400'} border rounded-lg shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto`}
+            className={`${selectedDetailType === 'schedule' ? 'bg-blue-900 border-blue-500 flex flex-col' : 'bg-charcoal border-yellow-400'} border rounded-lg shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] ${selectedDetailType === 'schedule' ? '' : 'overflow-y-auto'}`}
             // 點擊彈窗本體不收合
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <h3 className={`text-xl font-bold ${selectedDetailType === 'schedule' ? 'text-white' : 'text-yellow-400'}`}>
                 {selectedDetailType === 'topic' ? '主題詳情' : 
                  selectedDetailType === 'schedule' ? '工程排程詳情' : 
@@ -2446,7 +2446,7 @@ function Calendar() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className={`space-y-4 ${selectedDetailType === 'schedule' ? 'flex-1 min-h-0 overflow-y-auto' : ''}`}>
               {selectedDetailType === 'topic' && (
                 <>
                   {/* 主题信息 */}
@@ -2980,30 +2980,7 @@ function Calendar() {
                       </div>
                     )
                   })()}
-                  
-                  {/* 編輯／刪除按鈕：固定 type="button" 並確保可點擊（不被上方捲動區遮擋） */}
-                  {(!isLeaveScheduleItem(selectedDetailItem) || getCurrentUserRole() === 'admin') && (
-                    <div className="flex space-x-3 pt-4 mt-4 border-t border-blue-700 flex-shrink-0 relative z-10">
-                      {!isLeaveScheduleItem(selectedDetailItem) && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleEditSchedule() }}
-                          className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 active:bg-yellow-600 transition-colors touch-manipulation cursor-pointer"
-                        >
-                          編輯
-                        </button>
-                      )}
-                      {getCurrentUserRole() === 'admin' && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteSchedule() }}
-                          className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 active:bg-red-700 transition-colors touch-manipulation cursor-pointer"
-                        >
-                          刪除
-                        </button>
-                      )}
-                    </div>
-                  )}
+
                   {selectedDetailType === 'schedule' && hasPendingChangeRequest(selectedDetailItem) && (
                     <div className="mt-3 bg-purple-600/20 border border-purple-500/40 rounded-lg p-3 text-purple-100 text-sm">
                       此排程有工作項目或回程里程「異動/取消」待審，待審期間暫不列入績效評分。
@@ -3033,6 +3010,30 @@ function Calendar() {
                 </div>
               )}
             </div>
+
+            {/* 排程詳情：編輯／刪除按鈕固定在彈窗底部，不隨內容捲動，確保可點擊 */}
+            {selectedDetailType === 'schedule' && selectedDetailItem && (!isLeaveScheduleItem(selectedDetailItem) || getCurrentUserRole() === 'admin') && (
+              <div className="flex space-x-3 pt-4 mt-4 border-t border-blue-700 flex-shrink-0 bg-blue-900 rounded-b-lg -mb-6 -mx-6 px-6 pb-6">
+                {!isLeaveScheduleItem(selectedDetailItem) && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleEditSchedule(); }}
+                    className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 active:bg-yellow-600 transition-colors touch-manipulation cursor-pointer"
+                  >
+                    編輯
+                  </button>
+                )}
+                {getCurrentUserRole() === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(); }}
+                    className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 active:bg-red-700 transition-colors touch-manipulation cursor-pointer"
+                  >
+                    刪除
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
