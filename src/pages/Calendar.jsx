@@ -2981,21 +2981,23 @@ function Calendar() {
                     )
                   })()}
                   
-                  {/* 编辑和删除按钮 */}
+                  {/* 編輯／刪除按鈕：固定 type="button" 並確保可點擊（不被上方捲動區遮擋） */}
                   {(!isLeaveScheduleItem(selectedDetailItem) || getCurrentUserRole() === 'admin') && (
-                    <div className="flex space-x-3 pt-4 border-t border-blue-700">
+                    <div className="flex space-x-3 pt-4 mt-4 border-t border-blue-700 flex-shrink-0 relative z-10">
                       {!isLeaveScheduleItem(selectedDetailItem) && (
                         <button
-                          onClick={handleEditSchedule}
-                          className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 transition-colors"
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleEditSchedule() }}
+                          className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 active:bg-yellow-600 transition-colors touch-manipulation cursor-pointer"
                         >
                           編輯
                         </button>
                       )}
                       {getCurrentUserRole() === 'admin' && (
                         <button
-                          onClick={handleDeleteSchedule}
-                          className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 transition-colors"
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSchedule() }}
+                          className="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600 active:bg-red-700 transition-colors touch-manipulation cursor-pointer"
                         >
                           刪除
                         </button>
