@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import Home from './Home'
@@ -8,7 +8,6 @@ import Memo from './Memo'
 import CompanyActivities from './CompanyActivities'
 import DropdownManagement from './DropdownManagement'
 import UserManagement from './UserManagement'
-import ProjectDeficiencyTracking from './ProjectDeficiencyTracking'
 import PersonalPerformance from './PersonalPerformance'
 import ExchangeShop from './ExchangeShop'
 import Exchange from './Exchange'
@@ -20,6 +19,8 @@ import Advance from './Advance'
 import Messages from './Messages'
 import MiniGames from './MiniGames'
 import ErrorBoundary from '../components/ErrorBoundary'
+
+const ProjectDeficiencyTracking = lazy(() => import('./ProjectDeficiencyTracking'))
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
 import { getUsers, getPendingAdvances, getAdvancesByAccount } from '../utils/storage'
@@ -814,7 +815,19 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       case 'user-management':
         return <UserManagement />
       case 'deficiency':
-        return <ProjectDeficiencyTracking />
+        return (
+          <div style={{ minHeight: '70vh', background: '#2d2d2d', padding: '1rem', color: '#fff' }}>
+            <Suspense
+              fallback={
+                <p style={{ color: '#facc15', fontSize: '1.25rem', margin: 0 }}>專案管理載入中…</p>
+              }
+            >
+              <ErrorBoundary>
+                <ProjectDeficiencyTracking />
+              </ErrorBoundary>
+            </Suspense>
+          </div>
+        )
       case 'performance':
         return <PersonalPerformance />
       case 'exchange-shop':
@@ -1408,7 +1421,11 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       {/* 內容區：行事曆滿版時減少左右留白，其餘頁面維持間距；底部留安全區域 */}
       <div
         className={`flex-1 min-h-0 overflow-auto py-4 sm:py-6 ${activeTab === 'calendar' ? 'px-0 sm:px-4 md:px-6' : 'px-4 sm:px-6'}`}
-        style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}
+        style={{
+          paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))',
+          minHeight: activeTab === 'deficiency' ? '60vh' : undefined,
+          backgroundColor: activeTab === 'deficiency' ? '#2d2d2d' : undefined
+        }}
       >
         {renderContent()}
       </div>
