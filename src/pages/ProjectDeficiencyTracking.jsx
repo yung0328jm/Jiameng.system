@@ -684,9 +684,12 @@ function ProjectDeficiencyTracking() {
   })
 
   return (
-    <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-[80vh]">
+    <div
+      className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-[80vh]"
+      style={{ backgroundColor: '#1A1A1A', color: '#fff', minHeight: '80vh' }}
+    >
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-yellow-400">專案管理</h2>
+        <h2 className="text-2xl font-bold text-yellow-400" style={{ color: '#facc15' }}>專案管理</h2>
         {!viewingProjectId && (
           <button
             onClick={() => {
