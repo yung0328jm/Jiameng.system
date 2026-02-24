@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { getProjects, saveProject, updateProject, deleteProject } from '../utils/projectStorage'
 import { getProjectRecords, saveProjectRecord, saveAllProjectRecords, updateProjectRecord, deleteProjectRecord } from '../utils/projectRecordStorage'
 import { getSchedules } from '../utils/scheduleStorage'
@@ -1071,6 +1072,7 @@ function ProjectDetailView({
   exitLandscapeView
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
+  const [showSearchFilter, setShowSearchFilter] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
   const [showRepairModal, setShowRepairModal] = useState(false)
   const [repairModalRecord, setRepairModalRecord] = useState(null)
@@ -1147,6 +1149,8 @@ function ProjectDetailView({
         return 'bg-yellow-400'
       case 'completed':
         return 'bg-green-500'
+      case 'unable':
+        return 'bg-gray-500'
       default:
         return 'bg-gray-500'
     }
@@ -1413,18 +1417,29 @@ function ProjectDetailView({
               style={isLandscapeFullscreen ? { minHeight: '100vh', display: 'flex', flexDirection: 'column' } : {}}
             >
         {isLandscapeFullscreen && (
-          <div className="sticky top-0 z-20 flex justify-end p-2 bg-gray-800 border-b border-gray-700">
-            <button
-              type="button"
-              onClick={() => {
-                exitLandscapeView()
-                setShowDeficiencyRecord(false)
-              }}
-              className="bg-gray-600 hover:bg-gray-500 text-yellow-400 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
+          <div className="sticky top-0 z-20 flex flex-wrap justify-end items-center gap-2 p-2 bg-gray-800 border-b border-gray-700">
+            <button type="button" onClick={() => setShowSearchFilter(!showSearchFilter)} className="bg-gray-600 hover:bg-gray-500 text-yellow-400 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              {showSearchFilter ? '收起搜尋' : '搜尋'}
+            </button>
+            {showSearchFilter && (
+              <>
+                <div className="relative">
+                  <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="關鍵字" className="w-28 h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 pr-7 text-white text-sm" />
+                  {searchKeyword && <button type="button" onClick={() => setSearchKeyword('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400">×</button>}
+                </div>
+                <select value={filterRecordStatus} onChange={(e) => setFilterRecordStatus(e.target.value)} className="h-[34px] bg-gray-700 border border-gray-500 rounded px-2 text-white text-sm min-w-[5.5rem]">
+                  <option value="all">全部</option>
+                  <option value="pending">待處理</option>
+                  <option value="in_progress">處理中</option>
+                  <option value="completed">已完成</option>
+                  <option value="unable">無法處理</option>
+                </select>
+                <input type="text" value={filterSubmitter} onChange={(e) => setFilterSubmitter(e.target.value)} placeholder="填單人" className="h-[34px] w-24 bg-gray-700 border border-gray-500 rounded px-2 text-white text-sm" />
+              </>
+            )}
+            <button type="button" onClick={() => { exitLandscapeView(); setShowDeficiencyRecord(false) }} className="bg-gray-600 hover:bg-gray-500 text-yellow-400 font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
               返回
             </button>
           </div>
@@ -1443,6 +1458,11 @@ function ProjectDetailView({
             <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">彙整</button>
             <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">清除</button>
           </div>
+          <button type="button" onClick={() => setShowSearchFilter(!showSearchFilter)} className="shrink-0 bg-gray-700 hover:bg-gray-600 text-yellow-400 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 h-[34px]">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            {showSearchFilter ? '收起' : '搜尋'}
+          </button>
+          {showSearchFilter && (
           <div className="flex items-center gap-2 shrink-0">
             <div className="relative">
               <input
@@ -1461,12 +1481,13 @@ function ProjectDetailView({
             <select
               value={filterRecordStatus}
               onChange={(e) => setFilterRecordStatus(e.target.value)}
-              className="h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-20"
+              className="h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm min-w-[5.5rem]"
             >
               <option value="all">全部</option>
               <option value="pending">待處理</option>
               <option value="in_progress">處理中</option>
               <option value="completed">已完成</option>
+              <option value="unable">無法處理</option>
             </select>
             <input
               type="text"
@@ -1476,6 +1497,7 @@ function ProjectDetailView({
               className="h-[34px] w-24 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400"
             />
           </div>
+          )}
           {!isLandscapeFullscreen && (
             <button type="button" onClick={enterLandscapeView} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0" title="全螢幕橫向觀看">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
@@ -1502,7 +1524,7 @@ function ProjectDetailView({
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-900 border-b-2 border-yellow-400">
                 <th className="w-10 sm:w-12 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">項次</th>
-                <th className="w-20 sm:w-24 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">狀態</th>
+                <th className="min-w-[5.5rem] w-28 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">狀態</th>
                 <th className="min-w-0 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">內容/備註</th>
                 <th className="w-16 sm:w-20 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0 hidden sm:table-cell">填單人</th>
                 <th className="w-16 sm:w-20 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0 hidden sm:table-cell">日期</th>
@@ -1523,18 +1545,19 @@ function ProjectDetailView({
                   return (
                     <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-900">
                       <td className="w-10 sm:w-12 px-2 py-1.5 text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">{record.rowNumber}</td>
-                      <td className="w-20 sm:w-24 px-2 py-1.5 flex-shrink-0">
+                      <td className="min-w-[5.5rem] w-28 px-2 py-1.5 flex-shrink-0">
                         <div className="flex items-center space-x-1">
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotColor(record.status)}`}></div>
                           <select
                             value={record.status}
                             onChange={(e) => onStatusChange(record.id, e.target.value)}
-                            className="bg-gray-700 border border-gray-500 rounded px-1 py-0.5 text-white text-[10px] focus:outline-none focus:border-yellow-400 min-w-0"
+                            className="bg-gray-700 border border-gray-500 rounded px-1.5 py-0.5 text-white text-[10px] sm:text-xs focus:outline-none focus:border-yellow-400 min-w-[5.5rem]"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="pending">待處理</option>
                             <option value="in_progress">處理中</option>
                             <option value="completed">已完成</option>
+                            <option value="unable">無法處理</option>
                           </select>
                         </div>
                       </td>
@@ -1556,7 +1579,7 @@ function ProjectDetailView({
                                 }
                               }}
                               autoFocus
-                              className="flex-1 min-w-0 bg-gray-700 border border-yellow-400 rounded px-1 py-0.5 text-white text-[10px] sm:text-xs focus:outline-none"
+                              className={`flex-1 min-w-0 bg-gray-700 border border-yellow-400 rounded px-1 py-0.5 text-[10px] sm:text-xs focus:outline-none ${record.status === 'unable' ? 'text-red-400' : 'text-white'}`}
                             />
                           </div>
                         ) : (
@@ -1564,7 +1587,7 @@ function ProjectDetailView({
                             <button
                               type="button"
                               onClick={() => openRepairModal(record)}
-                              className="text-left text-white text-[10px] sm:text-xs break-words hover:text-yellow-300 min-w-0 flex-1"
+                              className={`text-left text-[10px] sm:text-xs break-words hover:text-yellow-300 min-w-0 flex-1 ${record.status === 'unable' ? 'text-red-400' : 'text-white'}`}
                               title="點擊查看完整內容/修繕紀錄"
                             >
                               {record.content || '—'}
@@ -1602,8 +1625,12 @@ function ProjectDetailView({
                       <td className="w-14 sm:w-16 px-2 py-1.5 flex-shrink-0">
                         <button
                           type="button"
-                          onClick={() => openRepairModal(record)}
-                          className="w-full flex items-center justify-center gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openRepairModal(record)
+                          }}
+                          onTouchEnd={(e) => e.stopPropagation()}
+                          className="w-full flex items-center justify-center gap-1 cursor-pointer touch-manipulation"
                           title="查看修繕紀錄（第一次/第二次/第三次）"
                         >
                           {['first', 'second', 'third'].map((rev) => {
@@ -1624,14 +1651,14 @@ function ProjectDetailView({
           </div>
       </div>
 
-      {/* 修繕紀錄彈窗：第一次～第三次 */}
-      {showRepairModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 project-no-print" onMouseDown={closeRepairModal}>
-          <div className="w-[92vw] max-w-2xl max-h-[85vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-4" onMouseDown={(e) => e.stopPropagation()}>
+      {/* 修繕紀錄彈窗：用 Portal 掛到 body，全螢幕時也能顯示 */}
+      {showRepairModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 project-no-print" onMouseDown={closeRepairModal} onClick={closeRepairModal}>
+          <div className="w-[92vw] max-w-2xl max-h-[85vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-4" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-yellow-400 font-semibold">修繕紀錄</div>
-                <div className="text-gray-200 text-sm mt-2 break-words whitespace-pre-wrap">
+                <div className={`text-sm mt-2 break-words whitespace-pre-wrap ${repairModalRecord?.status === 'unable' ? 'text-red-400' : 'text-gray-200'}`}>
                   {repairModalRecord?.content || '—'}
                 </div>
               </div>
@@ -1695,7 +1722,8 @@ function ProjectDetailView({
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
