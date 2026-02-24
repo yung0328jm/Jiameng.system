@@ -200,7 +200,9 @@ function ProjectDeficiencyTracking() {
   const refetchDeficiency = () => {
     // 1) 專案清單更新
     const data = getProjects()
-    setProjects((Array.isArray(data) ? [...data] : []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+    const list = Array.isArray(data) ? [...data] : []
+    list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    setProjects(list)
     // 2) 若目前正在看某專案，則同步重讀該專案的缺失表（狀態/進度要即時更新）
     const pid = viewingProjectIdRef.current
     if (pid) {
@@ -321,7 +323,9 @@ function ProjectDeficiencyTracking() {
 
   const loadProjects = () => {
     const data = getProjects()
-    setProjects(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+    const list = Array.isArray(data) ? [...data] : []
+    list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    setProjects(list)
   }
 
   const loadProjectRecords = () => {
@@ -680,7 +684,7 @@ function ProjectDeficiencyTracking() {
   })
 
   return (
-    <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
+    <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-[80vh]">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-yellow-400">專案管理</h2>
         {!viewingProjectId && (
