@@ -87,10 +87,26 @@ function TripReport() {
     setSiteNames(all)
     setAllowedSiteNames(allowed)
     const site = selectedSiteNameRef.current
-    // 允許查看所有案場紀錄；但只允許對「自己參與」案場回報狀態
-    if (site && all.includes(site)) setRecords(getTripReportsByProject(site, todayStr))
+    const fetched = site && all.includes(site) ? getTripReportsByProject(site, todayStr) : []
+    const setRecordsSafe = (next) => {
+      setRecords((prev) => {
+        if (!site || !next.length) return next
+        const prevForSite = Array.isArray(prev) ? prev.filter((r) => (r?.ymd || '').slice(0, 10) === todayStr && r?.projectId === site) : []
+        if (prevForSite.length === 0) return next
+        const byKey = new Map()
+        const key = (r) => `${r?.projectId}\t${r?.ymd || ''}\t${r?.actionType}`
+        ;[...prevForSite, ...next].forEach((r) => {
+          const k = key(r)
+          const t = Date.parse(r?.createdAt || '') || 0
+          const cur = byKey.get(k)
+          if (!cur || t < (Date.parse(cur?.createdAt || '') || 0)) byKey.set(k, r)
+        })
+        const merged = Array.from(byKey.values()).sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+        return merged.length >= next.length ? merged : next
+      })
+    }
+    if (site && all.includes(site)) setRecordsSafe(fetched)
     else if (all.length > 0) {
-      // 若原本選到的案場已不在今日清單，切回第一個案場（可查看）
       setSelectedSiteName(all[0])
       setRecords(getTripReportsByProject(all[0], todayStr))
     } else {
