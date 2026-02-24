@@ -1458,46 +1458,6 @@ function ProjectDetailView({
             <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">彙整</button>
             <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">清除</button>
           </div>
-          <button type="button" onClick={() => setShowSearchFilter(!showSearchFilter)} className="shrink-0 bg-gray-700 hover:bg-gray-600 text-yellow-400 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 h-[34px]">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            {showSearchFilter ? '收起' : '搜尋'}
-          </button>
-          {showSearchFilter && (
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="關鍵字"
-                className="w-28 h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 pr-7 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-              />
-              {searchKeyword && (
-                <button type="button" onClick={() => setSearchKeyword('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              )}
-            </div>
-            <select
-              value={filterRecordStatus}
-              onChange={(e) => setFilterRecordStatus(e.target.value)}
-              className="h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm min-w-[5.5rem]"
-            >
-              <option value="all">全部</option>
-              <option value="pending">待處理</option>
-              <option value="in_progress">處理中</option>
-              <option value="completed">已完成</option>
-              <option value="unable">無法處理</option>
-            </select>
-            <input
-              type="text"
-              value={filterSubmitter}
-              onChange={(e) => setFilterSubmitter(e.target.value)}
-              placeholder="填單人"
-              className="h-[34px] w-24 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400"
-            />
-          </div>
-          )}
           {!isLandscapeFullscreen && (
             <button type="button" onClick={enterLandscapeView} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0" title="全螢幕橫向觀看">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
@@ -1586,7 +1546,11 @@ function ProjectDetailView({
                           <div className="flex items-center gap-1 min-w-0">
                             <button
                               type="button"
-                              onClick={() => openRepairModal(record)}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (isLandscapeFullscreen) await exitLandscapeView()
+                                openRepairModal(record)
+                              }}
                               className={`text-left text-[10px] sm:text-xs break-words hover:text-yellow-300 min-w-0 flex-1 ${record.status === 'unable' ? 'text-red-400' : 'text-white'}`}
                               title="點擊查看完整內容/修繕紀錄"
                             >
@@ -1625,8 +1589,9 @@ function ProjectDetailView({
                       <td className="w-14 sm:w-16 px-2 py-1.5 flex-shrink-0">
                         <button
                           type="button"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation()
+                            if (isLandscapeFullscreen) await exitLandscapeView()
                             openRepairModal(record)
                           }}
                           onTouchEnd={(e) => e.stopPropagation()}
