@@ -892,8 +892,6 @@ function ProjectDeficiencyTracking() {
           records={filteredRecords}
           quickInputText={quickInputText}
           setQuickInputText={setQuickInputText}
-          showFormatHelp={showFormatHelp}
-          setShowFormatHelp={setShowFormatHelp}
           searchKeyword={searchKeyword}
           setSearchKeyword={setSearchKeyword}
           filterRecordStatus={filterRecordStatus}
@@ -1050,8 +1048,6 @@ function ProjectDetailView({
   records,
   quickInputText,
   setQuickInputText,
-  showFormatHelp,
-  setShowFormatHelp,
   searchKeyword,
   setSearchKeyword,
   filterRecordStatus,
@@ -1420,42 +1416,41 @@ function ProjectDetailView({
           <div className="sticky top-0 z-20 flex justify-end p-2 bg-gray-800 border-b border-gray-700">
             <button
               type="button"
-              onClick={exitLandscapeView}
+              onClick={() => {
+                exitLandscapeView()
+                setShowDeficiencyRecord(false)
+              }}
               className="bg-gray-600 hover:bg-gray-500 text-yellow-400 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              退出橫向
+              返回
             </button>
           </div>
         )}
-        {/* 工具列：快速輸入 + 篩選 + 橫向觀看（同區塊） */}
-        <div className="flex flex-wrap items-end gap-2 sm:gap-3 mb-2 p-2 bg-gray-800 border-b border-gray-700 project-no-print">
-          <span className="text-gray-400 text-sm font-medium">表格</span>
-          <div className="flex flex-wrap items-end gap-2 flex-1 min-w-0">
+        {/* 工具列：快速輸入 + 篩選 + 橫向觀看（排列整齊） */}
+        <div className="flex flex-wrap items-center gap-3 mb-2 p-3 bg-gray-800 border-b border-gray-700 project-no-print">
+          <span className="text-gray-400 text-sm font-medium w-10 shrink-0">表格</span>
+          <div className="flex items-center gap-2 flex-1 min-w-0 max-w-md">
             <textarea
               value={quickInputText}
               onChange={(e) => setQuickInputText(e.target.value)}
-              placeholder="快速輸入（換行分筆，// 分隔）"
+              placeholder="快速輸入"
               rows={2}
-              className="flex-1 min-w-[140px] max-w-[240px] bg-gray-700 border border-yellow-400 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-500 resize-y min-h-[52px]"
+              className="flex-1 min-w-[120px] bg-gray-700 border border-yellow-400 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-500 resize-y min-h-[48px]"
             />
-            <button onClick={() => setShowFormatHelp(!showFormatHelp)} className="text-yellow-400 hover:text-yellow-500 text-xs font-semibold shrink-0">說明</button>
-            {showFormatHelp && (
-              <span className="text-xs text-gray-400">每行一筆 · // 分隔</span>
-            )}
-            <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-1.5 rounded text-sm shrink-0">彙整</button>
-            <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-2 py-1.5 rounded text-sm shrink-0">清除</button>
+            <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">彙整</button>
+            <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">清除</button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="relative">
               <input
                 type="text"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 placeholder="關鍵字"
-                className="w-28 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 pr-7 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+                className="w-28 h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 pr-7 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-400"
               />
               {searchKeyword && (
                 <button type="button" onClick={() => setSearchKeyword('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
@@ -1466,7 +1461,7 @@ function ProjectDetailView({
             <select
               value={filterRecordStatus}
               onChange={(e) => setFilterRecordStatus(e.target.value)}
-              className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-20"
+              className="h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-20"
             >
               <option value="all">全部</option>
               <option value="pending">待處理</option>
@@ -1478,7 +1473,7 @@ function ProjectDetailView({
               value={filterSubmitter}
               onChange={(e) => setFilterSubmitter(e.target.value)}
               placeholder="填單人"
-              className="w-24 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400"
+              className="h-[34px] w-24 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400"
             />
           </div>
           {!isLandscapeFullscreen && (
