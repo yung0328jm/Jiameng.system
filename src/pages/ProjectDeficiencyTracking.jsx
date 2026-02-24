@@ -1401,119 +1401,8 @@ function ProjectDetailView({
           </span>
         </div>
 
-        {/* 展開內容 */}
-        <div className={`border-t border-gray-700 p-6 project-deficiency-body ${showDeficiencyRecord ? '' : 'hidden'}`}>
-            {/* 快速輸入區 */}
-      <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-yellow-400">
-        <h3 className="text-lg font-bold text-yellow-400 mb-4">
-          快速輸入區 (請在此輸入缺失記錄)
-        </h3>
-        <textarea
-          value={quickInputText}
-          onChange={(e) => setQuickInputText(e.target.value)}
-          placeholder="請輸入缺失記錄，每行一筆或停用分兩所分子"
-          rows="6"
-          className="w-full bg-gray-700 border-2 border-yellow-400 rounded px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-500 resize-y"
-        />
-        
-        {/* 輸入格式說明 */}
-        <div className="mt-4">
-          <button
-            onClick={() => setShowFormatHelp(!showFormatHelp)}
-            className="text-yellow-400 hover:text-yellow-500 text-sm font-semibold flex items-center space-x-1"
-          >
-            <span>輸入格式說明:</span>
-            <svg
-              className={`w-4 h-4 transition-transform ${showFormatHelp ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {showFormatHelp && (
-            <div className="mt-2 p-4 bg-gray-900 rounded border border-gray-700 text-sm text-gray-300">
-              <p className="mb-2">• 每行輸入一筆記錄</p>
-              <p className="mb-2">• 可使用關鍵字：使用、經、分詞、錯誤、時間、地點、人員等</p>
-              <p className="mb-2">• 如需分隔多個項目，可使用 // 分隔</p>
-              <p>• 範例：缺失項目1 // 缺失項目2</p>
-            </div>
-          )}
-        </div>
-
-        {/* 按鈕 */}
-        <div className="flex space-x-3 mt-4">
-          <button
-            onClick={onConsolidateInput}
-            className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-6 py-2 rounded-lg transition-colors flex items-center space-x-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span>彙整輸入</span>
-          </button>
-          <button
-            onClick={onClearInput}
-            className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
-          >
-            清除輸入
-          </button>
-        </div>
-      </div>
-
-            {/* 搜索與篩選 */}
-            <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700 project-no-print">
-        <h3 className="text-lg font-bold text-yellow-400 mb-4">搜索與篩選</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-gray-300 text-sm mb-2">關鍵字搜尋</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="輸入關鍵字搜尋 (內容、人員、日期等)"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 pr-10"
-              />
-              {searchKeyword && (
-                <button
-                  onClick={() => setSearchKeyword('')}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-          <div>
-            <label className="block text-gray-300 text-sm mb-2">狀態</label>
-            <select
-              value={filterRecordStatus}
-              onChange={(e) => setFilterRecordStatus(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-400"
-            >
-              <option value="all">全部狀態</option>
-              <option value="pending">待處理</option>
-              <option value="in_progress">處理中</option>
-              <option value="completed">已完成</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-gray-300 text-sm mb-2">填單人或修改人員</label>
-            <input
-              type="text"
-              value={filterSubmitter}
-              onChange={(e) => setFilterSubmitter(e.target.value)}
-              placeholder="請輸入人員名稱"
-              className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-            />
-          </div>
-        </div>
-      </div>
-
+        {/* 展開內容：直接橫向表格，工具列放快速輸入+篩選+橫向觀看 */}
+        <div className={`border-t border-gray-700 p-4 project-deficiency-body ${showDeficiencyRecord ? '' : 'hidden'}`}>
             {/* 數據表格（列印時只顯示這塊） */}
             <div
               ref={deficiencyTableFullscreenRef}
@@ -1534,19 +1423,63 @@ function ProjectDetailView({
             </button>
           </div>
         )}
-        <div className="flex items-center justify-between gap-2 mb-2 project-no-print">
-          <span className="text-gray-400 text-sm">表格</span>
-          <button
-            type="button"
-            onClick={enterLandscapeView}
-            className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-            title="全螢幕橫向觀看，方便手機閱讀"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
-            橫向觀看
-          </button>
+        {/* 工具列：快速輸入 + 篩選 + 橫向觀看（同區塊） */}
+        <div className="flex flex-wrap items-end gap-2 sm:gap-3 mb-2 p-2 bg-gray-800 border-b border-gray-700 project-no-print">
+          <span className="text-gray-400 text-sm font-medium">表格</span>
+          <div className="flex flex-wrap items-end gap-2 flex-1 min-w-0">
+            <textarea
+              value={quickInputText}
+              onChange={(e) => setQuickInputText(e.target.value)}
+              placeholder="快速輸入（換行分筆，// 分隔）"
+              rows={2}
+              className="flex-1 min-w-[140px] max-w-[240px] bg-gray-700 border border-yellow-400 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-500 resize-y min-h-[52px]"
+            />
+            <button onClick={() => setShowFormatHelp(!showFormatHelp)} className="text-yellow-400 hover:text-yellow-500 text-xs font-semibold shrink-0">說明</button>
+            {showFormatHelp && (
+              <span className="text-xs text-gray-400">每行一筆 · // 分隔</span>
+            )}
+            <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-2 py-1.5 rounded text-sm shrink-0">彙整</button>
+            <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-2 py-1.5 rounded text-sm shrink-0">清除</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                placeholder="關鍵字"
+                className="w-28 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 pr-7 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-400"
+              />
+              {searchKeyword && (
+                <button type="button" onClick={() => setSearchKeyword('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+            <select
+              value={filterRecordStatus}
+              onChange={(e) => setFilterRecordStatus(e.target.value)}
+              className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm w-20"
+            >
+              <option value="all">全部</option>
+              <option value="pending">待處理</option>
+              <option value="in_progress">處理中</option>
+              <option value="completed">已完成</option>
+            </select>
+            <input
+              type="text"
+              value={filterSubmitter}
+              onChange={(e) => setFilterSubmitter(e.target.value)}
+              placeholder="填單人"
+              className="w-24 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400"
+            />
+          </div>
+          {!isLandscapeFullscreen && (
+            <button type="button" onClick={enterLandscapeView} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0" title="全螢幕橫向觀看">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+              橫向觀看
+            </button>
+          )}
         </div>
         <div className="project-print-only mb-3">
           <div className="text-lg font-bold">專案管理表格：{project?.name || ''}</div>
@@ -1556,16 +1489,14 @@ function ProjectDetailView({
           <div className="text-xs mt-1">列印時間：{new Date().toLocaleString('zh-TW')}</div>
         </div>
         <div
-          className={`print-table-wrap overflow-x-auto overflow-y-auto ${!isLandscapeFullscreen ? 'max-w-4xl' : ''}`}
+          className="print-table-wrap overflow-x-auto overflow-y-auto"
           style={
             isLandscapeFullscreen
               ? { maxHeight: 'none', flex: '1', minHeight: 0 }
               : { maxHeight: '60vh' }
           }
         >
-          <table
-            className={`w-full min-w-0 ${isLandscapeFullscreen ? 'table-fixed' : 'table-auto'}`}
-          >
+          <table className="w-full min-w-0 table-fixed">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-900 border-b-2 border-yellow-400">
                 <th className="w-10 sm:w-12 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">項次</th>
