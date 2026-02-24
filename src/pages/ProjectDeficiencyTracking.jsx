@@ -911,6 +911,10 @@ function ProjectDeficiencyTracking() {
           onUpdateProject={updateProject}
           onLoadProjects={loadProjects}
           getStatusColor={getStatusColor}
+          deficiencyTableFullscreenRef={deficiencyTableFullscreenRef}
+          isLandscapeFullscreen={isLandscapeFullscreen}
+          enterLandscapeView={enterLandscapeView}
+          exitLandscapeView={exitLandscapeView}
         />
       )}
 
@@ -1064,7 +1068,11 @@ function ProjectDetailView({
   onStatusChange,
   onUpdateProject,
   onLoadProjects,
-  getStatusColor
+  getStatusColor,
+  deficiencyTableFullscreenRef,
+  isLandscapeFullscreen,
+  enterLandscapeView,
+  exitLandscapeView
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
