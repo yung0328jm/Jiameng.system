@@ -67,27 +67,43 @@ export function subscribeRealtime(onUpdate) {
     return merged.slice(-500)
   }
 
-  // 行程回報合併去重（避免多人/多裝置寫入造成被覆蓋而「狀態回復」）
+  // 行程回報合併：同一案場+同一日+同一動作只保留「第一次」時間（最早 createdAt），避免被覆蓋回朔
   let lastTripHealAt = 0
   let lastTripHealSig = ''
+  function ymdOf(r) {
+    const y = String(r?.ymd || '').trim()
+    if (y) return y
+    try {
+      const d = new Date(r?.createdAt || '')
+      const pad = (n) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    } catch (_) {
+      return ''
+    }
+  }
   function mergeTripReports(existingArr, incomingArr) {
     const a = Array.isArray(existingArr) ? existingArr : []
     const b = Array.isArray(incomingArr) ? incomingArr : []
-    const byId = new Map()
+    const byKey = new Map()
+    function key(r) {
+      const pid = String(r?.projectId || '').trim()
+      const ymd = ymdOf(r)
+      const action = String(r?.actionType || '').trim()
+      return `${pid}\n${ymd}\n${action}`
+    }
     ;[...a, ...b].forEach((r) => {
-      const id = String(r?.id || '').trim()
-      if (!id) return
-      const prev = byId.get(id)
+      const k = key(r)
+      if (!k.replace(/\n/g, '')) return
+      const prev = byKey.get(k)
+      const t = Date.parse(r?.createdAt || '') || 0
       if (!prev) {
-        byId.set(id, r)
+        byKey.set(k, r)
         return
       }
-      const ta = Date.parse(prev?.createdAt || '') || 0
-      const tb = Date.parse(r?.createdAt || '') || 0
-      byId.set(id, tb >= ta ? r : prev)
+      const tPrev = Date.parse(prev?.createdAt || '') || 0
+      if (t < tPrev) byKey.set(k, r)
     })
-    const merged = Array.from(byId.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
-    // 防爆：最多保留 5000 筆
+    const merged = Array.from(byKey.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
     return merged.slice(-5000)
   }
 

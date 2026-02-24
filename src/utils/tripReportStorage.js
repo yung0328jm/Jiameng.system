@@ -13,10 +13,28 @@ const ymdLocal = (iso) => {
   }
 }
 
+/** 同一案場+同一日+同一動作只保留「第一次」時間（最早 createdAt） */
+function normalizeTripReports(list) {
+  const arr = Array.isArray(list) ? list : []
+  const byKey = new Map()
+  arr.forEach((r) => {
+    const pid = String(r?.projectId || '').trim()
+    const ymd = String(r?.ymd || '').trim() || ymdLocal(r?.createdAt || '')
+    const action = String(r?.actionType || '').trim()
+    const k = `${pid}\t${ymd}\t${action}`
+    if (!pid || !ymd || !action) return
+    const prev = byKey.get(k)
+    const t = Date.parse(r?.createdAt || '') || 0
+    if (!prev || t < (Date.parse(prev?.createdAt || '') || 0)) byKey.set(k, r)
+  })
+  return Array.from(byKey.values()).sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+}
+
 function loadAll() {
   try {
     const raw = localStorage.getItem(TRIP_REPORT_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
+    const list = raw ? JSON.parse(raw) : []
+    return normalizeTripReports(list)
   } catch (e) {
     console.error('tripReportStorage loadAll', e)
     return []
@@ -25,7 +43,8 @@ function loadAll() {
 
 function saveAll(list) {
   try {
-    const val = JSON.stringify(list)
+    const normalized = normalizeTripReports(list)
+    const val = JSON.stringify(normalized)
     localStorage.setItem(TRIP_REPORT_STORAGE_KEY, val)
     syncKeyToSupabase(TRIP_REPORT_STORAGE_KEY, val)
     return true
