@@ -1555,10 +1555,17 @@ function ProjectDetailView({
           </div>
           <div className="text-xs mt-1">列印時間：{new Date().toLocaleString('zh-TW')}</div>
         </div>
-        <div className="print-table-wrap overflow-x-auto max-h-[60vh] overflow-y-auto"
-             style={isLandscapeFullscreen ? { maxHeight: 'none', flex: '1', minHeight: 0 } : {}}
+        <div
+          className={`print-table-wrap overflow-x-auto overflow-y-auto ${!isLandscapeFullscreen ? 'max-w-4xl' : ''}`}
+          style={
+            isLandscapeFullscreen
+              ? { maxHeight: 'none', flex: '1', minHeight: 0 }
+              : { maxHeight: '60vh' }
+          }
         >
-          <table className="w-full table-fixed min-w-0">
+          <table
+            className={`w-full min-w-0 ${isLandscapeFullscreen ? 'table-fixed' : 'table-auto'}`}
+          >
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-900 border-b-2 border-yellow-400">
                 <th className="w-10 sm:w-12 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">項次</th>
