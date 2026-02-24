@@ -1086,6 +1086,13 @@ function ProjectDetailView({
     totalMileage: ''
   })
 
+  // 展開案場缺失記錄後，常態以橫向全螢幕顯示
+  useEffect(() => {
+    if (showDeficiencyRecord && typeof enterLandscapeView === 'function') {
+      enterLandscapeView()
+    }
+  }, [showDeficiencyRecord])
+
   const handlePrint = () => {
     try {
       window.print()
