@@ -529,10 +529,14 @@ function ProjectDeficiencyTracking() {
   }
 
   const handleDeleteRecord = (recordId) => {
+    const wasFullscreen = isLandscapeFullscreen
     if (window.confirm('確定要刪除此記錄嗎？')) {
       const result = deleteProjectRecord(viewingProjectId, recordId)
       if (result.success) {
         loadProjectRecords()
+        if (wasFullscreen) {
+          setTimeout(() => enterLandscapeView(), 100)
+        }
       } else {
         alert(result.message || '刪除失敗')
       }
