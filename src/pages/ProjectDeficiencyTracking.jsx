@@ -37,12 +37,89 @@ function ProjectDeficiencyTracking() {
   const [editingField, setEditingField] = useState(null) // {recordId, field, revision}
   const [filterProjectStatus, setFilterProjectStatus] = useState('all') // all, planning, in_progress, completed, on_hold
   const [editingProjectStatusId, setEditingProjectStatusId] = useState(null) // 正在編輯狀態的專案ID
+  const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false)
+
+  const deficiencyTableFullscreenRef = useRef(null)
 
   // Realtime callback 會用到：避免閉包拿到舊 viewingProjectId
   const viewingProjectIdRef = useRef(null)
   useEffect(() => {
     viewingProjectIdRef.current = viewingProjectId
   }, [viewingProjectId])
+
+  // 橫向觀看：全螢幕 + 鎖定橫向，方便手機閱讀缺失表
+  const enterLandscapeView = async () => {
+    const el = deficiencyTableFullscreenRef.current
+    if (!el) return
+    try {
+      if (el.requestFullscreen) {
+        await el.requestFullscreen()
+      } else if (el.webkitRequestFullscreen) {
+        await el.webkitRequestFullscreen()
+      } else if (el.msRequestFullscreen) {
+        await el.msRequestFullscreen()
+      } else {
+        alert('您的裝置不支援全螢幕，請手動將手機轉為橫向')
+        return
+      }
+      setIsLandscapeFullscreen(true)
+      if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.lock) {
+        try {
+          await screen.orientation.lock('landscape')
+        } catch (_) {
+          // 部分瀏覽器需先全螢幕才可 lock，或僅支援部分模式
+        }
+      }
+    } catch (e) {
+      console.warn('橫向觀看失敗', e)
+      alert('無法切換橫向，請手動將手機轉為橫向後重新整理')
+    }
+  }
+  const exitLandscapeView = async () => {
+    try {
+      const doc = document
+      if (doc.exitFullscreen) {
+        await doc.exitFullscreen()
+      } else if (doc.webkitExitFullscreen) {
+        await doc.webkitExitFullscreen()
+      } else if (doc.msExitFullscreen) {
+        await doc.msExitFullscreen()
+      }
+      setIsLandscapeFullscreen(false)
+      if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.unlock) {
+        try {
+          screen.orientation.unlock()
+        } catch (_) {}
+      }
+    } catch (e) {
+      setIsLandscapeFullscreen(false)
+    }
+  }
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const isFull = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement
+      )
+      if (!isFull) {
+        setIsLandscapeFullscreen(false)
+        if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.unlock) {
+          try {
+            screen.orientation.unlock()
+          } catch (_) {}
+        }
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+    document.addEventListener('MSFullscreenChange', onFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+      document.removeEventListener('MSFullscreenChange', onFullscreenChange)
+    }
+  }, [])
 
   // 備援即時同步：有些裝置收不到 Realtime（或 app_data RLS/省電造成延遲）
   // 策略：針對「當前專案」的 per-project key，每 1 秒只抓 updated_at（timestamp），變更才抓整包 data
@@ -1423,7 +1500,39 @@ function ProjectDetailView({
       </div>
 
             {/* 數據表格（列印時只顯示這塊） */}
-            <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 project-print-area">
+            <div
+              ref={deficiencyTableFullscreenRef}
+              className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 project-print-area relative"
+              style={isLandscapeFullscreen ? { minHeight: '100vh', display: 'flex', flexDirection: 'column' } : {}}
+            >
+        {isLandscapeFullscreen && (
+          <div className="sticky top-0 z-20 flex justify-end p-2 bg-gray-800 border-b border-gray-700">
+            <button
+              type="button"
+              onClick={exitLandscapeView}
+              className="bg-gray-600 hover:bg-gray-500 text-yellow-400 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              退出橫向
+            </button>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-2 mb-2 project-no-print">
+          <span className="text-gray-400 text-sm">表格</span>
+          <button
+            type="button"
+            onClick={enterLandscapeView}
+            className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            title="全螢幕橫向觀看，方便手機閱讀"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+            橫向觀看
+          </button>
+        </div>
         <div className="project-print-only mb-3">
           <div className="text-lg font-bold">專案管理表格：{project?.name || ''}</div>
           <div className="text-sm mt-1">
@@ -1431,16 +1540,18 @@ function ProjectDetailView({
           </div>
           <div className="text-xs mt-1">列印時間：{new Date().toLocaleString('zh-TW')}</div>
         </div>
-        <div className="print-table-wrap overflow-x-auto max-h-[60vh] overflow-y-auto">
-          <table className="w-full">
+        <div className="print-table-wrap overflow-x-auto max-h-[60vh] overflow-y-auto"
+             style={isLandscapeFullscreen ? { maxHeight: 'none', flex: '1', minHeight: 0 } : {}}
+        >
+          <table className="w-full table-fixed min-w-0">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-900 border-b-2 border-yellow-400">
-                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">項次</th>
-                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">狀態</th>
-                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">內容/備註</th>
-                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">填單人</th>
-                <th className="px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">日期</th>
-                <th className="px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs">是否修繕過</th>
+                <th className="w-10 sm:w-12 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">項次</th>
+                <th className="w-20 sm:w-24 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">狀態</th>
+                <th className="min-w-0 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs">內容/備註</th>
+                <th className="w-16 sm:w-20 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0 hidden sm:table-cell">填單人</th>
+                <th className="w-16 sm:w-20 px-2 py-1.5 text-left text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0 hidden sm:table-cell">日期</th>
+                <th className="w-14 sm:w-16 px-2 py-1.5 text-center text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">是否修繕過</th>
               </tr>
             </thead>
             <tbody>
@@ -1456,14 +1567,14 @@ function ProjectDetailView({
 
                   return (
                     <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-900">
-                      <td className="px-2 py-1.5 text-yellow-400 font-semibold text-[10px] sm:text-xs">{record.rowNumber}</td>
-                      <td className="px-2 py-1.5">
+                      <td className="w-10 sm:w-12 px-2 py-1.5 text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">{record.rowNumber}</td>
+                      <td className="w-20 sm:w-24 px-2 py-1.5 flex-shrink-0">
                         <div className="flex items-center space-x-1">
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotColor(record.status)}`}></div>
                           <select
                             value={record.status}
                             onChange={(e) => onStatusChange(record.id, e.target.value)}
-                            className="bg-gray-700 border border-gray-500 rounded px-1 py-0.5 text-white text-[10px] focus:outline-none focus:border-yellow-400"
+                            className="bg-gray-700 border border-gray-500 rounded px-1 py-0.5 text-white text-[10px] focus:outline-none focus:border-yellow-400 min-w-0"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="pending">待處理</option>
@@ -1472,9 +1583,9 @@ function ProjectDetailView({
                           </select>
                         </div>
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-1.5 min-w-0">
                         {isEditingContent ? (
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center space-x-1 min-w-0">
                             <input
                               type="text"
                               defaultValue={record.content}
@@ -1494,11 +1605,11 @@ function ProjectDetailView({
                             />
                           </div>
                         ) : (
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center gap-1 min-w-0">
                             <button
                               type="button"
                               onClick={() => openRepairModal(record)}
-                              className="text-left text-white text-[10px] sm:text-xs whitespace-nowrap hover:text-yellow-300"
+                              className="text-left text-white text-[10px] sm:text-xs break-words hover:text-yellow-300 min-w-0 flex-1"
                               title="點擊查看完整內容/修繕紀錄"
                             >
                               {record.content || '—'}
@@ -1517,7 +1628,7 @@ function ProjectDetailView({
                                 e.stopPropagation()
                                 onDeleteRecord(record.id)
                               }}
-                              className="project-no-print text-red-400 hover:text-red-300 flex-shrink-0 ml-1"
+                              className="project-no-print text-red-400 hover:text-red-300 flex-shrink-0"
                               title="刪除缺失"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1526,10 +1637,14 @@ function ProjectDetailView({
                             </button>
                           </div>
                         )}
+                        {/* 手機版：填單人、日期顯示在內容下方 */}
+                        <div className="sm:hidden text-[10px] text-gray-400 mt-0.5">
+                          {record.submitter ? getDisplayNameForAccount(record.submitter) : '—'} · {record.date || '—'}
+                        </div>
                       </td>
-                      <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.submitter ? getDisplayNameForAccount(record.submitter) : '—'}</td>
-                      <td className="px-2 py-1.5 text-white text-[10px] sm:text-xs">{record.date || '—'}</td>
-                      <td className="px-2 py-1.5">
+                      <td className="w-16 sm:w-20 px-2 py-1.5 text-white text-[10px] sm:text-xs hidden sm:table-cell">{record.submitter ? getDisplayNameForAccount(record.submitter) : '—'}</td>
+                      <td className="w-16 sm:w-20 px-2 py-1.5 text-white text-[10px] sm:text-xs hidden sm:table-cell">{record.date || '—'}</td>
+                      <td className="w-14 sm:w-16 px-2 py-1.5 flex-shrink-0">
                         <button
                           type="button"
                           onClick={() => openRepairModal(record)}
