@@ -1546,9 +1546,8 @@ function ProjectDetailView({
                           <div className="flex items-center gap-1 min-w-0">
                             <button
                               type="button"
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation()
-                                if (isLandscapeFullscreen) await exitLandscapeView()
                                 openRepairModal(record)
                               }}
                               className={`text-left text-[10px] sm:text-xs break-words hover:text-yellow-300 min-w-0 flex-1 ${record.status === 'unable' ? 'text-red-400' : 'text-white'}`}
@@ -1589,9 +1588,8 @@ function ProjectDetailView({
                       <td className="w-14 sm:w-16 px-2 py-1.5 flex-shrink-0">
                         <button
                           type="button"
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation()
-                            if (isLandscapeFullscreen) await exitLandscapeView()
                             openRepairModal(record)
                           }}
                           onTouchEnd={(e) => e.stopPropagation()}
@@ -1616,80 +1614,85 @@ function ProjectDetailView({
           </div>
       </div>
 
-      {/* 修繕紀錄彈窗：用 Portal 掛到 body，全螢幕時也能顯示 */}
-      {showRepairModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 project-no-print" onMouseDown={closeRepairModal} onClick={closeRepairModal}>
-          <div className="w-[92vw] max-w-2xl max-h-[85vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-4" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-yellow-400 font-semibold">修繕紀錄</div>
-                <div className={`text-sm mt-2 break-words whitespace-pre-wrap ${repairModalRecord?.status === 'unable' ? 'text-red-400' : 'text-gray-200'}`}>
-                  {repairModalRecord?.content || '—'}
-                </div>
-              </div>
-              <button type="button" onClick={closeRepairModal} className="shrink-0 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded">
-                關閉
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {['first', 'second', 'third'].map((revision, idx) => {
-                const rev = repairModalRecord?.revisions?.[revision] || {}
-                const isEditingProgress = editingField?.recordId === repairModalRecord?.id && editingField?.field === 'progress' && editingField?.revision === revision
-                const title = idx === 0 ? '第一次修繕' : (idx === 1 ? '第二次修繕' : '第三次修繕')
-                return (
-                  <div key={revision} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-white font-semibold text-sm">{title}</div>
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${hasRepair(repairModalRecord, revision) ? 'bg-green-400' : 'bg-gray-600'}`} />
-                        <span className="text-gray-400 text-xs">{hasRepair(repairModalRecord, revision) ? '已修繕' : '未修繕'}</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2 text-xs">
-                      <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
-                        <div className="text-gray-400 mb-1">修改人員</div>
-                        <div className="text-white break-all">{rev.modifier ? getDisplayNameForAccount(rev.modifier) : '—'}</div>
-                      </div>
-                      <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
-                        <div className="text-gray-400 mb-1">進度</div>
-                        {isEditingProgress ? (
-                          <input
-                            type="text"
-                            defaultValue={rev.progress}
-                            onBlur={(e) => onSaveField(repairModalRecord.id, 'progress', e.target.value, revision)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') onSaveField(repairModalRecord.id, 'progress', e.target.value, revision)
-                              if (e.key === 'Escape') onEditField(null, null)
-                            }}
-                            autoFocus
-                            className="w-full bg-gray-700 border border-yellow-400 rounded px-2 py-1 text-white text-xs focus:outline-none"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className="w-full text-left text-white hover:text-yellow-300"
-                            onClick={() => onEditField(repairModalRecord.id, 'progress', revision)}
-                            title="點擊編輯進度"
-                          >
-                            {String(rev.progress || '').trim() ? rev.progress : '點擊填寫進度'}
-                          </button>
-                        )}
-                      </div>
-                      <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
-                        <div className="text-gray-400 mb-1">日期</div>
-                        <div className="text-white break-all">{rev.date || '—'}</div>
-                      </div>
-                    </div>
+      {/* 修繕紀錄彈窗：全螢幕時 portal 到全螢幕容器內才能顯示在最上層，否則 portal 到 body */}
+      {showRepairModal && typeof document !== 'undefined' && (() => {
+        const modalContent = (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 project-no-print" onMouseDown={closeRepairModal} onClick={closeRepairModal}>
+            <div className="w-[92vw] max-w-2xl max-h-[85vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-4" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-yellow-400 font-semibold">修繕紀錄</div>
+                  <div className={`text-sm mt-2 break-words whitespace-pre-wrap ${repairModalRecord?.status === 'unable' ? 'text-red-400' : 'text-gray-200'}`}>
+                    {repairModalRecord?.content || '—'}
                   </div>
-                )
-              })}
+                </div>
+                <button type="button" onClick={closeRepairModal} className="shrink-0 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded">
+                  關閉
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {['first', 'second', 'third'].map((revision, idx) => {
+                  const rev = repairModalRecord?.revisions?.[revision] || {}
+                  const isEditingProgress = editingField?.recordId === repairModalRecord?.id && editingField?.field === 'progress' && editingField?.revision === revision
+                  const title = idx === 0 ? '第一次修繕' : (idx === 1 ? '第二次修繕' : '第三次修繕')
+                  return (
+                    <div key={revision} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-white font-semibold text-sm">{title}</div>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-block w-2.5 h-2.5 rounded-full ${hasRepair(repairModalRecord, revision) ? 'bg-green-400' : 'bg-gray-600'}`} />
+                          <span className="text-gray-400 text-xs">{hasRepair(repairModalRecord, revision) ? '已修繕' : '未修繕'}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2 text-xs">
+                        <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
+                          <div className="text-gray-400 mb-1">修改人員</div>
+                          <div className="text-white break-all">{rev.modifier ? getDisplayNameForAccount(rev.modifier) : '—'}</div>
+                        </div>
+                        <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
+                          <div className="text-gray-400 mb-1">進度</div>
+                          {isEditingProgress ? (
+                            <input
+                              type="text"
+                              defaultValue={rev.progress}
+                              onBlur={(e) => onSaveField(repairModalRecord.id, 'progress', e.target.value, revision)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') onSaveField(repairModalRecord.id, 'progress', e.target.value, revision)
+                                if (e.key === 'Escape') onEditField(null, null)
+                              }}
+                              autoFocus
+                              className="w-full bg-gray-700 border border-yellow-400 rounded px-2 py-1 text-white text-xs focus:outline-none"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="w-full text-left text-white hover:text-yellow-300"
+                              onClick={() => onEditField(repairModalRecord.id, 'progress', revision)}
+                              title="點擊編輯進度"
+                            >
+                              {String(rev.progress || '').trim() ? rev.progress : '點擊填寫進度'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="bg-gray-900/40 border border-gray-700 rounded p-2">
+                          <div className="text-gray-400 mb-1">日期</div>
+                          <div className="text-white break-all">{rev.date || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
-        </div>,
-        document.body
-      )}
+        )
+        const container = (isLandscapeFullscreen && deficiencyTableFullscreenRef.current)
+          ? deficiencyTableFullscreenRef.current
+          : document.body
+        return createPortal(modalContent, container)
+      })()}
     </div>
   )
 }
