@@ -42,6 +42,65 @@ function ProjectDeficiencyTracking() {
 
   const deficiencyTableFullscreenRef = useRef(null)
 
+  /**
+   * 從缺失內容解析排序用鍵值，例：「監視器-A棟2F01-(問題)」
+   * - 第一個「-」前：類型（如 監視器）
+   * - 第一個「-」與第二個「-」之間：棟別樓層或位置（如 A棟2F01）
+   */
+  const getSortKeysFromContent = (content) => {
+    if (!content || typeof content !== 'string') {
+      return { type: '', building: '', floor: -1, locationRaw: '' }
+    }
+    const parts = content.split('-').map(p => p.trim())
+    const type = (parts[0] || '').trim()
+    const locationSegment = (parts[1] || '').trim()
+
+    let building = ''
+    const dongMatch = locationSegment.match(/([A-Za-z])棟|棟\s*([A-Za-z])/i)
+    if (dongMatch) {
+      building = (dongMatch[1] || dongMatch[2] || '').toUpperCase()
+    } else if (/棟/.test(locationSegment)) {
+      const beforeDong = locationSegment.split('棟')[0].trim()
+      if (beforeDong.length >= 1) building = beforeDong.slice(-1).toUpperCase()
+    }
+
+    let floor = -1
+    const floorMatch = locationSegment.match(/(\d+)\s*[Ff樓層]|[Ff]\s*(\d+)|(\d+)\s*樓|(\d+)\s*層/)
+    if (floorMatch) {
+      const num = floorMatch[1] || floorMatch[2] || floorMatch[3] || floorMatch[4] || '0'
+      floor = parseInt(num, 10)
+    }
+    if (isNaN(floor)) floor = -1
+
+    return { type, building, floor, locationRaw: locationSegment }
+  }
+
+  /** 依「狀態（已完成排最下）→ 類型 → 棟別 → 樓層 → 位置字串」自動排序缺失記錄 */
+  const sortDeficiencyRecords = (records) => {
+    if (!Array.isArray(records)) return []
+    return [...records].sort((a, b) => {
+      const aCompleted = a.status === 'completed'
+      const bCompleted = b.status === 'completed'
+      if (aCompleted !== bCompleted) return aCompleted ? 1 : -1
+      const keyA = getSortKeysFromContent(a.content)
+      const keyB = getSortKeysFromContent(b.content)
+      if (keyA.type !== keyB.type) {
+        return (keyA.type || '').localeCompare(keyB.type || '', 'zh-Hant')
+      }
+      if (keyA.building !== keyB.building) {
+        if (!keyA.building) return 1
+        if (!keyB.building) return -1
+        return keyA.building.localeCompare(keyB.building)
+      }
+      if (keyA.floor !== keyB.floor) {
+        if (keyA.floor < 0) return 1
+        if (keyB.floor < 0) return -1
+        return keyA.floor - keyB.floor
+      }
+      return (keyA.locationRaw || '').localeCompare(keyB.locationRaw || '', 'zh-Hant')
+    })
+  }
+
   // Realtime callback 會用到：避免閉包拿到舊 viewingProjectId
   const viewingProjectIdRef = useRef(null)
   useEffect(() => {
@@ -331,7 +390,14 @@ function ProjectDeficiencyTracking() {
 
   const loadProjectRecords = () => {
     if (!viewingProjectId) return
-    const data = getProjectRecords(viewingProjectId)
+    let data = getProjectRecords(viewingProjectId) || []
+    const sorted = sortDeficiencyRecords(data)
+    const orderChanged = sorted.length > 0 && sorted.map(r => r.id).join(',') !== data.map(r => r.id).join(',')
+    if (orderChanged) {
+      sorted.forEach((record, index) => { record.rowNumber = index + 1 })
+      saveAllProjectRecords(viewingProjectId, sorted)
+      data = sorted
+    }
     setProjectRecords(data)
   }
 
@@ -458,13 +524,14 @@ function ProjectDeficiencyTracking() {
 
     const newRecords = parseQuickInput(quickInputText)
     const allRecords = [...projectRecords, ...newRecords]
-    
-    // 重新編號
-    allRecords.forEach((record, index) => {
+    const sortedRecords = sortDeficiencyRecords(allRecords)
+
+    // 依排序結果重新編號後儲存
+    sortedRecords.forEach((record, index) => {
       record.rowNumber = index + 1
     })
 
-    const result = saveAllProjectRecords(viewingProjectId, allRecords)
+    const result = saveAllProjectRecords(viewingProjectId, sortedRecords)
     if (result.success) {
       setQuickInputText('')
       loadProjectRecords()
@@ -551,7 +618,7 @@ function ProjectDeficiencyTracking() {
   }
 
   // 過濾記錄
-  const filteredRecords = projectRecords.filter(record => {
+  const filteredRecordsRaw = projectRecords.filter(record => {
     if (searchKeyword) {
       const keyword = searchKeyword.toLowerCase()
       const matchContent = record.content?.toLowerCase().includes(keyword)
@@ -585,6 +652,7 @@ function ProjectDeficiencyTracking() {
     }
     return true
   })
+  const filteredRecords = sortDeficiencyRecords(filteredRecordsRaw)
 
   const handleDeleteProject = (id) => {
     if (window.confirm('確定要刪除此專案嗎？')) {
@@ -1077,6 +1145,7 @@ function ProjectDetailView({
 }) {
   const [showDeficiencyRecord, setShowDeficiencyRecord] = useState(false)
   const [showSearchFilter, setShowSearchFilter] = useState(false)
+  const [showProjectInfo, setShowProjectInfo] = useState(true)
   const [isEditingProjectInfo, setIsEditingProjectInfo] = useState(false)
   const [showRepairModal, setShowRepairModal] = useState(false)
   const [repairModalRecord, setRepairModalRecord] = useState(null)
@@ -1258,41 +1327,63 @@ function ProjectDetailView({
         </div>
       </div>
 
-      {/* 專案基本資訊 */}
-      <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700 project-no-print">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-yellow-400">專案資訊</h3>
-          {!isEditingProjectInfo ? (
-            <button
-              onClick={() => setIsEditingProjectInfo(true)}
-              className="text-yellow-400 hover:text-yellow-500 text-sm font-semibold flex items-center space-x-1"
+      {/* 專案資訊 - 可展開/折疊（與案場缺失紀錄相同方式） */}
+      <div className="bg-gray-800 rounded-lg border border-gray-700 mb-6 overflow-hidden project-no-print">
+        {/* 標題行 - 可點擊展開/折疊 */}
+        <div
+          onClick={() => setShowProjectInfo(!showProjectInfo)}
+          className="p-4 cursor-pointer hover:bg-gray-750 transition-colors flex items-center justify-between"
+        >
+          <div className="flex items-center space-x-3">
+            <svg
+              className={`w-5 h-5 text-yellow-400 transition-transform ${showProjectInfo ? 'rotate-90' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              <span>編輯</span>
-            </button>
-          ) : (
-            <div className="flex items-center space-x-2">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <h3 className="text-lg font-bold text-yellow-400">專案資訊</h3>
+          </div>
+          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+            {showProjectInfo && !isEditingProjectInfo && (
               <button
-                onClick={handleSaveProjectInfo}
-                className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 text-sm font-semibold px-3 py-1 rounded transition-colors flex items-center space-x-1"
+                onClick={() => setIsEditingProjectInfo(true)}
+                className="text-yellow-400 hover:text-yellow-500 text-sm font-semibold flex items-center space-x-1"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                <span>保存</span>
+                <span>編輯</span>
               </button>
-              <button
-                onClick={handleCancelEdit}
-                className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1 rounded transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          )}
+            )}
+            {showProjectInfo && isEditingProjectInfo && (
+              <>
+                <button
+                  onClick={handleSaveProjectInfo}
+                  className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 text-sm font-semibold px-3 py-1 rounded transition-colors flex items-center space-x-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>保存</span>
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-3 py-1 rounded transition-colors"
+                >
+                  取消
+                </button>
+              </>
+            )}
+            <span className="text-gray-400 text-sm">
+              {showProjectInfo ? '點擊收起' : '點擊展開'}
+            </span>
+          </div>
         </div>
-        
+
+        {/* 展開內容 */}
+        <div className={`border-t border-gray-700 p-6 ${showProjectInfo ? '' : 'hidden'}`}>
         {isEditingProjectInfo ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
@@ -1387,6 +1478,7 @@ function ProjectDetailView({
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* 案場缺失紀錄 - 可展開/折疊 */}
@@ -1448,7 +1540,7 @@ function ProjectDetailView({
             </button>
           </div>
         )}
-        {/* 工具列：快速輸入 + 篩選 + 橫向觀看（排列整齊） */}
+        {/* 工具列：快速輸入 + 篩選 + 搜尋（非全螢幕也可用）+ 橫向觀看 */}
         <div className="flex flex-wrap items-center gap-3 mb-2 p-3 bg-gray-800 border-b border-gray-700 project-no-print">
           <span className="text-gray-400 text-sm font-medium w-10 shrink-0">表格</span>
           <div className="flex items-center gap-2 flex-1 min-w-0 max-w-md">
@@ -1462,11 +1554,34 @@ function ProjectDetailView({
             <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">彙整</button>
             <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">清除</button>
           </div>
+          {/* 非全螢幕時也顯示搜尋/篩選，讓無法開啟全螢幕的用戶（如以橫向模式預覽）也能搜尋 */}
           {!isLandscapeFullscreen && (
-            <button type="button" onClick={enterLandscapeView} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0" title="全螢幕橫向觀看">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-              橫向觀看
-            </button>
+            <>
+              <button type="button" onClick={() => setShowSearchFilter(!showSearchFilter)} className="bg-gray-600 hover:bg-gray-500 text-yellow-400 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                {showSearchFilter ? '收起搜尋' : '搜尋'}
+              </button>
+              {showSearchFilter && (
+                <>
+                  <div className="relative">
+                    <input type="text" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="關鍵字" className="w-28 h-[34px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 pr-7 text-white text-sm" />
+                    {searchKeyword && <button type="button" onClick={() => setSearchKeyword('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400">×</button>}
+                  </div>
+                  <select value={filterRecordStatus} onChange={(e) => setFilterRecordStatus(e.target.value)} className="h-[34px] bg-gray-700 border border-gray-500 rounded px-2 text-white text-sm min-w-[5.5rem]">
+                    <option value="all">全部</option>
+                    <option value="pending">待處理</option>
+                    <option value="in_progress">處理中</option>
+                    <option value="completed">已完成</option>
+                    <option value="unable">無法處理</option>
+                  </select>
+                  <input type="text" value={filterSubmitter} onChange={(e) => setFilterSubmitter(e.target.value)} placeholder="填單人" className="h-[34px] w-24 bg-gray-700 border border-gray-500 rounded px-2 text-white text-sm" />
+                </>
+              )}
+              <button type="button" onClick={enterLandscapeView} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0" title="全螢幕橫向觀看">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                橫向觀看
+              </button>
+            </>
           )}
         </div>
         <div className="project-print-only mb-3">
@@ -1503,12 +1618,12 @@ function ProjectDetailView({
                   </td>
                 </tr>
               ) : (
-                records.map((record) => {
+                records.map((record, index) => {
                   const isEditingContent = editingField?.recordId === record.id && editingField?.field === 'content' && !editingField?.revision
 
                   return (
                     <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-900">
-                      <td className="w-10 sm:w-12 px-2 py-1.5 text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">{record.rowNumber}</td>
+                      <td className="w-10 sm:w-12 px-2 py-1.5 text-yellow-400 font-semibold text-[10px] sm:text-xs flex-shrink-0">{index + 1}</td>
                       <td className="min-w-[5.5rem] w-28 px-2 py-1.5 flex-shrink-0">
                         <div className="flex items-center space-x-1">
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotColor(record.status)}`}></div>
