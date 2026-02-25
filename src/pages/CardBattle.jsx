@@ -150,6 +150,81 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
   const initialDrawTimeoutRef = useRef(null)
   const enemyInitialDrawStartedRef = useRef(false)
   const enemyInitialDrawTimeoutRef = useRef(null)
+  const battleContainerRef = useRef(null)
+  const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false)
+
+  const enterLandscapeView = async () => {
+    const el = battleContainerRef.current
+    if (!el) return
+    try {
+      if (el.requestFullscreen) {
+        await el.requestFullscreen()
+      } else if (el.webkitRequestFullscreen) {
+        await el.webkitRequestFullscreen()
+      } else if (el.msRequestFullscreen) {
+        await el.msRequestFullscreen()
+      } else {
+        alert('您的裝置不支援全螢幕，請手動將手機轉為橫向')
+        return
+      }
+      setIsLandscapeFullscreen(true)
+      if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.lock) {
+        try {
+          await screen.orientation.lock('landscape')
+        } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('橫向全螢幕失敗', e)
+      alert('無法切換全螢幕，請手動將手機轉為橫向')
+    }
+  }
+
+  const exitLandscapeView = async () => {
+    try {
+      const doc = document
+      if (doc.exitFullscreen) {
+        await doc.exitFullscreen()
+      } else if (doc.webkitExitFullscreen) {
+        await doc.webkitExitFullscreen()
+      } else if (doc.msExitFullscreen) {
+        await doc.msExitFullscreen()
+      }
+      setIsLandscapeFullscreen(false)
+      if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.unlock) {
+        try {
+          screen.orientation.unlock()
+        } catch (_) {}
+      }
+    } catch (e) {
+      setIsLandscapeFullscreen(false)
+    }
+  }
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const isFull = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement
+      )
+      if (!isFull) {
+        setIsLandscapeFullscreen(false)
+        if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.unlock) {
+          try {
+            screen.orientation.unlock()
+          } catch (_) {}
+        }
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+    document.addEventListener('MSFullscreenChange', onFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+      document.removeEventListener('MSFullscreenChange', onFullscreenChange)
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -1135,7 +1210,11 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
   }
 
   return (
-    <div className={`h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 ${playerHeroJustHit ? 'battle-screen-shake' : ''}`}>
+    <div
+      ref={battleContainerRef}
+      className={`h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 ${playerHeroJustHit ? 'battle-screen-shake' : ''}`}
+      style={isLandscapeFullscreen ? { minHeight: '100vh', display: 'flex', flexDirection: 'column' } : {}}
+    >
       <style>{`
         @keyframes cardDrawIn {
           0% { transform: translate(-160px, 40px) scale(0.45) rotate(-12deg); opacity: 0.4; }
@@ -1250,7 +1329,14 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       <div className="flex-shrink-0 p-1.5 sm:p-2 max-w-2xl w-full mx-auto border-b border-amber-900/40 bg-slate-900/50">
         <div className="flex justify-between items-center gap-1">
           <h3 className="text-amber-300 font-bold text-sm sm:text-base truncate">對戰中</h3>
-          <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-[10px] sm:text-xs px-2 py-1.5 rounded border border-gray-600 flex-shrink-0 min-h-[36px] touch-manipulation">離開</button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {isLandscapeFullscreen ? (
+              <button type="button" onClick={exitLandscapeView} className="text-amber-200 hover:text-amber-100 text-[10px] sm:text-xs px-2 py-1.5 rounded border border-amber-600/60 min-h-[36px] touch-manipulation">退出全螢幕</button>
+            ) : (
+              <button type="button" onClick={enterLandscapeView} className="text-amber-200 hover:text-amber-100 text-[10px] sm:text-xs px-2 py-1.5 rounded border border-amber-600/60 min-h-[36px] touch-manipulation" title="橫向全螢幕，手機空間更大">橫向全螢幕</button>
+            )}
+            <button type="button" onClick={onExit} className="text-gray-400 hover:text-white text-[10px] sm:text-xs px-2 py-1.5 rounded border border-gray-600 flex-shrink-0 min-h-[36px] touch-manipulation">離開</button>
+          </div>
         </div>
         <p className="text-amber-100/90 text-[10px] sm:text-xs truncate mt-0.5">{(isOnline || initialDrawComplete) ? message : '抽牌中...'}</p>
       </div>
