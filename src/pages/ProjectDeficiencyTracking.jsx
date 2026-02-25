@@ -1540,23 +1540,26 @@ function ProjectDetailView({
             </button>
           </div>
         )}
-        {/* 工具列：快速輸入 + 篩選 + 搜尋（非全螢幕也可用）+ 橫向觀看 */}
-        <div className="flex flex-wrap items-center gap-3 mb-2 p-3 bg-gray-800 border-b border-gray-700 project-no-print">
-          <span className="text-gray-400 text-sm font-medium w-10 shrink-0">表格</span>
-          <div className="flex items-center gap-2 flex-1 min-w-0 max-w-md">
-            <textarea
-              value={quickInputText}
-              onChange={(e) => setQuickInputText(e.target.value)}
-              placeholder="快速輸入"
-              rows={2}
-              className="flex-1 min-w-[120px] bg-gray-700 border border-yellow-400 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-500 resize-y min-h-[48px]"
-            />
-            <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">彙整</button>
-            <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">清除</button>
+        {/* 工具列：第一行快速輸入、第二行搜尋（展開收合）+ 橫向觀看（與全螢幕同風格，不與快速輸入重疊） */}
+        <div className="space-y-2 mb-2 p-3 bg-gray-800 border-b border-gray-700 project-no-print">
+          {/* 第一行：僅快速輸入區 */}
+          <div className="flex items-center gap-3">
+            <span className="text-gray-400 text-sm font-medium w-10 shrink-0">表格</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0 max-w-full">
+              <textarea
+                value={quickInputText}
+                onChange={(e) => setQuickInputText(e.target.value)}
+                placeholder="快速輸入"
+                rows={2}
+                className="flex-1 min-w-[120px] bg-gray-700 border border-yellow-400 rounded px-2 py-1.5 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-500 resize-y min-h-[48px]"
+              />
+              <button onClick={onConsolidateInput} className="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">彙整</button>
+              <button onClick={onClearInput} className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-3 py-1.5 rounded text-sm shrink-0 h-[34px]">清除</button>
+            </div>
           </div>
-          {/* 非全螢幕時也顯示搜尋/篩選，讓無法開啟全螢幕的用戶（如以橫向模式預覽）也能搜尋 */}
+          {/* 第二行：搜尋（展開/收合）+ 橫向觀看，右對齊、與全螢幕列同風格 */}
           {!isLandscapeFullscreen && (
-            <>
+            <div className="flex flex-wrap justify-end items-center gap-2 pt-1 border-t border-gray-700/80">
               <button type="button" onClick={() => setShowSearchFilter(!showSearchFilter)} className="bg-gray-600 hover:bg-gray-500 text-yellow-400 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 {showSearchFilter ? '收起搜尋' : '搜尋'}
@@ -1581,7 +1584,7 @@ function ProjectDetailView({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                 橫向觀看
               </button>
-            </>
+            </div>
           )}
         </div>
         <div className="project-print-only mb-3">
