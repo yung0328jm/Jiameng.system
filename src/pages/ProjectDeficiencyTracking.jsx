@@ -9,6 +9,9 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
+const REVISION_KEYS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth']
+const REVISION_LABELS = ['第一次修繕', '第二次修繕', '第三次修繕', '第四次修繕', '第五次修繕', '第六次修繕']
+
 function ProjectDeficiencyTracking() {
   const [projects, setProjects] = useState([])
   const [showProjectForm, setShowProjectForm] = useState(false)
@@ -498,11 +501,7 @@ function ProjectDeficiencyTracking() {
         content: content,
         submitter: currentUser,
         date: dateStr,
-        revisions: {
-          first: { modifier: '', progress: '', date: '' },
-          second: { modifier: '', progress: '', date: '' },
-          third: { modifier: '', progress: '', date: '' }
-        },
+        revisions: Object.fromEntries(REVISION_KEYS.map(k => [k, { modifier: '', progress: '', date: '' }])),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })
@@ -1715,14 +1714,23 @@ function ProjectDetailView({
                             openRepairModal(record)
                           }}
                           onTouchEnd={(e) => e.stopPropagation()}
-                          className="w-full flex items-center justify-center gap-1 cursor-pointer touch-manipulation"
-                          title="查看修繕紀錄（第一次/第二次/第三次）"
+                          className="w-full flex flex-col items-center justify-center gap-0.5 cursor-pointer touch-manipulation"
+                          title="查看修繕紀錄（共6次）"
                         >
-                          {['first', 'second', 'third'].map((rev) => {
-                            const done = hasRepair(record, rev)
-                            const cls = done ? 'bg-green-400' : 'bg-gray-600'
-                            return <span key={rev} className={`inline-block w-2.5 h-2.5 rounded-full ${cls}`} />
-                          })}
+                          <div className="flex items-center gap-1">
+                            {REVISION_KEYS.slice(0, 3).map((rev) => {
+                              const done = hasRepair(record, rev)
+                              const cls = done ? 'bg-green-400' : 'bg-gray-600'
+                              return <span key={rev} className={`inline-block w-2.5 h-2.5 rounded-full ${cls}`} />
+                            })}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {REVISION_KEYS.slice(3, 6).map((rev) => {
+                              const done = hasRepair(record, rev)
+                              const cls = done ? 'bg-green-400' : 'bg-gray-600'
+                              return <span key={rev} className={`inline-block w-2.5 h-2.5 rounded-full ${cls}`} />
+                            })}
+                          </div>
                         </button>
                       </td>
                     </tr>
@@ -1754,10 +1762,10 @@ function ProjectDetailView({
               </div>
 
               <div className="mt-4 space-y-3">
-                {['first', 'second', 'third'].map((revision, idx) => {
+                {REVISION_KEYS.map((revision, idx) => {
                   const rev = repairModalRecord?.revisions?.[revision] || {}
                   const isEditingProgress = editingField?.recordId === repairModalRecord?.id && editingField?.field === 'progress' && editingField?.revision === revision
-                  const title = idx === 0 ? '第一次修繕' : (idx === 1 ? '第二次修繕' : '第三次修繕')
+                  const title = REVISION_LABELS[idx] || `第${idx + 1}次修繕`
                   return (
                     <div key={revision} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
                       <div className="flex items-center justify-between">
