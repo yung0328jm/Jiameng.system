@@ -1574,7 +1574,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
             className={`flex-shrink-0 flex flex-col items-center justify-end gap-1 ${showBottomHand && phase === 'sacrifice' ? 'rounded border-2 border-dashed border-amber-500/50 bg-amber-900/20 p-1' : ''}`}
             onDragOver={showBottomHand && phase === 'sacrifice' ? (e) => { e.preventDefault(); e.dataTransfer && (e.dataTransfer.dropEffect = 'move'); } : undefined}
             onDrop={showBottomHand && phase === 'sacrifice' ? handleDropSacrifice : undefined}
-            onTouchEnd={showBottomHand && phase === 'sacrifice' && (e) => e.changedTouches?.[0] ? handleTouchEndDrop(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : undefined}
+            onTouchEnd={showBottomHand && phase === 'sacrifice' ? (e) => { const t = e.changedTouches?.[0]; if (t) handleTouchEndDrop(t.clientX, t.clientY); } : undefined}
             data-drop-zone={showBottomHand && phase === 'sacrifice' ? 'sacrifice' : undefined}
             data-drop-index=""
           >
