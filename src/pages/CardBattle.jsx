@@ -45,7 +45,7 @@ function CardBack({ cardBackUrl, className = '' }) {
   )
 }
 
-function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, selected, dimmed, onClick, className = '', attackAnim, hitAnim, dying, compact }) {
+function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, selected, dimmed, onClick, className = '', attackAnim, hitAnim, dying, compact, draggable, onDragStart }) {
   const atk = attack ?? card?.attack ?? 0
   const health = currentHp ?? hp ?? card?.hp ?? 0
   const maxHealth = maxHp ?? card?.maxHp ?? card?.hp ?? 0
@@ -60,6 +60,8 @@ function BattleCard({ card, showCost = false, attack, hp, currentHp, maxHp, sele
     <button
       type="button"
       onClick={dying ? undefined : onClick}
+      draggable={draggable}
+      onDragStart={onDragStart}
       className={`relative ${sizeClass} overflow-visible border-2 shadow-md transition-all ${selected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-amber-700/60 hover:border-amber-500'} ${dimmed ? 'opacity-60' : ''} ${attackAnim ? 'card-attack-lunge' : ''} ${hitAnim ? 'card-hit' : ''} ${dying ? 'card-death pointer-events-none' : ''} ${className}`}
     >
       <div className="absolute inset-0 rounded overflow-hidden bg-gray-900">
@@ -152,6 +154,99 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
   const enemyInitialDrawTimeoutRef = useRef(null)
   const battleContainerRef = useRef(null)
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false)
+  const autoLandscapeAttemptedRef = useRef(false)
+  const dragDataRef = useRef(null)
+
+  const handleDropSacrifice = (e) => {
+    e.preventDefault()
+    let data = dragDataRef.current
+    if (!data && e.dataTransfer) {
+      try {
+        const raw = e.dataTransfer.getData('text/plain')
+        if (raw) data = JSON.parse(raw)
+      } catch (_) {}
+    }
+    if (data?.type === 'hand' && data.handIndex != null && phase === 'sacrifice' && turn === 'player') {
+      sacrificeCard(data.handIndex)
+    }
+    dragDataRef.current = null
+  }
+
+  const handleDropFieldFront = (e) => {
+    e.preventDefault()
+    let data = dragDataRef.current
+    if (!data && e.dataTransfer) {
+      try {
+        const raw = e.dataTransfer.getData('text/plain')
+        if (raw) data = JSON.parse(raw)
+      } catch (_) {}
+    }
+    if (data?.type === 'hand' && data.handIndex != null && phase === 'play' && turn === 'player') {
+      const card = player?.hand?.[data.handIndex]
+      if (card?.type === 'minion') playMinion('player', data.handIndex)
+    }
+    dragDataRef.current = null
+  }
+
+  const handleDropFieldBack = (e) => {
+    e.preventDefault()
+    let data = dragDataRef.current
+    if (!data && e.dataTransfer) {
+      try {
+        const raw = e.dataTransfer.getData('text/plain')
+        if (raw) data = JSON.parse(raw)
+      } catch (_) {}
+    }
+    if (data?.type === 'hand' && data.handIndex != null && phase === 'play' && turn === 'player') {
+      const card = player?.hand?.[data.handIndex]
+      if (card && card.type !== 'hero' && card.type !== 'minion') playMinion('player', data.handIndex)
+    }
+    dragDataRef.current = null
+  }
+
+  const handleDropAttackTarget = (e, targetFieldIndexOrHero) => {
+    e.preventDefault()
+    let data = dragDataRef.current
+    if (!data && e.dataTransfer) {
+      try {
+        const raw = e.dataTransfer.getData('text/plain')
+        if (raw) data = JSON.parse(raw)
+      } catch (_) {}
+    }
+    if (data?.type === 'attacker' && data.fieldIndex != null && phase === 'attack' && turn === 'player') {
+      attack('player', data.fieldIndex, 'enemy', targetFieldIndexOrHero)
+      setSelectedAttacker(null)
+    }
+    dragDataRef.current = null
+  }
+
+  const handleTouchEndDrop = (clientX, clientY) => {
+    const el = document.elementFromPoint(clientX, clientY)
+    const zone = el?.closest?.('[data-drop-zone]')
+    const data = dragDataRef.current
+    if (!data || !zone) {
+      dragDataRef.current = null
+      return
+    }
+    const dropType = zone.getAttribute('data-drop-zone')
+    const index = zone.getAttribute('data-drop-index')
+    const targetIndex = index != null && index !== '' ? parseInt(index, 10) : -1
+    if (data.type === 'hand' && data.handIndex != null) {
+      if (dropType === 'sacrifice' && phase === 'sacrifice' && turn === 'player') {
+        sacrificeCard(data.handIndex)
+      } else if (dropType === 'field-front' && phase === 'play' && turn === 'player') {
+        const card = player?.hand?.[data.handIndex]
+        if (card?.type === 'minion') playMinion('player', data.handIndex)
+      } else if (dropType === 'field-back' && phase === 'play' && turn === 'player') {
+        const card = player?.hand?.[data.handIndex]
+        if (card && card.type !== 'hero' && card.type !== 'minion') playMinion('player', data.handIndex)
+      }
+    } else if (data.type === 'attacker' && data.fieldIndex != null && dropType === 'attack-target' && phase === 'attack' && turn === 'player') {
+      attack('player', data.fieldIndex, 'enemy', targetIndex)
+      setSelectedAttacker(null)
+    }
+    dragDataRef.current = null
+  }
 
   const enterLandscapeView = async () => {
     const el = battleContainerRef.current
@@ -224,6 +319,15 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
       document.removeEventListener('MSFullscreenChange', onFullscreenChange)
     }
+  }, [])
+
+  useEffect(() => {
+    if (autoLandscapeAttemptedRef.current) return
+    autoLandscapeAttemptedRef.current = true
+    const t = setTimeout(() => {
+      enterLandscapeView().catch(() => {})
+    }, 300)
+    return () => clearTimeout(t)
   }, [])
 
   useEffect(() => {
@@ -847,7 +951,7 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
     })
   }
 
-  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, sacrificeMax, drawInIndices, enemyDeckRemaining, enemySacrificePoints, enemySacrificeMax, cardBackUrl, onViewHero, onViewField, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion, onHandCardClick, handDetailIndex, handCardCompact }) => (
+  const Field = ({ side, hero, heroEnergy, heroSkills, fieldFront, fieldBack, hand, isPlayer, sacrificePoints, sacrificeMax, drawInIndices, enemyDeckRemaining, enemySacrificePoints, enemySacrificeMax, cardBackUrl, onViewHero, onViewField, onSelectAttacker, onSelectTarget, onSelectTargetHero, onSelectHeroAttacker, onUseHeroSkill, onSacrificeCard, onPlayMinion, onHandCardClick, handDetailIndex, handCardCompact, phase, turn, onDragStartHandCard, onDropFieldFront, onDropFieldBack, onDragStartAttacker, onDropAttackTarget, onTouchEndDrop }) => (
     <div className={`rounded-lg border border-amber-900/50 overflow-hidden flex-shrink-0 min-h-0 flex flex-col ${isPlayer ? 'bg-gradient-to-b from-gray-900/80 to-gray-800/60' : 'bg-gradient-to-b from-gray-800/60 to-gray-900/80'}`}>
       <div className="px-1.5 py-0.5 sm:px-2 sm:py-1 flex items-center gap-1 sm:gap-2 flex-wrap border-b border-amber-800/40">
         <span className="text-amber-200/90 font-medium text-[10px] sm:text-xs">{side === 'player' ? '我方' : '敵方'}</span>
@@ -868,7 +972,14 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
             英雄
             {isPlayer && heroEnergy != null && <span className="text-amber-400">能量 {heroEnergy}</span>}
           </div>
-          <div className="flex justify-center">
+          <div
+            className={`flex justify-center ${!isPlayer && phase === 'attack' && onDropAttackTarget ? 'rounded border-2 border-dashed border-red-500/40 min-h-[5rem] items-center' : ''}`}
+            onDragOver={!isPlayer && phase === 'attack' && onDropAttackTarget ? (e) => { e.preventDefault(); e.dataTransfer && (e.dataTransfer.dropEffect = 'move'); } : undefined}
+            onDrop={!isPlayer && phase === 'attack' && onDropAttackTarget ? (e) => onDropAttackTarget(e, -1) : undefined}
+            onTouchEnd={!isPlayer && phase === 'attack' && onDropAttackTarget && onTouchEndDrop ? (e) => e.changedTouches?.[0] && onTouchEndDrop(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : undefined}
+            data-drop-zone={!isPlayer && phase === 'attack' ? 'attack-target' : undefined}
+            data-drop-index={!isPlayer && phase === 'attack' ? '-1' : undefined}
+          >
             {hero && (
               <HeroSlot
                 hero={hero}
@@ -899,34 +1010,84 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
         )}
         <div>
           <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">前排</div>
-          <div className="flex flex-wrap gap-1 sm:gap-1.5 justify-center min-h-[52px] sm:min-h-[64px]">
-            {(fieldFront || []).map((m, i) => (
-              <BattleCard
-                key={i}
-                card={m}
-                attack={m.attack}
-                currentHp={m.currentHp}
-                maxHp={m.maxHp}
-                dying={m.dying}
-                selected={isPlayer && phase === 'attack' && selectedAttacker === i}
-                dimmed={isPlayer && phase === 'attack' && m.canAttack === false}
-                attackAnim={lastAttack?.attackerSide === side && lastAttack?.attackerIndex === i}
-                hitAnim={lastAttack?.targetSide === side && lastAttack?.targetHero === false && lastAttack?.targetIndex === i}
-                onClick={onViewField ? () => onViewField(side, 'front', i) : () => {
-                  const canAttack = m.canAttack !== false
-                  if (isPlayer && phase === 'attack' && turn === 'player' && m.attack > 0 && canAttack) {
-                    setSelectedAttacker(selectedAttacker === i ? null : i)
-                  } else if (!isPlayer && phase === 'attack' && onSelectTarget) {
-                    onSelectTarget(i)
-                  }
-                }}
-              />
-            ))}
+          <div
+            className={`flex flex-wrap gap-1 sm:gap-1.5 justify-center min-h-[52px] sm:min-h-[64px] ${isPlayer && phase === 'play' ? 'rounded border-2 border-dashed border-amber-500/40 bg-amber-900/10' : ''}`}
+            onDragOver={isPlayer && phase === 'play' && onDropFieldFront ? (e) => { e.preventDefault(); e.dataTransfer && (e.dataTransfer.dropEffect = 'move'); } : undefined}
+            onDrop={isPlayer && phase === 'play' && onDropFieldFront ? onDropFieldFront : undefined}
+            onTouchEnd={isPlayer && phase === 'play' && onTouchEndDrop ? (e) => e.changedTouches?.[0] && onTouchEndDrop(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : undefined}
+            data-drop-zone={isPlayer && phase === 'play' ? 'field-front' : undefined}
+            data-drop-index=""
+          >
+            {(fieldFront || []).map((m, i) => {
+              const cardEl = (
+                <BattleCard
+                  key={i}
+                  card={m}
+                  attack={m.attack}
+                  currentHp={m.currentHp}
+                  maxHp={m.maxHp}
+                  dying={m.dying}
+                  selected={isPlayer && phase === 'attack' && selectedAttacker === i}
+                  dimmed={isPlayer && phase === 'attack' && m.canAttack === false}
+                  attackAnim={lastAttack?.attackerSide === side && lastAttack?.attackerIndex === i}
+                  hitAnim={lastAttack?.targetSide === side && lastAttack?.targetHero === false && lastAttack?.targetIndex === i}
+                  onClick={onViewField ? () => onViewField(side, 'front', i) : () => {
+                    const canAttack = m.canAttack !== false
+                    if (isPlayer && phase === 'attack' && turn === 'player' && m.attack > 0 && canAttack) {
+                      setSelectedAttacker(selectedAttacker === i ? null : i)
+                    } else if (!isPlayer && phase === 'attack' && onSelectTarget) {
+                      onSelectTarget(i)
+                    }
+                  }}
+                  draggable={isPlayer && phase === 'attack' && turn === 'player' && m.attack > 0 && m.canAttack !== false}
+                  onDragStart={isPlayer && phase === 'attack' && turn === 'player' && m.canAttack !== false && onDragStartAttacker ? (e) => {
+                    e.dataTransfer?.setData('text/plain', JSON.stringify({ type: 'attacker', fieldIndex: i }))
+                    e.dataTransfer && (e.dataTransfer.effectAllowed = 'move')
+                    dragDataRef.current = { type: 'attacker', fieldIndex: i }
+                  } : undefined}
+                />
+              )
+              if (isPlayer && phase === 'attack' && turn === 'player' && m.canAttack !== false) {
+                return (
+                  <div
+                    key={i}
+                    onTouchStart={() => { dragDataRef.current = { type: 'attacker', fieldIndex: i } }}
+                    onTouchEnd={onTouchEndDrop ? (e) => e.changedTouches?.[0] && onTouchEndDrop(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : undefined}
+                    className="contents"
+                  >
+                    {cardEl}
+                  </div>
+                )
+              }
+              if (!isPlayer && phase === 'attack' && onDropAttackTarget) {
+                return (
+                  <div
+                    key={i}
+                    className="rounded border-2 border-dashed border-red-500/30"
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer && (e.dataTransfer.dropEffect = 'move'); }}
+                    onDrop={(e) => onDropAttackTarget(e, i)}
+                    onTouchEnd={onTouchEndDrop ? (e) => e.changedTouches?.[0] && onTouchEndDrop(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : undefined}
+                    data-drop-zone="attack-target"
+                    data-drop-index={String(i)}
+                  >
+                    {cardEl}
+                  </div>
+                )
+              }
+              return cardEl
+            })}
           </div>
         </div>
         <div>
           <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">後排</div>
-          <div className="flex flex-wrap gap-1 sm:gap-1.5 justify-center min-h-[44px] sm:min-h-[56px]">
+          <div
+            className={`flex flex-wrap gap-1 sm:gap-1.5 justify-center min-h-[44px] sm:min-h-[56px] ${isPlayer && phase === 'play' ? 'rounded border-2 border-dashed border-amber-500/40 bg-amber-900/10' : ''}`}
+            onDragOver={isPlayer && phase === 'play' && onDropFieldBack ? (e) => { e.preventDefault(); e.dataTransfer && (e.dataTransfer.dropEffect = 'move'); } : undefined}
+            onDrop={isPlayer && phase === 'play' && onDropFieldBack ? onDropFieldBack : undefined}
+            onTouchEnd={isPlayer && phase === 'play' && onTouchEndDrop ? (e) => e.changedTouches?.[0] && onTouchEndDrop(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : undefined}
+            data-drop-zone={isPlayer && phase === 'play' ? 'field-back' : undefined}
+            data-drop-index=""
+          >
             {(fieldBack || []).map((slot, i) => (
               slot.faceDown ? (
                 <div key={i} className="w-11 h-[56px] sm:w-14 sm:h-[68px] rounded-lg overflow-hidden border-2 border-amber-700/60 shadow-md">
@@ -965,13 +1126,30 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
         )}
         {isPlayer && (
           <div>
-            <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">手牌（點擊預覽，獻祭/出牌在預覽內確認）</div>
+            <div className="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">手牌（點擊預覽或拖曳到場面/獻技區）</div>
             <div className="flex flex-wrap gap-0.5 sm:gap-1 justify-center">
               {hand.map((c, i) => (
                 <div
                   key={i}
                   className={`${(drawInIndices || []).includes(i) ? 'card-draw-in' : ''} ${handDetailIndex === i ? 'ring-2 ring-amber-400 rounded' : ''}`}
                   style={(drawInIndices || []).includes(i) ? { animationDelay: '0ms' } : undefined}
+                  draggable={turn === 'player' && (phase === 'sacrifice' || phase === 'play')}
+                  onDragStart={(e) => {
+                    if (onDragStartHandCard) {
+                      e.dataTransfer?.setData('text/plain', JSON.stringify({ type: 'hand', handIndex: i }))
+                      e.dataTransfer && (e.dataTransfer.effectAllowed = 'move')
+                      dragDataRef.current = { type: 'hand', handIndex: i }
+                    }
+                  }}
+                  onTouchStart={() => {
+                    if (turn === 'player' && (phase === 'sacrifice' || phase === 'play')) dragDataRef.current = { type: 'hand', handIndex: i }
+                  }}
+                  onTouchEnd={(e) => {
+                    if (turn === 'player' && (phase === 'sacrifice' || phase === 'play') && e.changedTouches?.[0] && onTouchEndDrop) {
+                      const t = e.changedTouches[0]
+                      onTouchEndDrop(t.clientX, t.clientY)
+                    }
+                  }}
                 >
                   <BattleCard
                     card={c}
@@ -1382,13 +1560,24 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
               onViewField={(s, row, idx) => setViewDetail({ type: 'field', side: s, row, index: idx })}
               onSelectTarget={topCanSelectTarget ? (i) => handleSelectAttackTarget(topSide, i) : undefined}
               onSelectTargetHero={topCanSelectTarget && topCanAttackHero ? handleSelectAttackTargetHero : undefined}
+              phase={phase}
+              turn={turn}
+              onDropAttackTarget={turn === 'player' && phase === 'attack' ? (e, idx) => handleDropAttackTarget(e, idx) : undefined}
+              onTouchEndDrop={handleTouchEndDrop}
             />
           </div>
         </div>
         <hr className="border-gray-600 flex-shrink-0" />
         {/* 下方區域：當前回合方，PvP 時對手回合顯示對手手牌與操作 */}
         <div className="flex gap-1.5 sm:gap-2">
-          <div className="flex-shrink-0 flex flex-col items-center justify-end gap-1">
+          <div
+            className={`flex-shrink-0 flex flex-col items-center justify-end gap-1 ${showBottomHand && phase === 'sacrifice' ? 'rounded border-2 border-dashed border-amber-500/50 bg-amber-900/20 p-1' : ''}`}
+            onDragOver={showBottomHand && phase === 'sacrifice' ? (e) => { e.preventDefault(); e.dataTransfer && (e.dataTransfer.dropEffect = 'move'); } : undefined}
+            onDrop={showBottomHand && phase === 'sacrifice' ? handleDropSacrifice : undefined}
+            onTouchEnd={showBottomHand && phase === 'sacrifice' && (e) => e.changedTouches?.[0] ? handleTouchEndDrop(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : undefined}
+            data-drop-zone={showBottomHand && phase === 'sacrifice' ? 'sacrifice' : undefined}
+            data-drop-index=""
+          >
             <div className="flex flex-col items-center" aria-label={bottomSide === 'player' ? '墓地' : '敵方墓地'}>
               <span className="text-gray-500 text-[8px] sm:text-[10px]">墓地</span>
               <div className="w-8 h-10 sm:w-10 sm:h-12 rounded border border-gray-600 bg-gray-800/90 flex items-center justify-center">
@@ -1405,6 +1594,9 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
               <div className="absolute inset-0 rounded-lg border-2 border-amber-500/60 pointer-events-none" aria-hidden="true" />
             </div>
             <p className="text-amber-400 font-mono text-[10px] mt-0.5 font-semibold">{bottomDeckRemaining}</p>
+            {showBottomHand && phase === 'sacrifice' && (
+              <span className="text-amber-400/80 text-[8px] mt-0.5">拖到這裡獻祭</span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <Field
@@ -1429,6 +1621,13 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
               onHandCardClick={(i) => setHandDetailIndex((prev) => (prev === i ? null : i))}
               handDetailIndex={handDetailIndex}
               handCardCompact={true}
+              phase={phase}
+              turn={turn}
+              onDragStartHandCard={() => {}}
+              onDropFieldFront={handleDropFieldFront}
+              onDropFieldBack={handleDropFieldBack}
+              onDragStartAttacker={() => {}}
+              onTouchEndDrop={handleTouchEndDrop}
             />
           </div>
         </div>
@@ -1471,7 +1670,8 @@ export default function CardBattle({ playerDeck, enemyDeck, playerAccount, onExi
           </button>
           {hintOpen && (
             <p className="text-amber-200/60 text-[9px] sm:text-[10px] mt-0.5">
-              前排小怪、後排裝備／效果／陷阱。英雄每回合+1能量，可消耗能量釋放技能；裝備放出後英雄可攻擊，依使用次數消耗。陷阱牌背向上，觸發後套用技能（之後擴充）。
+              前排小怪、後排裝備／效果／陷阱。英雄每回合+1能量，可消耗能量釋放技能；裝備放出後英雄可攻擊，依使用次數消耗。陷阱牌背向上，觸發後套用技能（之後擴充）。<br />
+              <span className="text-amber-300/80">拖曳：手牌拖到左側牌堆區=獻祭，拖到前排/後排=出牌；攻擊階段將己方單位拖到對手卡牌或英雄=攻擊。</span>
             </p>
           )}
         </div>
