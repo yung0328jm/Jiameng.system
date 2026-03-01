@@ -266,11 +266,12 @@ function ProjectDeficiencyTracking() {
     const list = Array.isArray(data) ? [...data] : []
     list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
     setProjects(list)
-    // 2) 若目前正在看某專案，則同步重讀該專案的缺失表（狀態/進度要即時更新）
+    // 2) 若目前正在看某專案，則同步重讀該專案的缺失表，並依工程排程重算出工人數與里程總合
     const pid = viewingProjectIdRef.current
     if (pid) {
       try {
         setProjectRecords(getProjectRecords(pid) || [])
+        updateWorkerCountFromSchedules()
       } catch (_) {}
     }
   }
@@ -288,7 +289,32 @@ function ProjectDeficiencyTracking() {
     }
   }, [viewingProjectId, projects])
 
-  // 從工程排程中計算並更新出工人數
+  // 將排程正規化為「依案場分段」陣列，與行事曆一致（segments 或單一 segment + vehicleEntries）
+  const getScheduleRows = (schedule) => {
+    if (!schedule) return []
+    const segs = Array.isArray(schedule.segments) ? schedule.segments : null
+    if (segs && segs.length > 0) {
+      return segs.map((s) => ({
+        siteName: String(s?.siteName ?? '').trim(),
+        vehicleEntries: Array.isArray(s?.vehicleEntries) ? s.vehicleEntries : []
+      }))
+    }
+    const siteName = String(schedule.siteName ?? '').trim()
+    const vehicleEntries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
+      ? schedule.vehicleEntries
+      : (() => {
+          const v = String(schedule.vehicle ?? '').trim()
+          if (!v) return []
+          return v.split(',').map((s) => s.trim()).filter(Boolean).map((vehicle) => ({
+            vehicle,
+            departureMileage: schedule.departureMileage ?? '',
+            returnMileage: schedule.returnMileage ?? ''
+          }))
+        })()
+    return [{ siteName, vehicleEntries }]
+  }
+
+  // 從工程排程中計算並更新出工人數與里程總合
   const updateWorkerCountFromSchedules = () => {
     if (!viewingProjectId) return
     
@@ -298,62 +324,71 @@ function ProjectDeficiencyTracking() {
     const schedules = getSchedules()
     let totalWorkers = 0
     let totalMileage = 0
-    const processedWorkerDates = new Map() // 記錄每天已計算的人員，避免重複
-    const processedMileageKeys = new Set() // 同一天同一台車：此專案只加一次分攤里程
+    const processedWorkerDates = new Map()
+    const processedMileageKeys = new Set()
 
-    // B 方案：先建立同車同日的「總里程」與「當天案場數量」，用於平均分攤
-    // key = ymd__vehicle
-    const vehicleDay = new Map() // key -> { mileage:number, sites:Set<string> }
+    // 先建立同車同日的「總里程」與「當天案場數量」（支援 vehicleEntries 與 segments）
+    const vehicleDay = new Map() // key = ymd__vehicle -> { mileage, sites }
     ;(Array.isArray(schedules) ? schedules : []).forEach((s) => {
       const ymd = String(s?.date || '').slice(0, 10)
-      const vehicle = String(s?.vehicle || '').trim()
-      const site = String(s?.siteName || '').trim()
-      if (!ymd || !vehicle) return
-      const key = `${ymd}__${vehicle}`
-      if (!vehicleDay.has(key)) vehicleDay.set(key, { mileage: 0, sites: new Set() })
-      const bucket = vehicleDay.get(key)
-      if (site) bucket.sites.add(site)
-      const dep = parseFloat(s?.departureMileage) || 0
-      const ret = parseFloat(s?.returnMileage) || 0
-      const delta = ret > dep ? (ret - dep) : 0
-      if (delta > bucket.mileage) bucket.mileage = delta
+      if (!ymd) return
+      const rows = getScheduleRows(s)
+      rows.forEach((row) => {
+        const site = row.siteName || ''
+        ;(row.vehicleEntries || []).forEach((entry) => {
+          const vehicle = String(entry?.vehicle ?? '').trim()
+          if (!vehicle) return
+          const key = `${ymd}__${vehicle}`
+          if (!vehicleDay.has(key)) vehicleDay.set(key, { mileage: 0, sites: new Set() })
+          const bucket = vehicleDay.get(key)
+          if (site) bucket.sites.add(site)
+          const dep = parseFloat(entry?.departureMileage) || 0
+          const ret = parseFloat(entry?.returnMileage) || 0
+          const delta = ret > dep ? (ret - dep) : 0
+          if (delta > bucket.mileage) bucket.mileage = delta
+        })
+      })
     })
 
-    // 遍歷所有排程，找出與專案案場地址相關的排程
+    // 遍歷所有排程，找出與專案案場相關的排程
     schedules.forEach(schedule => {
-      if (!schedule.siteName) return
+      const rows = getScheduleRows(schedule)
+      const hasMatch = rows.some((r) => {
+        const siteName = r.siteName || schedule.siteName || ''
+        if (!siteName) return false
+        return project.location
+          ? (siteName.includes(project.location) || project.location.includes(siteName) || siteName === project.location || siteName === project.name)
+          : (siteName === project.name)
+      })
+      if (!hasMatch) return
 
-      // 匹配案場名稱（siteName）或案場地址（location）
-      const isMatch = project.location ? (
-        schedule.siteName.includes(project.location) || 
-        project.location.includes(schedule.siteName) ||
-        schedule.siteName === project.location ||
-        schedule.siteName === project.name
-      ) : (
-        schedule.siteName === project.name
-      )
+      const siteNameForMatch = (rows[0] && rows[0].siteName) ? rows[0].siteName : (schedule.siteName || '')
+      const isMatch = project.location
+        ? (siteNameForMatch.includes(project.location) || project.location.includes(siteNameForMatch) || siteNameForMatch === project.location || siteNameForMatch === project.name)
+        : (siteNameForMatch === project.name)
 
       if (isMatch) {
-        // 計算參與人員數量（用逗號分隔）
         if (schedule.participants) {
           const participants = schedule.participants.split(',').map(p => p.trim()).filter(p => p)
           const dateKey = schedule.date || 'unknown'
-          
-          // 計算當天的人數（去重）
           const dayWorkers = new Set(participants).size
-          
-          // 累加每天的人數（同一天只計算一次，但累加不同天）
           if (!processedWorkerDates.has(dateKey)) {
             totalWorkers += dayWorkers
             processedWorkerDates.set(dateKey, dayWorkers)
           }
         }
 
-        // 累加里程（如果有）
-        if (schedule.departureMileage && schedule.returnMileage) {
-          const ymd = String(schedule.date || '').slice(0, 10)
-          const vehicle = String(schedule.vehicle || '').trim()
-          if (ymd && vehicle) {
+        // 累加里程：依每個分段（案場）的 vehicleEntries 對應的 key 分攤
+        rows.forEach((row) => {
+          const rowSite = row.siteName || ''
+          const rowMatch = project.location
+            ? (rowSite && (rowSite.includes(project.location) || project.location.includes(rowSite) || rowSite === project.location || rowSite === project.name))
+            : (rowSite === project.name)
+          if (!rowMatch) return
+          ;(row.vehicleEntries || []).forEach((entry) => {
+            const ymd = String(schedule.date || '').slice(0, 10)
+            const vehicle = String(entry?.vehicle ?? '').trim()
+            if (!ymd || !vehicle) return
             const key = `${ymd}__${vehicle}`
             if (processedMileageKeys.has(key)) return
             const bucket = vehicleDay.get(key)
@@ -361,15 +396,9 @@ function ProjectDeficiencyTracking() {
             if (bucket && bucket.mileage > 0 && cnt > 0) {
               totalMileage += (bucket.mileage / cnt)
               processedMileageKeys.add(key)
-              return
             }
-          }
-
-          // fallback：沒車牌/日期等資料就維持舊算法（直接加）
-          const departure = parseFloat(schedule.departureMileage) || 0
-          const returnMileage = parseFloat(schedule.returnMileage) || 0
-          if (returnMileage > departure) totalMileage += (returnMileage - departure)
-        }
+          })
+        })
       }
     })
 
