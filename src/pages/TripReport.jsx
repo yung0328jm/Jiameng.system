@@ -90,7 +90,13 @@ function TripReport() {
     const fetched = site && all.includes(site) ? getTripReportsByProject(site, todayStr) : []
     const setRecordsSafe = (next) => {
       setRecords((prev) => {
-        if (!site || !next.length) return next
+        if (!site) return next
+        // 若本次讀到空但 state 仍有今日此案場的紀錄，保留 state 不覆蓋，避免同步競態導致「早上點過現在不見」
+        if (next.length === 0) {
+          const prevForSite = Array.isArray(prev) ? prev.filter((r) => (r?.ymd || '').slice(0, 10) === todayStr && r?.projectId === site) : []
+          if (prevForSite.length > 0) return prev
+          return next
+        }
         const prevForSite = Array.isArray(prev) ? prev.filter((r) => (r?.ymd || '').slice(0, 10) === todayStr && r?.projectId === site) : []
         if (prevForSite.length === 0) return next
         const byKey = new Map()
