@@ -612,6 +612,20 @@ export function subscribeRealtime(onUpdate) {
                 } catch (_) {}
                 localStorage.setItem(key, val)
                 notifyKey(key)
+              } else if (key === 'jiameng_projects') {
+                // 專案：若雲端筆數比本機多且本機剛寫入（8 秒內，例如剛刪除），不覆寫，避免專案刪除後被舊雲端資料蓋回
+                const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
+                try {
+                  const currentRaw = localStorage.getItem(key)
+                  const current = (() => { try { return currentRaw ? JSON.parse(currentRaw) : [] } catch (_) { return [] } })()
+                  if (Array.isArray(current) && Array.isArray(incoming) && incoming.length > current.length) {
+                    const lastWrite = parseInt(localStorage.getItem('jiameng_projects_last_write') || '', 10)
+                    if (lastWrite && (Date.now() - lastWrite < 8000)) return
+                  }
+                } catch (_) {}
+                const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                localStorage.setItem(key, val)
+                notifyKey(key)
               } else {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
                 localStorage.setItem(key, val)
