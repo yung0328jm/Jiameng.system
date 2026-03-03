@@ -816,30 +816,28 @@ function Calendar() {
   // 处理參與人員选择
   const splitCsv = (csv) => (String(csv || '').split(',').map((v) => String(v || '').trim()).filter(Boolean))
 
+  // 以「當日請假排程」為準：只排除當天行事曆上仍有請假卡的人員；管理員刪除請假卡後該人員即恢復可勾選
   const buildLeaveNameSetForDate = (ymd) => {
     const date = String(ymd || '').slice(0, 10)
     const set = new Set()
     if (!date) return set
-    const isInRange = (d, start, end) => {
-      const ds = String(d || '').slice(0, 10)
-      const s = String(start || '').slice(0, 10)
-      const e = String(end || '').slice(0, 10)
-      if (!ds || !s || !e) return false
-      return ds >= s && ds <= e
-    }
-    const apps = Array.isArray(getLeaveApplications()) ? getLeaveApplications() : []
-    apps
-      .filter((r) => String(r?.status || '').trim() === 'approved')
-      .filter((r) => isInRange(date, r?.startDate, r?.endDate))
-      .forEach((r) => {
-        const acc = String(r?.userId || r?.userName || '').trim()
-        const name = String(r?.userName || '').trim()
-        if (name) set.add(name)
-        if (acc) {
-          try { set.add(getDisplayNameForAccount(acc)) } catch (_) {}
-          try { (getDisplayNamesForAccount(acc) || []).forEach((n) => { const t = String(n || '').trim(); if (t) set.add(t) }) } catch (_) {}
-        }
-      })
+    const allSchedules = getSchedules()
+    const leaveSchedulesOnDate = (Array.isArray(allSchedules) ? allSchedules : []).filter(
+      (s) => String(s?.date || '').slice(0, 10) === date && isLeaveScheduleItem(s)
+    )
+    leaveSchedulesOnDate.forEach((s) => {
+      const info = getLeaveInfoForSchedule(s)
+      const person = String(info?.person || '').trim()
+      if (person) set.add(person)
+      const leaveId = String(s?.leaveApplicationId || '').trim()
+      const apps = Array.isArray(getLeaveApplications()) ? getLeaveApplications() : []
+      const app = leaveId ? apps.find((r) => String(r?.id || '').trim() === leaveId) : null
+      const acc = String(app?.userId || '').trim()
+      if (acc) {
+        try { const dn = getDisplayNameForAccount(acc); if (dn && String(dn).trim()) set.add(String(dn).trim()) } catch (_) {}
+        try { (getDisplayNamesForAccount(acc) || []).forEach((n) => { const t = String(n || '').trim(); if (t) set.add(t) }) } catch (_) {}
+      }
+    })
     return set
   }
 
