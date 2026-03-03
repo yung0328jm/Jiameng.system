@@ -391,9 +391,21 @@ function Calendar() {
     if (cr?.status !== 'pending') return
     const kind = String(cr?.kind || cr?.type || 'change').trim() || 'change'
     const p = cr?.proposed
-    const baseItems = (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)) ? selectedDetailItem.workItems : null)
-      ? selectedDetailItem.workItems
-      : (schedules.find((s) => String(s?.id) === String(scheduleId))?.workItems || []))
+    const schedule = schedules.find((s) => String(s?.id) === String(scheduleId))
+    const isViewingThisSchedule = selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)
+    const segments = schedule ? (Array.isArray(schedule.segments) && schedule.segments.length > 0 ? schedule.segments : null) : null
+    const baseItems = (() => {
+      if (isViewingThisSchedule && segments) {
+        const seg = segments[selectedDetailSegmentIndex] || segments[0]
+        return Array.isArray(seg?.workItems) ? seg.workItems : []
+      }
+      if (isViewingThisSchedule && selectedDetailItem) {
+        const segs = getScheduleSegments(selectedDetailItem)
+        const seg = segs[selectedDetailSegmentIndex] || segs[0]
+        return Array.isArray(seg?.workItems) ? seg.workItems : (Array.isArray(selectedDetailItem.workItems) ? selectedDetailItem.workItems : [])
+      }
+      return Array.isArray(schedule?.workItems) ? schedule.workItems : []
+    })()
     const nextItems = (Array.isArray(baseItems) ? baseItems : []).map((wi) => {
       if (String(wi?.id || '') !== String(it?.id || '')) return wi
       if (kind === 'cancel') {
@@ -431,14 +443,33 @@ function Calendar() {
       }
     })
     // 取消申請核准後：自動刪除該工作項目
-    if (kind === 'cancel') {
-      updateSchedule(scheduleId, { workItems: nextItems, __deleteWorkItemIds: [String(it?.id || '')] })
+    const segIndex = isViewingThisSchedule ? selectedDetailSegmentIndex : 0
+    if (segments && segments.length > 0) {
+      const updatedSegments = segments.map((seg, i) =>
+        i === segIndex ? { ...seg, workItems: nextItems } : seg
+      )
+      if (kind === 'cancel') {
+        updateSchedule(scheduleId, { segments: updatedSegments, __deleteWorkItemIds: [String(it?.id || '')] })
+      } else {
+        updateSchedule(scheduleId, { segments: updatedSegments })
+      }
     } else {
-      updateSchedule(scheduleId, { workItems: nextItems })
+      if (kind === 'cancel') {
+        updateSchedule(scheduleId, { workItems: nextItems, __deleteWorkItemIds: [String(it?.id || '')] })
+      } else {
+        updateSchedule(scheduleId, { workItems: nextItems })
+      }
     }
     setSchedules(getSchedules())
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
-      setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+      if (segments && segments.length > 0) {
+        const updatedSegments = (Array.isArray(selectedDetailItem.segments) ? selectedDetailItem.segments : []).map((seg, i) =>
+          i === segIndex ? { ...seg, workItems: nextItems } : seg
+        )
+        setSelectedDetailItem((prev) => ({ ...prev, segments: updatedSegments }))
+      } else {
+        setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+      }
     }
   }
 
@@ -448,9 +479,21 @@ function Calendar() {
     const cr = it?.changeRequest
     if (cr?.status !== 'pending') return
     const kind = String(cr?.kind || cr?.type || 'change').trim() || 'change'
-    const baseItems = (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)) ? selectedDetailItem.workItems : null)
-      ? selectedDetailItem.workItems
-      : (schedules.find((s) => String(s?.id) === String(scheduleId))?.workItems || []))
+    const schedule = schedules.find((s) => String(s?.id) === String(scheduleId))
+    const isViewingThisSchedule = selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === String(scheduleId)
+    const segments = schedule ? (Array.isArray(schedule.segments) && schedule.segments.length > 0 ? schedule.segments : null) : null
+    const baseItems = (() => {
+      if (isViewingThisSchedule && segments) {
+        const seg = segments[selectedDetailSegmentIndex] || segments[0]
+        return Array.isArray(seg?.workItems) ? seg.workItems : []
+      }
+      if (isViewingThisSchedule && selectedDetailItem) {
+        const segs = getScheduleSegments(selectedDetailItem)
+        const seg = segs[selectedDetailSegmentIndex] || segs[0]
+        return Array.isArray(seg?.workItems) ? seg.workItems : (Array.isArray(selectedDetailItem.workItems) ? selectedDetailItem.workItems : [])
+      }
+      return Array.isArray(schedule?.workItems) ? schedule.workItems : []
+    })()
     const nextItems = (Array.isArray(baseItems) ? baseItems : []).map((wi) => {
       if (String(wi?.id || '') !== String(it?.id || '')) return wi
       return {
@@ -464,10 +507,25 @@ function Calendar() {
         }
       }
     })
-    updateSchedule(scheduleId, { workItems: nextItems })
+    const segIndex = isViewingThisSchedule ? selectedDetailSegmentIndex : 0
+    if (segments && segments.length > 0) {
+      const updatedSegments = segments.map((seg, i) =>
+        i === segIndex ? { ...seg, workItems: nextItems } : seg
+      )
+      updateSchedule(scheduleId, { segments: updatedSegments })
+    } else {
+      updateSchedule(scheduleId, { workItems: nextItems })
+    }
     setSchedules(getSchedules())
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
-      setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+      if (segments && segments.length > 0) {
+        const updatedSegments = (Array.isArray(selectedDetailItem.segments) ? selectedDetailItem.segments : []).map((seg, i) =>
+          i === segIndex ? { ...seg, workItems: nextItems } : seg
+        )
+        setSelectedDetailItem((prev) => ({ ...prev, segments: updatedSegments }))
+      } else {
+        setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+      }
     }
   }
 
@@ -2892,14 +2950,14 @@ function Calendar() {
                                   <button
                                     type="button"
                                     onClick={() => approveChangeRequest(selectedDetailItem.id, it)}
-                                    className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded"
+                                    className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded cursor-pointer"
                                   >
                                     {crKind === 'cancel' ? '核准（刪除）' : '核准'}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => rejectChangeRequest(selectedDetailItem.id, it)}
-                                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded"
+                                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded cursor-pointer"
                                   >
                                     退回
                                   </button>
