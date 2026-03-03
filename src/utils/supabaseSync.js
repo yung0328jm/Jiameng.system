@@ -278,6 +278,47 @@ async function _doUpsert(sb, key, value) {
     } catch (_) {}
   }
 
+  // 行程回報：多裝置各自點擊，若直接整包覆蓋會讓「C 上傳時把 A/B 的紀錄蓋掉」。改為先拉雲端再合併（同一案場+同日+同動作保留最早時間）再寫回。
+  if (key === 'jiameng_trip_reports') {
+    try {
+      const incoming = Array.isArray(data) ? data : []
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      const cloudRaw = cloudRow?.data
+      const cloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      const ymdOf = (r) => {
+        const y = String(r?.ymd || '').trim()
+        if (y) return y
+        try {
+          const d = new Date(r?.createdAt || '')
+          const pad = (n) => String(n).padStart(2, '0')
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        } catch (_) { return '' }
+      }
+      const byKey = new Map()
+      const keyOf = (r) => {
+        const pid = String(r?.projectId || '').trim()
+        const ymd = ymdOf(r)
+        const action = String(r?.actionType || '').trim()
+        return `${pid}\n${ymd}\n${action}`
+      }
+      ;[...cloud, ...incoming].forEach((r) => {
+        const k = keyOf(r)
+        if (!k.replace(/\n/g, '')) return
+        const prev = byKey.get(k)
+        const t = Date.parse(r?.createdAt || '') || 0
+        if (!prev) { byKey.set(k, r); return }
+        const tPrev = Date.parse(prev?.createdAt || '') || 0
+        if (t < tPrev) byKey.set(k, r)
+      })
+      data = Array.from(byKey.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0)).slice(-5000)
+    } catch (_) {
+      // 雲端讀取失敗時仍以本次傳入的資料寫入
+    }
+  }
+
   // 兌換請求：先拉雲端現況再合併，避免用戶端 localStorage 只有自己的請求而覆蓋掉其他人的請求（管理員看不到部分兌換）
   if (key === 'jiameng_exchange_requests') {
     try {

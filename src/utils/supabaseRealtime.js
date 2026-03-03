@@ -347,8 +347,15 @@ export function subscribeRealtime(onUpdate) {
                 }
               }
             } catch (_) {
-              const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
-              localStorage.setItem(TRIP_REPORT_KEY, val)
+              // 避免異常 payload 覆蓋本機：僅在 incoming 為有效非空陣列時才覆寫，否則保留本機既有資料
+              const incoming = Array.isArray(payload.new?.data)
+                ? payload.new.data
+                : (typeof payload.new?.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return null } })() : null)
+              if (Array.isArray(incoming) && incoming.length > 0) {
+                const existing = (() => { try { return JSON.parse(localStorage.getItem(TRIP_REPORT_KEY) || '[]') } catch (_) { return [] } })()
+                const merged = mergeTripReports(existing, incoming)
+                localStorage.setItem(TRIP_REPORT_KEY, JSON.stringify(merged))
+              }
               notifyKey(TRIP_REPORT_KEY)
             }
           } else {
