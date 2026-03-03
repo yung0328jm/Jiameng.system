@@ -77,3 +77,19 @@ body {
 .animate-gentle-blink {
   animation: gentle-blink 2s ease-in-out infinite;
 }
+
+/* 卡片燈號閃爍 */
+@keyframes light-blink {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.6;
+    filter: brightness(0.85);
+  }
+}
+
+.animate-light-blink {
+  animation: light-blink 1.5s ease-in-out infinite;
+}
