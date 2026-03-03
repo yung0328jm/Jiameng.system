@@ -2249,6 +2249,27 @@ function Calendar() {
                               title="有工作項目異動待審（暫不計分）"
                             />
                           )}
+                          {/* 出發或回程公里數未填時顯示小車圖示提醒 */}
+                          {!isLeaveScheduleItem(schedule) && (() => {
+                            const entries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
+                            const hasVehicle = entries ? schedule.vehicleEntries.some((e) => String(e?.vehicle || '').trim() !== '') : (String(schedule.vehicle || '').trim() !== '')
+                            const missingFromEntries = entries && schedule.vehicleEntries.some((e) => {
+                              const v = String(e?.vehicle || '').trim()
+                              if (!v) return false
+                              const dep = String(e?.departureMileage ?? '').trim()
+                              const ret = String(e?.returnMileage ?? '').trim()
+                              return dep === '' || ret === ''
+                            })
+                            const missingFlat = !entries && (String(schedule.departureMileage ?? '').trim() === '' || String(schedule.returnMileage ?? '').trim() === '')
+                            const hasMissingMileage = hasVehicle && (!!missingFromEntries || missingFlat)
+                            return hasMissingMileage ? (
+                              <div className="flex-shrink-0" title="出發或回程公里數未填">
+                                <svg className="w-3.5 h-3.5 text-amber-300/90" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                  <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+                                </svg>
+                              </div>
+                            ) : null
+                          })()}
                           {/* 請假卡片無燈號：右側留與燈號同寬佔位，避免卡片縮小、手機板內容看不完整 */}
                           {isLeaveScheduleItem(schedule) && (
                             <div className="w-3 min-h-[1.75rem] flex-shrink-0" aria-hidden="true" />
