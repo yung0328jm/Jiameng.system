@@ -2242,7 +2242,7 @@ function Calendar() {
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
                       >
-                        <span className={`truncate flex-1 min-w-0 rounded-sm px-0.5 py-px ${docIncomplete ? 'ring-1 ring-red-400' : ''}`}>{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
+                        <span className="truncate flex-1 min-w-0">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 異動待審提示 */}
                           {hasPendingChangeRequest(schedule) && (
