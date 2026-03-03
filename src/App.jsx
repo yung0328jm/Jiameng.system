@@ -24,8 +24,9 @@ import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCur
 import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
+import ClickStarsEffect from './components/ClickStarsEffect'
 import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange } from './utils/authSupabase'
-import { savePushToken } from './utils/pushTokenStorage'
+import { getSupabaseClient } from './utils/supabaseClient'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => getAuthStatus())
@@ -83,7 +84,13 @@ function App() {
         if (perm.receive !== 'granted') return
         PushNotifications.addListener('registration', async (token) => {
           if (cancelled) return
-          await savePushToken(account, token.value)
+          const sb = getSupabaseClient()
+          if (sb && account && token?.value) {
+            await sb.from('push_tokens').upsert(
+              { account: account.trim(), token: String(token.value).trim(), platform: 'android', updated_at: new Date().toISOString() },
+              { onConflict: 'account,platform' }
+            )
+          }
         })
         PushNotifications.addListener('registrationError', (err) => console.warn('Push registration error', err))
         await PushNotifications.register()
@@ -127,6 +134,7 @@ function App() {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ClickStarsEffect />
       <SyncProvider syncReady={syncReady}>
       <Routes>
         <Route 
