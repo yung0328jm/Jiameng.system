@@ -290,7 +290,7 @@ function PersonalPerformance() {
     schedules.forEach((schedule) => {
       if (startDate && schedule.date && schedule.date < startDate) return
       if (schedule.date && schedule.date > effectiveEndDate) return
-      if (schedule.progressSheet !== false && schedule.constructionPhotos !== false) return
+      if (schedule.progressSheet === true && schedule.constructionPhotos === true) return
       // 工作項目來源：支援頂層 workItems 或 segments 內 workItems（與主迴圈一致）
       const rawWorkItems = (Array.isArray(schedule.segments) && schedule.segments.length > 0)
         ? schedule.segments.flatMap((s) => s.workItems || [])

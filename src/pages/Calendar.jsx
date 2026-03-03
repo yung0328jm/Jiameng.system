@@ -747,8 +747,8 @@ function Calendar() {
       createdBy: schedule.createdBy || '',
       createdAt: schedule.createdAt || '',
       tag: schedule.tag || 'blue',
-      progressSheet: schedule.progressSheet !== false,
-      constructionPhotos: schedule.constructionPhotos !== false
+      progressSheet: schedule.progressSheet === true,
+      constructionPhotos: schedule.constructionPhotos === true
     })
     setEditingFormSegmentIndex(0)
     const baseIds = {}
@@ -1699,8 +1699,8 @@ function Calendar() {
         id: editingScheduleId,
         createdBy: scheduleFormData?.createdBy || prev?.createdBy || '',
         createdAt: scheduleFormData?.createdAt || prev?.createdAt || '',
-        progressSheet: scheduleFormData.progressSheet !== false,
-        constructionPhotos: scheduleFormData.constructionPhotos !== false
+        progressSheet: scheduleFormData.progressSheet === true,
+        constructionPhotos: scheduleFormData.constructionPhotos === true
       }
       if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadEdit.segments = segmentsToSave
@@ -1725,8 +1725,8 @@ function Calendar() {
         ...scheduleFormData,
         createdBy: scheduleFormData?.createdBy || currentUser || '',
         vehicleEntries: entriesNew,
-        progressSheet: scheduleFormData.progressSheet !== false,
-        constructionPhotos: scheduleFormData.constructionPhotos !== false
+        progressSheet: scheduleFormData.progressSheet === true,
+        constructionPhotos: scheduleFormData.constructionPhotos === true
       }
       if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadNew.segments = segmentsToSave
@@ -2222,7 +2222,7 @@ function Calendar() {
                     const scheduleTag = schedule.tag || 'blue'
                     const isAllDay = schedule.isAllDay !== undefined ? schedule.isAllDay : true
                     // 工進單或施工照片未勾選：整個活動框紅色閃爍（字體維持原色）
-                    const docIncomplete = schedule.progressSheet === false || schedule.constructionPhotos === false
+                    const docIncomplete = schedule.progressSheet !== true || schedule.constructionPhotos !== true
                     const textClass = typeTextColors[scheduleTag] || 'text-white'
                     const timeTextClass = typeTimeColors[scheduleTag] || 'text-blue-400'
                     // 全天：显示标签底色；非全天：只修改字体颜色
@@ -2723,7 +2723,7 @@ function Calendar() {
                                       <label className="flex items-center gap-2 cursor-pointer text-blue-200">
                                         <input
                                           type="checkbox"
-                                          checked={selectedDetailItem.progressSheet !== false}
+                                          checked={selectedDetailItem.progressSheet === true}
                                           onChange={(e) => {
                                             const v = e.target.checked
                                             updateSchedule(selectedDetailItem.id, { progressSheet: v })
@@ -2737,7 +2737,7 @@ function Calendar() {
                                       <label className="flex items-center gap-2 cursor-pointer text-blue-200">
                                         <input
                                           type="checkbox"
-                                          checked={selectedDetailItem.constructionPhotos !== false}
+                                          checked={selectedDetailItem.constructionPhotos === true}
                                           onChange={(e) => {
                                             const v = e.target.checked
                                             updateSchedule(selectedDetailItem.id, { constructionPhotos: v })
@@ -2748,7 +2748,7 @@ function Calendar() {
                                         />
                                         施工照片
                                       </label>
-                                      {((selectedDetailItem.progressSheet === false) || (selectedDetailItem.constructionPhotos === false)) && (
+                                      {((selectedDetailItem.progressSheet !== true) || (selectedDetailItem.constructionPhotos !== true)) && (
                                         <span className="text-red-400 text-xs">未勾選時該組所有人績效扣1分，行事曆活動顯示紅字</span>
                                       )}
                                     </div>
