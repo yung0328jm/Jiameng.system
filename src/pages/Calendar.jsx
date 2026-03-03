@@ -2242,7 +2242,7 @@ function Calendar() {
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
                       >
-                        <span className={`truncate flex-1 min-w-0 rounded-sm px-0.5 py-px ${docIncomplete ? 'schedule-doc-ring-flash' : ''}`}>{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
+                        <span className={`truncate flex-1 min-w-0 rounded-sm px-0.5 py-px ${docIncomplete ? 'ring-1 ring-red-400' : ''}`}>{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 異動待審提示 */}
                           {hasPendingChangeRequest(schedule) && (
@@ -2251,7 +2251,7 @@ function Calendar() {
                               title="有工作項目異動待審（暫不計分）"
                             />
                           )}
-                          {/* 行事曆加油燈／發票燈：多車時任一台有加油即綠燈；有 vehicleEntries 用其值，否則用 flat；支援字串 "true" */}
+                          {/* 卡片燈號：上方＝加油紅燈／發票繳回綠燈；下方＝工進單與施工照片（都勾選綠燈、否則紅燈；請假不顯示下方） */}
                           {(() => {
                             const toBool = (v) => v === true || v === 'true'
                             const entries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
@@ -2261,18 +2261,16 @@ function Calendar() {
                             const invoiceFlat = toBool(schedule.invoiceReturned)
                             const hasRefuel = !!refuelFromEntries || refuelFlat
                             const hasInvoiceReturned = !!invoiceFromEntries || invoiceFlat
+                            const isLeave = isLeaveScheduleItem(schedule)
+                            const bothDocChecked = schedule.progressSheet === true && schedule.constructionPhotos === true
+                            const upperRed = hasRefuel && !hasInvoiceReturned
+                            const upperGreen = hasInvoiceReturned
+                            const upperClass = upperGreen ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : upperRed ? 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]' : 'bg-gray-500'
+                            const lowerClass = isLeave ? 'bg-gray-500' : bothDocChecked ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
                             return (
                               <>
-                                <div
-                                  className={`relative w-3 h-3 rounded-full flex-shrink-0 ${hasRefuel ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-gray-500'}`}
-                                  title={hasRefuel ? '已加油' : '未加油'}
-                                />
-                                <div
-                                  className={`relative w-3 h-3 rounded-full flex-shrink-0 ${
-                                    !hasRefuel ? 'bg-gray-500' : hasInvoiceReturned ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
-                                  }`}
-                                  title={!hasRefuel ? '無發票狀態（未加油）' : hasInvoiceReturned ? '發票已繳回' : '發票未繳回'}
-                                />
+                                <div className={`relative w-3 h-3 rounded-full flex-shrink-0 ${upperClass}`} title={upperGreen ? '發票已繳回' : upperRed ? '已加油，發票未繳回' : '未加油'} />
+                                <div className={`relative w-3 h-3 rounded-full flex-shrink-0 ${lowerClass}`} title={isLeave ? '請假' : bothDocChecked ? '工進單、施工照片已勾選' : '工進單或施工照片未勾選'} />
                               </>
                             )
                           })()}
