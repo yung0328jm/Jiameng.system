@@ -2233,11 +2233,11 @@ function Calendar() {
                     return (
                       <div 
                         key={schedule.id} 
-                        className={`${displayClass} text-[9px] sm:text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden`}
+                        className={`${displayClass} text-[8px] sm:text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-start justify-between gap-0.5 min-w-0 overflow-hidden leading-tight`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
                       >
-                        <span className="truncate flex-1 min-w-0">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
+                        <span className="flex-1 min-w-0 line-clamp-2 break-words overflow-hidden">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 異動待審提示 */}
                           {hasPendingChangeRequest(schedule) && (
