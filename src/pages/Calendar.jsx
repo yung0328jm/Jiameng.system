@@ -2242,7 +2242,7 @@ function Calendar() {
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
                       >
-                        <span className={`truncate flex-1 min-w-0 ${docIncomplete ? 'ring-1 ring-red-400 rounded-sm px-0.5 py-px' : ''}`}>{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
+                        <span className={`truncate flex-1 min-w-0 rounded-sm px-0.5 py-px ${docIncomplete ? 'schedule-doc-ring-flash' : ''}`}>{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 異動待審提示 */}
                           {hasPendingChangeRequest(schedule) && (
@@ -2749,7 +2749,7 @@ function Calendar() {
                                         施工照片
                                       </label>
                                       {((selectedDetailItem.progressSheet !== true) || (selectedDetailItem.constructionPhotos !== true)) && (
-                                        <span className="text-red-400 text-xs">未勾選時該組所有人績效扣1分，行事曆活動顯示紅字</span>
+                                        <span className="text-red-400 text-xs">繳交完成後請勾選</span>
                                       )}
                                     </div>
                                   )}
