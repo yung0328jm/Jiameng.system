@@ -134,8 +134,8 @@ function Calendar() {
     invoiceReturned: false,
     workItems: [],
     tag: 'blue', // 标签：red(重要/節假日), green(活動), blue(工作/項目), yellow(出差)
-    progressSheet: true,   // 工進單（未勾選時該組所有人績效扣1分、行事曆活動顯示紅字）
-    constructionPhotos: true // 施工照片（同上）
+    progressSheet: false,  // 工進單（新增活動卡預設不勾；未勾選時該組所有人績效扣1分、活動框紅色閃爍）
+    constructionPhotos: false // 施工照片（同上）
   })
 
   const year = currentDate.getFullYear()
@@ -1768,8 +1768,8 @@ function Calendar() {
         workItems: [],
         segments: undefined,
         tag: 'blue',
-        progressSheet: true,
-        constructionPhotos: true
+        progressSheet: false,
+        constructionPhotos: false
       })
       setNewVehicleInput('')
       setShowScheduleForm(false)
@@ -1801,8 +1801,8 @@ function Calendar() {
       workItems: [],
       segments: undefined,
       tag: 'blue',
-      progressSheet: true,
-      constructionPhotos: true
+      progressSheet: false,
+      constructionPhotos: false
     })
     setNewVehicleInput('')
     setEditingScheduleId(null)
