@@ -2170,14 +2170,14 @@ function Calendar() {
             return (
               <div
                 key={`prev-${day}`}
-                className="min-h-[132px] sm:min-h-[100px] bg-gray-900 border border-gray-700 rounded p-1 sm:p-0.5 text-gray-600 overflow-hidden min-w-0"
+                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-0.5 text-gray-600 overflow-hidden min-w-0"
               >
                 <div className="text-[10px] mb-0.5 font-medium">{day}</div>
-                <div className="space-y-1 sm:space-y-0.5 overflow-hidden min-w-0">
+                <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[10px] sm:text-[9px] px-1 py-1 sm:px-0.5 sm:py-0.5 rounded truncate`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate`}
                       title={event.title}
                     >
                       {event.title}
@@ -2199,7 +2199,7 @@ function Calendar() {
               <div
                 key={day}
                 onClick={() => handleDateClick(day, true)}
-                className={`min-h-[132px] sm:min-h-[100px] bg-gray-800 border rounded p-1 sm:p-0.5 cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
+                className={`min-h-[100px] sm:min-h-[100px] bg-gray-800 border rounded p-0.5 cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
                   today ? 'border-yellow-400 ring-2 ring-yellow-400' : 
                   holiday ? 'border-red-500' : 
                   'border-gray-700'
@@ -2211,7 +2211,7 @@ function Calendar() {
                     <span className="ml-0.5 text-[10px]">元旦</span>
                   )}
                 </div>
-                <div className="space-y-1 sm:space-y-0.5 overflow-hidden min-w-0">
+                <div className="space-y-0.5 overflow-hidden min-w-0">
                   {/* 显示排程（案场名称） */}
                   {daySchedules.map((schedule) => {
                     const scheduleTag = schedule.tag || 'blue'
@@ -2233,16 +2233,16 @@ function Calendar() {
                     return (
                       <div 
                         key={schedule.id} 
-                        className={`${displayClass} text-[11px] sm:text-[10px] px-1.5 py-1.5 sm:px-0.5 sm:py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-1 sm:gap-0.5 min-w-0 overflow-hidden min-h-[32px] sm:min-h-0`}
+                        className={`${displayClass} text-[9px] sm:text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
                       >
                         <span className="truncate flex-1 min-w-0">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
-                        <div className="flex flex-col items-center gap-1 sm:gap-0.5 flex-shrink-0">
+                        <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 異動待審提示 */}
                           {hasPendingChangeRequest(schedule) && (
                             <div
-                              className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_6px_1px_rgba(168,85,247,0.9)]"
+                              className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-400 shadow-[0_0_4px_1px_rgba(168,85,247,0.9)]"
                               title="有工作項目異動待審（暫不計分）"
                             />
                           )}
@@ -2260,7 +2260,7 @@ function Calendar() {
                             const missingFlat = !entries && (String(schedule.departureMileage ?? '').trim() === '' || String(schedule.returnMileage ?? '').trim() === '')
                             const hasMissingMileage = hasVehicle && (!!missingFromEntries || missingFlat)
                             return hasMissingMileage ? (
-                              <div className="flex-shrink-0 w-4 h-4 sm:w-3.5 sm:h-3.5 flex items-center justify-center" title="出發或回程公里數未填">
+                              <div className="flex-shrink-0 w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 flex items-center justify-center" title="出發或回程公里數未填">
                                 <svg className="w-full h-full text-white drop-shadow-[0_0_1px_rgba(0,0,0,0.9)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                   <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
                                 </svg>
@@ -2269,7 +2269,7 @@ function Calendar() {
                           })()}
                           {/* 請假卡片無燈號：右側留與燈號同寬佔位，避免卡片縮小、手機板內容看不完整 */}
                           {isLeaveScheduleItem(schedule) && (
-                            <div className="w-3.5 h-7 sm:w-3 sm:min-h-[1.75rem] flex-shrink-0" aria-hidden="true" />
+                            <div className="w-2.5 min-h-[1.25rem] sm:w-3 sm:min-h-[1.75rem] flex-shrink-0" aria-hidden="true" />
                           )}
                           {/* 卡片燈號：僅工程排程顯示；請假卡片不顯示燈號。上方＝加油紅／發票綠；下方＝工進單與施工照片 */}
                           {!isLeaveScheduleItem(schedule) && (() => {
@@ -2288,8 +2288,8 @@ function Calendar() {
                             const lowerClass = bothDocChecked ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
                             return (
                               <>
-                                <div className={`relative w-3.5 h-3.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 animate-light-blink ${upperClass}`} title={upperGreen ? '發票已繳回' : upperRed ? '已加油，發票未繳回' : '未加油'} />
-                                <div className={`relative w-3.5 h-3.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 animate-light-blink ${lowerClass}`} title={bothDocChecked ? '工進單、施工照片已勾選' : '工進單或施工照片未勾選'} />
+                                <div className={`relative w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 animate-light-blink ${upperClass}`} title={upperGreen ? '發票已繳回' : upperRed ? '已加油，發票未繳回' : '未加油'} />
+                                <div className={`relative w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 animate-light-blink ${lowerClass}`} title={bothDocChecked ? '工進單、施工照片已勾選' : '工進單或施工照片未勾選'} />
                               </>
                             )
                           })()}
@@ -2301,7 +2301,7 @@ function Calendar() {
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[10px] sm:text-[9px] px-1 py-1 sm:px-0.5 sm:py-0.5 rounded truncate cursor-pointer hover:opacity-80 min-h-[28px] sm:min-h-0 flex items-center`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80`}
                       title={event.title}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -2322,14 +2322,14 @@ function Calendar() {
             return (
               <div
                 key={`next-${day}`}
-                className="min-h-[132px] sm:min-h-[100px] bg-gray-900 border border-gray-700 rounded p-1 sm:p-0.5 text-gray-600 overflow-hidden min-w-0"
+                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-0.5 text-gray-600 overflow-hidden min-w-0"
               >
                 <div className="text-[10px] mb-0.5">{day}</div>
-                <div className="space-y-1 sm:space-y-0.5 overflow-hidden min-w-0">
+                <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[10px] sm:text-[9px] px-1 py-1 sm:px-0.5 sm:py-0.5 rounded truncate`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate`}
                       title={event.title}
                     >
                       {event.title}
