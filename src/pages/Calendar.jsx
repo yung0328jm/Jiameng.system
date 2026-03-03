@@ -133,7 +133,9 @@ function Calendar() {
     fuelCost: '',
     invoiceReturned: false,
     workItems: [],
-    tag: 'blue' // 标签：red(重要/節假日), green(活動), blue(工作/項目), yellow(出差)
+    tag: 'blue', // 标签：red(重要/節假日), green(活動), blue(工作/項目), yellow(出差)
+    progressSheet: true,   // 工進單（未勾選時該組所有人績效扣1分、行事曆活動顯示紅字）
+    constructionPhotos: true // 施工照片（同上）
   })
 
   const year = currentDate.getFullYear()
@@ -744,7 +746,9 @@ function Calendar() {
       segments: segs.length > 0 ? segs : undefined,
       createdBy: schedule.createdBy || '',
       createdAt: schedule.createdAt || '',
-      tag: schedule.tag || 'blue'
+      tag: schedule.tag || 'blue',
+      progressSheet: schedule.progressSheet !== false,
+      constructionPhotos: schedule.constructionPhotos !== false
     })
     setEditingFormSegmentIndex(0)
     const baseIds = {}
@@ -1694,7 +1698,9 @@ function Calendar() {
         vehicleEntries: entriesEdit,
         id: editingScheduleId,
         createdBy: scheduleFormData?.createdBy || prev?.createdBy || '',
-        createdAt: scheduleFormData?.createdAt || prev?.createdAt || ''
+        createdAt: scheduleFormData?.createdAt || prev?.createdAt || '',
+        progressSheet: scheduleFormData.progressSheet !== false,
+        constructionPhotos: scheduleFormData.constructionPhotos !== false
       }
       if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadEdit.segments = segmentsToSave
@@ -1718,7 +1724,9 @@ function Calendar() {
       const payloadNew = {
         ...scheduleFormData,
         createdBy: scheduleFormData?.createdBy || currentUser || '',
-        vehicleEntries: entriesNew
+        vehicleEntries: entriesNew,
+        progressSheet: scheduleFormData.progressSheet !== false,
+        constructionPhotos: scheduleFormData.constructionPhotos !== false
       }
       if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadNew.segments = segmentsToSave
@@ -1759,7 +1767,9 @@ function Calendar() {
         invoiceReturned: false,
         workItems: [],
         segments: undefined,
-        tag: 'blue'
+        tag: 'blue',
+        progressSheet: true,
+        constructionPhotos: true
       })
       setNewVehicleInput('')
       setShowScheduleForm(false)
@@ -1790,7 +1800,9 @@ function Calendar() {
       invoiceReturned: false,
       workItems: [],
       segments: undefined,
-      tag: 'blue'
+      tag: 'blue',
+      progressSheet: true,
+      constructionPhotos: true
     })
     setNewVehicleInput('')
     setEditingScheduleId(null)
@@ -2209,10 +2221,14 @@ function Calendar() {
                   {daySchedules.map((schedule) => {
                     const scheduleTag = schedule.tag || 'blue'
                     const isAllDay = schedule.isAllDay !== undefined ? schedule.isAllDay : true
+                    // 工進單或施工照片未勾選：活動字體顯示紅色；否則依標籤
+                    const docIncomplete = schedule.progressSheet === false || schedule.constructionPhotos === false
+                    const textClass = docIncomplete ? 'text-red-400' : (typeTextColors[scheduleTag] || 'text-white')
+                    const timeTextClass = docIncomplete ? 'text-red-400' : (typeTimeColors[scheduleTag] || 'text-blue-400')
                     // 全天：显示标签底色；非全天：只修改字体颜色
                     const displayClass = isAllDay
-                      ? `${typeColors[scheduleTag] || 'bg-blue-500'} ${typeTextColors[scheduleTag] || 'text-white'}`
-                      : `bg-gray-700 ${typeTimeColors[scheduleTag] || 'text-blue-400'}`
+                      ? `${typeColors[scheduleTag] || 'bg-blue-500'} ${textClass}`
+                      : `bg-gray-700 ${timeTextClass}`
                     
                     // 显示时间信息
                     const timeDisplay = !isAllDay && schedule.startTime
@@ -2698,8 +2714,45 @@ function Calendar() {
                                 ))}
                               </div>
                               {currentSegment && (
-                                <div className="text-lg font-semibold text-yellow-400 mb-1">
-                                  活動：{currentSegment.siteName || '未命名'}
+                                <div className="flex flex-wrap items-center gap-3 mb-1">
+                                  <div className="text-lg font-semibold text-yellow-400">
+                                    活動：{currentSegment.siteName || '未命名'}
+                                  </div>
+                                  {!isLeaveScheduleItem(selectedDetailItem) && (
+                                    <div className="flex items-center gap-4 text-sm">
+                                      <label className="flex items-center gap-2 cursor-pointer text-blue-200">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedDetailItem.progressSheet !== false}
+                                          onChange={(e) => {
+                                            const v = e.target.checked
+                                            updateSchedule(selectedDetailItem.id, { progressSheet: v })
+                                            setSchedules(getSchedules())
+                                            setSelectedDetailItem((prev) => (prev ? { ...prev, progressSheet: v } : prev))
+                                          }}
+                                          className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
+                                        />
+                                        工進單
+                                      </label>
+                                      <label className="flex items-center gap-2 cursor-pointer text-blue-200">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedDetailItem.constructionPhotos !== false}
+                                          onChange={(e) => {
+                                            const v = e.target.checked
+                                            updateSchedule(selectedDetailItem.id, { constructionPhotos: v })
+                                            setSchedules(getSchedules())
+                                            setSelectedDetailItem((prev) => (prev ? { ...prev, constructionPhotos: v } : prev))
+                                          }}
+                                          className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
+                                        />
+                                        施工照片
+                                      </label>
+                                      {((selectedDetailItem.progressSheet === false) || (selectedDetailItem.constructionPhotos === false)) && (
+                                        <span className="text-red-400 text-xs">未勾選時該組所有人績效扣1分，行事曆活動顯示紅字</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </>
