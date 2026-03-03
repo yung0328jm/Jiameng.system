@@ -2221,10 +2221,10 @@ function Calendar() {
                   {daySchedules.map((schedule) => {
                     const scheduleTag = schedule.tag || 'blue'
                     const isAllDay = schedule.isAllDay !== undefined ? schedule.isAllDay : true
-                    // 工進單或施工照片未勾選：活動字體顯示紅色；否則依標籤
+                    // 工進單或施工照片未勾選：整個活動框紅色閃爍（字體維持原色）
                     const docIncomplete = schedule.progressSheet === false || schedule.constructionPhotos === false
-                    const textClass = docIncomplete ? 'text-red-400' : (typeTextColors[scheduleTag] || 'text-white')
-                    const timeTextClass = docIncomplete ? 'text-red-400' : (typeTimeColors[scheduleTag] || 'text-blue-400')
+                    const textClass = typeTextColors[scheduleTag] || 'text-white'
+                    const timeTextClass = typeTimeColors[scheduleTag] || 'text-blue-400'
                     // 全天：显示标签底色；非全天：只修改字体颜色
                     const displayClass = isAllDay
                       ? `${typeColors[scheduleTag] || 'bg-blue-500'} ${textClass}`
@@ -2238,9 +2238,9 @@ function Calendar() {
                     return (
                       <div 
                         key={schedule.id} 
-                        className={`${displayClass} text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden`}
+                        className={`${displayClass} text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden ${docIncomplete ? 'animate-schedule-doc-flash' : ''}`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
-                        title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程`}
+                        title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
                       >
                         <span className="truncate flex-1 min-w-0">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
