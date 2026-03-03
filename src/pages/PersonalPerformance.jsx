@@ -38,6 +38,7 @@ function PersonalPerformance() {
     completionRateAdjustment: 0, // 達成率調整分數（完成率→績效分數→統計至績效評分）
     lateAdjustment: 0,          // 遲到調整分數
     noClockInAdjustment: 0,     // 未打卡調整分數
+    scheduleDocAdjustment: 0,   // 工進單/施工照片未勾選扣分
     workDays: 0,                // 工作天數
     workDetails: [],            // 工作明細
     workItemStats: {},          // 按工作項目類型統計
@@ -284,6 +285,41 @@ function PersonalPerformance() {
       })
     })
 
+    // 工進單／施工照片未勾選：該排程當日所有參與人員（參與人員欄位 + 工作項目負責/協作）每人扣1分
+    const scheduleDaysWithDocPenalty = new Set()
+    schedules.forEach((schedule) => {
+      if (startDate && schedule.date && schedule.date < startDate) return
+      if (schedule.date && schedule.date > effectiveEndDate) return
+      if (schedule.progressSheet !== false && schedule.constructionPhotos !== false) return
+      // 工作項目來源：支援頂層 workItems 或 segments 內 workItems（與主迴圈一致）
+      const rawWorkItems = (Array.isArray(schedule.segments) && schedule.segments.length > 0)
+        ? schedule.segments.flatMap((s) => s.workItems || [])
+        : (schedule.workItems || [])
+      if (rawWorkItems.length === 0) {
+        // 無工作項目時仍看「參與人員」：若使用者在此排程的參與名單內也扣分
+        const participantsStr = String(schedule.participants || '').trim()
+        if (!participantsStr) return
+        const participantNames = participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean)
+        const userInParticipants = participantNames.some((p) => displayNames.includes(p))
+        if (userInParticipants) scheduleDaysWithDocPenalty.add(schedule.date)
+        return
+      }
+      const logicalItems = expandWorkItemsToLogical(rawWorkItems)
+      let userInGroup = false
+      const participantNames = String(schedule.participants || '').split(',').map((p) => String(p || '').trim()).filter(Boolean)
+      if (participantNames.some((p) => displayNames.includes(p))) userInGroup = true
+      logicalItems.forEach((item) => {
+        if (String(item?.changeRequest?.status || '') === 'pending') return
+        const it = normalizeWorkItem(item)
+        const collabs = it.isCollaborative
+          ? getWorkItemCollaborators(it)
+          : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
+        if (collabs.some((c) => displayNames.includes(String(c?.name || '').trim()))) userInGroup = true
+      })
+      if (userInGroup) scheduleDaysWithDocPenalty.add(schedule.date)
+    })
+    const scheduleDocAdjustment = -1 * scheduleDaysWithDocPenalty.size
+
     // 統計遲到次數
     const lateRecords = getUserLateRecords(userName, startDate, endDate)
     const lateCount = lateRecords.length
@@ -521,9 +557,9 @@ function PersonalPerformance() {
       noClockInAdjustment = calculateNoClockInAdjustment(noClockInCount)
     }
 
-    // 績效評分 = 初始100分 + 管理者調整分數 + 工作項目達成率調整分數 + 遲到調整分數 + 未打卡調整分數
-    const performanceScore = 100 + totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment
-    const totalAdjustmentWithCompletion = totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment
+    // 績效評分 = 初始100分 + 管理者調整 + 達成率調整 + 遲到 + 未打卡 + 工進單/施工照片未勾選扣分
+    const performanceScore = 100 + totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment + scheduleDocAdjustment
+    const totalAdjustmentWithCompletion = totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment + scheduleDocAdjustment
     const adjustmentDisplay = totalAdjustmentWithCompletion !== 0 ? (totalAdjustmentWithCompletion >= 0 ? `+${totalAdjustmentWithCompletion.toFixed(1)}` : `${totalAdjustmentWithCompletion.toFixed(1)}`) : ''
 
     // 排序工作明細（最新的在前）
@@ -547,6 +583,7 @@ function PersonalPerformance() {
       completionRateAdjustment: completionRateAdjustment, // 完成率→績效分數→統計至績效評分
       lateAdjustment: lateAdjustment,            // 遲到調整分數
       noClockInAdjustment: noClockInAdjustment,  // 未打卡調整分數
+      scheduleDocAdjustment: scheduleDocAdjustment, // 工進單/施工照片未勾選扣分（該組每人每日最多-1）
       workDays: workDays.size,
       workDetails: workDetails,
       workItemStats: workItemStats,
@@ -2394,6 +2431,14 @@ function PersonalPerformance() {
                         <span className="text-gray-500">+</span>
                         <span className="text-red-400" title="依未打卡記錄計算（六日除外）">
                           未打卡{performanceData.noClockInAdjustment.toFixed(2)}
+                        </span>
+                      </>
+                    )}
+                    {performanceData.scheduleDocAdjustment !== 0 && (
+                      <>
+                        <span className="text-gray-500">+</span>
+                        <span className="text-red-400" title="排程工進單或施工照片未勾選，該組每人當日扣1分">
+                          工進單/施工照片{performanceData.scheduleDocAdjustment}
                         </span>
                       </>
                     )}
