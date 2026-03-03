@@ -2251,8 +2251,8 @@ function Calendar() {
                               title="有工作項目異動待審（暫不計分）"
                             />
                           )}
-                          {/* 卡片燈號：上方＝加油紅燈／發票繳回綠燈；下方＝工進單與施工照片（都勾選綠燈、否則紅燈；請假不顯示下方） */}
-                          {(() => {
+                          {/* 卡片燈號：僅工程排程顯示；請假卡片不顯示燈號。上方＝加油紅／發票綠；下方＝工進單與施工照片 */}
+                          {!isLeaveScheduleItem(schedule) && (() => {
                             const toBool = (v) => v === true || v === 'true'
                             const entries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
                             const refuelFromEntries = entries && schedule.vehicleEntries.some((e) => toBool(e.needRefuel))
@@ -2261,16 +2261,15 @@ function Calendar() {
                             const invoiceFlat = toBool(schedule.invoiceReturned)
                             const hasRefuel = !!refuelFromEntries || refuelFlat
                             const hasInvoiceReturned = !!invoiceFromEntries || invoiceFlat
-                            const isLeave = isLeaveScheduleItem(schedule)
                             const bothDocChecked = schedule.progressSheet === true && schedule.constructionPhotos === true
                             const upperRed = hasRefuel && !hasInvoiceReturned
                             const upperGreen = hasInvoiceReturned
                             const upperClass = upperGreen ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : upperRed ? 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]' : 'bg-gray-500'
-                            const lowerClass = isLeave ? 'bg-gray-500' : bothDocChecked ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
+                            const lowerClass = bothDocChecked ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
                             return (
                               <>
                                 <div className={`relative w-3 h-3 rounded-full flex-shrink-0 ${upperClass}`} title={upperGreen ? '發票已繳回' : upperRed ? '已加油，發票未繳回' : '未加油'} />
-                                <div className={`relative w-3 h-3 rounded-full flex-shrink-0 ${lowerClass}`} title={isLeave ? '請假' : bothDocChecked ? '工進單、施工照片已勾選' : '工進單或施工照片未勾選'} />
+                                <div className={`relative w-3 h-3 rounded-full flex-shrink-0 ${lowerClass}`} title={bothDocChecked ? '工進單、施工照片已勾選' : '工進單或施工照片未勾選'} />
                               </>
                             )
                           })()}
