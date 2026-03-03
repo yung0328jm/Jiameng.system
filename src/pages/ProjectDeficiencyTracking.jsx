@@ -682,14 +682,13 @@ function ProjectDeficiencyTracking() {
   })
   const filteredRecords = sortDeficiencyRecords(filteredRecordsRaw)
 
-  const handleDeleteProject = (id) => {
-    if (window.confirm('確定要刪除此專案嗎？')) {
-      const result = deleteProject(id)
-      if (result.success) {
-        loadProjects()
-      } else {
-        alert(result.message || '刪除失敗')
-      }
+  const handleDeleteProject = async (id) => {
+    if (!window.confirm('確定要刪除此專案嗎？')) return
+    const result = await deleteProject(id)
+    if (result.success) {
+      loadProjects()
+    } else {
+      alert(result.message || '刪除失敗')
     }
   }
 
