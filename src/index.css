@@ -78,3 +78,16 @@ body {
   animation: gentle-blink 2s ease-in-out infinite;
 }
 
+/* 工進單/施工照片未勾選：活動框內字體周遭紅框閃爍 */
+@keyframes schedule-doc-ring-flash {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.95);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25);
+  }
+}
+
+.schedule-doc-ring-flash {
+  animation: schedule-doc-ring-flash 1.2s ease-in-out infinite;
+}
