@@ -2221,7 +2221,7 @@ function Calendar() {
                   {daySchedules.map((schedule) => {
                     const scheduleTag = schedule.tag || 'blue'
                     const isAllDay = schedule.isAllDay !== undefined ? schedule.isAllDay : true
-                    // 工進單或施工照片未勾選：整個活動框紅色閃爍（字體維持原色）
+                    // 工進單或施工照片未勾選：活動框內字體周遭紅框描邊（不閃爍）
                     const docIncomplete = schedule.progressSheet !== true || schedule.constructionPhotos !== true
                     const textClass = typeTextColors[scheduleTag] || 'text-white'
                     const timeTextClass = typeTimeColors[scheduleTag] || 'text-blue-400'
@@ -2238,11 +2238,11 @@ function Calendar() {
                     return (
                       <div 
                         key={schedule.id} 
-                        className={`${displayClass} text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden ${docIncomplete ? 'animate-schedule-doc-flash' : ''}`}
+                        className={`${displayClass} text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-center justify-between gap-0.5 min-w-0 overflow-hidden`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
                       >
-                        <span className="truncate flex-1 min-w-0">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
+                        <span className={`truncate flex-1 min-w-0 ${docIncomplete ? 'ring-1 ring-red-400 rounded-sm px-0.5 py-px' : ''}`}>{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 異動待審提示 */}
                           {hasPendingChangeRequest(schedule) && (
