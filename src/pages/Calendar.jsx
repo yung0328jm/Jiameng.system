@@ -2221,8 +2221,8 @@ function Calendar() {
                   {daySchedules.map((schedule) => {
                     const scheduleTag = schedule.tag || 'blue'
                     const isAllDay = schedule.isAllDay !== undefined ? schedule.isAllDay : true
-                    // 工進單或施工照片未勾選：活動框內字體周遭紅框描邊（不閃爍）
-                    const docIncomplete = schedule.progressSheet !== true || schedule.constructionPhotos !== true
+                    // 工進單或施工照片未勾選：活動框內字體周遭紅框描邊閃爍（請假排程不套用）
+                    const docIncomplete = !isLeaveScheduleItem(schedule) && (schedule.progressSheet !== true || schedule.constructionPhotos !== true)
                     const textClass = typeTextColors[scheduleTag] || 'text-white'
                     const timeTextClass = typeTimeColors[scheduleTag] || 'text-blue-400'
                     // 全天：显示标签底色；非全天：只修改字体颜色

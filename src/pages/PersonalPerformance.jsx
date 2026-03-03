@@ -285,11 +285,17 @@ function PersonalPerformance() {
       })
     })
 
-    // 工進單／施工照片未勾選：該排程當日所有參與人員（參與人員欄位 + 工作項目負責/協作）每人扣1分
+    // 工進單／施工照片未勾選：該排程當日所有參與人員（參與人員欄位 + 工作項目負責/協作）每人扣1分（請假排程不扣分）
+    const isLeaveSchedule = (s) => {
+      const tag = String(s?.tag || '').trim()
+      const siteName = String(s?.siteName || '').trim()
+      return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
+    }
     const scheduleDaysWithDocPenalty = new Set()
     schedules.forEach((schedule) => {
       if (startDate && schedule.date && schedule.date < startDate) return
       if (schedule.date && schedule.date > effectiveEndDate) return
+      if (isLeaveSchedule(schedule)) return // 請假不套用、不扣分
       if (schedule.progressSheet === true && schedule.constructionPhotos === true) return
       // 工作項目來源：支援頂層 workItems 或 segments 內 workItems（與主迴圈一致）
       const rawWorkItems = (Array.isArray(schedule.segments) && schedule.segments.length > 0)
