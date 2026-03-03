@@ -93,3 +93,54 @@ body {
 .animate-light-blink {
   animation: light-blink 1.5s ease-in-out infinite;
 }
+
+/* 點擊星星噴出效果（白金色） */
+@keyframes click-star-burst {
+  0% {
+    transform: translate(-50%, -50%) translate(0, 0) scale(0.6);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(-50%, -50%) translate(
+        calc(var(--tx) * 0.4 * 1px),
+        calc(var(--ty) * 0.4 * 1px)
+      )
+      scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) translate(
+        calc(var(--tx) * 1px),
+        calc(var(--ty) * 1px)
+      )
+      scale(0.15);
+    opacity: 0;
+  }
+}
+
+.click-star-particle {
+  position: fixed;
+  width: var(--size);
+  height: var(--size);
+  margin-left: 0;
+  margin-top: 0;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: click-star-burst 0.65s ease-out var(--delay) forwards;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.click-star-char {
+  font-size: var(--size);
+  line-height: 1;
+  color: hsl(var(--hue, 50), 85%, 92%);
+  text-shadow:
+    0 0 4px rgba(255, 255, 255, 0.9),
+    0 0 8px rgba(255, 230, 150, 0.7),
+    0 0 12px rgba(255, 220, 120, 0.4);
+  display: block;
+}
