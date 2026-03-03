@@ -159,7 +159,12 @@ function Calendar() {
   }
 
   const hasPendingChangeRequest = (schedule) => {
-    const items = Array.isArray(schedule?.workItems) ? schedule.workItems : []
+    if (!schedule) return false
+    // 工作項目可能在 schedule.workItems（單案場）或 schedule.segments[].workItems（多案場），需彙總後再判斷
+    const segments = Array.isArray(schedule.segments) && schedule.segments.length > 0 ? schedule.segments : null
+    const items = segments
+      ? segments.flatMap((seg) => Array.isArray(seg?.workItems) ? seg.workItems : [])
+      : (Array.isArray(schedule.workItems) ? schedule.workItems : [])
     const workPending = items.some((wi) => String(wi?.changeRequest?.status || '') === 'pending')
     const vehicleReturnPending = (Array.isArray(schedule?.vehicleReturnMileageChangeRequests) ? schedule.vehicleReturnMileageChangeRequests : []).some((r) => String(r?.status || '') === 'pending')
     return workPending || vehicleReturnPending
@@ -462,16 +467,11 @@ function Calendar() {
         updateSchedule(scheduleId, { workItems: nextItems })
       }
     }
-    setSchedules(getSchedules())
+    const allSchedules = getSchedules()
+    setSchedules(allSchedules)
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
-      if (segments && segments.length > 0) {
-        const updatedSegments = (Array.isArray(selectedDetailItem.segments) ? selectedDetailItem.segments : []).map((seg, i) =>
-          i === segIndex ? { ...seg, workItems: nextItems } : seg
-        )
-        setSelectedDetailItem((prev) => ({ ...prev, segments: updatedSegments }))
-      } else {
-        setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
-      }
+      const updated = allSchedules.find((s) => String(s?.id) === String(scheduleId))
+      if (updated) setSelectedDetailItem(updated)
     }
   }
 
@@ -518,16 +518,11 @@ function Calendar() {
     } else {
       updateSchedule(scheduleId, { workItems: nextItems })
     }
-    setSchedules(getSchedules())
+    const allSchedulesReject = getSchedules()
+    setSchedules(allSchedulesReject)
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
-      if (segments && segments.length > 0) {
-        const updatedSegments = (Array.isArray(selectedDetailItem.segments) ? selectedDetailItem.segments : []).map((seg, i) =>
-          i === segIndex ? { ...seg, workItems: nextItems } : seg
-        )
-        setSelectedDetailItem((prev) => ({ ...prev, segments: updatedSegments }))
-      } else {
-        setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
-      }
+      const updated = allSchedulesReject.find((s) => String(s?.id) === String(scheduleId))
+      if (updated) setSelectedDetailItem(updated)
     }
   }
 
@@ -544,10 +539,11 @@ function Calendar() {
       (r) => !(String(r?.vehicle || '').trim() === vehicle && String(r?.status || '') === 'pending' && r?.requestedAt === request?.requestedAt)
     )
     updateSchedule(scheduleId, { vehicleEntries: nextEntries, vehicleReturnMileageChangeRequests: nextRequests })
-    setSchedules(getSchedules())
+    const allSchedulesVehicle = getSchedules()
+    setSchedules(allSchedulesVehicle)
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
-      const updated = getSchedules().find((s) => String(s?.id) === String(scheduleId))
-      setSelectedDetailItem((prev) => ({ ...prev, vehicleEntries: updated?.vehicleEntries ?? prev.vehicleEntries, vehicleReturnMileageChangeRequests: updated?.vehicleReturnMileageChangeRequests ?? [] }))
+      const updated = allSchedulesVehicle.find((s) => String(s?.id) === String(scheduleId))
+      if (updated) setSelectedDetailItem(updated)
     }
   }
 
@@ -563,10 +559,11 @@ function Calendar() {
         : r
     )
     updateSchedule(scheduleId, { vehicleReturnMileageChangeRequests: nextRequests })
-    setSchedules(getSchedules())
+    const allSchedulesRejectVehicle = getSchedules()
+    setSchedules(allSchedulesRejectVehicle)
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
-      const updated = getSchedules().find((s) => String(s?.id) === String(scheduleId))
-      setSelectedDetailItem((prev) => ({ ...prev, vehicleReturnMileageChangeRequests: updated?.vehicleReturnMileageChangeRequests ?? [] }))
+      const updated = allSchedulesRejectVehicle.find((s) => String(s?.id) === String(scheduleId))
+      if (updated) setSelectedDetailItem(updated)
     }
   }
 
