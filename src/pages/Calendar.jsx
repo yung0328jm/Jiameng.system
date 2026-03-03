@@ -2251,6 +2251,10 @@ function Calendar() {
                               title="有工作項目異動待審（暫不計分）"
                             />
                           )}
+                          {/* 請假卡片無燈號：右側留與燈號同寬佔位，避免卡片縮小、手機板內容看不完整 */}
+                          {isLeaveScheduleItem(schedule) && (
+                            <div className="w-3 min-h-[1.75rem] flex-shrink-0" aria-hidden="true" />
+                          )}
                           {/* 卡片燈號：僅工程排程顯示；請假卡片不顯示燈號。上方＝加油紅／發票綠；下方＝工進單與施工照片 */}
                           {!isLeaveScheduleItem(schedule) && (() => {
                             const toBool = (v) => v === true || v === 'true'
