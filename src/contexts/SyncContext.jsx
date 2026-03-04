@@ -11,6 +11,7 @@ export function SyncProvider({ children, syncReady = false }) {
   const pollRef = useRef(null)
   const lastLbUpdatedAtRef = useRef('')
   const lastAnnouncementsUpdatedAtRef = useRef('')
+  const lastProjectsUpdatedAtRef = useRef('')
   const resumeRefreshInFlightRef = useRef(false)
 
   const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
@@ -50,7 +51,7 @@ export function SyncProvider({ children, syncReady = false }) {
       }, 8000)
     }
 
-    // 背景->前景：setInterval 可能被瀏覽器降頻/暫停，回來時主動補拉一次（避免要重新登入）
+    // 背景->前景：主動從雲端拉專案等關鍵資料，避免手機掛背景時電腦新增的專案回來後看不到
     const onResume = async () => {
       if (!isSupabaseEnabled()) return
       if (document.visibilityState && document.visibilityState !== 'visible') return
@@ -58,6 +59,10 @@ export function SyncProvider({ children, syncReady = false }) {
       resumeRefreshInFlightRef.current = true
       try {
         await flushSyncOutbox()
+        const sb = getSupabaseClient()
+        if (sb) {
+          await refreshAppDataKey(sb, 'jiameng_projects', lastProjectsUpdatedAtRef, [])
+        }
       } catch (_) {
       } finally {
         resumeRefreshInFlightRef.current = false
