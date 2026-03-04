@@ -345,6 +345,32 @@ async function _doUpsert(sb, key, value) {
     }
   }
 
+  // 專案清單：先拉雲端再合併（以 id + updatedAt），避免其他裝置的舊本地覆蓋雲端、導致某裝置新增的專案被刷不見
+  if (key === 'jiameng_projects') {
+    try {
+      const incoming = Array.isArray(data) ? data : []
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      const cloudRaw = cloudRow?.data
+      const cloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      const byId = new Map()
+      const projectUpdatedAt = (p) => Math.max(Date.parse(p?.updatedAt || '') || 0, Date.parse(p?.createdAt || '') || 0)
+      ;[...cloud, ...incoming].forEach((p) => {
+        const id = String(p?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, p); return }
+        const keep = projectUpdatedAt(p) >= projectUpdatedAt(prev) ? p : prev
+        byId.set(id, keep)
+      })
+      data = Array.from(byId.values()).sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+    } catch (_) {
+      // 雲端讀取失敗時仍以本次傳入的資料寫入
+    }
+  }
+
   const { error } = await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
   if (error) throw error
 }
