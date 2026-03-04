@@ -8,6 +8,7 @@ import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
+import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
 
 const REVISION_KEYS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth']
 const REVISION_LABELS = ['第一次修繕', '第二次修繕', '第三次修繕', '第四次修繕', '第五次修繕', '第六次修繕']
@@ -278,8 +279,19 @@ function ProjectDeficiencyTracking() {
   // 監聽 per-project keys：任何專案缺失表有變動都觸發 refetch（prefix match）
   useRealtimeKeys(['jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_engineering_schedules', 'jiameng_project_deficiencies'], refetchDeficiency)
 
+  // 進入專案管理時先從雲端拉取專案再顯示，避免其他裝置新增的專案被本地舊資料蓋掉
   useEffect(() => {
-    loadProjects()
+    let cancelled = false
+    const init = async () => {
+      if (isSupabaseEnabled()) {
+        try {
+          await refreshAppDataKeyFromSupabase('jiameng_projects')
+        } catch (_) {}
+      }
+      if (!cancelled) loadProjects()
+    }
+    init()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
