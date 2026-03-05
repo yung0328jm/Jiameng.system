@@ -2368,8 +2368,8 @@ function Calendar() {
                   {daySchedules.map((schedule) => {
                     const scheduleTag = schedule.tag || 'blue'
                     const isAllDay = schedule.isAllDay !== undefined ? schedule.isAllDay : true
-                    // 工進單或施工照片未勾選：活動框內字體周遭紅框描邊閃爍（請假排程不套用）
-                    const docIncomplete = !isLeaveScheduleItem(schedule) && (schedule.progressSheet !== true || schedule.constructionPhotos !== true)
+                    // 施工照片未勾選：活動框內字體周遭紅框描邊閃爍（請假排程不套用）
+                    const docIncomplete = !isLeaveScheduleItem(schedule) && schedule.constructionPhotos !== true
                     const textClass = typeTextColors[scheduleTag] || 'text-white'
                     const timeTextClass = typeTimeColors[scheduleTag] || 'text-blue-400'
                     // 全天：显示标签底色；非全天：只修改字体颜色
@@ -2387,7 +2387,7 @@ function Calendar() {
                         key={schedule.id} 
                         className={`${displayClass} text-[8px] sm:text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-start justify-between gap-0.5 min-w-0 overflow-hidden leading-tight`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
-                        title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（工進單或施工照片未勾選）' : ''}`}
+                        title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（施工照片未勾選）' : ''}`}
                       >
                         <span className="flex-1 min-w-0 line-clamp-2 break-words overflow-hidden">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
@@ -2423,7 +2423,7 @@ function Calendar() {
                           {isLeaveScheduleItem(schedule) && (
                             <div className="w-2.5 min-h-[1.25rem] sm:w-3 sm:min-h-[1.75rem] flex-shrink-0" aria-hidden="true" />
                           )}
-                          {/* 卡片燈號：僅工程排程顯示；請假卡片不顯示燈號。上方＝加油紅／發票綠；下方＝工進單與施工照片 */}
+                          {/* 卡片燈號：僅工程排程顯示；請假卡片不顯示燈號。上方＝加油紅／發票綠；下方＝施工照片 */}
                           {!isLeaveScheduleItem(schedule) && (() => {
                             const toBool = (v) => v === true || v === 'true'
                             const entries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
@@ -2433,15 +2433,15 @@ function Calendar() {
                             const invoiceFlat = toBool(schedule.invoiceReturned)
                             const hasRefuel = !!refuelFromEntries || refuelFlat
                             const hasInvoiceReturned = !!invoiceFromEntries || invoiceFlat
-                            const bothDocChecked = schedule.progressSheet === true && schedule.constructionPhotos === true
+                            const docChecked = schedule.constructionPhotos === true
                             const upperRed = hasRefuel && !hasInvoiceReturned
                             const upperGreen = hasInvoiceReturned
                             const upperClass = upperGreen ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : upperRed ? 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]' : 'bg-gray-500'
-                            const lowerClass = bothDocChecked ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
+                            const lowerClass = docChecked ? 'bg-green-400 ring-2 ring-green-300 shadow-[0_0_8px_2px_rgba(74,222,128,0.95)]' : 'bg-red-400 ring-2 ring-red-300 shadow-[0_0_8px_2px_rgba(248,113,113,0.95)]'
                             return (
                               <>
                                 <div className={`relative w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 animate-light-blink ${upperClass}`} title={upperGreen ? '發票已繳回' : upperRed ? '已加油，發票未繳回' : '未加油'} />
-                                <div className={`relative w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 animate-light-blink ${lowerClass}`} title={bothDocChecked ? '工進單、施工照片已勾選' : '工進單或施工照片未勾選'} />
+                                <div className={`relative w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 animate-light-blink ${lowerClass}`} title={docChecked ? '施工照片已勾選' : '施工照片未勾選'} />
                               </>
                             )
                           })()}
@@ -2912,20 +2912,6 @@ function Calendar() {
                                       <label className="flex items-center gap-2 cursor-pointer text-blue-200">
                                         <input
                                           type="checkbox"
-                                          checked={selectedDetailItem.progressSheet === true}
-                                          onChange={(e) => {
-                                            const v = e.target.checked
-                                            updateSchedule(selectedDetailItem.id, { progressSheet: v })
-                                            setSchedules(getSchedules())
-                                            setSelectedDetailItem((prev) => (prev ? { ...prev, progressSheet: v } : prev))
-                                          }}
-                                          className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
-                                        />
-                                        工進單
-                                      </label>
-                                      <label className="flex items-center gap-2 cursor-pointer text-blue-200">
-                                        <input
-                                          type="checkbox"
                                           checked={selectedDetailItem.constructionPhotos === true}
                                           onChange={(e) => {
                                             const v = e.target.checked
@@ -2937,7 +2923,7 @@ function Calendar() {
                                         />
                                         施工照片
                                       </label>
-                                      {((selectedDetailItem.progressSheet !== true) || (selectedDetailItem.constructionPhotos !== true)) && (
+                                      {selectedDetailItem.constructionPhotos !== true && (
                                         <span className="text-red-400 text-xs">繳交完成後請勾選</span>
                                       )}
                                     </div>
