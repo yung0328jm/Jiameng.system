@@ -1369,16 +1369,22 @@ function Calendar() {
         console.warn('PDF 中文字型載入失敗，將使用預設字型（可能亂碼）', err)
       }
     }
+    let fontOk = false
     if (fontBase64) {
-      pdf.addFileToVFS('NotoSansTC-Regular.ttf', fontBase64)
-      pdf.addFont('NotoSansTC-Regular.ttf', fontName, 'normal')
-      pdf.setFont(fontName, 'normal')
+      try {
+        pdf.addFileToVFS('NotoSansTC-Regular.ttf', fontBase64)
+        pdf.addFont('NotoSansTC-Regular.ttf', fontName, 'normal')
+        pdf.setFont(fontName, 'normal')
+        fontOk = true
+      } catch (fontErr) {
+        console.warn('PDF 中文字型解析失敗，改用預設字型（可能亂碼）', fontErr)
+      }
     }
 
     const addLine = (text, opts = {}) => {
       const { fontSize = 10, bold = false } = opts
       pdf.setFontSize(fontSize)
-      try { pdf.setFont(fontName, 'normal') } catch (_) {}
+      if (fontOk) { try { pdf.setFont(fontName, 'normal') } catch (_) {} }
       const str = String(text ?? '')
       const maxW = pageW - margin * 2
       const lines = pdf.splitTextToSize(str, maxW)
