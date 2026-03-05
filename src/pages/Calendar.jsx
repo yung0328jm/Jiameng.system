@@ -24,8 +24,6 @@ import {
   toCollaboratorsCsv,
   expandWorkItemsToLogical
 } from '../utils/workItemCollaboration'
-import html2canvas from 'html2canvas'
-import { jsPDF } from 'jspdf'
 
 function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -1325,6 +1323,15 @@ function Calendar() {
   const handleExportDetailPdf = async () => {
     const el = detailCardRef.current
     if (!el || selectedDetailType !== 'schedule') return
+    let html2canvas, jsPDF
+    try {
+      const [h2c, jspdfMod] = await Promise.all([import('html2canvas'), import('jspdf')])
+      html2canvas = h2c.default
+      jsPDF = jspdfMod.jsPDF
+    } catch (e) {
+      alert('無法載入匯出模組，請重新整理頁面後再試。')
+      return
+    }
     const prevMaxH = el.style.maxHeight
     const prevOverflow = el.style.overflow
     el.style.maxHeight = 'none'
