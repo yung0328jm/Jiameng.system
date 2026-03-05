@@ -1321,50 +1321,116 @@ function Calendar() {
   }
 
   const handleExportDetailPdf = async () => {
-    const el = detailCardRef.current
-    if (!el || selectedDetailType !== 'schedule') return
-    let html2canvas, jsPDF
+    if (selectedDetailType !== 'schedule' || !selectedDetailItem) return
+    let jsPDF
     try {
-      const [h2c, jspdfMod] = await Promise.all([import('html2canvas'), import('jspdf')])
-      html2canvas = h2c.default
+      const jspdfMod = await import('jspdf')
       jsPDF = jspdfMod.jsPDF
     } catch (e) {
       alert('無法載入匯出模組，請重新整理頁面後再試。')
       return
     }
-    const prevMaxH = el.style.maxHeight
-    const prevOverflow = el.style.overflow
-    el.style.maxHeight = 'none'
-    el.style.overflow = 'visible'
-    try {
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#1e3a5f',
-        logging: false
-      })
-      const img = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pageW = pdf.internal.pageSize.getWidth()
-      const pageH = pdf.internal.pageSize.getHeight()
-      const imgW = pageW
-      const imgH = (canvas.height * pageW) / canvas.width
-      let heightLeft = imgH
-      let position = 0
-      pdf.addImage(img, 'PNG', 0, position, imgW, imgH)
-      heightLeft -= pageH
-      while (heightLeft > 0) {
-        position = heightLeft - imgH
-        pdf.addPage()
-        pdf.addImage(img, 'PNG', 0, position, imgW, imgH)
-        heightLeft -= pageH
+    const item = selectedDetailItem
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const pageW = pdf.internal.pageSize.getWidth()
+    const pageH = pdf.internal.pageSize.getHeight()
+    const margin = 14
+    const lineH = 6
+    let y = margin
+
+    const addLine = (text, opts = {}) => {
+      const { fontSize = 10, bold = false } = opts
+      pdf.setFontSize(fontSize)
+      pdf.setFont(undefined, bold ? 'bold' : 'normal')
+      const str = String(text ?? '')
+      const maxW = pageW - margin * 2
+      const lines = pdf.splitTextToSize(str, maxW)
+      for (const line of lines) {
+        if (y > pageH - margin) {
+          pdf.addPage()
+          y = margin
+        }
+        pdf.text(line, margin, y)
+        y += lineH
       }
-      const title = (selectedDetailItem?.siteName || selectedDetailItem?.title || '工程排程詳情').replace(/[/\\?%*:|"<>]/g, '-')
-      pdf.save(`${title || '工程排程詳情'}.pdf`)
-    } finally {
-      el.style.maxHeight = prevMaxH
-      el.style.overflow = prevOverflow
     }
+
+    addLine('工程排程詳情', { fontSize: 16, bold: true })
+    y += 4
+
+    const title = getScheduleDisplayTitle(item)
+    addLine(title, { fontSize: 14, bold: true })
+    y += 4
+
+    const dateStr = item.date ? String(item.date).replace(/-/g, '/') : '—'
+    const timeStr = item.isAllDay === false
+      ? `${item.startTime || ''}${(item.startTime && item.endTime) ? ' - ' : ''}${item.endTime || ''}`
+      : '全天'
+    addLine(`日期: ${dateStr} ${timeStr}`)
+    addLine(`建立者: ${displayCreator(item.createdBy)}`)
+    if (item.participants) addLine(`參與人員: ${item.participants}`)
+    y += 2
+
+    const segments = getScheduleSegments(item)
+    const seg = segments[selectedDetailSegmentIndex] || segments[0]
+    if (seg) {
+      const entries = Array.isArray(seg.vehicleEntries) ? seg.vehicleEntries : []
+      const vehicleLabel = entries.length > 0 ? entries.map((e) => e.vehicle).filter(Boolean).join(', ') : item.vehicle
+      if (vehicleLabel) addLine(`車輛: ${vehicleLabel}`)
+      if (entries.length > 0) {
+        entries.forEach((entry, idx) => {
+          addLine(`車輛 ${idx + 1}: ${entry.vehicle || '—'}`)
+          if (entry.departureDriver) addLine(`  出發駕駛: ${entry.departureDriver}`)
+          if (entry.returnDriver) addLine(`  回程駕駛: ${entry.returnDriver}`)
+          if (entry.departureMileage) addLine(`  出發里程: ${entry.departureMileage} km`)
+          if (entry.returnMileage) addLine(`  回程里程: ${entry.returnMileage} km`)
+          if (entry.departureMileage && entry.returnMileage) {
+            const segKm = Math.max(0, (parseFloat(entry.returnMileage) || 0) - (parseFloat(entry.departureMileage) || 0))
+            addLine(`  本段里程: ${segKm} km`)
+          }
+          addLine(`  是否加油: ${entry.needRefuel ? '是' : '否'}`)
+          if (entry.fuelCost) addLine(`  油資: NT$ ${parseFloat(entry.fuelCost).toLocaleString()}`)
+          addLine(`  發票是否繳回: ${entry.invoiceReturned ? '是' : '否'}`)
+          y += 2
+        })
+      } else {
+        if (item.departureDriver) addLine(`出發駕駛: ${item.departureDriver}`)
+        if (item.returnDriver) addLine(`回程駕駛: ${item.returnDriver}`)
+        if (item.departureMileage) addLine(`出發里程: ${item.departureMileage} km`)
+        if (item.returnMileage) addLine(`回程里程: ${item.returnMileage} km`)
+        if (item.departureMileage && item.returnMileage) {
+          const totalKm = Math.max(0, (parseFloat(item.returnMileage) || 0) - (parseFloat(item.departureMileage) || 0))
+          addLine(`今日總里程: ${totalKm} km`)
+        }
+        addLine(`是否加油: ${item.needRefuel ? '是' : '否'}`)
+        if (item.fuelCost) addLine(`油資: NT$ ${parseFloat(item.fuelCost).toLocaleString()}`)
+        addLine(`發票是否繳回: ${item.invoiceReturned ? '是' : '否'}`)
+        y += 2
+      }
+
+      const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
+      if (workItems.length > 0) {
+        addLine('工作項目:', { bold: true })
+        expandWorkItemsToLogical(workItems).forEach((wi, idx) => {
+          const it = normalizeWorkItem(wi)
+          const content = wi.workContent || wi.content || `工作項目 ${idx + 1}`
+          const name = it?.responsiblePerson || (it?.isCollaborative ? getWorkItemCollaborators(it).map((c) => c.name).join(', ') : '') || '—'
+          addLine(`  • ${content} (${name})`)
+          const t = parseFloat(it?.targetQuantity) || 0
+          const a = parseFloat(it?.actualQuantity) || 0
+          if (it?.isCollaborative) {
+            const sharedA = getWorkItemSharedActual(it)
+            if (t > 0 || sharedA > 0) addLine(`    共同: 目標 ${t || 'N/A'} / 實際 ${sharedA > 0 ? sharedA : 'N/A'}`)
+          } else if (t > 0 || a > 0) {
+            addLine(`    目標: ${t || 'N/A'} / 實際: ${a || 'N/A'}`)
+          }
+        })
+        y += 2
+      }
+    }
+
+    const fileName = (title || '工程排程詳情').replace(/[/\\?%*:|"<>]/g, '-')
+    pdf.save(`${fileName}.pdf`)
   }
 
   const handleDeleteTopic = () => {
