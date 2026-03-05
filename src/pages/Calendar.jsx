@@ -5,7 +5,7 @@ import { deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
 import { getDropdownOptionsByCategory, addDropdownOption, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
-import { getTripReportsByProject } from '../utils/tripReportStorage'
+import { getTripReportsByProject, addTripReport, actionTypes as tripReportActionTypes } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getUsers } from '../utils/storage'
@@ -36,6 +36,7 @@ function Calendar() {
   const [showDetailModal, setShowDetailModal] = useState(false) // 显示详情弹窗
   const [selectedDetailItem, setSelectedDetailItem] = useState(null) // 选中的详情项（主题或排程）
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
+  const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
   const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
   const [editingFormSegmentIndex, setEditingFormSegmentIndex] = useState(0) // 表單內編輯多處行程時，目前編輯的案場索引
   const [editingScheduleId, setEditingScheduleId] = useState(null) // 正在编辑的排程ID
@@ -694,6 +695,7 @@ function Calendar() {
   }
   useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
+  useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
 
   // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
   useEffect(() => {
@@ -3068,12 +3070,23 @@ function Calendar() {
                     )
                   })()}
 
-                  {/* 行程回報紀錄：依此排程案場（siteName）顯示；名子套用特效邏輯 */}
+                  {/* 行程回報紀錄：依此排程案場（siteName）顯示；可點卡片回報下一狀態，同步後全部用戶可見 */}
                   {selectedDetailType === 'schedule' && !isLeaveScheduleItem(selectedDetailItem) && (() => {
-                    const siteName = (selectedDetailItem?.siteName || '').trim()
+                    const seg = getScheduleSegments(selectedDetailItem)[selectedDetailSegmentIndex] || getScheduleSegments(selectedDetailItem)[0]
+                    const siteName = (seg?.siteName || selectedDetailItem?.siteName || '').trim()
                     const ymd = String(selectedDetailItem?.date || '').slice(0, 10)
-                    // 行程回報：同名案場每天都可能去，這裡只顯示「當天」的紀錄，避免沿用上次狀態
                     const tripReports = siteName ? getTripReportsByProject(siteName, ymd) : []
+                    const order = Array.isArray(tripReportActionTypes) ? tripReportActionTypes : ['出發', '抵達', '休息', '上工', '收工', '離場']
+                    const latestAction = tripReports.length > 0 ? tripReports[0].actionType : null
+                    const latestIndex = order.indexOf(latestAction)
+                    const nextAction = latestIndex === -1 || latestIndex === order.length - 1 ? (tripReports.length === 0 ? '出發' : null) : order[latestIndex + 1]
+                    const currentUser = getCurrentUser()
+                    const role = getCurrentUserRole()
+                    const participantsStr = String(selectedDetailItem?.participants || '').trim()
+                    const participantNames = new Set(participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean))
+                    const userNames = currentUser ? (getDisplayNamesForAccount(currentUser) || []).map((n) => String(n || '').trim()).filter(Boolean) : []
+                    const isParticipant = userNames.some((n) => participantNames.has(n)) || participantNames.has(currentUser || '')
+                    const canReport = !!currentUser && !!siteName && (role === 'admin' || isParticipant)
                     const leaderboardItems = getLeaderboardItems()
                     const formatTime = (iso) => {
                       try {
@@ -3084,12 +3097,37 @@ function Calendar() {
                         })
                       } catch (_) { return iso }
                     }
+                    const handleTripReportAction = (actionType) => {
+                      if (!canReport || !nextAction || actionType !== nextAction) return
+                      const result = addTripReport({
+                        projectId: siteName,
+                        projectName: siteName,
+                        actionType,
+                        userId: currentUser,
+                        userName: getDisplayNameForAccount(currentUser || ''),
+                        ymd
+                      })
+                      if (result.success) setTripReportsRevision((r) => r + 1)
+                    }
                     return (
-                      <div className="mt-4">
+                      <div className="mt-4" key={`trip-${siteName}-${ymd}-${tripReportsRevision}`}>
                         <div className="text-blue-300 mb-2">行程回報紀錄:</div>
-                        {tripReports.length === 0 ? (
-                          <div className="bg-blue-800 rounded-lg p-3 text-blue-200 text-sm">尚無行程回報，可至「行程回報」選擇此案場紀錄出發／抵達／休息／上工／收工／離場。</div>
-                        ) : (
+                        {nextAction && canReport && (
+                          <div className="mb-2">
+                            <div className="text-blue-200 text-xs mb-1">點擊卡片回報下一狀態（依序：出發→抵達→休息→上工→收工→離場）</div>
+                            <button
+                              type="button"
+                              onClick={() => handleTripReportAction(nextAction)}
+                              className="w-full bg-yellow-500/20 border-2 border-yellow-400 rounded-lg p-3 flex items-center justify-center gap-2 hover:bg-yellow-500/30 active:bg-yellow-500/40 transition-colors touch-manipulation"
+                            >
+                              <span className="font-bold text-yellow-300 text-lg">回報：{nextAction}</span>
+                            </button>
+                          </div>
+                        )}
+                        {tripReports.length === 0 && !canReport && (
+                          <div className="bg-blue-800 rounded-lg p-3 text-blue-200 text-sm">尚無行程回報，可至「行程回報」選擇此案場紀錄。</div>
+                        )}
+                        {tripReports.length > 0 && (
                           <div className="space-y-2 max-h-48 overflow-y-auto">
                             {tripReports.map((r) => {
                               const userId = r.userId || ''
