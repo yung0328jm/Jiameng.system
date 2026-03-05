@@ -39,6 +39,7 @@ function Calendar() {
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
+  const pdfFontBase64Ref = useRef(null) // 中文字型 base64 快取，避免重複下載
   const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
   const [editingFormSegmentIndex, setEditingFormSegmentIndex] = useState(0) // 表單內編輯多處行程時，目前編輯的案場索引
   const [editingScheduleId, setEditingScheduleId] = useState(null) // 正在编辑的排程ID
@@ -1338,10 +1339,42 @@ function Calendar() {
     const lineH = 6
     let y = margin
 
+    const fontName = 'NotoSansTC'
+    let fontBase64 = pdfFontBase64Ref.current
+    if (!fontBase64) {
+      try {
+        const urls = [
+          '/fonts/NotoSansTC-Regular.ttf',
+          'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanstc/NotoSansTC-Regular.ttf'
+        ]
+        let buf
+        for (const url of urls) {
+          const res = await fetch(url)
+          if (res.ok) {
+            buf = await res.arrayBuffer()
+            break
+          }
+        }
+        if (!buf) throw new Error('無法載入中文字型')
+        const bytes = new Uint8Array(buf)
+        let binary = ''
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+        fontBase64 = btoa(binary)
+        pdfFontBase64Ref.current = fontBase64
+      } catch (err) {
+        alert('無法載入中文字型，PDF 可能顯示亂碼。請將 NotoSansTC-Regular.ttf 放在網站根目錄 /fonts/ 下後再試。')
+      }
+    }
+    if (fontBase64) {
+      pdf.addFileToVFS('NotoSansTC-Regular.ttf', fontBase64)
+      pdf.addFont('NotoSansTC-Regular.ttf', fontName, 'normal')
+      pdf.setFont(fontName, 'normal')
+    }
+
     const addLine = (text, opts = {}) => {
       const { fontSize = 10, bold = false } = opts
       pdf.setFontSize(fontSize)
-      pdf.setFont(undefined, bold ? 'bold' : 'normal')
+      try { pdf.setFont(fontName, 'normal') } catch (_) {}
       const str = String(text ?? '')
       const maxW = pageW - margin * 2
       const lines = pdf.splitTextToSize(str, maxW)
