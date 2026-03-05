@@ -40,7 +40,6 @@ function Calendar() {
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const [exportingPdf, setExportingPdf] = useState(false) // 匯出 PDF 中，避免重複點擊與無反應
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
-  const pdfFontBase64Ref = useRef(null) // 中文字型 base64 快取，避免重複下載
   const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
   const [editingFormSegmentIndex, setEditingFormSegmentIndex] = useState(0) // 表單內編輯多處行程時，目前編輯的案場索引
   const [editingScheduleId, setEditingScheduleId] = useState(null) // 正在编辑的排程ID
@@ -1343,57 +1342,28 @@ function Calendar() {
     const lineH = 6
     let y = margin
 
-    const fontName = 'NotoSansTC'
-    let fontBase64 = pdfFontBase64Ref.current
-    if (!fontBase64) {
-      try {
-        const urls = [
-          '/fonts/NotoSansTC-Regular.ttf',
-          'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanstc/NotoSansTC-Regular.ttf'
-        ]
-        let buf
-        for (const url of urls) {
-          const res = await fetch(url)
-          if (res.ok) {
-            buf = await res.arrayBuffer()
-            break
-          }
-        }
-        if (!buf) throw new Error('無法載入中文字型')
-        const bytes = new Uint8Array(buf)
-        let binary = ''
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-        fontBase64 = btoa(binary)
-        pdfFontBase64Ref.current = fontBase64
-      } catch (err) {
-        console.warn('PDF 中文字型載入失敗，將使用預設字型（可能亂碼）', err)
-      }
-    }
-    let fontOk = false
-    if (fontBase64) {
-      try {
-        pdf.addFileToVFS('NotoSansTC-Regular.ttf', fontBase64)
-        pdf.addFont('NotoSansTC-Regular.ttf', fontName, 'normal')
-        pdf.setFont(fontName, 'normal')
-        fontOk = true
-      } catch (fontErr) {
-        console.warn('PDF 中文字型解析失敗，改用預設字型（可能亂碼）', fontErr)
-      }
-    }
-
+    // 使用 jsPDF 預設字型（僅支援 ASCII），中文改為 ? 避免解析錯誤導致匯出失敗
+    const toAsciiSafe = (s) => String(s ?? '').replace(/[^\x00-\x7F]/g, '?')
     const addLine = (text, opts = {}) => {
-      const { fontSize = 10, bold = false } = opts
+      const { fontSize = 10 } = opts
       pdf.setFontSize(fontSize)
-      if (fontOk) { try { pdf.setFont(fontName, 'normal') } catch (_) {} }
-      const str = String(text ?? '')
+      const str = toAsciiSafe(text)
+      if (!str) return
       const maxW = pageW - margin * 2
-      const lines = pdf.splitTextToSize(str, maxW)
+      let lines
+      try {
+        lines = pdf.splitTextToSize(str, maxW)
+      } catch (_) {
+        lines = [str]
+      }
       for (const line of lines) {
         if (y > pageH - margin) {
           pdf.addPage()
           y = margin
         }
-        pdf.text(line, margin, y)
+        try {
+          pdf.text(line, margin, y)
+        } catch (_) {}
         y += lineH
       }
     }
@@ -1480,6 +1450,67 @@ function Calendar() {
     } finally {
       setExportingPdf(false)
     }
+  }
+
+  const handlePrintDetail = () => {
+    if (selectedDetailType !== 'schedule' || !selectedDetailItem) return
+    const item = selectedDetailItem
+    const title = getScheduleDisplayTitle(item)
+    const dateStr = item.date ? String(item.date).replace(/-/g, '/') : '—'
+    const timeStr = item.isAllDay === false
+      ? `${item.startTime || ''}${(item.startTime && item.endTime) ? ' - ' : ''}${item.endTime || ''}`
+      : '全天'
+    const segments = getScheduleSegments(item)
+    const seg = segments[selectedDetailSegmentIndex] || segments[0]
+    let body = `<h1>工程排程詳情</h1><h2>${escapeHtml(title)}</h2><p><strong>日期:</strong> ${escapeHtml(dateStr)} ${timeStr}</p><p><strong>建立者:</strong> ${escapeHtml(displayCreator(item.createdBy))}</p>`
+    if (item.participants) body += `<p><strong>參與人員:</strong> ${escapeHtml(item.participants)}</p>`
+    if (seg) {
+      const entries = Array.isArray(seg.vehicleEntries) ? seg.vehicleEntries : []
+      const vehicleLabel = entries.length > 0 ? entries.map((e) => e.vehicle).filter(Boolean).join(', ') : item.vehicle
+      if (vehicleLabel) body += `<p><strong>車輛:</strong> ${escapeHtml(vehicleLabel)}</p>`
+      if (entries.length > 0) {
+        entries.forEach((entry, idx) => {
+          body += `<p><strong>車輛 ${idx + 1}:</strong> ${escapeHtml(entry.vehicle || '—')}`
+          if (entry.departureDriver) body += ` | 出發駕駛: ${escapeHtml(entry.departureDriver)}`
+          if (entry.returnDriver) body += ` | 回程駕駛: ${escapeHtml(entry.returnDriver)}`
+          if (entry.departureMileage) body += ` | 出發里程: ${escapeHtml(entry.departureMileage)} km`
+          if (entry.returnMileage) body += ` | 回程里程: ${escapeHtml(entry.returnMileage)} km`
+          body += ` | 是否加油: ${entry.needRefuel ? '是' : '否'}`
+          if (entry.fuelCost) body += ` | 油資: NT$ ${parseFloat(entry.fuelCost).toLocaleString()}`
+          body += '</p>'
+        })
+      } else {
+        if (item.departureDriver) body += `<p>出發駕駛: ${escapeHtml(item.departureDriver)}</p>`
+        if (item.returnDriver) body += `<p>回程駕駛: ${escapeHtml(item.returnDriver)}</p>`
+        if (item.departureMileage) body += `<p>出發里程: ${escapeHtml(item.departureMileage)} km</p>`
+        if (item.returnMileage) body += `<p>回程里程: ${escapeHtml(item.returnMileage)} km</p>`
+        body += `<p>是否加油: ${item.needRefuel ? '是' : '否'}</p>`
+        if (item.fuelCost) body += `<p>油資: NT$ ${parseFloat(item.fuelCost).toLocaleString()}</p>`
+      }
+      const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
+      if (workItems.length > 0) {
+        body += '<h3>工作項目</h3><ul>'
+        expandWorkItemsToLogical(workItems).forEach((wi) => {
+          const it = normalizeWorkItem(wi)
+          const content = wi.workContent || wi.content || '工作項目'
+          const name = it?.responsiblePerson || (it?.isCollaborative ? getWorkItemCollaborators(it).map((c) => c.name).join(', ') : '') || '—'
+          body += `<li>${escapeHtml(content)} (${escapeHtml(name)})</li>`
+        })
+        body += '</ul>'
+      }
+    }
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title || '工程排程詳情')}</title><style>body{font-family:system-ui,sans-serif;padding:20px;max-width:600px;} h1{font-size:1.25rem;} h2{font-size:1.1rem;} p,li{margin:0.4em 0;}</style></head><body>${body}</body></html>`
+    const win = window.open('', '_blank')
+    if (!win) { alert('請允許彈出視窗以使用列印'); return }
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 300)
+  }
+  const escapeHtml = (s) => {
+    const div = document.createElement('div')
+    div.textContent = s ?? ''
+    return div.innerHTML
   }
 
   const handleDeleteTopic = () => {
@@ -2689,14 +2720,23 @@ function Calendar() {
               </h3>
               <div className="flex items-center space-x-2">
                 {selectedDetailType === 'schedule' && (
-                  <button
-                    type="button"
-                    disabled={exportingPdf}
-                    onClick={(e) => { e.stopPropagation(); handleExportDetailPdf(); }}
-                    className="bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-500 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {exportingPdf ? '匯出中…' : '匯出 PDF'}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handlePrintDetail(); }}
+                      className="bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-500 transition-colors text-sm"
+                    >
+                      列印
+                    </button>
+                    <button
+                      type="button"
+                      disabled={exportingPdf}
+                      onClick={(e) => { e.stopPropagation(); handleExportDetailPdf(); }}
+                      className="bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-500 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {exportingPdf ? '匯出中…' : '匯出 PDF'}
+                    </button>
+                  </>
                 )}
                 {/* 排程詳情：上方不顯示編輯/刪除（避免擠在一起），改用下方大按鈕 */}
                 {selectedDetailType === 'topic' && (
