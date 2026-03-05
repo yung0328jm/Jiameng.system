@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: './',
   plugins: [react()],
+  optimizeDeps: {
+    include: ['jspdf']
+  },
   server: {
     port: 8080,
     open: true
