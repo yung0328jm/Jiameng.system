@@ -37,6 +37,7 @@ function Calendar() {
   const [selectedDetailItem, setSelectedDetailItem] = useState(null) // 选中的详情项（主题或排程）
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
+  const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
   const [editingFormSegmentIndex, setEditingFormSegmentIndex] = useState(0) // 表單內編輯多處行程時，目前編輯的案場索引
   const [editingScheduleId, setEditingScheduleId] = useState(null) // 正在编辑的排程ID
@@ -3099,6 +3100,7 @@ function Calendar() {
                     }
                     const handleTripReportAction = (actionType) => {
                       if (!canReport || !nextAction || actionType !== nextAction) return
+                      setTripReportFlashAt(Date.now())
                       const result = addTripReport({
                         projectId: siteName,
                         projectName: siteName,
@@ -3118,14 +3120,21 @@ function Calendar() {
                             <button
                               type="button"
                               onClick={() => handleTripReportAction(nextAction)}
-                              className="w-full bg-yellow-500/20 border-2 border-yellow-400 rounded-lg p-3 flex items-center justify-center gap-2 hover:bg-yellow-500/30 active:bg-yellow-500/40 transition-colors touch-manipulation"
+                              className="relative w-full bg-yellow-500/20 border-2 border-yellow-400 rounded-lg p-3 flex items-center justify-center gap-2 hover:bg-yellow-500/30 active:bg-yellow-500/40 transition-colors touch-manipulation overflow-hidden"
                             >
-                              <span className="font-bold text-yellow-300 text-lg">回報：{nextAction}</span>
+                              {tripReportFlashAt > 0 && (
+                                <span
+                                  className="trip-report-flame-burst absolute inset-0 pointer-events-none rounded-lg"
+                                  onAnimationEnd={() => setTripReportFlashAt(0)}
+                                  aria-hidden
+                                />
+                              )}
+                              <span className="font-bold text-yellow-300 text-lg relative z-10">回報：{nextAction}</span>
                             </button>
                           </div>
                         )}
                         {tripReports.length === 0 && !canReport && (
-                          <div className="bg-blue-800 rounded-lg p-3 text-blue-200 text-sm">尚無行程回報，可至「行程回報」選擇此案場紀錄。</div>
+                          <div className="bg-blue-800 rounded-lg p-3 text-blue-200 text-sm">尚無行程回報。參與人員可於此排程詳情內點選回報。</div>
                         )}
                         {tripReports.length > 0 && (
                           <div className="space-y-2 max-h-48 overflow-y-auto">
