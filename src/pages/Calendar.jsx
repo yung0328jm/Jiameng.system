@@ -38,6 +38,7 @@ function Calendar() {
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
+  const [exportingPdf, setExportingPdf] = useState(false) // 匯出 PDF 中，避免重複點擊與無反應
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
   const pdfFontBase64Ref = useRef(null) // 中文字型 base64 快取，避免重複下載
   const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
@@ -1322,15 +1323,18 @@ function Calendar() {
   }
 
   const handleExportDetailPdf = async () => {
-    if (selectedDetailType !== 'schedule' || !selectedDetailItem) return
+    if (selectedDetailType !== 'schedule' || !selectedDetailItem || exportingPdf) return
+    setExportingPdf(true)
     let jsPDF
     try {
       const jspdfMod = await import('jspdf')
       jsPDF = jspdfMod.jsPDF
     } catch (e) {
+      setExportingPdf(false)
       alert('無法載入匯出模組，請重新整理頁面後再試。')
       return
     }
+    try {
     const item = selectedDetailItem
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const pageW = pdf.internal.pageSize.getWidth()
@@ -1362,7 +1366,7 @@ function Calendar() {
         fontBase64 = btoa(binary)
         pdfFontBase64Ref.current = fontBase64
       } catch (err) {
-        alert('無法載入中文字型，PDF 可能顯示亂碼。請將 NotoSansTC-Regular.ttf 放在網站根目錄 /fonts/ 下後再試。')
+        console.warn('PDF 中文字型載入失敗，將使用預設字型（可能亂碼）', err)
       }
     }
     if (fontBase64) {
@@ -1464,6 +1468,12 @@ function Calendar() {
 
     const fileName = (title || '工程排程詳情').replace(/[/\\?%*:|"<>]/g, '-')
     pdf.save(`${fileName}.pdf`)
+    } catch (err) {
+      console.error('PDF 匯出失敗', err)
+      alert('匯出失敗：' + (err?.message || String(err)))
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   const handleDeleteTopic = () => {
@@ -2675,10 +2685,11 @@ function Calendar() {
                 {selectedDetailType === 'schedule' && (
                   <button
                     type="button"
+                    disabled={exportingPdf}
                     onClick={(e) => { e.stopPropagation(); handleExportDetailPdf(); }}
-                    className="bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-500 transition-colors text-sm"
+                    className="bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-500 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    匯出 PDF
+                    {exportingPdf ? '匯出中…' : '匯出 PDF'}
                   </button>
                 )}
                 {/* 排程詳情：上方不顯示編輯/刪除（避免擠在一起），改用下方大按鈕 */}
