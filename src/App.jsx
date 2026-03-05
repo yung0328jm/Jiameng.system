@@ -17,7 +17,6 @@ import ExchangeShop from './pages/ExchangeShop'
 import Exchange from './pages/Exchange'
 import MyBackpack from './pages/MyBackpack'
 import CheckIn from './pages/CheckIn'
-import TripReport from './pages/TripReport'
 import LeaveApplication from './pages/LeaveApplication'
 import Advance from './pages/Advance'
 import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole, getCurrentUser } from './utils/authStorage'
@@ -180,7 +179,7 @@ function App() {
         <Route path="/exchange" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange" />) : <Navigate to="/login" replace />} />
         <Route path="/my-backpack" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="my-backpack" />) : <Navigate to="/login" replace />} />
         <Route path="/check-in" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="check-in" />) : <Navigate to="/login" replace />} />
-        <Route path="/trip-report" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="trip-report" />) : <Navigate to="/login" replace />} />
+        <Route path="/trip-report" element={<Navigate to="/calendar" replace />} />
         <Route path="/messages" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="messages" />) : <Navigate to="/login" replace />} />
         <Route path="/leave-application" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="leave-application" />) : <Navigate to="/login" replace />} />
         <Route path="/advance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="advance" />) : <Navigate to="/login" replace />} />
