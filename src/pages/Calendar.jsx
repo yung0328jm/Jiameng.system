@@ -1363,14 +1363,50 @@ function Calendar() {
       }
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
       if (workItems.length > 0) {
-        body += '<h3>工作項目</h3><ul>'
+        body += '<h3>工作項目</h3>'
         expandWorkItemsToLogical(workItems).forEach((wi) => {
           const it = normalizeWorkItem(wi)
-          const content = wi.workContent || wi.content || '工作項目'
-          const name = it?.responsiblePerson || (it?.isCollaborative ? getWorkItemCollaborators(it).map((c) => c.name).join(', ') : '') || '—'
-          body += `<li>${escapeHtml(content)} (${escapeHtml(name)})</li>`
+          const isCollab = !!it?.isCollaborative
+          const collabs = getWorkItemCollaborators(it)
+          const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
+          const title = wi.workContent || wi.content || '工作項目'
+          const hasContentRows = Array.isArray(wi.contentRows) && wi.contentRows.length > 0
+          body += '<div style="margin-bottom:12px;padding:10px;background:#f5f5f5;border-radius:6px;">'
+          if (hasContentRows) {
+            if (isCollab) body += `<p style="margin:0 0 6px 0;font-size:13px;"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else body += `<p style="margin:0 0 6px 0;font-size:13px;"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
+            body += `<p style="margin:0 0 6px 0;"><strong>・${escapeHtml(title)}</strong></p>`
+            wi.contentRows.forEach((row) => {
+              const tw = row.targetQuantity != null && row.targetQuantity !== '' ? row.targetQuantity : '—'
+              const aw = row.actualQuantity != null && row.actualQuantity !== '' ? row.actualQuantity : '—'
+              body += `<p style="margin:2px 0 2px 12px;font-size:13px;">・ ${escapeHtml(row.workContent || '未填')} — 目標 ${escapeHtml(String(tw))} / 實際 ${escapeHtml(String(aw))}</p>`
+            })
+          } else {
+            body += `<p style="margin:0 0 6px 0;"><strong>・${escapeHtml(title)}</strong></p>`
+            if (isCollab) body += `<p style="margin:0 0 4px 0;font-size:13px;"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else if (it?.responsiblePerson) body += `<p style="margin:0 0 4px 0;font-size:13px;"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
+          }
+          body += `<p style="margin:0 0 4px 0;font-size:12px;color:#555;">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
+          if (!hasContentRows) {
+            const t = parseFloat(it?.targetQuantity) || 0
+            const a = parseFloat(it?.actualQuantity) || 0
+            const sharedA = getWorkItemSharedActual(it)
+            if (isCollab && mode === 'shared' && (t > 0 || sharedA > 0)) {
+              body += `<p style="margin:0;font-size:13px;">共同：目標 ${t > 0 ? t : 'N/A'} / 實際 ${sharedA > 0 ? sharedA : 'N/A'}</p>`
+            } else if (isCollab && mode === 'separate' && collabs.length > 0) {
+              collabs.forEach((c) => {
+                const cn = String(c?.name || '').trim() || '—'
+                const ct = parseFloat(c?.targetQuantity) || 0
+                const ca = parseFloat(c?.actualQuantity) || 0
+                const cr = ct > 0 ? ((ca / ct) * 100).toFixed(1) : ''
+                body += `<p style="margin:2px 0;font-size:13px;">- ${escapeHtml(cn)}：目標 ${ct || 'N/A'} / 實際 ${ca || 'N/A'}${cr ? `（${cr}%）` : ''}</p>`
+              })
+            } else if (!isCollab && (t > 0 || a > 0)) {
+              body += `<p style="margin:0;font-size:13px;">目標: ${t > 0 ? t : 'N/A'} / 實際: ${a > 0 ? a : 'N/A'}</p>`
+            }
+          }
+          body += '</div>'
         })
-        body += '</ul>'
       }
     }
     return body
