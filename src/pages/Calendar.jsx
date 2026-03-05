@@ -24,6 +24,8 @@ import {
   toCollaboratorsCsv,
   expandWorkItemsToLogical
 } from '../utils/workItemCollaboration'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 
 function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -38,6 +40,7 @@ function Calendar() {
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
+  const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
   const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
   const [editingFormSegmentIndex, setEditingFormSegmentIndex] = useState(0) // 表單內編輯多處行程時，目前編輯的案場索引
   const [editingScheduleId, setEditingScheduleId] = useState(null) // 正在编辑的排程ID
@@ -1319,6 +1322,44 @@ function Calendar() {
     }
   }
 
+  const handleExportDetailPdf = async () => {
+    const el = detailCardRef.current
+    if (!el || selectedDetailType !== 'schedule') return
+    const prevMaxH = el.style.maxHeight
+    const prevOverflow = el.style.overflow
+    el.style.maxHeight = 'none'
+    el.style.overflow = 'visible'
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#1e3a5f',
+        logging: false
+      })
+      const img = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const imgW = pageW
+      const imgH = (canvas.height * pageW) / canvas.width
+      let heightLeft = imgH
+      let position = 0
+      pdf.addImage(img, 'PNG', 0, position, imgW, imgH)
+      heightLeft -= pageH
+      while (heightLeft > 0) {
+        position = heightLeft - imgH
+        pdf.addPage()
+        pdf.addImage(img, 'PNG', 0, position, imgW, imgH)
+        heightLeft -= pageH
+      }
+      const title = (selectedDetailItem?.siteName || selectedDetailItem?.title || '工程排程詳情').replace(/[/\\?%*:|"<>]/g, '-')
+      pdf.save(`${title || '工程排程詳情'}.pdf`)
+    } finally {
+      el.style.maxHeight = prevMaxH
+      el.style.overflow = prevOverflow
+    }
+  }
+
   const handleDeleteTopic = () => {
     if (selectedDetailItem && selectedDetailType === 'topic') {
       if (window.confirm('確定要刪除此主題嗎？')) {
@@ -2513,6 +2554,7 @@ function Calendar() {
           }}
         >
           <div
+            ref={detailCardRef}
             className={`${selectedDetailType === 'schedule' ? 'bg-blue-900 border-blue-500 flex flex-col' : 'bg-charcoal border-yellow-400'} border rounded-lg shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] ${selectedDetailType === 'schedule' ? '' : 'overflow-y-auto'}`}
             // 點擊彈窗本體不收合
             onClick={(e) => e.stopPropagation()}
@@ -2524,6 +2566,15 @@ function Calendar() {
                  '活動詳情'}
               </h3>
               <div className="flex items-center space-x-2">
+                {selectedDetailType === 'schedule' && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleExportDetailPdf(); }}
+                    className="bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-500 transition-colors text-sm"
+                  >
+                    匯出 PDF
+                  </button>
+                )}
                 {/* 排程詳情：上方不顯示編輯/刪除（避免擠在一起），改用下方大按鈕 */}
                 {selectedDetailType === 'topic' && (
                   <button
