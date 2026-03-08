@@ -1386,6 +1386,18 @@ function Calendar() {
         body += `<p>是否加油: ${item.needRefuel ? '是' : '否'}</p>`
         if (item.fuelCost) body += `<p>油資: NT$ ${parseFloat(item.fuelCost).toLocaleString()}</p>`
       }
+      const overtimeList = getOvertimeApplicationsByScheduleId(item.id)
+      if (overtimeList.length > 0) {
+        body += '<h3>加班申請</h3>'
+        overtimeList.forEach((oa) => {
+          const status = (oa.status || 'pending').trim()
+          const statusText = status === 'approved' ? '已核准' : status === 'rejected' ? '已駁回' : '待審核'
+          const timeRange = oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : ''
+          const hoursStr = oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''
+          const personnelStr = oa.overtimePersonnel && oa.overtimePersonnel.length > 0 ? ` | 加班人員: ${oa.overtimePersonnel.join(', ')}` : ''
+          body += `<p><strong>申請人:</strong> ${escapeHtml(oa.applicant || '—')} | ${escapeHtml(oa.date || '—')}${timeRange}${hoursStr}${personnelStr} | <strong>${statusText}</strong></p>`
+        })
+      }
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
       if (workItems.length > 0) {
         body += '<h3>工作項目</h3>'
