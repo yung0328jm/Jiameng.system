@@ -13,6 +13,7 @@ import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import { getSalaryDetails, saveSalaryDetails } from '../utils/salaryStorage'
+import { getSalaryStructure, saveSalaryStructure } from '../utils/salaryStructureStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
@@ -57,6 +58,7 @@ function PersonalPerformance() {
     noClockInRecords: [],        // 未打卡記錄列表（用於詳情顯示）
     overtimeDetails: [],         // 加班時數明細（當月、與當前查看用戶相關）
     totalOvertimeHours: 0,       // 當月加班總時數
+    leaveDays: 0,                // 當月請假天數（已核准）
     salaryDetails: null         // 當月薪資明細（由管理員/人資填寫）
   })
   
@@ -98,6 +100,8 @@ function PersonalPerformance() {
   const [dataRevision, setDataRevision] = useState(0)
   const [showSalaryForm, setShowSalaryForm] = useState(false) // 是否顯示填寫薪資表單（管理員）
   const [salaryFormData, setSalaryFormData] = useState({ items: [{ label: '', amount: '' }], total: '', note: '' })
+  const [showSalaryStructureForm, setShowSalaryStructureForm] = useState(false)
+  const [salaryStructureForm, setSalaryStructureForm] = useState([]) // 編輯中薪資結構 { id, label, type, isDeduction, config }
 
   const loadUsersForAdmin = useCallback(async () => {
     try {
@@ -609,6 +613,23 @@ function PersonalPerformance() {
     })
     overtimeDetails.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
+    // 當月請假天數（已核准且申請人為當前查看用戶）
+    const leaveApps = getLeaveApplications().filter((la) => (la.status || '') === 'approved')
+    let leaveDays = 0
+    leaveApps.forEach((la) => {
+      const matchUser = String(la.userId || '').trim() === String(userName || '').trim() ||
+        namesToMatch.some((n) => String(la.userName || '').trim() === n || String(la.userId || '').trim() === n)
+      if (!matchUser) return
+      const laStart = String(la.startDate || '').trim()
+      const laEnd = String(la.endDate || '').trim()
+      if (!laStart || !laEnd) return
+      const overlapStart = laStart < startDate ? startDate : laStart
+      const overlapEnd = laEnd > endDate ? endDate : laEnd
+      if (overlapStart > overlapEnd) return
+      const oneDay = 24 * 60 * 60 * 1000
+      leaveDays += Math.floor((new Date(overlapEnd) - new Date(overlapStart)) / oneDay) + 1
+    })
+
     const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
     const salaryDetails = getSalaryDetails(getViewUser(), yearMonth)
 
@@ -642,6 +663,7 @@ function PersonalPerformance() {
       noClockInRecords: noClockInRecords, // 未打卡記錄列表
       overtimeDetails,
       totalOvertimeHours,
+      leaveDays,
       salaryDetails
     })
   }
@@ -3337,27 +3359,197 @@ function PersonalPerformance() {
             <p className="text-gray-500 text-xs mt-1">此月份薪資項目與金額（由管理員或人資維護）</p>
           </div>
           {userRole === 'admin' && (
-            <button
-              type="button"
-              onClick={() => {
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSalaryStructureForm(getSalaryStructure().map((s) => ({ ...s, config: { ...(s.config || {}) } })))
+                  setShowSalaryStructureForm((v) => !v)
+                }}
+                className="px-3 py-1.5 rounded bg-gray-600 text-white text-sm font-medium hover:bg-gray-500"
+              >
+                {showSalaryStructureForm ? '關閉' : '設定薪資結構'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                 const sd = performanceData.salaryDetails
-                if (sd && Array.isArray(sd.items) && sd.items.length > 0) {
-                  setSalaryFormData({
-                    items: sd.items.map((i) => ({ label: i.label || '', amount: i.amount != null ? String(i.amount) : '' })),
-                    total: sd.total != null ? String(sd.total) : '',
-                    note: sd.note || ''
-                  })
-                } else {
-                  setSalaryFormData({ items: [{ label: '本薪', amount: '' }, { label: '加班費', amount: '' }], total: '', note: '' })
-                }
+                const structure = getSalaryStructure()
+                const totalOvertime = performanceData.totalOvertimeHours ?? 0
+                const leaveDays = performanceData.leaveDays ?? 0
+                const savedByLabel = (sd && Array.isArray(sd.items) && sd.items.length > 0)
+                  ? Object.fromEntries((sd.items || []).map((i) => [String(i.label || '').trim(), i.amount]))
+                  : {}
+                const structureLabels = new Set(structure.map((s) => String(s.label || '').trim()))
+                const items = structure.map((s) => {
+                  const label = s.label || ''
+                  let amount = ''
+                  if (s.type === 'auto_overtime') {
+                    const rate = s.config?.hourlyRate ?? 200
+                    amount = String(Math.round(totalOvertime * rate))
+                  } else if (s.type === 'auto_leave') {
+                    const perDay = s.config?.deductionPerDay ?? 500
+                    amount = String(-Math.round(leaveDays * perDay))
+                  } else if (savedByLabel[label] != null) {
+                    amount = String(savedByLabel[label])
+                  }
+                  return { label, amount }
+                })
+                const extraItems = (sd?.items || []).filter((i) => !structureLabels.has(String(i.label || '').trim()))
+                extraItems.forEach((i) => items.push({ label: i.label || '', amount: i.amount != null ? String(i.amount) : '' }))
+                const total = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+                setSalaryFormData({
+                  items,
+                  total: String(total),
+                  note: (sd && sd.note) ? String(sd.note) : ''
+                })
                 setShowSalaryForm((v) => !v)
               }}
-              className="px-3 py-1.5 rounded bg-yellow-500 text-black text-sm font-medium hover:bg-yellow-400"
-            >
-              {showSalaryForm ? '關閉' : '填寫此月薪資'}
-            </button>
+                className="px-3 py-1.5 rounded bg-yellow-500 text-black text-sm font-medium hover:bg-yellow-400"
+              >
+                {showSalaryForm ? '關閉' : '填寫此月薪資'}
+              </button>
+            </div>
           )}
         </div>
+        {showSalaryStructureForm && userRole === 'admin' && (
+          <div className="mb-4 p-4 bg-gray-900 rounded-lg border border-gray-600 space-y-3">
+            <div className="text-blue-200 text-sm font-medium mb-2">薪資結構（用於「填寫此月薪資」自動帶入）</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left text-gray-300">
+                <thead>
+                  <tr className="border-b border-gray-600">
+                    <th className="py-2 pr-2">項目名稱</th>
+                    <th className="py-2 pr-2">類型</th>
+                    <th className="py-2 pr-2">扣項</th>
+                    <th className="py-2 pr-2">時薪（元）</th>
+                    <th className="py-2 pr-2">每日扣款（元）</th>
+                    <th className="py-2">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(salaryStructureForm || []).map((row, idx) => (
+                    <tr key={row.id || idx} className="border-b border-gray-700">
+                      <td className="py-1.5 pr-2">
+                        <input
+                          type="text"
+                          value={row.label || ''}
+                          onChange={(e) => {
+                            const next = [...(salaryStructureForm || [])]
+                            next[idx] = { ...next[idx], label: e.target.value }
+                            setSalaryStructureForm(next)
+                          }}
+                          className="w-28 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs"
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <select
+                          value={row.type || 'manual'}
+                          onChange={(e) => {
+                            const next = [...(salaryStructureForm || [])]
+                            const type = e.target.value
+                            next[idx] = { ...next[idx], type, config: next[idx].config || {} }
+                            setSalaryStructureForm(next)
+                          }}
+                          className="px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs"
+                        >
+                          <option value="manual">手動輸入</option>
+                          <option value="auto_overtime">加班費（依時數×時薪）</option>
+                          <option value="auto_leave">請假扣款（依天數×每日扣款）</option>
+                        </select>
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={!!row.isDeduction}
+                          onChange={(e) => {
+                            const next = [...(salaryStructureForm || [])]
+                            next[idx] = { ...next[idx], isDeduction: e.target.checked }
+                            setSalaryStructureForm(next)
+                          }}
+                          className="rounded"
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        {row.type === 'auto_overtime' ? (
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.config?.hourlyRate ?? 200}
+                            onChange={(e) => {
+                              const next = [...(salaryStructureForm || [])]
+                              const config = { ...(next[idx].config || {}), hourlyRate: Number(e.target.value) || 0 }
+                              next[idx] = { ...next[idx], config }
+                              setSalaryStructureForm(next)
+                            }}
+                            className="w-20 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs"
+                          />
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        {row.type === 'auto_leave' ? (
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.config?.deductionPerDay ?? 500}
+                            onChange={(e) => {
+                              const next = [...(salaryStructureForm || [])]
+                              const config = { ...(next[idx].config || {}), deductionPerDay: Number(e.target.value) || 0 }
+                              next[idx] = { ...next[idx], config }
+                              setSalaryStructureForm(next)
+                            }}
+                            className="w-20 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs"
+                          />
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
+                      </td>
+                      <td className="py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSalaryStructureForm((p) => p.filter((_, i) => i !== idx))}
+                          className="text-red-400 hover:text-red-300 text-xs"
+                        >
+                          刪除
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSalaryStructureForm((p) => [...(p || []), { id: 'new_' + Date.now(), label: '新項目', type: 'manual', isDeduction: false, config: {} }])}
+                className="text-blue-400 text-sm hover:underline"
+              >
+                + 新增項目
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const list = (salaryStructureForm || []).map((s, i) => ({
+                    id: s.id || 'item_' + i,
+                    label: String(s.label || '').trim() || '項目',
+                    type: s.type || 'manual',
+                    isDeduction: !!s.isDeduction,
+                    config: s.config || {}
+                  }))
+                  const res = saveSalaryStructure(list)
+                  if (res.success) {
+                    setShowSalaryStructureForm(false)
+                  } else alert(res.message || '儲存失敗')
+                }}
+                className="px-3 py-1.5 rounded bg-yellow-500 text-black text-sm font-medium hover:bg-yellow-400"
+              >
+                儲存薪資結構
+              </button>
+            </div>
+          </div>
+        )}
         {showSalaryForm && userRole === 'admin' && (
           <div className="mb-4 p-4 bg-gray-900 rounded-lg border border-gray-600 space-y-3">
             <div className="text-blue-200 text-sm font-medium">薪資項目（項目名稱、金額）</div>
@@ -3380,14 +3572,19 @@ function PersonalPerformance() {
                   onChange={(e) => {
                     const next = [...(salaryFormData.items || [])]
                     next[idx] = { ...next[idx], amount: e.target.value }
-                    setSalaryFormData((p) => ({ ...p, items: next }))
+                    const total = next.reduce((s, i) => s + (Number(i.amount) || 0), 0)
+                    setSalaryFormData((p) => ({ ...p, items: next, total: String(total) }))
                   }}
                   placeholder="金額"
                   className="w-28 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
                 />
                 <button
                   type="button"
-                  onClick={() => setSalaryFormData((p) => ({ ...p, items: p.items.filter((_, i) => i !== idx) }))}
+                  onClick={() => {
+                    const next = (salaryFormData.items || []).filter((_, i) => i !== idx)
+                    const total = next.reduce((s, i) => s + (Number(i.amount) || 0), 0)
+                    setSalaryFormData((p) => ({ ...p, items: next, total: String(total) }))
+                  }}
                   className="text-red-400 hover:text-red-300 text-sm"
                 >
                   刪除
