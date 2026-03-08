@@ -13,7 +13,7 @@ import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import { getSalaryDetails, saveSalaryDetails } from '../utils/salaryStorage'
-import { getSalaryStructure, saveSalaryStructure } from '../utils/salaryStructureStorage'
+import { getSalaryStructure, saveSalaryStructure } from '../utils/salaryStructureStorage.js'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
