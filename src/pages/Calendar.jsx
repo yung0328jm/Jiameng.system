@@ -12,7 +12,7 @@ import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplicationsByScheduleId, addOvertimeApplication, updateOvertimeApplicationStatus } from '../utils/overtimeApplicationStorage'
+import { getOvertimeApplicationsByScheduleId, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
@@ -3193,7 +3193,7 @@ function Calendar() {
                                         </div>
                                         <div className={`flex-shrink-0 font-medium ${statusColor}`}>{statusText}</div>
                                       </div>
-                                      {currentRole === 'admin' && status === 'pending' && (
+                                      {(currentRole === 'admin' && status === 'pending') && (
                                         <div className="flex gap-2 mt-2 pt-2 border-t border-blue-700/50">
                                           <button
                                             type="button"
@@ -3216,6 +3216,34 @@ function Calendar() {
                                             className="px-2 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-500"
                                           >
                                             駁回
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (!window.confirm('確定要刪除此筆加班申請？')) return
+                                              const res = deleteOvertimeApplication(oa.id)
+                                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
+                                              else alert(res.message || '刪除失敗')
+                                            }}
+                                            className="px-2 py-1 rounded bg-gray-600 text-white text-xs hover:bg-gray-500"
+                                          >
+                                            刪除
+                                          </button>
+                                        </div>
+                                      )}
+                                      {currentRole === 'admin' && status !== 'pending' && (
+                                        <div className="flex gap-2 mt-2 pt-2 border-t border-blue-700/50">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (!window.confirm('確定要刪除此筆加班申請？')) return
+                                              const res = deleteOvertimeApplication(oa.id)
+                                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
+                                              else alert(res.message || '刪除失敗')
+                                            }}
+                                            className="px-2 py-1 rounded bg-gray-600 text-white text-xs hover:bg-gray-500"
+                                          >
+                                            刪除
                                           </button>
                                         </div>
                                       )}
