@@ -2426,6 +2426,13 @@ function Calendar() {
   const handleRemoveScheduleFromCalendar = (eventId, scheduleId) => {
     if (window.confirm('確定要從行事曆中移除此排程嗎？')) {
       deleteEvent(eventId)
+      // 一併刪除實際排程與該排程的加班申請，績效頁加班時數明細會同步移除
+      const sid = String(scheduleId || '').trim()
+      if (sid) {
+        getOvertimeApplicationsByScheduleId(sid).forEach((oa) => deleteOvertimeApplication(oa.id))
+        deleteSchedule(sid)
+        setSchedules(getSchedules())
+      }
     }
   }
 
