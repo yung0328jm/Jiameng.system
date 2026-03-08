@@ -137,9 +137,18 @@ function PersonalPerformance() {
     setDataRevision(r => r + 1)
   }
   useRealtimeKeys(
-    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config'],
+    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_overtime_applications', 'jiameng_leave_applications'],
     refetchPerformance
   )
+
+  // 回到此分頁時重新計算（含加班時數明細），避免行事曆刪除後仍顯示舊資料
+  useEffect(() => {
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') setDataRevision((r) => r + 1)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -585,12 +594,16 @@ function PersonalPerformance() {
     const overtimeDetails = []
     let totalOvertimeHours = 0
     allOvertime.forEach((oa) => {
+      const status = String(oa.status || 'approved').trim()
+      if (status !== 'approved') return
       const dateStr = String(oa.date || '').trim()
       if (!dateStr || dateStr < startDate || dateStr > effectiveEndDate) return
       const isApplicant = namesToMatch.some((n) => String(oa.applicant || '').trim() === n)
       const isInPersonnel = Array.isArray(oa.overtimePersonnel) && oa.overtimePersonnel.some((p) => namesToMatch.some((n) => String(p).trim() === n))
       if (!isApplicant && !isInPersonnel) return
       const schedule = schedules.find((s) => String(s?.id || '') === String(oa.scheduleId || ''))
+      // 行事曆已刪除的排程：不顯示在加班時數明細
+      if (!schedule) return
       const siteName = schedule?.siteName || (schedule?.segments?.[0]?.siteName) || '—'
       const hours = oa.hours != null && oa.hours !== '' ? Number(oa.hours) : null
       if (hours != null) totalOvertimeHours += hours

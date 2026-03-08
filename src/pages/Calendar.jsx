@@ -3445,9 +3445,6 @@ function Calendar() {
                           const crStatus = String(it?.changeRequest?.status || '')
                           const isPendingChange = crStatus === 'pending'
                           const isLocked = true
-                          const canRequest = (isCollab
-                            ? collabs.some((x) => canEditForName(x?.name))
-                            : canEditForName(it?.responsiblePerson))
                           return (
                           <div key={idx} className="bg-blue-800 rounded-lg p-3">
                             <div className="flex items-start justify-between gap-2">
@@ -3476,7 +3473,7 @@ function Calendar() {
                                     {crKind === 'cancel' ? '取消待審（不計分）' : '異動待審（不計分）'}
                                   </span>
                                 )}
-                                {isLocked && !isPendingChange && canRequest && (
+                                {isLocked && !isPendingChange && (
                                   <button
                                     type="button"
                                     onClick={() => openChangeActionModal(selectedDetailItem.id, it)}

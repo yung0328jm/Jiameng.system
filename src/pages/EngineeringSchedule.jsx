@@ -969,10 +969,6 @@ function EngineeringSchedule() {
                                         </span>
                                       )}
                                       {plannedLocked && !isPendingChange && (
-                                        (isCollab
-                                          ? collabs.some((x) => canEditForName(x?.name))
-                                          : canEditForName(it?.responsiblePerson))
-                                      ) && (
                                         <button
                                           type="button"
                                           onClick={() => openChangeRequest(schedule.id, it)}
