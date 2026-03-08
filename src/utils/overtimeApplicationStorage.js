@@ -19,7 +19,7 @@ export const getOvertimeApplicationsByScheduleId = (scheduleId) => {
   return list.filter((r) => String(r?.scheduleId || '').trim() === id)
 }
 
-/** 新增一筆加班申請 */
+/** 新增一筆加班申請（狀態：待審核 pending） */
 export const addOvertimeApplication = ({ scheduleId, applicant, date, startTime, endTime, hours, overtimePersonnel }) => {
   try {
     const list = getOvertimeApplications()
@@ -33,6 +33,7 @@ export const addOvertimeApplication = ({ scheduleId, applicant, date, startTime,
       endTime: String(endTime || '').trim(),
       hours: hours != null && hours !== '' ? Number(hours) : null,
       overtimePersonnel: Array.isArray(overtimePersonnel) ? overtimePersonnel : (typeof overtimePersonnel === 'string' ? String(overtimePersonnel).split(',').map((s) => s.trim()).filter(Boolean) : []),
+      status: 'pending', // pending | approved | rejected
       createdAt: new Date().toISOString()
     }
     list.push(rec)
@@ -43,6 +44,30 @@ export const addOvertimeApplication = ({ scheduleId, applicant, date, startTime,
     return { success: false, message: '儲存失敗' }
   }
 }
+
+/** 管理員審核：更新加班申請狀態 */
+export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '') => {
+  try {
+    const list = getOvertimeApplications()
+    const idx = list.findIndex((r) => String(r?.id || '') === String(id || ''))
+    if (idx < 0) return { success: false, message: '找不到該申請' }
+    const next = list.slice()
+    next[idx] = {
+      ...next[idx],
+      status: status === 'approved' || status === 'rejected' ? status : next[idx].status,
+      reviewedBy: String(reviewedBy || '').trim(),
+      reviewedAt: (status === 'approved' || status === 'rejected') ? new Date().toISOString() : (next[idx].reviewedAt || null)
+    }
+    localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(next))
+    return { success: true }
+  } catch (e) {
+    console.error('updateOvertimeApplicationStatus:', e)
+    return { success: false, message: '更新失敗' }
+  }
+}
+
+/** 待審核的加班申請（管理員用） */
+export const getPendingOvertimeApplications = () => getOvertimeApplications().filter((r) => (r.status || '') === 'pending')
 
 /** 刪除一筆加班申請 */
 export const deleteOvertimeApplication = (id) => {
