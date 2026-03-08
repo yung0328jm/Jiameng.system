@@ -12,7 +12,7 @@ import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplicationsByScheduleId, addOvertimeApplication } from '../utils/overtimeApplicationStorage'
+import { getOvertimeApplicationsByScheduleId, addOvertimeApplication, updateOvertimeApplicationStatus } from '../utils/overtimeApplicationStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
@@ -71,6 +71,7 @@ function Calendar() {
     reason: ''
   })
   const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
+  const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪已送出的申請列表
   const [overtimeFormData, setOvertimeFormData] = useState({
     applicant: '',
     date: '',
@@ -2681,12 +2682,36 @@ function Calendar() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <h3 className={`text-xl font-bold ${selectedDetailType === 'schedule' ? 'text-white' : 'text-yellow-400'}`}>
-                {selectedDetailType === 'topic' ? '主題詳情' : 
-                 selectedDetailType === 'schedule' ? '工程排程詳情' : 
-                 '活動詳情'}
-              </h3>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <h3 className={`text-xl font-bold ${selectedDetailType === 'schedule' ? 'text-white' : 'text-yellow-400'}`}>
+                  {selectedDetailType === 'topic' ? '主題詳情' : 
+                   selectedDetailType === 'schedule' ? '工程排程詳情' : 
+                   '活動詳情'}
+                </h3>
+                {selectedDetailType === 'schedule' && selectedDetailItem && !isLeaveScheduleItem(selectedDetailItem) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!showOvertimeForm) {
+                        const today = new Date().toISOString().slice(0, 10)
+                        setOvertimeFormData({
+                          applicant: getDisplayNameForAccount(getCurrentUser()) || '',
+                          date: today,
+                          startTime: '',
+                          endTime: '',
+                          overtimePersonnel: []
+                        })
+                      }
+                      setShowOvertimeForm((v) => !v)
+                    }}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showOvertimeForm ? 'bg-blue-600 text-white' : 'bg-blue-700/80 text-blue-200 hover:bg-blue-600'}`}
+                  >
+                    加班申請 {showOvertimeForm ? '▼' : '▶'}
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center space-x-2 flex-shrink-0">
                 {selectedDetailType === 'schedule' && (
                   <>
                     <button
@@ -3026,29 +3051,9 @@ function Calendar() {
                           )
                         })()}
 
-                  {/* 加班申請：點選展開，申請人自動帶入、日期預設當日、開始/結束時間、自動計算時數、加班人員下拉勾選 */}
+                  {/* 加班申請表單與已送出的申請（按鈕已移至標題列「工程排程詳情」旁） */}
                   {!isLeaveScheduleItem(selectedDetailItem) && (
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!showOvertimeForm) {
-                            const today = new Date().toISOString().slice(0, 10)
-                            setOvertimeFormData({
-                              applicant: getDisplayNameForAccount(getCurrentUser()) || '',
-                              date: today,
-                              startTime: '',
-                              endTime: '',
-                              overtimePersonnel: []
-                            })
-                          }
-                          setShowOvertimeForm((v) => !v)
-                        }}
-                        className="w-full flex items-center justify-between py-2 px-3 bg-blue-800/60 border border-blue-600 rounded-lg text-left text-blue-200 hover:bg-blue-800 transition-colors"
-                      >
-                        <span className="font-medium">加班申請</span>
-                        <span className="text-blue-400">{showOvertimeForm ? '▼' : '▶'}</span>
-                      </button>
+                    <div className="mt-2">
                       {showOvertimeForm && (
                         <div className="mt-2 p-3 bg-blue-900/50 border border-blue-700 rounded-lg space-y-3">
                           <div>
@@ -3167,20 +3172,56 @@ function Calendar() {
                           {getOvertimeApplicationsByScheduleId(selectedDetailItem.id).length > 0 && (
                             <div className="mt-3 pt-3 border-t border-blue-700">
                               <div className="text-blue-300 text-sm mb-2">已送出的申請</div>
-                              <div className="space-y-2 max-h-32 overflow-y-auto">
-                                {getOvertimeApplicationsByScheduleId(selectedDetailItem.id).map((oa) => (
-                                  <div key={oa.id} className="text-blue-200 text-xs bg-blue-800/50 rounded p-2">
-                                    <div>申請人：{oa.applicant || '—'}</div>
-                                    <div>
-                                      {oa.date || (oa.applicationTime ? new Date(oa.applicationTime).toLocaleDateString('zh-TW') : '—')}
-                                      {oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : (oa.applicationTime ? ` ${new Date(oa.applicationTime).toLocaleTimeString('zh-TW')}` : '')}
-                                      {oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''}
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {getOvertimeApplicationsByScheduleId(selectedDetailItem.id).map((oa) => {
+                                  const status = (oa.status || 'pending').trim()
+                                  const statusText = status === 'approved' ? '已核准' : status === 'rejected' ? '已駁回' : '待審核'
+                                  const statusColor = status === 'approved' ? 'text-green-400' : status === 'rejected' ? 'text-red-400' : 'text-yellow-400'
+                                  return (
+                                    <div key={oa.id} className="text-blue-200 text-xs bg-blue-800/50 rounded p-2">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div>申請人：{oa.applicant || '—'}</div>
+                                          <div>
+                                            {oa.date || (oa.applicationTime ? new Date(oa.applicationTime).toLocaleDateString('zh-TW') : '—')}
+                                            {oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : (oa.applicationTime ? ` ${new Date(oa.applicationTime).toLocaleTimeString('zh-TW')}` : '')}
+                                            {oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''}
+                                          </div>
+                                          {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
+                                            <div>加班人員：{oa.overtimePersonnel.join(', ')}</div>
+                                          )}
+                                        </div>
+                                        <div className={`flex-shrink-0 font-medium ${statusColor}`}>{statusText}</div>
+                                      </div>
+                                      {currentRole === 'admin' && status === 'pending' && (
+                                        <div className="flex gap-2 mt-2 pt-2 border-t border-blue-700/50">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const res = updateOvertimeApplicationStatus(oa.id, 'approved', getCurrentUser())
+                                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
+                                              else alert(res.message || '操作失敗')
+                                            }}
+                                            className="px-2 py-1 rounded bg-green-600 text-white text-xs hover:bg-green-500"
+                                          >
+                                            核准
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const res = updateOvertimeApplicationStatus(oa.id, 'rejected', getCurrentUser())
+                                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
+                                              else alert(res.message || '操作失敗')
+                                            }}
+                                            className="px-2 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-500"
+                                          >
+                                            駁回
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
-                                    {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
-                                      <div>加班人員：{oa.overtimePersonnel.join(', ')}</div>
-                                    )}
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
