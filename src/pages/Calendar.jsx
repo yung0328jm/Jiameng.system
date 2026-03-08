@@ -429,7 +429,7 @@ function Calendar() {
     const updated = allSchedules.find((s) => String(s?.id) === scheduleId)
     if (editingScheduleId === scheduleId && updated) {
       const nextFormItems = Array.isArray(updated?.segments) && updated.segments.length > 0
-        ? (updated.segments[editingFormSegmentIndex]?.workItems ?? updated.segments[0]?.workItems || [])
+        ? ((updated.segments[editingFormSegmentIndex]?.workItems ?? updated.segments[0]?.workItems) || [])
         : (updated?.workItems || [])
       setScheduleFormData((prev) => ({ ...prev, workItems: nextFormItems }))
     }

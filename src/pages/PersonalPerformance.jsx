@@ -150,6 +150,16 @@ function PersonalPerformance() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  // 行事曆／其他分頁刪除排程或加班申請時，同步更新加班時數明細（一律移除已刪除項目）
+  useEffect(() => {
+    const syncKeys = ['jiameng_engineering_schedules', 'jiameng_overtime_applications']
+    const onStorage = (e) => {
+      if (e && e.key && syncKeys.includes(e.key)) setDataRevision((r) => r + 1)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   useEffect(() => {
     const user = getCurrentUser()
     const role = getCurrentUserRole()
@@ -588,7 +598,7 @@ function PersonalPerformance() {
       return dateB - dateA
     })
 
-    // 加班時數明細：當月且申請人或加班人員包含當前查看用戶
+    // 加班時數明細：與行事曆同步。僅顯示當月、已核准、且排程仍存在的紀錄；行事曆刪除排程或刪除加班申請後一律同步移除
     const namesToMatch = [userName].concat((displayNames || []).filter(Boolean))
     const allOvertime = getOvertimeApplications()
     const overtimeDetails = []
@@ -602,8 +612,7 @@ function PersonalPerformance() {
       const isInPersonnel = Array.isArray(oa.overtimePersonnel) && oa.overtimePersonnel.some((p) => namesToMatch.some((n) => String(p).trim() === n))
       if (!isApplicant && !isInPersonnel) return
       const schedule = schedules.find((s) => String(s?.id || '') === String(oa.scheduleId || ''))
-      // 行事曆已刪除的排程：不顯示在加班時數明細
-      if (!schedule) return
+      if (!schedule) return // 排程已從行事曆刪除：同步移除，不顯示
       const siteName = schedule?.siteName || (schedule?.segments?.[0]?.siteName) || '—'
       const hours = oa.hours != null && oa.hours !== '' ? Number(oa.hours) : null
       if (hours != null) totalOvertimeHours += hours
