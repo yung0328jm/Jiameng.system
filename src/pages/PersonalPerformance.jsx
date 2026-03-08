@@ -13,7 +13,7 @@ import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import { getSalaryDetails, saveSalaryDetails } from '../utils/salaryStorage'
-import { getSalaryStructure, saveSalaryStructure } from '../utils/salaryStructureStorage.js'
+import { getSalaryStructure, saveSalaryStructure, getDefaultSalaryStructure } from '../utils/salaryStructureStorage.js'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
@@ -3541,13 +3541,20 @@ function PersonalPerformance() {
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2 flex-wrap items-center">
               <button
                 type="button"
                 onClick={() => setSalaryStructureForm((p) => [...(p || []), { id: 'new_' + Date.now(), label: '新項目', type: 'manual', isDeduction: false, config: {}, defaultAmount: undefined }])}
                 className="text-blue-400 text-sm hover:underline"
               >
                 + 新增項目
+              </button>
+              <button
+                type="button"
+                onClick={() => setSalaryStructureForm(getDefaultSalaryStructure())}
+                className="text-gray-400 text-sm hover:text-white hover:underline"
+              >
+                還原預設結構
               </button>
               <button
                 type="button"
@@ -3575,6 +3582,9 @@ function PersonalPerformance() {
         {showSalaryForm && userRole === 'admin' && (
           <div className="mb-4 p-4 bg-gray-900 rounded-lg border border-gray-600 space-y-3">
             <div className="text-blue-200 text-sm font-medium">薪資項目（項目名稱、金額）</div>
+            <p className="text-gray-400 text-xs">
+              加班費依當月加班時數×時薪自動帶入、請假扣款依當月請假天數×每日扣款自動帶入；其餘可手動填寫。扣款項與績效可輸入負數（如 -500）。
+            </p>
             {(salaryFormData.items || []).map((item, idx) => (
               <div key={idx} className="flex gap-2 items-center">
                 <input
@@ -3597,8 +3607,8 @@ function PersonalPerformance() {
                     const total = next.reduce((s, i) => s + (Number(i.amount) || 0), 0)
                     setSalaryFormData((p) => ({ ...p, items: next, total: String(total) }))
                   }}
-                  placeholder="金額"
-                  className="w-28 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+                  placeholder="金額（扣款可填負數）"
+                  className="w-32 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
                 />
                 <button
                   type="button"
