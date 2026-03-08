@@ -3356,7 +3356,7 @@ function PersonalPerformance() {
         <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
           <div>
             <h3 className="text-lg font-bold text-yellow-400">薪資明細</h3>
-            <p className="text-gray-500 text-xs mt-1">此月份薪資項目與金額（由管理員或人資維護）</p>
+            <p className="text-gray-500 text-xs mt-1">{userRole === 'admin' ? '此月份薪資項目與金額（由管理員或人資維護）' : '此月份薪資明細（僅供預覽，無法修改）'}</p>
           </div>
           {userRole === 'admin' && (
             <div className="flex gap-2">
@@ -3392,6 +3392,8 @@ function PersonalPerformance() {
                     amount = String(-Math.round(leaveDays * perDay))
                   } else if (savedByLabel[label] != null) {
                     amount = String(savedByLabel[label])
+                  } else if (s.type === 'manual' && (s.defaultAmount != null && s.defaultAmount !== '')) {
+                    amount = String(Number(s.defaultAmount) || 0)
                   }
                   return { label, amount }
                 })
@@ -3422,6 +3424,7 @@ function PersonalPerformance() {
                     <th className="py-2 pr-2">項目名稱</th>
                     <th className="py-2 pr-2">類型</th>
                     <th className="py-2 pr-2">扣項</th>
+                    <th className="py-2 pr-2">預設金額（元）</th>
                     <th className="py-2 pr-2">時薪（元）</th>
                     <th className="py-2 pr-2">每日扣款（元）</th>
                     <th className="py-2">操作</th>
@@ -3469,6 +3472,24 @@ function PersonalPerformance() {
                           }}
                           className="rounded"
                         />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        {row.type === 'manual' ? (
+                          <input
+                            type="number"
+                            value={row.defaultAmount != null && row.defaultAmount !== '' ? row.defaultAmount : ''}
+                            onChange={(e) => {
+                              const next = [...(salaryStructureForm || [])]
+                              const v = e.target.value
+                              next[idx] = { ...next[idx], defaultAmount: v === '' ? undefined : (Number(v) || 0) }
+                              setSalaryStructureForm(next)
+                            }}
+                            placeholder="選填"
+                            className="w-24 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs"
+                          />
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
                       </td>
                       <td className="py-1.5 pr-2">
                         {row.type === 'auto_overtime' ? (
@@ -3523,7 +3544,7 @@ function PersonalPerformance() {
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setSalaryStructureForm((p) => [...(p || []), { id: 'new_' + Date.now(), label: '新項目', type: 'manual', isDeduction: false, config: {} }])}
+                onClick={() => setSalaryStructureForm((p) => [...(p || []), { id: 'new_' + Date.now(), label: '新項目', type: 'manual', isDeduction: false, config: {}, defaultAmount: undefined }])}
                 className="text-blue-400 text-sm hover:underline"
               >
                 + 新增項目
@@ -3536,7 +3557,8 @@ function PersonalPerformance() {
                     label: String(s.label || '').trim() || '項目',
                     type: s.type || 'manual',
                     isDeduction: !!s.isDeduction,
-                    config: s.config || {}
+                    config: s.config || {},
+                    defaultAmount: s.defaultAmount != null && s.defaultAmount !== '' ? Number(s.defaultAmount) : undefined
                   }))
                   const res = saveSalaryStructure(list)
                   if (res.success) {
