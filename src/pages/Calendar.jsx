@@ -73,9 +73,10 @@ function Calendar() {
   const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
   const [overtimeFormData, setOvertimeFormData] = useState({
     applicant: '',
-    reason: '',
-    applicationTime: '',
-    overtimePersonnel: ''
+    date: '',
+    startTime: '',
+    endTime: '',
+    overtimePersonnel: [] // 勾選的加班人員名稱陣列
   })
   const [topicFormData, setTopicFormData] = useState({
     title: '',
@@ -3025,12 +3026,24 @@ function Calendar() {
                           )
                         })()}
 
-                  {/* 加班申請：點選展開，顯示申請人、申請事由、申請時間、加班人員選填 */}
+                  {/* 加班申請：點選展開，申請人自動帶入、日期預設當日、開始/結束時間、自動計算時數、加班人員下拉勾選 */}
                   {!isLeaveScheduleItem(selectedDetailItem) && (
                     <div className="mt-4">
                       <button
                         type="button"
-                        onClick={() => setShowOvertimeForm((v) => !v)}
+                        onClick={() => {
+                          if (!showOvertimeForm) {
+                            const today = new Date().toISOString().slice(0, 10)
+                            setOvertimeFormData({
+                              applicant: getDisplayNameForAccount(getCurrentUser()) || '',
+                              date: today,
+                              startTime: '',
+                              endTime: '',
+                              overtimePersonnel: []
+                            })
+                          }
+                          setShowOvertimeForm((v) => !v)
+                        }}
                         className="w-full flex items-center justify-between py-2 px-3 bg-blue-800/60 border border-blue-600 rounded-lg text-left text-blue-200 hover:bg-blue-800 transition-colors"
                       >
                         <span className="font-medium">加班申請</span>
@@ -3042,54 +3055,108 @@ function Calendar() {
                             <label className="block text-blue-300 text-sm mb-1">申請人</label>
                             <input
                               type="text"
+                              readOnly
                               value={overtimeFormData.applicant}
-                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, applicant: e.target.value }))}
-                              placeholder={getDisplayNameForAccount(getCurrentUser()) || '請輸入申請人'}
-                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
+                              className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-300 text-sm"
                             />
                           </div>
                           <div>
-                            <label className="block text-blue-300 text-sm mb-1">申請事由</label>
+                            <label className="block text-blue-300 text-sm mb-1">申請日期</label>
                             <input
-                              type="text"
-                              value={overtimeFormData.reason}
-                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, reason: e.target.value }))}
-                              placeholder="請輸入申請事由"
-                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-blue-300 text-sm mb-1">申請時間</label>
-                            <input
-                              type="datetime-local"
-                              value={overtimeFormData.applicationTime}
-                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, applicationTime: e.target.value }))}
+                              type="date"
+                              value={overtimeFormData.date}
+                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, date: e.target.value }))}
                               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
                             />
                           </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-blue-300 text-sm mb-1">開始時間</label>
+                              <input
+                                type="time"
+                                value={overtimeFormData.startTime}
+                                onChange={(e) => setOvertimeFormData((p) => ({ ...p, startTime: e.target.value }))}
+                                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-blue-300 text-sm mb-1">結束時間</label>
+                              <input
+                                type="time"
+                                value={overtimeFormData.endTime}
+                                onChange={(e) => setOvertimeFormData((p) => ({ ...p, endTime: e.target.value }))}
+                                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+                              />
+                            </div>
+                          </div>
+                          {(() => {
+                            const start = overtimeFormData.startTime && overtimeFormData.endTime
+                              ? overtimeFormData.startTime.split(':').map(Number)
+                              : null
+                            const end = overtimeFormData.startTime && overtimeFormData.endTime
+                              ? overtimeFormData.endTime.split(':').map(Number)
+                              : null
+                            let hours = null
+                            if (start && end && start.length >= 2 && end.length >= 2) {
+                              const minStart = start[0] * 60 + start[1]
+                              let minEnd = end[0] * 60 + end[1]
+                              if (minEnd <= minStart) minEnd += 24 * 60
+                              hours = ((minEnd - minStart) / 60).toFixed(1)
+                            }
+                            return hours != null ? (
+                              <p className="text-blue-200 text-sm">共 <strong className="text-yellow-300">{hours}</strong> 小時</p>
+                            ) : null
+                          })()}
                           <div>
                             <label className="block text-blue-300 text-sm mb-1">加班人員（選填）</label>
-                            <input
-                              type="text"
-                              value={overtimeFormData.overtimePersonnel}
-                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, overtimePersonnel: e.target.value }))}
-                              placeholder="多人請以逗號分隔，例如：張三,李四"
-                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
-                            />
+                            <div className="max-h-32 overflow-y-auto border border-gray-600 rounded bg-gray-800 p-2 space-y-1">
+                              {(() => {
+                                const participantsStr = String(selectedDetailItem?.participants || '').trim()
+                                const names = participantsStr ? participantsStr.split(',').map((s) => s.trim()).filter(Boolean) : []
+                                if (names.length === 0) return <span className="text-gray-500 text-xs">此排程尚無參與人員可勾選</span>
+                                return names.map((name) => (
+                                  <label key={name} className="flex items-center gap-2 cursor-pointer text-blue-200 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={(overtimeFormData.overtimePersonnel || []).includes(name)}
+                                      onChange={(e) => {
+                                        const arr = [...(overtimeFormData.overtimePersonnel || [])]
+                                        if (e.target.checked) arr.push(name)
+                                        else arr.splice(arr.indexOf(name), 1)
+                                        setOvertimeFormData((p) => ({ ...p, overtimePersonnel: arr }))
+                                      }}
+                                      className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
+                                    />
+                                    {name}
+                                  </label>
+                                ))
+                              })()}
+                            </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => {
                               const applicant = overtimeFormData.applicant.trim() || getDisplayNameForAccount(getCurrentUser()) || ''
+                              const start = overtimeFormData.startTime && overtimeFormData.endTime ? overtimeFormData.startTime.split(':').map(Number) : null
+                              const end = overtimeFormData.startTime && overtimeFormData.endTime ? overtimeFormData.endTime.split(':').map(Number) : null
+                              let hours = null
+                              if (start && end && start.length >= 2 && end.length >= 2) {
+                                const minStart = start[0] * 60 + start[1]
+                                let minEnd = end[0] * 60 + end[1]
+                                if (minEnd <= minStart) minEnd += 24 * 60
+                                hours = (minEnd - minStart) / 60
+                              }
                               const result = addOvertimeApplication({
                                 scheduleId: selectedDetailItem.id,
                                 applicant,
-                                reason: overtimeFormData.reason.trim(),
-                                applicationTime: overtimeFormData.applicationTime.trim(),
-                                overtimePersonnel: overtimeFormData.overtimePersonnel.trim() ? overtimeFormData.overtimePersonnel.split(',').map((s) => s.trim()).filter(Boolean) : []
+                                date: overtimeFormData.date.trim(),
+                                startTime: overtimeFormData.startTime.trim(),
+                                endTime: overtimeFormData.endTime.trim(),
+                                hours: hours != null ? Number(hours.toFixed(1)) : null,
+                                overtimePersonnel: overtimeFormData.overtimePersonnel || []
                               })
                               if (result.success) {
-                                setOvertimeFormData({ applicant: '', reason: '', applicationTime: '', overtimePersonnel: '' })
+                                setOvertimeFormData({ applicant: getDisplayNameForAccount(getCurrentUser()) || '', date: new Date().toISOString().slice(0, 10), startTime: '', endTime: '', overtimePersonnel: [] })
                                 setSchedules(getSchedules())
                               } else alert(result.message || '送出失敗')
                             }}
@@ -3103,8 +3170,12 @@ function Calendar() {
                               <div className="space-y-2 max-h-32 overflow-y-auto">
                                 {getOvertimeApplicationsByScheduleId(selectedDetailItem.id).map((oa) => (
                                   <div key={oa.id} className="text-blue-200 text-xs bg-blue-800/50 rounded p-2">
-                                    <div>申請人：{oa.applicant || '—'} · {oa.applicationTime ? new Date(oa.applicationTime).toLocaleString('zh-TW') : '—'}</div>
-                                    <div>事由：{oa.reason || '—'}</div>
+                                    <div>申請人：{oa.applicant || '—'}</div>
+                                    <div>
+                                      {oa.date || (oa.applicationTime ? new Date(oa.applicationTime).toLocaleDateString('zh-TW') : '—')}
+                                      {oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : (oa.applicationTime ? ` ${new Date(oa.applicationTime).toLocaleTimeString('zh-TW')}` : '')}
+                                      {oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''}
+                                    </div>
                                     {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
                                       <div>加班人員：{oa.overtimePersonnel.join(', ')}</div>
                                     )}
