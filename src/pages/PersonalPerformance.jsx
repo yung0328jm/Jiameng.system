@@ -11,7 +11,7 @@ import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCount
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
+import { getOvertimeApplications, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
@@ -617,6 +617,7 @@ function PersonalPerformance() {
       const hours = oa.hours != null && oa.hours !== '' ? Number(oa.hours) : null
       if (hours != null) totalOvertimeHours += hours
       overtimeDetails.push({
+        id: oa.id,
         date: oa.date,
         siteName,
         startTime: oa.startTime || '—',
@@ -3344,16 +3345,32 @@ function PersonalPerformance() {
                   <th className="px-4 py-3 text-left text-yellow-400 font-semibold">開始～結束</th>
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">時數</th>
                   <th className="px-4 py-3 text-left text-yellow-400 font-semibold">申請人</th>
+                  {userRole === 'admin' && <th className="px-4 py-3 text-right text-yellow-400 font-semibold w-24">操作</th>}
                 </tr>
               </thead>
               <tbody>
                 {performanceData.overtimeDetails.map((row, index) => (
-                  <tr key={index} className="border-b border-gray-700 hover:bg-gray-900">
+                  <tr key={row.id || index} className="border-b border-gray-700 hover:bg-gray-900">
                     <td className="px-4 py-3 text-white">{row.date ? new Date(row.date).toLocaleDateString('zh-TW') : '—'}</td>
                     <td className="px-4 py-3 text-white">{row.siteName}</td>
                     <td className="px-4 py-3 text-white">{row.startTime}～{row.endTime}</td>
                     <td className="px-4 py-3 text-right text-white">{row.hours !== '—' && row.hours != null ? Number(row.hours).toFixed(1) : '—'}</td>
                     <td className="px-4 py-3 text-white">{row.applicant}</td>
+                    {userRole === 'admin' && row.id && (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!window.confirm(`確定要刪除此筆加班紀錄嗎？\n${row.date} ${row.siteName} ${row.startTime}～${row.endTime}`)) return
+                            deleteOvertimeApplication(row.id)
+                            setDataRevision((r) => r + 1)
+                          }}
+                          className="text-red-400 hover:text-red-300 text-sm"
+                        >
+                          刪除
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
