@@ -12,6 +12,7 @@ import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
+import { getOvertimeApplicationsByScheduleId, addOvertimeApplication } from '../utils/overtimeApplicationStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
@@ -68,6 +69,13 @@ function Calendar() {
     currentReturnMileage: '',
     proposedReturnMileage: '',
     reason: ''
+  })
+  const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
+  const [overtimeFormData, setOvertimeFormData] = useState({
+    applicant: '',
+    reason: '',
+    applicationTime: '',
+    overtimePersonnel: ''
   })
   const [topicFormData, setTopicFormData] = useState({
     title: '',
@@ -317,6 +325,10 @@ function Calendar() {
     if (typeof document !== 'undefined' && document.activeElement?.blur) document.activeElement.blur()
     setChangeReq((p) => ({ ...p, open: false }))
   }
+
+  useEffect(() => {
+    if (!showDetailModal) setShowOvertimeForm(false)
+  }, [showDetailModal])
 
   // 手機板：異動申請 Modal 開啟時鎖住背景捲動，關閉時還原，避免關閉後無法滑動
   useEffect(() => {
@@ -3012,6 +3024,99 @@ function Calendar() {
                             </>
                           )
                         })()}
+
+                  {/* 加班申請：點選展開，顯示申請人、申請事由、申請時間、加班人員選填 */}
+                  {!isLeaveScheduleItem(selectedDetailItem) && (
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setShowOvertimeForm((v) => !v)}
+                        className="w-full flex items-center justify-between py-2 px-3 bg-blue-800/60 border border-blue-600 rounded-lg text-left text-blue-200 hover:bg-blue-800 transition-colors"
+                      >
+                        <span className="font-medium">加班申請</span>
+                        <span className="text-blue-400">{showOvertimeForm ? '▼' : '▶'}</span>
+                      </button>
+                      {showOvertimeForm && (
+                        <div className="mt-2 p-3 bg-blue-900/50 border border-blue-700 rounded-lg space-y-3">
+                          <div>
+                            <label className="block text-blue-300 text-sm mb-1">申請人</label>
+                            <input
+                              type="text"
+                              value={overtimeFormData.applicant}
+                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, applicant: e.target.value }))}
+                              placeholder={getDisplayNameForAccount(getCurrentUser()) || '請輸入申請人'}
+                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-blue-300 text-sm mb-1">申請事由</label>
+                            <input
+                              type="text"
+                              value={overtimeFormData.reason}
+                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, reason: e.target.value }))}
+                              placeholder="請輸入申請事由"
+                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-blue-300 text-sm mb-1">申請時間</label>
+                            <input
+                              type="datetime-local"
+                              value={overtimeFormData.applicationTime}
+                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, applicationTime: e.target.value }))}
+                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-blue-300 text-sm mb-1">加班人員（選填）</label>
+                            <input
+                              type="text"
+                              value={overtimeFormData.overtimePersonnel}
+                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, overtimePersonnel: e.target.value }))}
+                              placeholder="多人請以逗號分隔，例如：張三,李四"
+                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white placeholder-gray-500 text-sm"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const applicant = overtimeFormData.applicant.trim() || getDisplayNameForAccount(getCurrentUser()) || ''
+                              const result = addOvertimeApplication({
+                                scheduleId: selectedDetailItem.id,
+                                applicant,
+                                reason: overtimeFormData.reason.trim(),
+                                applicationTime: overtimeFormData.applicationTime.trim(),
+                                overtimePersonnel: overtimeFormData.overtimePersonnel.trim() ? overtimeFormData.overtimePersonnel.split(',').map((s) => s.trim()).filter(Boolean) : []
+                              })
+                              if (result.success) {
+                                setOvertimeFormData({ applicant: '', reason: '', applicationTime: '', overtimePersonnel: '' })
+                                setSchedules(getSchedules())
+                              } else alert(result.message || '送出失敗')
+                            }}
+                            className="w-full py-2 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400 transition-colors text-sm"
+                          >
+                            送出申請
+                          </button>
+                          {getOvertimeApplicationsByScheduleId(selectedDetailItem.id).length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-blue-700">
+                              <div className="text-blue-300 text-sm mb-2">已送出的申請</div>
+                              <div className="space-y-2 max-h-32 overflow-y-auto">
+                                {getOvertimeApplicationsByScheduleId(selectedDetailItem.id).map((oa) => (
+                                  <div key={oa.id} className="text-blue-200 text-xs bg-blue-800/50 rounded p-2">
+                                    <div>申請人：{oa.applicant || '—'} · {oa.applicationTime ? new Date(oa.applicationTime).toLocaleString('zh-TW') : '—'}</div>
+                                    <div>事由：{oa.reason || '—'}</div>
+                                    {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
+                                      <div>加班人員：{oa.overtimePersonnel.join(', ')}</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* 工作項目：依目前選擇的案場顯示該案場的卡片 */}
                   {(() => {
