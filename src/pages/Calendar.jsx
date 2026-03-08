@@ -549,14 +549,25 @@ function Calendar() {
     if (String(request?.status || '') !== 'pending') return
     const schedule = schedules.find((s) => String(s?.id) === String(scheduleId))
     if (!schedule) return
-    const entries = Array.isArray(schedule.vehicleEntries) ? [...schedule.vehicleEntries] : []
     const vehicle = String(request?.vehicle || '').trim()
     const proposed = String(request?.proposedReturnMileage ?? '').trim()
-    const nextEntries = entries.map((e) => (String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e))
     const nextRequests = (Array.isArray(schedule.vehicleReturnMileageChangeRequests) ? schedule.vehicleReturnMileageChangeRequests : []).filter(
       (r) => !(String(r?.vehicle || '').trim() === vehicle && String(r?.status || '') === 'pending' && r?.requestedAt === request?.requestedAt)
     )
-    updateSchedule(scheduleId, { vehicleEntries: nextEntries, vehicleReturnMileageChangeRequests: nextRequests })
+    const segs = Array.isArray(schedule.segments) && schedule.segments.length > 0 ? schedule.segments : null
+    if (segs) {
+      const nextSegments = segs.map((seg) => ({
+        ...seg,
+        vehicleEntries: (Array.isArray(seg.vehicleEntries) ? seg.vehicleEntries : []).map((e) =>
+          String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e
+        )
+      }))
+      updateSchedule(scheduleId, { segments: nextSegments, vehicleReturnMileageChangeRequests: nextRequests })
+    } else {
+      const entries = Array.isArray(schedule.vehicleEntries) ? [...schedule.vehicleEntries] : []
+      const nextEntries = entries.map((e) => (String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e))
+      updateSchedule(scheduleId, { vehicleEntries: nextEntries, vehicleReturnMileageChangeRequests: nextRequests })
+    }
     const allSchedulesVehicle = getSchedules()
     setSchedules(allSchedulesVehicle)
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
