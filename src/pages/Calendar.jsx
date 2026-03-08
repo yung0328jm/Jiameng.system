@@ -1287,18 +1287,49 @@ function Calendar() {
   /** 每次更新排程時帶入，供「最後編輯者」顯示 */
   const getScheduleEditorInfo = () => ({ lastEditedBy: getCurrentUser(), lastEditedAt: new Date().toISOString() })
 
-  /** 為車輛欄位每一列寫入「誰在何時編輯」；儲存時呼叫，每欄會記錄 departureDriverBy/At, returnDriverBy/At, departureMileageBy/At, returnMileageBy/At, needRefuelBy/At, fuelCostBy/At, invoiceReturnedBy/At */
-  const addVehicleEntryEditorInfo = (entry) => {
+  /** 比較欄位新舊值是否相同 */
+  const fieldEq = (a, b) => {
+    if (a === b) return true
+    if (a == null && (b === '' || b == null)) return true
+    if (b == null && (a === '' || a == null)) return true
+    if (typeof a === 'boolean' && typeof b === 'boolean') return a === b
+    return String(a).trim() === String(b).trim()
+  }
+
+  /** 為車輛欄位每一列寫入「誰在何時編輯」；僅「有變更」的欄位才寫入本次編輯者，未變更欄位保留原本的 *_By / *_At */
+  const addVehicleEntryEditorInfo = (entry, prevEntry) => {
     const by = getCurrentUser()
     const at = new Date().toISOString()
+    const prev = prevEntry || {}
     const next = { ...entry }
-    if (entry.departureDriver != null && String(entry.departureDriver).trim() !== '') { next.departureDriverBy = by; next.departureDriverAt = at }
-    if (entry.returnDriver != null && String(entry.returnDriver).trim() !== '') { next.returnDriverBy = by; next.returnDriverAt = at }
-    if (entry.departureMileage != null && String(entry.departureMileage).trim() !== '') { next.departureMileageBy = by; next.departureMileageAt = at }
-    if (entry.returnMileage != null && String(entry.returnMileage).trim() !== '') { next.returnMileageBy = by; next.returnMileageAt = at }
-    if (typeof entry.needRefuel === 'boolean') { next.needRefuelBy = by; next.needRefuelAt = at }
-    if (entry.fuelCost != null && String(entry.fuelCost).trim() !== '') { next.fuelCostBy = by; next.fuelCostAt = at }
-    if (typeof entry.invoiceReturned === 'boolean') { next.invoiceReturnedBy = by; next.invoiceReturnedAt = at }
+    if (entry.departureDriver != null && String(entry.departureDriver).trim() !== '') {
+      if (!fieldEq(entry.departureDriver, prev.departureDriver)) { next.departureDriverBy = by; next.departureDriverAt = at }
+      else if (prev.departureDriverBy != null || prev.departureDriverAt != null) { next.departureDriverBy = prev.departureDriverBy; next.departureDriverAt = prev.departureDriverAt }
+    }
+    if (entry.returnDriver != null && String(entry.returnDriver).trim() !== '') {
+      if (!fieldEq(entry.returnDriver, prev.returnDriver)) { next.returnDriverBy = by; next.returnDriverAt = at }
+      else if (prev.returnDriverBy != null || prev.returnDriverAt != null) { next.returnDriverBy = prev.returnDriverBy; next.returnDriverAt = prev.returnDriverAt }
+    }
+    if (entry.departureMileage != null && String(entry.departureMileage).trim() !== '') {
+      if (!fieldEq(entry.departureMileage, prev.departureMileage)) { next.departureMileageBy = by; next.departureMileageAt = at }
+      else if (prev.departureMileageBy != null || prev.departureMileageAt != null) { next.departureMileageBy = prev.departureMileageBy; next.departureMileageAt = prev.departureMileageAt }
+    }
+    if (entry.returnMileage != null && String(entry.returnMileage).trim() !== '') {
+      if (!fieldEq(entry.returnMileage, prev.returnMileage)) { next.returnMileageBy = by; next.returnMileageAt = at }
+      else if (prev.returnMileageBy != null || prev.returnMileageAt != null) { next.returnMileageBy = prev.returnMileageBy; next.returnMileageAt = prev.returnMileageAt }
+    }
+    if (typeof entry.needRefuel === 'boolean') {
+      if (!fieldEq(entry.needRefuel, prev.needRefuel)) { next.needRefuelBy = by; next.needRefuelAt = at }
+      else if (prev.needRefuelBy != null || prev.needRefuelAt != null) { next.needRefuelBy = prev.needRefuelBy; next.needRefuelAt = prev.needRefuelAt }
+    }
+    if (entry.fuelCost != null && String(entry.fuelCost).trim() !== '') {
+      if (!fieldEq(entry.fuelCost, prev.fuelCost)) { next.fuelCostBy = by; next.fuelCostAt = at }
+      else if (prev.fuelCostBy != null || prev.fuelCostAt != null) { next.fuelCostBy = prev.fuelCostBy; next.fuelCostAt = prev.fuelCostAt }
+    }
+    if (typeof entry.invoiceReturned === 'boolean') {
+      if (!fieldEq(entry.invoiceReturned, prev.invoiceReturned)) { next.invoiceReturnedBy = by; next.invoiceReturnedAt = at }
+      else if (prev.invoiceReturnedBy != null || prev.invoiceReturnedAt != null) { next.invoiceReturnedBy = prev.invoiceReturnedBy; next.invoiceReturnedAt = prev.invoiceReturnedAt }
+    }
     return next
   }
 
@@ -1965,8 +1996,16 @@ function Calendar() {
       })
     }
 
-    // 多處行程（或單一案場）：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments，並一律寫回；車輛每欄寫入編輯者
-    const enrichedVehicleEntries = (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map(addVehicleEntryEditorInfo)
+    // 多處行程（或單一案場）：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments；車輛每欄僅對「有變更」的欄位寫入編輯者
+    const prevSchedule = editingScheduleId ? schedules.find((s) => String(s?.id) === String(editingScheduleId)) : null
+    const prevEntries = prevSchedule && (Array.isArray(prevSchedule.segments) && prevSchedule.segments.length > 0)
+      ? (prevSchedule.segments[editingFormSegmentIndex] || prevSchedule.segments[0])?.vehicleEntries || []
+      : (prevSchedule?.vehicleEntries || [])
+    const formEntries = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
+    const enrichedVehicleEntries = formEntries.map((entry, i) => {
+      const prevEntry = prevEntries[i] ?? prevEntries.find((e) => String(e?.vehicle || '').trim() === String(entry?.vehicle || '').trim())
+      return addVehicleEntryEditorInfo(entry, prevEntry)
+    })
     let segmentsToSave = scheduleFormData.segments
     if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
       segmentsToSave = segmentsToSave.map((s, i) => (i === editingFormSegmentIndex
