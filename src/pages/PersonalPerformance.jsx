@@ -11,6 +11,9 @@ import { getLatePerformanceConfig, saveLatePerformanceConfig, calculateLateCount
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
+import { getSalaryDetails, saveSalaryDetails } from '../utils/salaryStorage'
+import { getDisplayNameForAccount } from '../utils/displayName'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
 function PersonalPerformance() {
@@ -38,7 +41,7 @@ function PersonalPerformance() {
     completionRateAdjustment: 0, // 達成率調整分數（完成率→績效分數→統計至績效評分）
     lateAdjustment: 0,          // 遲到調整分數
     noClockInAdjustment: 0,     // 未打卡調整分數
-    scheduleDocAdjustment: 0,   // 工進單/施工照片未勾選扣分
+    scheduleDocAdjustment: 0,   // 施工照片未勾選扣分
     workDays: 0,                // 工作天數
     workDetails: [],            // 工作明細
     workItemStats: {},          // 按工作項目類型統計
@@ -51,7 +54,10 @@ function PersonalPerformance() {
     normalAttendanceCount: 0,    // 正常出勤次數
     lateAttendanceCount: 0,      // 遲到次數
     noClockInCount: 0,          // 未打卡次數
-    noClockInRecords: []         // 未打卡記錄列表（用於詳情顯示）
+    noClockInRecords: [],        // 未打卡記錄列表（用於詳情顯示）
+    overtimeDetails: [],         // 加班時數明細（當月、與當前查看用戶相關）
+    totalOvertimeHours: 0,       // 當月加班總時數
+    salaryDetails: null         // 當月薪資明細（由管理員/人資填寫）
   })
   
   // 管理者評分表單狀態
@@ -90,6 +96,8 @@ function PersonalPerformance() {
   const [importPreview, setImportPreview] = useState([]) // 預覽數據
   const [importResult, setImportResult] = useState(null) // 導入結果
   const [dataRevision, setDataRevision] = useState(0)
+  const [showSalaryForm, setShowSalaryForm] = useState(false) // 是否顯示填寫薪資表單（管理員）
+  const [salaryFormData, setSalaryFormData] = useState({ items: [{ label: '', amount: '' }], total: '', note: '' })
 
   const loadUsersForAdmin = useCallback(async () => {
     try {
@@ -285,7 +293,7 @@ function PersonalPerformance() {
       })
     })
 
-    // 工進單／施工照片未勾選：該排程當日所有參與人員（參與人員欄位 + 工作項目負責/協作）每人扣1分（請假排程不扣分）
+    // 施工照片未勾選：該排程當日所有參與人員（參與人員欄位 + 工作項目負責/協作）每人扣1分（請假排程不扣分）
     const isLeaveSchedule = (s) => {
       const tag = String(s?.tag || '').trim()
       const siteName = String(s?.siteName || '').trim()
@@ -296,7 +304,7 @@ function PersonalPerformance() {
       if (startDate && schedule.date && schedule.date < startDate) return
       if (schedule.date && schedule.date > effectiveEndDate) return
       if (isLeaveSchedule(schedule)) return // 請假不套用、不扣分
-      if (schedule.progressSheet === true && schedule.constructionPhotos === true) return
+      if (schedule.constructionPhotos === true) return
       // 工作項目來源：支援頂層 workItems 或 segments 內 workItems（與主迴圈一致）
       const rawWorkItems = (Array.isArray(schedule.segments) && schedule.segments.length > 0)
         ? schedule.segments.flatMap((s) => s.workItems || [])
@@ -563,7 +571,7 @@ function PersonalPerformance() {
       noClockInAdjustment = calculateNoClockInAdjustment(noClockInCount)
     }
 
-    // 績效評分 = 初始100分 + 管理者調整 + 達成率調整 + 遲到 + 未打卡 + 工進單/施工照片未勾選扣分
+    // 績效評分 = 初始100分 + 管理者調整 + 達成率調整 + 遲到 + 未打卡 + 施工照片未勾選扣分
     const performanceScore = 100 + totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment + scheduleDocAdjustment
     const totalAdjustmentWithCompletion = totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment + scheduleDocAdjustment
     const adjustmentDisplay = totalAdjustmentWithCompletion !== 0 ? (totalAdjustmentWithCompletion >= 0 ? `+${totalAdjustmentWithCompletion.toFixed(1)}` : `${totalAdjustmentWithCompletion.toFixed(1)}`) : ''
@@ -574,6 +582,35 @@ function PersonalPerformance() {
       const dateB = new Date(b.date || 0)
       return dateB - dateA
     })
+
+    // 加班時數明細：當月且申請人或加班人員包含當前查看用戶
+    const namesToMatch = [userName].concat((displayNames || []).filter(Boolean))
+    const allOvertime = getOvertimeApplications()
+    const overtimeDetails = []
+    let totalOvertimeHours = 0
+    allOvertime.forEach((oa) => {
+      const dateStr = String(oa.date || '').trim()
+      if (!dateStr || dateStr < startDate || dateStr > effectiveEndDate) return
+      const isApplicant = namesToMatch.some((n) => String(oa.applicant || '').trim() === n)
+      const isInPersonnel = Array.isArray(oa.overtimePersonnel) && oa.overtimePersonnel.some((p) => namesToMatch.some((n) => String(p).trim() === n))
+      if (!isApplicant && !isInPersonnel) return
+      const schedule = schedules.find((s) => String(s?.id || '') === String(oa.scheduleId || ''))
+      const siteName = schedule?.siteName || (schedule?.segments?.[0]?.siteName) || '—'
+      const hours = oa.hours != null && oa.hours !== '' ? Number(oa.hours) : null
+      if (hours != null) totalOvertimeHours += hours
+      overtimeDetails.push({
+        date: oa.date,
+        siteName,
+        startTime: oa.startTime || '—',
+        endTime: oa.endTime || '—',
+        hours: hours != null ? hours : '—',
+        applicant: oa.applicant || '—'
+      })
+    })
+    overtimeDetails.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+    const salaryDetails = getSalaryDetails(getViewUser(), yearMonth)
 
     setPerformanceData({
       totalWorkItems: totalItems,
@@ -589,7 +626,7 @@ function PersonalPerformance() {
       completionRateAdjustment: completionRateAdjustment, // 完成率→績效分數→統計至績效評分
       lateAdjustment: lateAdjustment,            // 遲到調整分數
       noClockInAdjustment: noClockInAdjustment,  // 未打卡調整分數
-      scheduleDocAdjustment: scheduleDocAdjustment, // 工進單/施工照片未勾選扣分（該組每人每日最多-1）
+      scheduleDocAdjustment: scheduleDocAdjustment, // 施工照片未勾選扣分（該組每人每日最多-1）
       workDays: workDays.size,
       workDetails: workDetails,
       workItemStats: workItemStats,
@@ -602,7 +639,10 @@ function PersonalPerformance() {
       normalAttendanceCount: normalAttendanceCount, // 正常出勤次數
       lateAttendanceCount: lateAttendanceCount, // 遲到次數
       noClockInCount: noClockInCount, // 未打卡次數
-      noClockInRecords: noClockInRecords // 未打卡記錄列表
+      noClockInRecords: noClockInRecords, // 未打卡記錄列表
+      overtimeDetails,
+      totalOvertimeHours,
+      salaryDetails
     })
   }
   
@@ -2443,8 +2483,8 @@ function PersonalPerformance() {
                     {performanceData.scheduleDocAdjustment !== 0 && (
                       <>
                         <span className="text-gray-500">+</span>
-                        <span className="text-red-400" title="排程工進單或施工照片未勾選，該組每人當日扣1分">
-                          工進單/施工照片{performanceData.scheduleDocAdjustment}
+                        <span className="text-red-400" title="排程施工照片未勾選，該組每人當日扣1分">
+                          施工照片{performanceData.scheduleDocAdjustment}
                         </span>
                       </>
                     )}
@@ -3247,6 +3287,179 @@ function PersonalPerformance() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* 加班時數明細：當月與當前用戶相關的加班申請 */}
+      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mt-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold text-yellow-400">加班時數明細</h3>
+          <p className="text-gray-500 text-xs mt-1">當月您為申請人或被勾選為加班人員的紀錄；總計 {performanceData.totalOvertimeHours != null ? Number(performanceData.totalOvertimeHours).toFixed(1) : '0'} 小時</p>
+        </div>
+        {!performanceData.overtimeDetails || performanceData.overtimeDetails.length === 0 ? (
+          <div className="text-gray-400 text-center py-6">
+            <p>當月尚無加班紀錄</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-yellow-400">
+                  <th className="px-4 py-3 text-left text-yellow-400 font-semibold">日期</th>
+                  <th className="px-4 py-3 text-left text-yellow-400 font-semibold">案場</th>
+                  <th className="px-4 py-3 text-left text-yellow-400 font-semibold">開始～結束</th>
+                  <th className="px-4 py-3 text-right text-yellow-400 font-semibold">時數</th>
+                  <th className="px-4 py-3 text-left text-yellow-400 font-semibold">申請人</th>
+                </tr>
+              </thead>
+              <tbody>
+                {performanceData.overtimeDetails.map((row, index) => (
+                  <tr key={index} className="border-b border-gray-700 hover:bg-gray-900">
+                    <td className="px-4 py-3 text-white">{row.date ? new Date(row.date).toLocaleDateString('zh-TW') : '—'}</td>
+                    <td className="px-4 py-3 text-white">{row.siteName}</td>
+                    <td className="px-4 py-3 text-white">{row.startTime}～{row.endTime}</td>
+                    <td className="px-4 py-3 text-right text-white">{row.hours !== '—' && row.hours != null ? Number(row.hours).toFixed(1) : '—'}</td>
+                    <td className="px-4 py-3 text-white">{row.applicant}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 薪資明細：由管理員/人資填寫後顯示 */}
+      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mt-6">
+        <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="text-lg font-bold text-yellow-400">薪資明細</h3>
+            <p className="text-gray-500 text-xs mt-1">此月份薪資項目與金額（由管理員或人資維護）</p>
+          </div>
+          {userRole === 'admin' && (
+            <button
+              type="button"
+              onClick={() => {
+                const sd = performanceData.salaryDetails
+                if (sd && Array.isArray(sd.items) && sd.items.length > 0) {
+                  setSalaryFormData({
+                    items: sd.items.map((i) => ({ label: i.label || '', amount: i.amount != null ? String(i.amount) : '' })),
+                    total: sd.total != null ? String(sd.total) : '',
+                    note: sd.note || ''
+                  })
+                } else {
+                  setSalaryFormData({ items: [{ label: '本薪', amount: '' }, { label: '加班費', amount: '' }], total: '', note: '' })
+                }
+                setShowSalaryForm((v) => !v)
+              }}
+              className="px-3 py-1.5 rounded bg-yellow-500 text-black text-sm font-medium hover:bg-yellow-400"
+            >
+              {showSalaryForm ? '關閉' : '填寫此月薪資'}
+            </button>
+          )}
+        </div>
+        {showSalaryForm && userRole === 'admin' && (
+          <div className="mb-4 p-4 bg-gray-900 rounded-lg border border-gray-600 space-y-3">
+            <div className="text-blue-200 text-sm font-medium">薪資項目（項目名稱、金額）</div>
+            {(salaryFormData.items || []).map((item, idx) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={item.label}
+                  onChange={(e) => {
+                    const next = [...(salaryFormData.items || [])]
+                    next[idx] = { ...next[idx], label: e.target.value }
+                    setSalaryFormData((p) => ({ ...p, items: next }))
+                  }}
+                  placeholder="項目名稱"
+                  className="flex-1 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+                />
+                <input
+                  type="number"
+                  value={item.amount}
+                  onChange={(e) => {
+                    const next = [...(salaryFormData.items || [])]
+                    next[idx] = { ...next[idx], amount: e.target.value }
+                    setSalaryFormData((p) => ({ ...p, items: next }))
+                  }}
+                  placeholder="金額"
+                  className="w-28 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSalaryFormData((p) => ({ ...p, items: p.items.filter((_, i) => i !== idx) }))}
+                  className="text-red-400 hover:text-red-300 text-sm"
+                >
+                  刪除
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setSalaryFormData((p) => ({ ...p, items: [...(p.items || []), { label: '', amount: '' }] }))} className="text-blue-400 text-sm hover:underline">+ 新增一項</button>
+            <div className="flex gap-2 items-center pt-2">
+              <span className="text-blue-200 text-sm">合計</span>
+              <input
+                type="number"
+                value={salaryFormData.total}
+                onChange={(e) => setSalaryFormData((p) => ({ ...p, total: e.target.value }))}
+                placeholder="總額"
+                className="w-32 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+              />
+            </div>
+            <div>
+              <input
+                type="text"
+                value={salaryFormData.note}
+                onChange={(e) => setSalaryFormData((p) => ({ ...p, note: e.target.value }))}
+                placeholder="備註（選填）"
+                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const items = (salaryFormData.items || []).filter((i) => (i.label || '').trim()).map((i) => ({ label: String(i.label).trim(), amount: Number(i.amount) || 0 }))
+                const total = salaryFormData.total !== '' ? Number(salaryFormData.total) : (items.reduce((s, i) => s + (i.amount || 0), 0) || null)
+                const res = saveSalaryDetails({
+                  userId: getViewUser(),
+                  yearMonth: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
+                  items,
+                  total,
+                  note: String(salaryFormData.note || '').trim()
+                })
+                if (res.success) {
+                  setDataRevision((r) => r + 1)
+                  setShowSalaryForm(false)
+                } else alert(res.message || '儲存失敗')
+              }}
+              className="px-4 py-2 rounded bg-yellow-500 text-black font-semibold hover:bg-yellow-400"
+            >
+              儲存薪資明細
+            </button>
+          </div>
+        )}
+        {!performanceData.salaryDetails || !Array.isArray(performanceData.salaryDetails.items) || performanceData.salaryDetails.items.length === 0 ? (
+          !showSalaryForm ? (
+            <div className="text-gray-400 text-center py-6">
+              <p>尚無此月份薪資明細</p>
+            </div>
+          ) : null
+        ) : (
+          <div className="space-y-2">
+            {performanceData.salaryDetails.items && performanceData.salaryDetails.items.map((item, index) => (
+              <div key={index} className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-white">{item.label || '—'}</span>
+                <span className="text-yellow-400 font-semibold">{item.amount != null ? Number(item.amount).toLocaleString() : '—'}</span>
+              </div>
+            ))}
+            {performanceData.salaryDetails.total != null && (
+              <div className="flex justify-between items-center py-3 mt-2 border-t-2 border-yellow-400">
+                <span className="text-yellow-400 font-bold">合計</span>
+                <span className="text-yellow-400 font-bold">{Number(performanceData.salaryDetails.total).toLocaleString()}</span>
+              </div>
+            )}
+            {performanceData.salaryDetails.note && (
+              <p className="text-gray-500 text-sm mt-2">{performanceData.salaryDetails.note}</p>
+            )}
           </div>
         )}
       </div>
