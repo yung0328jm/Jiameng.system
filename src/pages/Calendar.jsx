@@ -559,16 +559,20 @@ function Calendar() {
     )
     const segs = Array.isArray(schedule.segments) && schedule.segments.length > 0 ? schedule.segments : null
     if (segs) {
+      const editorBy = getCurrentUser()
+      const editorAt = new Date().toISOString()
       const nextSegments = segs.map((seg) => ({
         ...seg,
         vehicleEntries: (Array.isArray(seg.vehicleEntries) ? seg.vehicleEntries : []).map((e) =>
-          String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e
+          String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed, returnMileageBy: editorBy, returnMileageAt: editorAt } : e
         )
       }))
       updateSchedule(scheduleId, { ...getScheduleEditorInfo(), segments: nextSegments, vehicleReturnMileageChangeRequests: nextRequests })
     } else {
       const entries = Array.isArray(schedule.vehicleEntries) ? [...schedule.vehicleEntries] : []
-      const nextEntries = entries.map((e) => (String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e))
+      const editorBy = getCurrentUser()
+      const editorAt = new Date().toISOString()
+      const nextEntries = entries.map((e) => (String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed, returnMileageBy: editorBy, returnMileageAt: editorAt } : e))
       updateSchedule(scheduleId, { ...getScheduleEditorInfo(), vehicleEntries: nextEntries, vehicleReturnMileageChangeRequests: nextRequests })
     }
     const allSchedulesVehicle = getSchedules()
@@ -1283,6 +1287,26 @@ function Calendar() {
   /** 每次更新排程時帶入，供「最後編輯者」顯示 */
   const getScheduleEditorInfo = () => ({ lastEditedBy: getCurrentUser(), lastEditedAt: new Date().toISOString() })
 
+  /** 為車輛欄位每一列寫入「誰在何時編輯」；儲存時呼叫，每欄會記錄 departureDriverBy/At, returnDriverBy/At, departureMileageBy/At, returnMileageBy/At, needRefuelBy/At, fuelCostBy/At, invoiceReturnedBy/At */
+  const addVehicleEntryEditorInfo = (entry) => {
+    const by = getCurrentUser()
+    const at = new Date().toISOString()
+    const next = { ...entry }
+    if (entry.departureDriver != null && String(entry.departureDriver).trim() !== '') { next.departureDriverBy = by; next.departureDriverAt = at }
+    if (entry.returnDriver != null && String(entry.returnDriver).trim() !== '') { next.returnDriverBy = by; next.returnDriverAt = at }
+    if (entry.departureMileage != null && String(entry.departureMileage).trim() !== '') { next.departureMileageBy = by; next.departureMileageAt = at }
+    if (entry.returnMileage != null && String(entry.returnMileage).trim() !== '') { next.returnMileageBy = by; next.returnMileageAt = at }
+    if (typeof entry.needRefuel === 'boolean') { next.needRefuelBy = by; next.needRefuelAt = at }
+    if (entry.fuelCost != null && String(entry.fuelCost).trim() !== '') { next.fuelCostBy = by; next.fuelCostAt = at }
+    if (typeof entry.invoiceReturned === 'boolean') { next.invoiceReturnedBy = by; next.invoiceReturnedAt = at }
+    return next
+  }
+
+  const renderFieldEditor = (by, at) => {
+    if (!by && !at) return null
+    return <span className="text-gray-400 text-xs ml-1">（{getDisplayNameForAccount(by) || by || '—'}{at ? ` ${new Date(at).toLocaleString('zh-TW')}` : ''}）</span>
+  }
+
   const handleEditSchedule = () => {
     if (selectedDetailItem && selectedDetailType === 'schedule') {
       if (isLeaveScheduleItem(selectedDetailItem)) {
@@ -1941,18 +1965,19 @@ function Calendar() {
       })
     }
 
-    // 多處行程（或單一案場）：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments，並一律寫回
+    // 多處行程（或單一案場）：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments，並一律寫回；車輛每欄寫入編輯者
+    const enrichedVehicleEntries = (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map(addVehicleEntryEditorInfo)
     let segmentsToSave = scheduleFormData.segments
     if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
       segmentsToSave = segmentsToSave.map((s, i) => (i === editingFormSegmentIndex
-        ? { ...s, workItems: scheduleFormData.workItems || [], vehicleEntries: scheduleFormData.vehicleEntries || [] }
+        ? { ...s, workItems: scheduleFormData.workItems || [], vehicleEntries: enrichedVehicleEntries }
         : s))
     }
 
     let result
     if (editingScheduleId) {
       const prev = schedules.find((s) => String(s?.id) === String(editingScheduleId))
-      const entriesEdit = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
+      const entriesEdit = enrichedVehicleEntries
       const payloadEdit = {
         ...scheduleFormData,
         vehicleEntries: entriesEdit,
@@ -1980,7 +2005,7 @@ function Calendar() {
       }
       result = updateSchedule(editingScheduleId, { ...getScheduleEditorInfo(), ...payloadEdit })
     } else {
-      const entriesNew = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
+      const entriesNew = (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map(addVehicleEntryEditorInfo)
       const payloadNew = {
         ...scheduleFormData,
         createdBy: scheduleFormData?.createdBy || currentUser || '',
@@ -3121,42 +3146,30 @@ function Calendar() {
                                 entries.map((entry, idx) => (
                                   <div key={idx} className="bg-gray-800/60 border border-gray-600 rounded-lg p-3 space-y-2">
                                     <div className="text-yellow-400 font-medium text-sm">車輛 {idx + 1}：{entry.vehicle || '—'}</div>
-                                    {entry.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{entry.departureDriver}</span></div>}
-                                    {entry.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{entry.returnDriver}</span></div>}
-                                    {entry.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{entry.departureMileage} km</span></div>}
-                                    {entry.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{entry.returnMileage} km</span></div>}
-                                    {entry.departureMileage && entry.returnMileage && (
-                                      <div><span className="text-blue-300">本段里程:</span><span className="ml-2">{Math.max(0, (parseFloat(entry.returnMileage) || 0) - (parseFloat(entry.departureMileage) || 0))} km</span></div>
+                                    {entry.departureDriver != null && String(entry.departureDriver).trim() !== '' && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{entry.departureDriver}</span>{renderFieldEditor(entry.departureDriverBy, entry.departureDriverAt)}</div>}
+                                    {entry.returnDriver != null && String(entry.returnDriver).trim() !== '' && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{entry.returnDriver}</span>{renderFieldEditor(entry.returnDriverBy, entry.returnDriverAt)}</div>}
+                                    {entry.departureMileage != null && String(entry.departureMileage).trim() !== '' && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{entry.departureMileage} km</span>{renderFieldEditor(entry.departureMileageBy, entry.departureMileageAt)}</div>}
+                                    {entry.returnMileage != null && String(entry.returnMileage).trim() !== '' && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{entry.returnMileage} km</span>{renderFieldEditor(entry.returnMileageBy, entry.returnMileageAt)}</div>}
+                                    {entry.departureMileage != null && entry.returnMileage != null && (
+                                      <div><span className="text-blue-300">本段里程:</span><span className="ml-2">{Math.max(0, (parseFloat(entry.returnMileage) || 0) - (parseFloat(entry.departureMileage) || 0))} km</span>{renderFieldEditor(entry.returnMileageBy, entry.returnMileageAt)}</div>
                                     )}
-                                    <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{entry.needRefuel ? '是' : '否'}</span></div>
-                                    {entry.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(entry.fuelCost).toLocaleString()}</span></div>}
-                                    <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{entry.invoiceReturned ? '是' : '否'}</span></div>
-                                    {(selectedDetailItem.lastEditedBy || selectedDetailItem.lastEditedAt) && idx === 0 && (
-                                      <div className="pt-2 mt-2 border-t border-gray-600 text-gray-400 text-xs">
-                                        最後編輯：{getDisplayNameForAccount(selectedDetailItem.lastEditedBy) || selectedDetailItem.lastEditedBy || '—'}
-                                        {selectedDetailItem.lastEditedAt && `（${new Date(selectedDetailItem.lastEditedAt).toLocaleString('zh-TW')}）`}
-                                      </div>
-                                    )}
+                                    <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{entry.needRefuel ? '是' : '否'}</span>{renderFieldEditor(entry.needRefuelBy, entry.needRefuelAt)}</div>
+                                    {entry.fuelCost != null && String(entry.fuelCost).trim() !== '' && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(entry.fuelCost).toLocaleString()}</span>{renderFieldEditor(entry.fuelCostBy, entry.fuelCostAt)}</div>}
+                                    <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{entry.invoiceReturned ? '是' : '否'}</span>{renderFieldEditor(entry.invoiceReturnedBy, entry.invoiceReturnedAt)}</div>
                                   </div>
                                 ))
                               ) : (
                                 <>
-                                  {selectedDetailItem.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{selectedDetailItem.departureDriver}</span></div>}
-                                  {selectedDetailItem.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{selectedDetailItem.returnDriver}</span></div>}
-                                  {selectedDetailItem.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{selectedDetailItem.departureMileage} km</span></div>}
-                                  {selectedDetailItem.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{selectedDetailItem.returnMileage} km</span></div>}
+                                  {selectedDetailItem.departureDriver && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{selectedDetailItem.departureDriver}</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>}
+                                  {selectedDetailItem.returnDriver && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{selectedDetailItem.returnDriver}</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>}
+                                  {selectedDetailItem.departureMileage && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{selectedDetailItem.departureMileage} km</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>}
+                                  {selectedDetailItem.returnMileage && <div><span className="text-blue-300">回程里程:</span><span className="ml-2">{selectedDetailItem.returnMileage} km</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>}
                                   {selectedDetailItem.departureMileage && selectedDetailItem.returnMileage && (
-                                    <div><span className="text-blue-300">今日總里程:</span><span className="ml-2">{Math.max(0, (parseFloat(selectedDetailItem.returnMileage) || 0) - (parseFloat(selectedDetailItem.departureMileage) || 0))} km</span></div>
+                                    <div><span className="text-blue-300">今日總里程:</span><span className="ml-2">{Math.max(0, (parseFloat(selectedDetailItem.returnMileage) || 0) - (parseFloat(selectedDetailItem.departureMileage) || 0))} km</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>
                                   )}
-                                  <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span></div>
-                                  {selectedDetailItem.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(selectedDetailItem.fuelCost).toLocaleString()}</span></div>}
-                                  <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span></div>
-                                  {(selectedDetailItem.lastEditedBy || selectedDetailItem.lastEditedAt) && (
-                                    <div className="pt-2 mt-2 border-t border-gray-600 text-gray-400 text-xs">
-                                      最後編輯：{getDisplayNameForAccount(selectedDetailItem.lastEditedBy) || selectedDetailItem.lastEditedBy || '—'}
-                                      {selectedDetailItem.lastEditedAt && `（${new Date(selectedDetailItem.lastEditedAt).toLocaleString('zh-TW')}）`}
-                                    </div>
-                                  )}
+                                  <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>
+                                  {selectedDetailItem.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(selectedDetailItem.fuelCost).toLocaleString()}</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>}
+                                  <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span>{renderFieldEditor(selectedDetailItem.lastEditedBy, selectedDetailItem.lastEditedAt)}</div>
                                 </>
                               )}
                             </>
