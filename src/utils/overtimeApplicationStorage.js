@@ -1,4 +1,4 @@
-// 加班申請儲存：與排程綁定，記錄申請人、事由、申請時間、加班人員
+// 加班申請儲存：與排程綁定，記錄申請人、日期、開始/結束時間、時數、加班人員
 const OVERTIME_APPLICATION_KEY = 'jiameng_overtime_applications'
 
 export const getOvertimeApplications = () => {
@@ -20,7 +20,7 @@ export const getOvertimeApplicationsByScheduleId = (scheduleId) => {
 }
 
 /** 新增一筆加班申請 */
-export const addOvertimeApplication = ({ scheduleId, applicant, reason, applicationTime, overtimePersonnel }) => {
+export const addOvertimeApplication = ({ scheduleId, applicant, date, startTime, endTime, hours, overtimePersonnel }) => {
   try {
     const list = getOvertimeApplications()
     const id = `overtime-${Date.now()}`
@@ -28,8 +28,10 @@ export const addOvertimeApplication = ({ scheduleId, applicant, reason, applicat
       id,
       scheduleId: String(scheduleId || '').trim(),
       applicant: String(applicant || '').trim(),
-      reason: String(reason || '').trim(),
-      applicationTime: String(applicationTime || '').trim(),
+      date: String(date || '').trim(),
+      startTime: String(startTime || '').trim(),
+      endTime: String(endTime || '').trim(),
+      hours: hours != null && hours !== '' ? Number(hours) : null,
       overtimePersonnel: Array.isArray(overtimePersonnel) ? overtimePersonnel : (typeof overtimePersonnel === 'string' ? String(overtimePersonnel).split(',').map((s) => s.trim()).filter(Boolean) : []),
       createdAt: new Date().toISOString()
     }
