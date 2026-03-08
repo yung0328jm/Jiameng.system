@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getSchedules, saveSchedule, deleteSchedule, updateSchedule } from '../utils/scheduleStorage'
+import { getOvertimeApplicationsByScheduleId, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
@@ -306,6 +307,7 @@ function EngineeringSchedule() {
       return
     }
     if (window.confirm('確定要刪除此排程嗎？')) {
+      getOvertimeApplicationsByScheduleId(id).forEach((oa) => deleteOvertimeApplication(oa.id))
       deleteSchedule(id)
       loadSchedules()
     }

@@ -1380,8 +1380,10 @@ function Calendar() {
           // 2) 刪除請假申請
           deleteLeaveApplication(leaveId)
         } else {
-          // fallback：只刪單天排程
-          deleteSchedule(selectedDetailItem.id)
+          // fallback：只刪單天排程，一併刪除該排程的加班申請
+          const scheduleId = selectedDetailItem.id
+          getOvertimeApplicationsByScheduleId(scheduleId).forEach((oa) => deleteOvertimeApplication(oa.id))
+          deleteSchedule(scheduleId)
         }
         const allSchedules = getSchedules()
         setSchedules(allSchedules)
@@ -1391,7 +1393,10 @@ function Calendar() {
         return
       }
       if (window.confirm('確定要刪除此工程排程嗎？')) {
-        const result = deleteSchedule(selectedDetailItem.id)
+        const scheduleId = selectedDetailItem.id
+        // 一併刪除該排程的所有加班申請，讓「加班時數明細」同步消失
+        getOvertimeApplicationsByScheduleId(scheduleId).forEach((oa) => deleteOvertimeApplication(oa.id))
+        const result = deleteSchedule(scheduleId)
         if (result.success) {
           // 重新加载排程列表
           const allSchedules = getSchedules()
@@ -2405,8 +2410,9 @@ function Calendar() {
     }
     if (!window.confirm(`確定要刪除以下 ${toDelete.length} 個工成項目嗎？\n${toDelete.map(s => `・${s.siteName}（${s.date || '未設日期'}）`).join('\n')}`)) return
     
-    // 刪除排程
+    // 刪除排程（並一併刪除該排程的加班申請）
     toDelete.forEach(s => {
+      getOvertimeApplicationsByScheduleId(s.id).forEach((oa) => deleteOvertimeApplication(oa.id))
       deleteSchedule(s.id)
       // 同時刪除關聯的日曆事件
       const allEvents = getEvents()
