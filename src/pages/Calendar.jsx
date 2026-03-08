@@ -4014,11 +4014,21 @@ function Calendar() {
                   const sid = changeAction.scheduleId
                   const wid = changeAction.itemId
                   closeChangeActionModal()
-                  const baseItems = (editingScheduleId === sid)
-                    ? (Array.isArray(scheduleFormData.workItems) ? scheduleFormData.workItems : [])
-                    : (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === sid) ? selectedDetailItem.workItems : null)
-                      ? selectedDetailItem.workItems
-                      : (schedules.find((s) => String(s?.id) === sid)?.workItems || []))
+                  const schedule = (editingScheduleId === sid)
+                    ? { ...scheduleFormData, id: sid }
+                    : (selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === sid)
+                      ? selectedDetailItem
+                      : schedules.find((s) => String(s?.id) === sid)
+                  const baseItems = !schedule
+                    ? []
+                    : (editingScheduleId === sid && Array.isArray(scheduleFormData.workItems))
+                      ? scheduleFormData.workItems
+                      : (() => {
+                          const segs = Array.isArray(schedule?.segments) && schedule.segments.length > 0 ? schedule.segments : null
+                          return segs
+                            ? segs.flatMap((seg) => Array.isArray(seg?.workItems) ? seg.workItems : [])
+                            : (Array.isArray(schedule?.workItems) ? schedule.workItems : [])
+                        })()
                   const item = (Array.isArray(baseItems) ? baseItems : []).find((x) => String(x?.id || '') === String(wid || ''))
                   if (item) openChangeRequest(sid, item)
                 }}
