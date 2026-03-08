@@ -380,11 +380,28 @@ function Calendar() {
       ...(proposedContentRows.length > 0 ? { contentRows: proposedContentRows } : {})
     }
 
-    const baseItems = (editingScheduleId === scheduleId)
-      ? (Array.isArray(scheduleFormData.workItems) ? scheduleFormData.workItems : [])
-      : (Array.isArray((selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === scheduleId) ? selectedDetailItem.workItems : null)
-        ? selectedDetailItem.workItems
-        : (schedules.find((s) => String(s?.id) === scheduleId)?.workItems || []))
+    const schedule = (editingScheduleId === scheduleId)
+      ? { ...scheduleFormData, id: scheduleId }
+      : (selectedDetailItem && selectedDetailType === 'schedule' && String(selectedDetailItem?.id) === scheduleId)
+        ? selectedDetailItem
+        : schedules.find((s) => String(s?.id) === scheduleId)
+    if (!schedule) {
+      closeChangeRequest()
+      return
+    }
+
+    const segs = Array.isArray(schedule?.segments) && schedule.segments.length > 0 ? schedule.segments : null
+    let baseItems = []
+    let segIndex = -1
+    if (editingScheduleId === scheduleId && Array.isArray(scheduleFormData.workItems)) {
+      baseItems = scheduleFormData.workItems
+      if (segs) segIndex = editingFormSegmentIndex
+    } else if (segs) {
+      segIndex = segs.findIndex((seg) => (Array.isArray(seg?.workItems) ? seg.workItems : []).some((wi) => String(wi?.id || '') === itemId))
+      if (segIndex >= 0) baseItems = Array.isArray(segs[segIndex]?.workItems) ? segs[segIndex].workItems : []
+    } else {
+      baseItems = Array.isArray(schedule?.workItems) ? schedule.workItems : []
+    }
 
     const nextItems = baseItems.map((wi) => (String(wi?.id || '') === itemId
       ? {
@@ -401,15 +418,26 @@ function Calendar() {
       : wi
     ))
 
-    updateSchedule(scheduleId, { ...getScheduleEditorInfo(), workItems: nextItems })
-    setSchedules(getSchedules())
-    if (editingScheduleId === scheduleId) {
-      setScheduleFormData((prev) => ({ ...prev, workItems: nextItems }))
+    if (segs && segIndex >= 0) {
+      const updatedSegments = segs.map((seg, i) => (i === segIndex ? { ...seg, workItems: nextItems } : seg))
+      updateSchedule(scheduleId, { ...getScheduleEditorInfo(), segments: updatedSegments })
+    } else {
+      updateSchedule(scheduleId, { ...getScheduleEditorInfo(), workItems: nextItems })
     }
-    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === scheduleId) {
-      setSelectedDetailItem((prev) => ({ ...prev, workItems: nextItems }))
+    const allSchedules = getSchedules()
+    setSchedules(allSchedules)
+    const updated = allSchedules.find((s) => String(s?.id) === scheduleId)
+    if (editingScheduleId === scheduleId && updated) {
+      const nextFormItems = Array.isArray(updated?.segments) && updated.segments.length > 0
+        ? (updated.segments[editingFormSegmentIndex]?.workItems ?? updated.segments[0]?.workItems || [])
+        : (updated?.workItems || [])
+      setScheduleFormData((prev) => ({ ...prev, workItems: nextFormItems }))
+    }
+    if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === scheduleId && updated) {
+      setSelectedDetailItem(updated)
     }
     closeChangeRequest()
+    alert('異動申請已送出，待管理員審核。')
   }
 
   const approveChangeRequest = (scheduleId, item) => {
