@@ -72,6 +72,9 @@ function Calendar() {
   })
   const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
   const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪已送出的申請列表
+  const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
+  const [copyScheduleTarget, setCopyScheduleTarget] = useState(null) // 要複製的排程
+  const [copyScheduleNewDate, setCopyScheduleNewDate] = useState('') // 複製後的新日期 YYYY-MM-DD
   const [overtimeFormData, setOvertimeFormData] = useState({
     applicant: '',
     date: '',
@@ -1346,6 +1349,76 @@ function Calendar() {
     }
   }
 
+  /** 複製排程：產生新 id、指定新日期，並清除當日專屬欄位（施工照片、里程異動申請）；工作項目與 contentRows 重新產生 id */
+  const duplicateScheduleWithNewDate = (source, newDate) => {
+    const newId = `schedule-${Date.now()}`
+    const lockAt = new Date().toISOString()
+    const idBase = Date.now()
+    const cloneWorkItems = (items) => {
+      if (!Array.isArray(items)) return items
+      return items.map((wi, idx) => {
+        const id = wi?.id ? `wi-${idBase}-${idx}` : wi?.id
+        const next = { ...wi, id }
+        if (Array.isArray(wi.contentRows) && wi.contentRows.length > 0) {
+          next.contentRows = wi.contentRows.map((row, ri) => ({
+            ...row,
+            id: row?.id ? `row-${idBase}-${idx}-${ri}` : undefined
+          }))
+        }
+        return next
+      })
+    }
+    const cloneSegment = (seg) => ({
+      ...seg,
+      workItems: cloneWorkItems(seg?.workItems),
+      vehicleEntries: Array.isArray(seg?.vehicleEntries) ? seg.vehicleEntries.map((e) => ({ ...e })) : seg?.vehicleEntries
+    })
+    const segs = Array.isArray(source.segments) && source.segments.length > 0 ? source.segments : null
+    const base = {
+      ...source,
+      id: newId,
+      date: newDate,
+      createdAt: lockAt,
+      constructionPhotos: false,
+      vehicleReturnMileageChangeRequests: [],
+      leaveApplicationId: undefined
+    }
+    if (segs) {
+      base.segments = segs.map(cloneSegment)
+    } else {
+      base.workItems = cloneWorkItems(source.workItems || [])
+      base.vehicleEntries = Array.isArray(source.vehicleEntries) ? source.vehicleEntries.map((e) => ({ ...e })) : source.vehicleEntries
+    }
+    return base
+  }
+
+  const handleConfirmCopySchedule = () => {
+    const target = copyScheduleTarget
+    const newDate = String(copyScheduleNewDate || '').trim()
+    if (!target || !newDate) {
+      alert('請選擇新日期')
+      return
+    }
+    if (isLeaveScheduleItem(target)) {
+      alert('請假排程不支援複製')
+      return
+    }
+    const copy = duplicateScheduleWithNewDate(target, newDate)
+    const result = saveSchedule(copy)
+    if (result.success) {
+      setSchedules(getSchedules())
+      setShowCopyScheduleModal(false)
+      setCopyScheduleTarget(null)
+      setCopyScheduleNewDate('')
+      setShowDetailModal(false)
+      setSelectedDetailItem(null)
+      setSelectedDetailType(null)
+      alert('已複製排程至新日期')
+    } else {
+      alert(result.message || '複製失敗')
+    }
+  }
+
   const escapeHtml = (s) => {
     const div = document.createElement('div')
     div.textContent = s ?? ''
@@ -1400,7 +1473,7 @@ function Calendar() {
       }
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
       if (workItems.length > 0) {
-        body += '<h3>工作項目</h3>'
+        body += '<h3>預排工作項目</h3>'
         expandWorkItemsToLogical(workItems).forEach((wi) => {
           const it = normalizeWorkItem(wi)
           const isCollab = !!it?.isCollaborative
@@ -2839,7 +2912,7 @@ function Calendar() {
                               )}
                               {schedule.workItems && schedule.workItems.length > 0 && (
                                 <div className="text-blue-200 text-sm">
-                                  <span className="text-blue-300">工作項目:</span>
+                                  <span className="text-blue-300">預排工作項目:</span>
                                   <div className="mt-1 space-y-1 pl-4">
                                     {expandWorkItemsToLogical(schedule.workItems).map((item, idx) => (
                                       <div key={item.id || idx} className="text-blue-100">
@@ -3288,7 +3361,7 @@ function Calendar() {
                     const workItems = Array.isArray(seg?.workItems) ? seg.workItems : []
                     return workItems.length > 0 ? (
                     <div className="mt-4">
-                      <div className="text-blue-300 mb-2">工作項目:</div>
+                      <div className="text-blue-300 mb-2">預排工作項目:</div>
                       <div className="space-y-2">
                         {workItems.map((item, idx) => {
                           const it = normalizeWorkItem(item)
@@ -3622,13 +3695,27 @@ function Calendar() {
             {selectedDetailType === 'schedule' && selectedDetailItem && (!isLeaveScheduleItem(selectedDetailItem) || getCurrentUserRole() === 'admin') && (
               <div className="flex space-x-3 pt-4 mt-4 border-t border-blue-700 flex-shrink-0 bg-blue-900 rounded-b-lg -mb-6 -mx-6 px-6 pb-6">
                 {!isLeaveScheduleItem(selectedDetailItem) && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleEditSchedule(); }}
-                    className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 active:bg-yellow-600 transition-colors touch-manipulation cursor-pointer"
-                  >
-                    編輯
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleEditSchedule(); }}
+                      className="flex-1 bg-yellow-400 text-black font-semibold py-2 rounded-lg hover:bg-yellow-500 active:bg-yellow-600 transition-colors touch-manipulation cursor-pointer"
+                    >
+                      編輯
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setCopyScheduleTarget(selectedDetailItem)
+                        setCopyScheduleNewDate(selectedDetailItem?.date ? String(selectedDetailItem.date).slice(0, 10) : new Date().toISOString().slice(0, 10))
+                        setShowCopyScheduleModal(true)
+                      }}
+                      className="flex-1 bg-blue-500 text-white font-semibold py-2 rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation cursor-pointer"
+                    >
+                      複製
+                    </button>
+                  </>
                 )}
                 {getCurrentUserRole() === 'admin' && (
                   <button
@@ -3641,6 +3728,39 @@ function Calendar() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 複製排程：指定新日期 */}
+      {showCopyScheduleModal && copyScheduleTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4" onClick={() => { setShowCopyScheduleModal(false); setCopyScheduleTarget(null); }}>
+          <div className="bg-blue-900 border border-blue-500 rounded-lg shadow-2xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-3">複製排程並指定新日期</h3>
+            <p className="text-blue-200 text-sm mb-3">將整張卡片複製到新日期，活動、參與人員、車輛、預排工作項目等一併複製；施工照片與里程異動申請會清除。</p>
+            <label className="block text-gray-300 text-sm mb-1">新日期</label>
+            <input
+              type="date"
+              value={copyScheduleNewDate}
+              onChange={(e) => setCopyScheduleNewDate(e.target.value)}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowCopyScheduleModal(false); setCopyScheduleTarget(null); }}
+                className="flex-1 py-2 rounded-lg bg-gray-600 text-white font-medium hover:bg-gray-500"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCopySchedule}
+                className="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400"
+              >
+                確定複製
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3742,7 +3862,7 @@ function Calendar() {
                             className="flex items-center justify-between cursor-pointer hover:text-blue-200"
                             onClick={() => handleToggleWorkItems(schedule.id)}
                           >
-                            <span className="text-blue-300">工作項目:</span>
+                            <span className="text-blue-300">預排工作項目:</span>
                             <svg 
                               className={`w-4 h-4 transform transition-transform ${isWorkItemsExpanded ? 'rotate-180' : ''}`} 
                               fill="none" 
@@ -4509,7 +4629,7 @@ function Calendar() {
                         </button>
                       ))}
                     </div>
-                    <p className="text-gray-500 text-xs mt-1">下方「工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。</p>
+                    <p className="text-gray-500 text-xs mt-1">下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。</p>
                   </div>
                 )}
 
@@ -4817,7 +4937,7 @@ function Calendar() {
               <div className="mt-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-gray-300 text-sm font-semibold">
-                    工作項目
+                    預排工作項目
                   </label>
                 </div>
 
