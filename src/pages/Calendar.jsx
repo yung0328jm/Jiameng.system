@@ -247,7 +247,7 @@ function Calendar() {
       requestedAt: new Date().toISOString(),
       requestedBy: currentUser || ''
     }
-    updateSchedule(sid, { vehicleReturnMileageChangeRequests: [...existing, newRequest] })
+    updateSchedule(sid, { ...getScheduleEditorInfo(), vehicleReturnMileageChangeRequests: [...existing, newRequest] })
     setSchedules(getSchedules())
     if (editingScheduleId === sid) {
       const updated = getSchedules().find((s) => String(s?.id) === sid)
@@ -283,7 +283,7 @@ function Calendar() {
       : wi
     ))
 
-    updateSchedule(sid, { workItems: nextItems })
+    updateSchedule(sid, { ...getScheduleEditorInfo(), workItems: nextItems })
     setSchedules(getSchedules())
     if (editingScheduleId === sid) setScheduleFormData((prev) => ({ ...prev, workItems: nextItems }))
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === sid) {
@@ -401,7 +401,7 @@ function Calendar() {
       : wi
     ))
 
-    updateSchedule(scheduleId, { workItems: nextItems })
+    updateSchedule(scheduleId, { ...getScheduleEditorInfo(), workItems: nextItems })
     setSchedules(getSchedules())
     if (editingScheduleId === scheduleId) {
       setScheduleFormData((prev) => ({ ...prev, workItems: nextItems }))
@@ -477,15 +477,15 @@ function Calendar() {
         i === segIndex ? { ...seg, workItems: nextItems } : seg
       )
       if (kind === 'cancel') {
-        updateSchedule(scheduleId, { segments: updatedSegments, __deleteWorkItemIds: [String(it?.id || '')] })
+        updateSchedule(scheduleId, { ...getScheduleEditorInfo(), segments: updatedSegments, __deleteWorkItemIds: [String(it?.id || '')] })
       } else {
-        updateSchedule(scheduleId, { segments: updatedSegments })
+        updateSchedule(scheduleId, { ...getScheduleEditorInfo(), segments: updatedSegments })
       }
     } else {
       if (kind === 'cancel') {
-        updateSchedule(scheduleId, { workItems: nextItems, __deleteWorkItemIds: [String(it?.id || '')] })
+        updateSchedule(scheduleId, { ...getScheduleEditorInfo(), workItems: nextItems, __deleteWorkItemIds: [String(it?.id || '')] })
       } else {
-        updateSchedule(scheduleId, { workItems: nextItems })
+        updateSchedule(scheduleId, { ...getScheduleEditorInfo(), workItems: nextItems })
       }
     }
     const allSchedules = getSchedules()
@@ -535,9 +535,9 @@ function Calendar() {
       const updatedSegments = segments.map((seg, i) =>
         i === segIndex ? { ...seg, workItems: nextItems } : seg
       )
-      updateSchedule(scheduleId, { segments: updatedSegments })
+      updateSchedule(scheduleId, { ...getScheduleEditorInfo(), segments: updatedSegments })
     } else {
-      updateSchedule(scheduleId, { workItems: nextItems })
+      updateSchedule(scheduleId, { ...getScheduleEditorInfo(), workItems: nextItems })
     }
     const allSchedulesReject = getSchedules()
     setSchedules(allSchedulesReject)
@@ -565,11 +565,11 @@ function Calendar() {
           String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e
         )
       }))
-      updateSchedule(scheduleId, { segments: nextSegments, vehicleReturnMileageChangeRequests: nextRequests })
+      updateSchedule(scheduleId, { ...getScheduleEditorInfo(), segments: nextSegments, vehicleReturnMileageChangeRequests: nextRequests })
     } else {
       const entries = Array.isArray(schedule.vehicleEntries) ? [...schedule.vehicleEntries] : []
       const nextEntries = entries.map((e) => (String(e?.vehicle || '').trim() === vehicle ? { ...e, returnMileage: proposed } : e))
-      updateSchedule(scheduleId, { vehicleEntries: nextEntries, vehicleReturnMileageChangeRequests: nextRequests })
+      updateSchedule(scheduleId, { ...getScheduleEditorInfo(), vehicleEntries: nextEntries, vehicleReturnMileageChangeRequests: nextRequests })
     }
     const allSchedulesVehicle = getSchedules()
     setSchedules(allSchedulesVehicle)
@@ -590,7 +590,7 @@ function Calendar() {
         ? { ...r, status: 'rejected', reviewedAt: new Date().toISOString(), reviewedBy: currentUser || '' }
         : r
     )
-    updateSchedule(scheduleId, { vehicleReturnMileageChangeRequests: nextRequests })
+    updateSchedule(scheduleId, { ...getScheduleEditorInfo(), vehicleReturnMileageChangeRequests: nextRequests })
     const allSchedulesRejectVehicle = getSchedules()
     setSchedules(allSchedulesRejectVehicle)
     if (selectedDetailType === 'schedule' && selectedDetailItem && String(selectedDetailItem?.id) === String(scheduleId)) {
@@ -1279,6 +1279,9 @@ function Calendar() {
       setShowDetailModal(true)
     }
   }
+
+  /** 每次更新排程時帶入，供「最後編輯者」顯示 */
+  const getScheduleEditorInfo = () => ({ lastEditedBy: getCurrentUser(), lastEditedAt: new Date().toISOString() })
 
   const handleEditSchedule = () => {
     if (selectedDetailItem && selectedDetailType === 'schedule') {
@@ -1975,7 +1978,7 @@ function Calendar() {
         payloadEdit.fuelCost = entriesEdit[0].fuelCost || ''
         payloadEdit.invoiceReturned = !!entriesEdit[0].invoiceReturned
       }
-      result = updateSchedule(editingScheduleId, payloadEdit)
+      result = updateSchedule(editingScheduleId, { ...getScheduleEditorInfo(), ...payloadEdit })
     } else {
       const entriesNew = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
       const payloadNew = {
@@ -3049,9 +3052,10 @@ function Calendar() {
                                           checked={selectedDetailItem.constructionPhotos === true}
                                           onChange={(e) => {
                                             const v = e.target.checked
-                                            updateSchedule(selectedDetailItem.id, { constructionPhotos: v })
+                                            const editorInfo = getScheduleEditorInfo()
+                                            updateSchedule(selectedDetailItem.id, { ...editorInfo, constructionPhotos: v })
                                             setSchedules(getSchedules())
-                                            setSelectedDetailItem((prev) => (prev ? { ...prev, constructionPhotos: v } : prev))
+                                            setSelectedDetailItem((prev) => (prev ? { ...prev, constructionPhotos: v, ...editorInfo } : prev))
                                           }}
                                           className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
                                         />
@@ -3127,6 +3131,12 @@ function Calendar() {
                                     <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{entry.needRefuel ? '是' : '否'}</span></div>
                                     {entry.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(entry.fuelCost).toLocaleString()}</span></div>}
                                     <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{entry.invoiceReturned ? '是' : '否'}</span></div>
+                                    {(selectedDetailItem.lastEditedBy || selectedDetailItem.lastEditedAt) && idx === 0 && (
+                                      <div className="pt-2 mt-2 border-t border-gray-600 text-gray-400 text-xs">
+                                        最後編輯：{getDisplayNameForAccount(selectedDetailItem.lastEditedBy) || selectedDetailItem.lastEditedBy || '—'}
+                                        {selectedDetailItem.lastEditedAt && `（${new Date(selectedDetailItem.lastEditedAt).toLocaleString('zh-TW')}）`}
+                                      </div>
+                                    )}
                                   </div>
                                 ))
                               ) : (
@@ -3141,6 +3151,12 @@ function Calendar() {
                                   <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{selectedDetailItem.needRefuel ? '是' : '否'}</span></div>
                                   {selectedDetailItem.fuelCost && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(selectedDetailItem.fuelCost).toLocaleString()}</span></div>}
                                   <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{selectedDetailItem.invoiceReturned ? '是' : '否'}</span></div>
+                                  {(selectedDetailItem.lastEditedBy || selectedDetailItem.lastEditedAt) && (
+                                    <div className="pt-2 mt-2 border-t border-gray-600 text-gray-400 text-xs">
+                                      最後編輯：{getDisplayNameForAccount(selectedDetailItem.lastEditedBy) || selectedDetailItem.lastEditedBy || '—'}
+                                      {selectedDetailItem.lastEditedAt && `（${new Date(selectedDetailItem.lastEditedAt).toLocaleString('zh-TW')}）`}
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </>
