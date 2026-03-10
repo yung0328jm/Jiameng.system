@@ -437,7 +437,7 @@ export default function MonthlyLocationReport() {
               if (entries.length === 0) return null
               return (
                 <div key={d} className="rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
-                  <div className="bg-gray-900 px-2 py-1.5 text-xs font-semibold text-yellow-400 border-b border-gray-600">
+                  <div className="bg-gray-900 px-2 py-2 text-sm font-semibold text-yellow-400 border-b border-gray-600">
                     {d} 日（{weekdayChar(year, month, d)}）
                   </div>
                   <div className="divide-y divide-gray-700/80">
@@ -449,8 +449,8 @@ export default function MonthlyLocationReport() {
                         onClick={() => openEdit(name, dateStr)}
                         className={`flex w-full flex-col gap-0.5 px-2 py-1.5 text-left ${isAdmin ? 'hover:bg-gray-700/50 cursor-pointer active:bg-gray-700/70' : ''}`}
                       >
-                        <span className="text-[10px] font-medium text-yellow-500/90">{name}</span>
-                        <span className={`text-[10px] leading-tight break-words ${isLeaveOnlyCell(text) ? 'text-red-400 font-medium' : 'text-gray-200'}`}>
+                        <span className="text-xs sm:text-sm font-medium text-yellow-500/90">{name}</span>
+                        <span className={`text-xs sm:text-sm leading-snug break-words ${isLeaveOnlyCell(text) ? 'text-red-400 font-medium' : 'text-gray-200'}`}>
                           {text}
                         </span>
                       </button>
@@ -474,22 +474,22 @@ export default function MonthlyLocationReport() {
       <div
         ref={pdfRef}
         className="monthly-report-pdf-capture border border-gray-700 rounded-lg bg-gray-800/50 p-2 sm:p-4 md:relative md:block
-          max-md:fixed max-md:left-[-9999px] max-md:top-0 max-md:w-[720px] max-md:z-[-1] max-md:opacity-0 max-md:pointer-events-none"
+          max-md:fixed max-md:left-[-9999px] max-md:top-0 max-md:w-[960px] max-md:z-[-1] max-md:opacity-0 max-md:pointer-events-none"
       >
-        <h2 className="text-yellow-400 font-bold mb-2 text-sm sm:text-base">
+        <h2 className="text-yellow-400 font-bold mb-2 text-base sm:text-lg">
           每月份工時匯總報表 {year} 年 {month} 月
         </h2>
         {siteStatsSorted.length > 0 && (
-          <div className="mb-3 text-[10px] sm:text-xs text-gray-200">
+          <div className="mb-3 text-xs sm:text-sm text-gray-200 leading-snug">
             <strong>各案場出工人次：</strong>
             {siteStatsSorted.map(([s, c]) => `${s}${c}`).join(' ｜ ')}
           </div>
         )}
         <div className="overflow-x-auto w-full">
           {/* 日期在左欄、姓名在表頭（直向閱讀為一天一列） */}
-          <table className="w-full table-fixed border-collapse text-xs sm:text-sm min-w-[480px]">
+          <table className="w-full table-fixed border-collapse text-sm sm:text-base min-w-[560px]">
             <colgroup>
-              <col className="w-[3rem] sm:w-[3.5rem]" />
+              <col className="w-[3.25rem] sm:w-16" />
               {userNames.map((name) => (
                 <col key={name} />
               ))}
@@ -497,7 +497,7 @@ export default function MonthlyLocationReport() {
             <thead>
               <tr className="bg-gray-900 border-b border-yellow-500/50">
                 <th
-                  className="sticky left-0 z-10 bg-gray-900 px-1 py-1 text-left text-yellow-400 font-semibold border border-gray-600 align-bottom"
+                  className="sticky left-0 z-10 bg-gray-900 px-1.5 py-1.5 text-left text-yellow-400 font-semibold border border-gray-600 align-bottom text-sm sm:text-base"
                   title="日期"
                 >
                   日期
@@ -505,10 +505,10 @@ export default function MonthlyLocationReport() {
                 {userNames.map((name) => (
                   <th
                     key={name}
-                    className="px-0.5 py-1 text-center text-yellow-400 font-semibold border border-gray-700 align-bottom leading-tight max-w-[5rem]"
+                    className="px-1 py-1.5 text-center text-yellow-400 font-semibold border border-gray-700 align-bottom leading-snug min-w-0"
                     title={name}
                   >
-                    <span className="block text-[11px] sm:text-xs break-words hyphens-none">{name}</span>
+                    <span className="block text-sm sm:text-base break-words hyphens-none">{name}</span>
                   </th>
                 ))}
               </tr>
@@ -519,11 +519,11 @@ export default function MonthlyLocationReport() {
                 return (
                   <tr key={d} className="border-b border-gray-700">
                     <td
-                      className="sticky left-0 z-[1] bg-gray-800 px-1 py-1 text-white font-medium border border-gray-600 align-top whitespace-nowrap"
+                      className="sticky left-0 z-[1] bg-gray-800 px-1.5 py-1.5 text-white font-medium border border-gray-600 align-top whitespace-nowrap"
                       title={dateStr}
                     >
-                      <span className="block text-xs sm:text-sm font-medium">{d}</span>
-                      <span className="block text-[10px] sm:text-[11px] text-gray-400 font-normal">
+                      <span className="block text-sm sm:text-base font-semibold">{d}</span>
+                      <span className="block text-xs sm:text-sm text-gray-400 font-normal">
                         {weekdayChar(year, month, d)}
                       </span>
                     </td>
@@ -534,7 +534,7 @@ export default function MonthlyLocationReport() {
                       return (
                         <td
                           key={name}
-                          className={`px-0.5 py-1 align-top border border-gray-700 text-[10px] sm:text-[11px] ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20' : 'text-gray-200'}`}
+                          className={`px-1 py-1.5 align-top border border-gray-700 text-sm sm:text-base leading-snug break-words ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20' : 'text-gray-200'}`}
                           title={isAdmin ? (isOverride ? '手動覆寫（點擊編輯）' : '點擊可手動編輯') : text || '—'}
                           onClick={() => isAdmin && openEdit(name, dateStr)}
                           onKeyDown={(e) => isAdmin && e.key === 'Enter' && openEdit(name, dateStr)}
