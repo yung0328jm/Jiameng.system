@@ -93,6 +93,9 @@ function isLeaveLabel(s) {
   if (!t) return true
   if (LEAVE_LABELS.has(t)) return true
   if (/假$/.test(t) && t.length <= 6) return true
+  // 假別事由如「事假 (法院)」「病假-就醫」不計入案場統計
+  if (/^事假|^病假|^特休|^公假|^喪假|^產假|^陪產假|^生理假|^婚假|^補休|^休假|^請假|^曠職/.test(t)) return true
+  if (t.includes('假') && t.length <= 24) return true
   return false
 }
 
@@ -103,6 +106,14 @@ function isLeaveOnlyCell(text) {
   const parts = t.split(/、/).map((p) => p.trim()).filter(Boolean)
   if (parts.length === 0) return false
   return parts.every((p) => isLeaveLabel(p))
+}
+
+/** 週幾（與 getDay 對應：0日 1一 … 6六）— 僅表頭顯示，不增加欄寬 */
+function weekdayChar(year, month, day) {
+  const d = new Date(year, month - 1, day)
+  if (Number.isNaN(d.getTime())) return ''
+  const chars = ['日', '一', '二', '三', '四', '五', '六']
+  return chars[d.getDay()] || ''
 }
 
 /** 由顯示文字統計案場人次；假別不計入案場 */
@@ -401,6 +412,7 @@ export default function MonthlyLocationReport() {
         {siteStatsSorted.length > 0 && (
           <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800/50 p-3 sm:p-4">
             <h2 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">各案場出工統計（人次）</h2>
+            <p className="text-[10px] text-gray-500 mb-2">僅統計案場／工作地點；假別（事假、病假、特休等）不計入此處。</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => (
                 <div key={site} className="flex justify-between gap-2 rounded border border-gray-600 bg-gray-900/50 px-2 py-1.5">
@@ -478,7 +490,15 @@ export default function MonthlyLocationReport() {
               <tr className="bg-gray-900 border-b border-yellow-500/50 print:bg-gray-200">
                 <th className="sticky left-0 z-10 bg-gray-900 print:bg-gray-200 w-[2.6rem] sm:w-[3rem] max-w-[3rem] px-0.5 py-1 text-left text-yellow-400 print:text-black font-semibold border border-gray-600 whitespace-nowrap overflow-hidden text-ellipsis" title="姓名">姓名</th>
                 {days.map((d) => (
-                  <th key={d} className="px-0.5 py-1 text-center text-yellow-400 print:text-black font-semibold border border-gray-700 w-8 sm:w-10">{d}</th>
+                  <th
+                    key={d}
+                    className="px-0 py-0.5 text-center text-yellow-400 print:text-black font-semibold border border-gray-700 w-8 sm:w-10 align-middle leading-none"
+                  >
+                    <span className="block text-[10px] sm:text-xs leading-tight">{d}</span>
+                    <span className="block text-[6px] sm:text-[7px] leading-none font-normal opacity-80 print:opacity-100">
+                      {weekdayChar(year, month, d)}
+                    </span>
+                  </th>
                 ))}
               </tr>
             </thead>
