@@ -12,6 +12,7 @@ import {
   getOverrideNamesForMonth,
   MONTHLY_LOCATION_OVERRIDES_KEY
 } from '../utils/monthlyLocationReportStorage'
+import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 
 function getScheduleSegments(schedule) {
   if (!schedule) return []
@@ -82,18 +83,52 @@ function cellKey(name, dateStr) {
   return `${String(name || '').trim()}|${String(dateStr || '').slice(0, 10)}`
 }
 
-/** 由顯示文字統計案場人次（、分隔多案場） */
+/** 由顯示文字統計案場人次（、分隔多案場）；「休假」不計入案場 */
 function countSitesFromDisplayTexts(texts) {
   const siteWorkCount = new Map()
+  const skipSites = new Set(['休假', '請假', '—'])
   texts.forEach((text) => {
     const t = String(text || '').trim()
     if (!t || t === '—') return
+    if (skipSites.has(t)) return
     t.split(/、/).forEach((part) => {
       const s = part.trim()
-      if (s) siteWorkCount.set(s, (siteWorkCount.get(s) || 0) + 1)
+      if (s && !skipSites.has(s)) siteWorkCount.set(s, (siteWorkCount.get(s) || 0) + 1)
     })
   })
   return siteWorkCount
+}
+
+/** 已核准請假：姓名（與 userId）是否在 dateStr 請假區間內 → Set "name|dateStr" */
+function buildLeaveDateSet(year, month) {
+  const lastDay = new Date(year, month, 0).getDate()
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+  const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  const set = new Set()
+  const leaves = getLeaveApplications().filter((la) => (la.status || '') === 'approved')
+  const addRange = (nameKey, laStart, laEnd) => {
+    const a = String(laStart || '').slice(0, 10)
+    const b = String(laEnd || '').slice(0, 10)
+    if (!a || !b || b < monthStart || a > monthEnd) return
+    const start = a < monthStart ? monthStart : a
+    const end = b > monthEnd ? monthEnd : b
+    const d = new Date(`${start}T12:00:00`)
+    const endD = new Date(`${end}T12:00:00`)
+    const nk = String(nameKey || '').trim()
+    if (!nk) return
+    while (d <= endD) {
+      const ymd = d.toISOString().slice(0, 10)
+      set.add(`${nk}|${ymd}`)
+      d.setDate(d.getDate() + 1)
+    }
+  }
+  leaves.forEach((la) => {
+    addRange(la.userName, la.startDate, la.endDate)
+    if (String(la.userId || '').trim() !== String(la.userName || '').trim()) {
+      addRange(la.userId, la.startDate, la.endDate)
+    }
+  })
+  return set
 }
 
 async function exportPdf(el, filename) {
@@ -130,7 +165,9 @@ export default function MonthlyLocationReport() {
 
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key === MONTHLY_LOCATION_OVERRIDES_KEY) setRefreshKey((k) => k + 1)
+      if (e.key === MONTHLY_LOCATION_OVERRIDES_KEY || e.key === 'jiameng_leave_applications') {
+        setRefreshKey((k) => k + 1)
+      }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -142,6 +179,8 @@ export default function MonthlyLocationReport() {
   )
 
   const overrides = useMemo(() => getMonthlyOverrides(year, month), [year, month, refreshKey])
+
+  const leaveDateSet = useMemo(() => buildLeaveDateSet(year, month), [year, month, refreshKey])
 
   const days = useMemo(() => Array.from({ length: lastDay }, (_, i) => i + 1), [lastDay])
 
@@ -158,9 +197,11 @@ export default function MonthlyLocationReport() {
       if (overrides[ck] != null && String(overrides[ck]).trim() !== '') return String(overrides[ck]).trim()
       const sites = scheduleMap.get(name)?.get(dateStr)
       if (sites && sites.size > 0) return [...sites].join('、')
+      // 無排程時帶入已核准請假
+      if (leaveDateSet.has(ck)) return '休假'
       return ''
     },
-    [overrides, scheduleMap]
+    [overrides, scheduleMap, leaveDateSet]
   )
 
   const siteStatsSorted = useMemo(() => {
@@ -239,7 +280,7 @@ export default function MonthlyLocationReport() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
-              所有登入用戶皆可查看；{isAdmin ? '管理員可點格編輯（覆寫行事曆自動值）。' : '內容依行事曆與管理員手動維護。'}
+              已核准請假且當日無排程時顯示「休假」；{isAdmin ? '管理員可點格編輯。' : '其餘依行事曆與手動維護。'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
