@@ -823,7 +823,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       case 'performance':
         return <PersonalPerformance />
       case 'monthly-report':
-        if (userRole != null && userRole !== 'admin') return <Navigate to="/home" replace />
         return <MonthlyLocationReport />
       case 'exchange-shop':
         return <ExchangeShop />
@@ -1312,21 +1311,19 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             isActive={activeTab === 'developing'}
             onClick={() => handleTabClick('developing', '/developing')}
           />
+          <NavItem
+            icon={<CalendarIcon />}
+            label="整月報表"
+            isActive={activeTab === 'monthly-report'}
+            onClick={() => handleTabClick('monthly-report', '/monthly-location-report')}
+          />
           {userRole === 'admin' && (
-            <>
-              <NavItem
-                icon={<CalendarIcon />}
-                label="整月報表"
-                isActive={activeTab === 'monthly-report'}
-                onClick={() => handleTabClick('monthly-report', '/monthly-location-report')}
-              />
-              <NavItem
-                icon={<GearIcon />}
-                label="下拉選單管理"
-                isActive={activeTab === 'management'}
-                onClick={() => handleTabClick('management', '/dropdown-management')}
-              />
-            </>
+            <NavItem
+              icon={<GearIcon />}
+              label="下拉選單管理"
+              isActive={activeTab === 'management'}
+              onClick={() => handleTabClick('management', '/dropdown-management')}
+            />
           )}
           <div className="relative shrink-0">
             <button
