@@ -241,7 +241,7 @@ export default function MonthlyLocationReport() {
   const [month, setMonth] = useState(today.getMonth() + 1)
   const [refreshKey, setRefreshKey] = useState(0)
   const [pdfBusy, setPdfBusy] = useState(false)
-  const printRef = useRef(null)
+  const pdfRef = useRef(null)
   const [editCell, setEditCell] = useState(null) // { name, dateStr, value }
 
   useEffect(() => {
@@ -323,15 +323,14 @@ export default function MonthlyLocationReport() {
     setRefreshKey((k) => k + 1)
   }
 
-  const handlePrint = () => window.print()
   const handlePdf = async () => {
-    if (!printRef.current || pdfBusy) return
+    if (!pdfRef.current || pdfBusy) return
     setPdfBusy(true)
     try {
-      await exportPdf(printRef.current, `每月份工時匯總報表_${year}年${month}月.pdf`)
+      await exportPdf(pdfRef.current, `每月份工時匯總報表_${year}年${month}月.pdf`)
     } catch (e) {
       console.error(e)
-      alert('匯出 PDF 失敗，請改用列印另存 PDF。')
+      alert('匯出 PDF 失敗，請稍後再試或重新整理頁面。')
     } finally {
       setPdfBusy(false)
     }
@@ -339,60 +338,7 @@ export default function MonthlyLocationReport() {
 
   return (
     <div className="max-w-[100vw] text-white monthly-report-root">
-      <style>{`
-        /* 列印：直向；日期在左、姓名在上，橫向以人數為主較適合直向捲動或縮印 */
-        @page {
-          size: A4 portrait;
-          margin: 5mm;
-        }
-        @media print {
-          body * { visibility: hidden !important; }
-          .monthly-report-print-area,
-          .monthly-report-print-area * { visibility: visible !important; }
-          .monthly-report-print-area {
-            position: absolute !important; left: 0 !important; top: 0 !important;
-            opacity: 1 !important; z-index: 0 !important;
-            width: 100% !important; max-width: none !important;
-            background: #fff !important; color: #111 !important;
-            padding: 4px 6px !important;
-            box-sizing: border-box !important;
-          }
-          .monthly-report-print-area .overflow-x-auto {
-            overflow: visible !important; width: 100% !important;
-          }
-          .monthly-report-print-area table {
-            font-size: 8px !important;
-            table-layout: fixed !important;
-            width: 100% !important;
-            min-width: 0 !important;
-            border-collapse: collapse !important;
-          }
-          /* 第一欄為日期 */
-          .monthly-report-print-area col:first-child { width: 8% !important; max-width: 8% !important; }
-          .monthly-report-print-area th,
-          .monthly-report-print-area td {
-            border: 1px solid #333 !important;
-            color: #111 !important;
-            padding: 1px 2px !important;
-            vertical-align: top !important;
-            word-break: break-all !important;
-            overflow: hidden !important;
-          }
-          .monthly-report-print-area thead th { font-size: 8px !important; }
-          .monthly-report-print-area tbody td { font-size: 7.5px !important; line-height: 1.25 !important; }
-          .monthly-report-print-area th.sticky,
-          .monthly-report-print-area td.sticky {
-            position: static !important;
-            background: #fff !important;
-          }
-          .monthly-report-print-area h2 { font-size: 13px !important; margin-bottom: 4px !important; }
-          .monthly-report-print-area .mb-3 { font-size: 8px !important; margin-bottom: 4px !important; line-height: 1.25 !important; }
-          .monthly-report-print-area td .leave-red-print { color: #b91c1c !important; }
-          .monthly-report-no-print { display: none !important; }
-        }
-      `}</style>
-
-      <div className="p-3 sm:p-6 monthly-report-no-print">
+      <div className="p-3 sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
@@ -407,14 +353,6 @@ export default function MonthlyLocationReport() {
               className="bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded px-2 py-1 text-xs sm:text-sm text-white"
             >
               重新整理
-            </button>
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="bg-blue-700 hover:bg-blue-600 border border-blue-600 rounded px-2 py-1 text-xs sm:text-sm text-white"
-              title="版型為日期在左、姓名在上；直向列印。若右側姓名欄被裁切，請縮放「適合紙張」或改橫向。"
-            >
-              列印
             </button>
             <button
               type="button"
@@ -532,24 +470,24 @@ export default function MonthlyLocationReport() {
         </div>
       </div>
 
-      {/* 列印/PDF 區 */}
+      {/* PDF 截圖用區塊（html2canvas）；桌機可捲動檢視 */}
       <div
-        ref={printRef}
-        className="monthly-report-print-area border border-gray-700 rounded-lg bg-gray-800/50 p-2 sm:p-4 print:block print:border-0 md:relative md:block
+        ref={pdfRef}
+        className="monthly-report-pdf-capture border border-gray-700 rounded-lg bg-gray-800/50 p-2 sm:p-4 md:relative md:block
           max-md:fixed max-md:left-[-9999px] max-md:top-0 max-md:w-[720px] max-md:z-[-1] max-md:opacity-0 max-md:pointer-events-none"
       >
-        <h2 className="text-yellow-400 font-bold mb-2 text-sm sm:text-base print:text-black">
+        <h2 className="text-yellow-400 font-bold mb-2 text-sm sm:text-base">
           每月份工時匯總報表 {year} 年 {month} 月
         </h2>
         {siteStatsSorted.length > 0 && (
-          <div className="mb-3 text-[10px] sm:text-xs print:text-black">
+          <div className="mb-3 text-[10px] sm:text-xs text-gray-200">
             <strong>各案場出工人次：</strong>
             {siteStatsSorted.map(([s, c]) => `${s}${c}`).join(' ｜ ')}
           </div>
         )}
-        <div className="overflow-x-auto print:overflow-visible print:w-full">
+        <div className="overflow-x-auto w-full">
           {/* 日期在左欄、姓名在表頭（直向閱讀為一天一列） */}
-          <table className="w-full table-fixed border-collapse text-xs sm:text-sm min-w-[480px] print:min-w-0 print:w-full print:text-black">
+          <table className="w-full table-fixed border-collapse text-xs sm:text-sm min-w-[480px]">
             <colgroup>
               <col className="w-[3rem] sm:w-[3.5rem]" />
               {userNames.map((name) => (
@@ -557,9 +495,9 @@ export default function MonthlyLocationReport() {
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-gray-900 border-b border-yellow-500/50 print:bg-gray-200">
+              <tr className="bg-gray-900 border-b border-yellow-500/50">
                 <th
-                  className="sticky left-0 z-10 bg-gray-900 print:bg-gray-200 px-1 py-1 text-left text-yellow-400 print:text-black font-semibold border border-gray-600 align-bottom"
+                  className="sticky left-0 z-10 bg-gray-900 px-1 py-1 text-left text-yellow-400 font-semibold border border-gray-600 align-bottom"
                   title="日期"
                 >
                   日期
@@ -567,7 +505,7 @@ export default function MonthlyLocationReport() {
                 {userNames.map((name) => (
                   <th
                     key={name}
-                    className="px-0.5 py-1 text-center text-yellow-400 print:text-black font-semibold border border-gray-700 align-bottom leading-tight max-w-[5rem]"
+                    className="px-0.5 py-1 text-center text-yellow-400 font-semibold border border-gray-700 align-bottom leading-tight max-w-[5rem]"
                     title={name}
                   >
                     <span className="block text-[11px] sm:text-xs break-words hyphens-none">{name}</span>
@@ -581,11 +519,11 @@ export default function MonthlyLocationReport() {
                 return (
                   <tr key={d} className="border-b border-gray-700">
                     <td
-                      className="sticky left-0 z-[1] bg-gray-800 print:bg-white px-1 py-1 text-white print:text-black font-medium border border-gray-600 align-top whitespace-nowrap"
+                      className="sticky left-0 z-[1] bg-gray-800 px-1 py-1 text-white font-medium border border-gray-600 align-top whitespace-nowrap"
                       title={dateStr}
                     >
                       <span className="block text-xs sm:text-sm font-medium">{d}</span>
-                      <span className="block text-[10px] sm:text-[11px] text-gray-400 print:text-gray-600 font-normal">
+                      <span className="block text-[10px] sm:text-[11px] text-gray-400 font-normal">
                         {weekdayChar(year, month, d)}
                       </span>
                     </td>
@@ -596,7 +534,7 @@ export default function MonthlyLocationReport() {
                       return (
                         <td
                           key={name}
-                          className={`px-0.5 py-1 align-top border border-gray-700 text-[10px] sm:text-[11px] print:text-black ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20 print:bg-amber-50' : 'text-gray-200'}`}
+                          className={`px-0.5 py-1 align-top border border-gray-700 text-[10px] sm:text-[11px] ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20' : 'text-gray-200'}`}
                           title={isAdmin ? (isOverride ? '手動覆寫（點擊編輯）' : '點擊可手動編輯') : text || '—'}
                           onClick={() => isAdmin && openEdit(name, dateStr)}
                           onKeyDown={(e) => isAdmin && e.key === 'Enter' && openEdit(name, dateStr)}
@@ -620,13 +558,13 @@ export default function MonthlyLocationReport() {
           </table>
         </div>
         {userNames.length === 0 && (
-          <p className="text-gray-500 text-sm print:text-black">此月份尚無資料。</p>
+          <p className="text-gray-500 text-sm">此月份尚無資料。</p>
         )}
       </div>
 
       {/* 編輯 Modal */}
       {editCell && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 monthly-report-no-print">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md rounded-lg border border-gray-600 bg-gray-900 p-4 shadow-xl">
             <h3 className="text-yellow-400 font-semibold mb-2">編輯格子</h3>
             <p className="text-gray-400 text-xs mb-2">{editCell.name}　{editCell.dateStr}</p>
@@ -645,7 +583,7 @@ export default function MonthlyLocationReport() {
         </div>
       )}
 
-      <div className="md:hidden monthly-report-no-print">
+      <div className="md:hidden">
         <p className="text-[10px] text-gray-500 mb-2">手機直式僅顯示有資料的日期；要新增空白格請用桌機點該格編輯。</p>
       </div>
     </div>
