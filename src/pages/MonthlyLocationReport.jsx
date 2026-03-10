@@ -222,7 +222,8 @@ async function exportPdf(el, filename) {
     backgroundColor: '#1f2937'
   })
   const imgData = canvas.toDataURL('image/png')
-  const pdf = new jsPDF({ orientation: canvas.width > canvas.height ? 'l' : 'p', unit: 'mm', format: 'a4' })
+  // 橫表為主：匯出 PDF 一律用橫向，較能容納 31 欄
+  const pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' })
   const pageW = pdf.internal.pageSize.getWidth()
   const pageH = pdf.internal.pageSize.getHeight()
   const ratio = Math.min(pageW / canvas.width, pageH / canvas.height) * 0.95
@@ -339,19 +340,52 @@ export default function MonthlyLocationReport() {
   return (
     <div className="max-w-[100vw] text-white monthly-report-root">
       <style>{`
+        /* 列印：橫向 + 縮小字 + 取消 min-width，讓 31 欄盡量擠進一頁 */
+        @page {
+          size: A4 landscape;
+          margin: 4mm;
+        }
         @media print {
           body * { visibility: hidden !important; }
           .monthly-report-print-area,
           .monthly-report-print-area * { visibility: visible !important; }
           .monthly-report-print-area {
             position: absolute !important; left: 0 !important; top: 0 !important;
-            opacity: 1 !important; z-index: 0 !important; width: 100% !important;
-            background: #fff !important; color: #111 !important; padding: 12px !important;
+            opacity: 1 !important; z-index: 0 !important;
+            width: 100% !important; max-width: none !important;
+            background: #fff !important; color: #111 !important;
+            padding: 4px 6px !important;
+            box-sizing: border-box !important;
           }
-          .monthly-report-print-area table { font-size: 9px !important; table-layout: fixed !important; }
-          .monthly-report-print-area col:first-child { width: 3rem !important; max-width: 3rem !important; }
+          .monthly-report-print-area .overflow-x-auto {
+            overflow: visible !important; width: 100% !important;
+          }
+          .monthly-report-print-area table {
+            font-size: 5.5px !important;
+            table-layout: fixed !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            border-collapse: collapse !important;
+          }
+          .monthly-report-print-area col:first-child { width: 6% !important; max-width: 6% !important; }
           .monthly-report-print-area th,
-          .monthly-report-print-area td { border: 1px solid #333 !important; color: #111 !important; }
+          .monthly-report-print-area td {
+            border: 1px solid #333 !important;
+            color: #111 !important;
+            padding: 1px 2px !important;
+            vertical-align: top !important;
+            word-break: break-all !important;
+            overflow: hidden !important;
+          }
+          .monthly-report-print-area th { font-size: 6px !important; }
+          .monthly-report-print-area td { font-size: 5px !important; line-height: 1.15 !important; }
+          .monthly-report-print-area th.sticky,
+          .monthly-report-print-area td.sticky {
+            position: static !important;
+            background: #fff !important;
+          }
+          .monthly-report-print-area h2 { font-size: 11px !important; margin-bottom: 4px !important; }
+          .monthly-report-print-area .mb-3 { font-size: 6px !important; margin-bottom: 4px !important; line-height: 1.2 !important; }
           .monthly-report-print-area td .leave-red-print { color: #b91c1c !important; }
           .monthly-report-no-print { display: none !important; }
         }
@@ -377,6 +411,7 @@ export default function MonthlyLocationReport() {
               type="button"
               onClick={handlePrint}
               className="bg-blue-700 hover:bg-blue-600 border border-blue-600 rounded px-2 py-1 text-xs sm:text-sm text-white"
+              title="已設計為 A4 橫向縮印；若仍被裁切，請在列印視窗選「橫向」或縮放「適合可列印區域」"
             >
               列印
             </button>
@@ -503,8 +538,8 @@ export default function MonthlyLocationReport() {
             {siteStatsSorted.map(([s, c]) => `${s}${c}`).join(' ｜ ')}
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs min-w-[640px] print:text-black">
+        <div className="overflow-x-auto print:overflow-visible print:w-full">
+          <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs min-w-[640px] print:min-w-0 print:w-full print:text-black">
             <colgroup>
               <col className="w-[2.6rem] sm:w-[3rem]" />
               {days.map((d) => (
