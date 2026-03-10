@@ -83,6 +83,31 @@ function cellKey(name, dateStr) {
   return `${String(name || '').trim()}|${String(dateStr || '').slice(0, 10)}`
 }
 
+/** 姓名欄固定排列順序（未列於此之名單排在後面，仍照筆劃排序） */
+const NAME_ROW_ORDER = [
+  '蘇毓詠',
+  '蔡韋霖',
+  '羅智傑',
+  '謝宏彬',
+  '柳家輝',
+  '陳思潔',
+  '林家永',
+  '鄧智元',
+  '陳偉平',
+  '許裕杰'
+]
+
+function sortNamesByPreferredOrder(names) {
+  return [...names].sort((a, b) => {
+    const ia = NAME_ROW_ORDER.indexOf(String(a || '').trim())
+    const ib = NAME_ROW_ORDER.indexOf(String(b || '').trim())
+    if (ia !== -1 && ib !== -1) return ia - ib
+    if (ia !== -1) return -1
+    if (ib !== -1) return 1
+    return a.localeCompare(b, 'zh-Hant')
+  })
+}
+
 /** 常見假別／請假預設字不計入「案場出工人次」 */
 const LEAVE_LABELS = new Set([
   '休假', '請假', '—', '事假', '病假', '特休', '公假', '喪假', '產假', '陪產假', '生理假', '婚假', '補休', '曠職'
@@ -243,7 +268,7 @@ export default function MonthlyLocationReport() {
     const fromSchedule = [...scheduleMap.keys()]
     const fromOverrides = getOverrideNamesForMonth(year, month)
     const set = new Set([...fromSchedule, ...fromOverrides])
-    return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+    return sortNamesByPreferredOrder([...set])
   }, [scheduleMap, year, month, refreshKey])
 
   const getCellText = useCallback(
