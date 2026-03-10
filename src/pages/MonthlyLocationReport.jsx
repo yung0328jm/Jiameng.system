@@ -361,7 +361,7 @@ export default function MonthlyLocationReport() {
             overflow: visible !important; width: 100% !important;
           }
           .monthly-report-print-area table {
-            font-size: 6px !important;
+            font-size: 8px !important;
             table-layout: fixed !important;
             width: 100% !important;
             min-width: 0 !important;
@@ -378,15 +378,15 @@ export default function MonthlyLocationReport() {
             word-break: break-all !important;
             overflow: hidden !important;
           }
-          .monthly-report-print-area thead th { font-size: 6px !important; }
-          .monthly-report-print-area tbody td { font-size: 5.5px !important; line-height: 1.15 !important; }
+          .monthly-report-print-area thead th { font-size: 8px !important; }
+          .monthly-report-print-area tbody td { font-size: 7.5px !important; line-height: 1.25 !important; }
           .monthly-report-print-area th.sticky,
           .monthly-report-print-area td.sticky {
             position: static !important;
             background: #fff !important;
           }
-          .monthly-report-print-area h2 { font-size: 11px !important; margin-bottom: 4px !important; }
-          .monthly-report-print-area .mb-3 { font-size: 6px !important; margin-bottom: 4px !important; line-height: 1.2 !important; }
+          .monthly-report-print-area h2 { font-size: 13px !important; margin-bottom: 4px !important; }
+          .monthly-report-print-area .mb-3 { font-size: 8px !important; margin-bottom: 4px !important; line-height: 1.25 !important; }
           .monthly-report-print-area td .leave-red-print { color: #b91c1c !important; }
           .monthly-report-no-print { display: none !important; }
         }
@@ -549,7 +549,7 @@ export default function MonthlyLocationReport() {
         )}
         <div className="overflow-x-auto print:overflow-visible print:w-full">
           {/* 日期在左欄、姓名在表頭（直向閱讀為一天一列） */}
-          <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs min-w-[480px] print:min-w-0 print:w-full print:text-black">
+          <table className="w-full table-fixed border-collapse text-xs sm:text-sm min-w-[480px] print:min-w-0 print:w-full print:text-black">
             <colgroup>
               <col className="w-[3rem] sm:w-[3.5rem]" />
               {userNames.map((name) => (
@@ -570,7 +570,7 @@ export default function MonthlyLocationReport() {
                     className="px-0.5 py-1 text-center text-yellow-400 print:text-black font-semibold border border-gray-700 align-bottom leading-tight max-w-[5rem]"
                     title={name}
                   >
-                    <span className="block text-[9px] sm:text-[10px] break-words hyphens-none">{name}</span>
+                    <span className="block text-[11px] sm:text-xs break-words hyphens-none">{name}</span>
                   </th>
                 ))}
               </tr>
@@ -584,8 +584,8 @@ export default function MonthlyLocationReport() {
                       className="sticky left-0 z-[1] bg-gray-800 print:bg-white px-1 py-1 text-white print:text-black font-medium border border-gray-600 align-top whitespace-nowrap"
                       title={dateStr}
                     >
-                      <span className="block text-[10px] sm:text-xs">{d}</span>
-                      <span className="block text-[6px] sm:text-[7px] text-gray-400 print:text-gray-600 font-normal">
+                      <span className="block text-xs sm:text-sm font-medium">{d}</span>
+                      <span className="block text-[10px] sm:text-[11px] text-gray-400 print:text-gray-600 font-normal">
                         {weekdayChar(year, month, d)}
                       </span>
                     </td>
@@ -596,7 +596,7 @@ export default function MonthlyLocationReport() {
                       return (
                         <td
                           key={name}
-                          className={`px-0.5 py-1 align-top border border-gray-700 text-[8px] sm:text-[9px] print:text-black ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20 print:bg-amber-50' : 'text-gray-200'}`}
+                          className={`px-0.5 py-1 align-top border border-gray-700 text-[10px] sm:text-[11px] print:text-black ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20 print:bg-amber-50' : 'text-gray-200'}`}
                           title={isAdmin ? (isOverride ? '手動覆寫（點擊編輯）' : '點擊可手動編輯') : text || '—'}
                           onClick={() => isAdmin && openEdit(name, dateStr)}
                           onKeyDown={(e) => isAdmin && e.key === 'Enter' && openEdit(name, dateStr)}
