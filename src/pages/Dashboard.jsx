@@ -9,6 +9,7 @@ import CompanyActivities from './CompanyActivities'
 import DropdownManagement from './DropdownManagement'
 import UserManagement from './UserManagement'
 import PersonalPerformance from './PersonalPerformance'
+import MonthlyLocationReport from './MonthlyLocationReport'
 import ExchangeShop from './ExchangeShop'
 import Exchange from './Exchange'
 import MyBackpack from './MyBackpack'
@@ -707,6 +708,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('user-management')) return 'user-management'
     if (path.includes('project-deficiency')) return 'deficiency'
     if (path.includes('personal-performance')) return 'performance'
+    if (path.includes('monthly-location-report')) return 'monthly-report'
     if (path.includes('exchange-shop')) return 'exchange-shop'
     if (path.includes('exchange')) return 'exchange'
     if (path.includes('my-backpack')) return 'my-backpack'
@@ -753,6 +755,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       activities: '公司活動',
       management: '下拉選單管理',
       performance: '個人績效',
+      'monthly-report': '整月去處報表',
       'exchange-shop': '兌換商城',
       exchange: '交易所',
       'my-backpack': '我的背包',
@@ -819,6 +822,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         )
       case 'performance':
         return <PersonalPerformance />
+      case 'monthly-report':
+        if (userRole != null && userRole !== 'admin') return <Navigate to="/home" replace />
+        return <MonthlyLocationReport />
       case 'exchange-shop':
         return <ExchangeShop />
       case 'exchange':
@@ -1307,12 +1313,20 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             onClick={() => handleTabClick('developing', '/developing')}
           />
           {userRole === 'admin' && (
-            <NavItem
-              icon={<GearIcon />}
-              label="下拉選單管理"
-              isActive={activeTab === 'management'}
-              onClick={() => handleTabClick('management', '/dropdown-management')}
-            />
+            <>
+              <NavItem
+                icon={<CalendarIcon />}
+                label="整月報表"
+                isActive={activeTab === 'monthly-report'}
+                onClick={() => handleTabClick('monthly-report', '/monthly-location-report')}
+              />
+              <NavItem
+                icon={<GearIcon />}
+                label="下拉選單管理"
+                isActive={activeTab === 'management'}
+                onClick={() => handleTabClick('management', '/dropdown-management')}
+              />
+            </>
           )}
           <div className="relative shrink-0">
             <button
