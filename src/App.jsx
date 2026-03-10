@@ -13,6 +13,7 @@ import DropdownManagement from './pages/DropdownManagement'
 import UserManagement from './pages/UserManagement'
 import ProjectDeficiencyTracking from './pages/ProjectDeficiencyTracking'
 import PersonalPerformance from './pages/PersonalPerformance'
+import MonthlyLocationReport from './pages/MonthlyLocationReport'
 import ExchangeShop from './pages/ExchangeShop'
 import Exchange from './pages/Exchange'
 import MyBackpack from './pages/MyBackpack'
@@ -175,6 +176,7 @@ function App() {
         <Route path="/user-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="user-management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/project-deficiency" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="deficiency" />) : <Navigate to="/login" replace />} />
         <Route path="/personal-performance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="performance" />) : <Navigate to="/login" replace />} />
+        <Route path="/monthly-location-report" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="monthly-report" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/exchange-shop" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange-shop" />) : <Navigate to="/login" replace />} />
         <Route path="/exchange" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange" />) : <Navigate to="/login" replace />} />
         <Route path="/my-backpack" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="my-backpack" />) : <Navigate to="/login" replace />} />
