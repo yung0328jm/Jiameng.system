@@ -96,6 +96,15 @@ function isLeaveLabel(s) {
   return false
 }
 
+/** 整格皆為假別／請假文字時，用紅字顯示 */
+function isLeaveOnlyCell(text) {
+  const t = String(text || '').trim()
+  if (!t || t === '—') return false
+  const parts = t.split(/、/).map((p) => p.trim()).filter(Boolean)
+  if (parts.length === 0) return false
+  return parts.every((p) => isLeaveLabel(p))
+}
+
 /** 由顯示文字統計案場人次；假別不計入案場 */
 function countSitesFromDisplayTexts(texts) {
   const siteWorkCount = new Map()
@@ -307,6 +316,7 @@ export default function MonthlyLocationReport() {
           .monthly-report-print-area col:first-child { width: 3rem !important; max-width: 3rem !important; }
           .monthly-report-print-area th,
           .monthly-report-print-area td { border: 1px solid #333 !important; color: #111 !important; }
+          .monthly-report-print-area td .leave-red-print { color: #b91c1c !important; }
           .monthly-report-no-print { display: none !important; }
         }
       `}</style>
@@ -424,7 +434,7 @@ export default function MonthlyLocationReport() {
                         className={`flex w-full gap-2 px-2 py-1 text-left text-[10px] leading-tight ${isAdmin ? 'hover:bg-gray-700/50 cursor-pointer' : ''}`}
                       >
                         <span className="shrink-0 w-8 text-gray-500">{d}日</span>
-                        <span className="text-gray-200 break-words">{text}</span>
+                        <span className={`break-words ${isLeaveOnlyCell(text) ? 'text-red-400 font-medium' : 'text-gray-200'}`}>{text}</span>
                       </button>
                     )
                   })}
@@ -496,7 +506,13 @@ export default function MonthlyLocationReport() {
                         role={isAdmin ? 'button' : undefined}
                         tabIndex={isAdmin ? 0 : undefined}
                       >
-                        {text || '—'}
+                        {text ? (
+                          <span className={isLeaveOnlyCell(text) ? 'text-red-400 font-medium leave-red-print' : ''}>
+                            {text}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                     )
                   })}
