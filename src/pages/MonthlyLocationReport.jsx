@@ -83,32 +83,65 @@ function cellKey(name, dateStr) {
   return `${String(name || '').trim()}|${String(dateStr || '').slice(0, 10)}`
 }
 
-/** 由顯示文字統計案場人次（、分隔多案場）；「休假」不計入案場 */
+/** 常見假別／請假預設字不計入「案場出工人次」 */
+const LEAVE_LABELS = new Set([
+  '休假', '請假', '—', '事假', '病假', '特休', '公假', '喪假', '產假', '陪產假', '生理假', '婚假', '補休', '曠職'
+])
+
+function isLeaveLabel(s) {
+  const t = String(s || '').trim()
+  if (!t) return true
+  if (LEAVE_LABELS.has(t)) return true
+  if (/假$/.test(t) && t.length <= 6) return true
+  return false
+}
+
+/** 由顯示文字統計案場人次；假別不計入案場 */
 function countSitesFromDisplayTexts(texts) {
   const siteWorkCount = new Map()
-  const skipSites = new Set(['休假', '請假', '—'])
   texts.forEach((text) => {
     const t = String(text || '').trim()
     if (!t || t === '—') return
-    if (skipSites.has(t)) return
+    if (isLeaveLabel(t)) return
     t.split(/、/).forEach((part) => {
       const s = part.trim()
-      if (s && !skipSites.has(s)) siteWorkCount.set(s, (siteWorkCount.get(s) || 0) + 1)
+      if (s && !isLeaveLabel(s)) siteWorkCount.set(s, (siteWorkCount.get(s) || 0) + 1)
     })
   })
   return siteWorkCount
 }
 
-/** 已核准請假：姓名（與 userId）是否在 dateStr 請假區間內 → Set "name|dateStr" */
-function buildLeaveDateSet(year, month) {
+/**
+ * 已核准請假 → Map<"name|dateStr", 假別顯示文字>
+ * 假別來自請假單 reason（事由）；空白則顯示「請假」。
+ * 同日多筆不同假別以「、」合併。
+ */
+function buildLeaveCellTextMap(year, month) {
   const lastDay = new Date(year, month, 0).getDate()
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
   const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-  const set = new Set()
+  const map = new Map()
   const leaves = getLeaveApplications().filter((la) => (la.status || '') === 'approved')
-  const addRange = (nameKey, laStart, laEnd) => {
-    const a = String(laStart || '').slice(0, 10)
-    const b = String(laEnd || '').slice(0, 10)
+
+  const labelFromReason = (la) => {
+    const r = String(la?.reason || '').trim()
+    return r || '請假'
+  }
+
+  const mergeCell = (ck, label) => {
+    const prev = map.get(ck)
+    if (!prev) {
+      map.set(ck, label)
+      return
+    }
+    const set = new Set(prev.split(/、/).map((x) => x.trim()).filter(Boolean))
+    set.add(label)
+    map.set(ck, [...set].join('、'))
+  }
+
+  const addRange = (nameKey, la) => {
+    const a = String(la.startDate || '').slice(0, 10)
+    const b = String(la.endDate || '').slice(0, 10)
     if (!a || !b || b < monthStart || a > monthEnd) return
     const start = a < monthStart ? monthStart : a
     const end = b > monthEnd ? monthEnd : b
@@ -116,19 +149,21 @@ function buildLeaveDateSet(year, month) {
     const endD = new Date(`${end}T12:00:00`)
     const nk = String(nameKey || '').trim()
     if (!nk) return
+    const label = labelFromReason(la)
     while (d <= endD) {
       const ymd = d.toISOString().slice(0, 10)
-      set.add(`${nk}|${ymd}`)
+      mergeCell(`${nk}|${ymd}`, label)
       d.setDate(d.getDate() + 1)
     }
   }
+
   leaves.forEach((la) => {
-    addRange(la.userName, la.startDate, la.endDate)
+    addRange(la.userName, la)
     if (String(la.userId || '').trim() !== String(la.userName || '').trim()) {
-      addRange(la.userId, la.startDate, la.endDate)
+      addRange(la.userId, la)
     }
   })
-  return set
+  return map
 }
 
 async function exportPdf(el, filename) {
@@ -180,7 +215,7 @@ export default function MonthlyLocationReport() {
 
   const overrides = useMemo(() => getMonthlyOverrides(year, month), [year, month, refreshKey])
 
-  const leaveDateSet = useMemo(() => buildLeaveDateSet(year, month), [year, month, refreshKey])
+  const leaveCellTextMap = useMemo(() => buildLeaveCellTextMap(year, month), [year, month, refreshKey])
 
   const days = useMemo(() => Array.from({ length: lastDay }, (_, i) => i + 1), [lastDay])
 
@@ -197,11 +232,12 @@ export default function MonthlyLocationReport() {
       if (overrides[ck] != null && String(overrides[ck]).trim() !== '') return String(overrides[ck]).trim()
       const sites = scheduleMap.get(name)?.get(dateStr)
       if (sites && sites.size > 0) return [...sites].join('、')
-      // 無排程時帶入已核准請假
-      if (leaveDateSet.has(ck)) return '休假'
+      // 無排程時帶入已核准請假（假別 = 事由 reason；無則「請假」）
+      const leaveText = leaveCellTextMap.get(ck)
+      if (leaveText) return leaveText
       return ''
     },
-    [overrides, scheduleMap, leaveDateSet]
+    [overrides, scheduleMap, leaveCellTextMap]
   )
 
   const siteStatsSorted = useMemo(() => {
@@ -280,7 +316,7 @@ export default function MonthlyLocationReport() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
-              已核准請假且當日無排程時顯示「休假」；{isAdmin ? '管理員可點格編輯。' : '其餘依行事曆與手動維護。'}
+              已核准請假且當日無排程時，會顯示請假單<strong>事由（假別）</strong>，例如特休、病假；未填事由則顯示「請假」。{isAdmin ? ' 管理員可點格編輯。' : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
