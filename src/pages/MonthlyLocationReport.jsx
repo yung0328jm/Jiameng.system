@@ -222,8 +222,8 @@ async function exportPdf(el, filename) {
     backgroundColor: '#1f2937'
   })
   const imgData = canvas.toDataURL('image/png')
-  // 橫表為主：匯出 PDF 一律用橫向，較能容納 31 欄
-  const pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' })
+  // 版型為「日期在左、姓名在上」時畫布偏高，直向較合適；過寬時仍用橫向
+  const pdf = new jsPDF({ orientation: canvas.width >= canvas.height ? 'l' : 'p', unit: 'mm', format: 'a4' })
   const pageW = pdf.internal.pageSize.getWidth()
   const pageH = pdf.internal.pageSize.getHeight()
   const ratio = Math.min(pageW / canvas.width, pageH / canvas.height) * 0.95
@@ -340,10 +340,10 @@ export default function MonthlyLocationReport() {
   return (
     <div className="max-w-[100vw] text-white monthly-report-root">
       <style>{`
-        /* 列印：橫向 + 縮小字 + 取消 min-width，讓 31 欄盡量擠進一頁 */
+        /* 列印：直向；日期在左、姓名在上，橫向以人數為主較適合直向捲動或縮印 */
         @page {
-          size: A4 landscape;
-          margin: 4mm;
+          size: A4 portrait;
+          margin: 5mm;
         }
         @media print {
           body * { visibility: hidden !important; }
@@ -361,13 +361,14 @@ export default function MonthlyLocationReport() {
             overflow: visible !important; width: 100% !important;
           }
           .monthly-report-print-area table {
-            font-size: 5.5px !important;
+            font-size: 6px !important;
             table-layout: fixed !important;
             width: 100% !important;
             min-width: 0 !important;
             border-collapse: collapse !important;
           }
-          .monthly-report-print-area col:first-child { width: 6% !important; max-width: 6% !important; }
+          /* 第一欄為日期 */
+          .monthly-report-print-area col:first-child { width: 8% !important; max-width: 8% !important; }
           .monthly-report-print-area th,
           .monthly-report-print-area td {
             border: 1px solid #333 !important;
@@ -377,8 +378,8 @@ export default function MonthlyLocationReport() {
             word-break: break-all !important;
             overflow: hidden !important;
           }
-          .monthly-report-print-area th { font-size: 6px !important; }
-          .monthly-report-print-area td { font-size: 5px !important; line-height: 1.15 !important; }
+          .monthly-report-print-area thead th { font-size: 6px !important; }
+          .monthly-report-print-area tbody td { font-size: 5.5px !important; line-height: 1.15 !important; }
           .monthly-report-print-area th.sticky,
           .monthly-report-print-area td.sticky {
             position: static !important;
@@ -411,7 +412,7 @@ export default function MonthlyLocationReport() {
               type="button"
               onClick={handlePrint}
               className="bg-blue-700 hover:bg-blue-600 border border-blue-600 rounded px-2 py-1 text-xs sm:text-sm text-white"
-              title="已設計為 A4 橫向縮印；若仍被裁切，請在列印視窗選「橫向」或縮放「適合可列印區域」"
+              title="版型為日期在左、姓名在上；直向列印。若右側姓名欄被裁切，請縮放「適合紙張」或改橫向。"
             >
               列印
             </button>
@@ -484,41 +485,49 @@ export default function MonthlyLocationReport() {
           </div>
         )}
 
-        {/* 手機直式 */}
+        {/* 手機直式：日期在上，當日各人員列在下方 */}
         <div className="md:hidden space-y-3 pb-8">
           {userNames.length === 0 ? (
             <p className="text-gray-500 text-sm">此月份尚無資料；管理員可點格新增（請用桌機版表格較順）。</p>
           ) : (
-            userNames.map((name) => (
-              <div key={name} className="rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
-                <div className="bg-gray-900 px-2 py-1.5 text-xs font-semibold text-yellow-400 border-b border-gray-600">{name}</div>
-                <div className="divide-y divide-gray-700/80 max-h-[60vh] overflow-y-auto">
-                  {days.map((d) => {
-                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                    const text = getCellText(name, dateStr)
-                    if (!text) return null
-                    return (
+            <>
+            {days.map((d) => {
+              const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+              const entries = userNames
+                .map((name) => ({ name, text: getCellText(name, dateStr) }))
+                .filter((x) => x.text)
+              if (entries.length === 0) return null
+              return (
+                <div key={d} className="rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
+                  <div className="bg-gray-900 px-2 py-1.5 text-xs font-semibold text-yellow-400 border-b border-gray-600">
+                    {d} 日（{weekdayChar(year, month, d)}）
+                  </div>
+                  <div className="divide-y divide-gray-700/80">
+                    {entries.map(({ name, text }) => (
                       <button
-                        key={d}
+                        key={name}
                         type="button"
                         disabled={!isAdmin}
                         onClick={() => openEdit(name, dateStr)}
-                        className={`flex w-full gap-2 px-2 py-1 text-left text-[10px] leading-tight ${isAdmin ? 'hover:bg-gray-700/50 cursor-pointer' : ''}`}
+                        className={`flex w-full flex-col gap-0.5 px-2 py-1.5 text-left ${isAdmin ? 'hover:bg-gray-700/50 cursor-pointer active:bg-gray-700/70' : ''}`}
                       >
-                        <span className="shrink-0 w-8 text-gray-500">{d}日</span>
-                        <span className={`break-words ${isLeaveOnlyCell(text) ? 'text-red-400 font-medium' : 'text-gray-200'}`}>{text}</span>
+                        <span className="text-[10px] font-medium text-yellow-500/90">{name}</span>
+                        <span className={`text-[10px] leading-tight break-words ${isLeaveOnlyCell(text) ? 'text-red-400 font-medium' : 'text-gray-200'}`}>
+                          {text}
+                        </span>
                       </button>
-                    )
-                  })}
+                    ))}
+                  </div>
                 </div>
-                {days.every((d) => {
-                  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                  return !getCellText(name, dateStr)
-                }) && (
-                  <div className="px-2 py-2 text-[10px] text-gray-600">本月無排程</div>
-                )}
-              </div>
-            ))
+              )
+            })}
+            {days.every((d) => {
+              const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+              return !userNames.some((name) => getCellText(name, dateStr))
+            }) && (
+              <p className="text-gray-500 text-sm">此月份各日尚無排程或請假顯示。</p>
+            )}
+            </>
           )}
         </div>
       </div>
@@ -527,7 +536,7 @@ export default function MonthlyLocationReport() {
       <div
         ref={printRef}
         className="monthly-report-print-area border border-gray-700 rounded-lg bg-gray-800/50 p-2 sm:p-4 print:block print:border-0 md:relative md:block
-          max-md:fixed max-md:left-[-9999px] max-md:top-0 max-md:w-[900px] max-md:z-[-1] max-md:opacity-0 max-md:pointer-events-none"
+          max-md:fixed max-md:left-[-9999px] max-md:top-0 max-md:w-[720px] max-md:z-[-1] max-md:opacity-0 max-md:pointer-events-none"
       >
         <h2 className="text-yellow-400 font-bold mb-2 text-sm sm:text-base print:text-black">
           每月份工時匯總報表 {year} 年 {month} 月
@@ -539,65 +548,74 @@ export default function MonthlyLocationReport() {
           </div>
         )}
         <div className="overflow-x-auto print:overflow-visible print:w-full">
-          <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs min-w-[640px] print:min-w-0 print:w-full print:text-black">
+          {/* 日期在左欄、姓名在表頭（直向閱讀為一天一列） */}
+          <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs min-w-[480px] print:min-w-0 print:w-full print:text-black">
             <colgroup>
-              <col className="w-[2.6rem] sm:w-[3rem]" />
-              {days.map((d) => (
-                <col key={d} />
+              <col className="w-[3rem] sm:w-[3.5rem]" />
+              {userNames.map((name) => (
+                <col key={name} />
               ))}
             </colgroup>
             <thead>
               <tr className="bg-gray-900 border-b border-yellow-500/50 print:bg-gray-200">
-                <th className="sticky left-0 z-10 bg-gray-900 print:bg-gray-200 w-[2.6rem] sm:w-[3rem] max-w-[3rem] px-0.5 py-1 text-left text-yellow-400 print:text-black font-semibold border border-gray-600 whitespace-nowrap overflow-hidden text-ellipsis" title="姓名">姓名</th>
-                {days.map((d) => (
+                <th
+                  className="sticky left-0 z-10 bg-gray-900 print:bg-gray-200 px-1 py-1 text-left text-yellow-400 print:text-black font-semibold border border-gray-600 align-bottom"
+                  title="日期"
+                >
+                  日期
+                </th>
+                {userNames.map((name) => (
                   <th
-                    key={d}
-                    className="px-0 py-0.5 text-center text-yellow-400 print:text-black font-semibold border border-gray-700 w-8 sm:w-10 align-middle leading-none"
+                    key={name}
+                    className="px-0.5 py-1 text-center text-yellow-400 print:text-black font-semibold border border-gray-700 align-bottom leading-tight max-w-[5rem]"
+                    title={name}
                   >
-                    <span className="block text-[10px] sm:text-xs leading-tight">{d}</span>
-                    <span className="block text-[6px] sm:text-[7px] leading-none font-normal opacity-80 print:opacity-100">
-                      {weekdayChar(year, month, d)}
-                    </span>
+                    <span className="block text-[9px] sm:text-[10px] break-words hyphens-none">{name}</span>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {userNames.map((name) => (
-                <tr key={name} className="border-b border-gray-700">
-                  <td
-                    className="sticky left-0 z-[1] bg-gray-800 print:bg-white w-[2.6rem] sm:w-[3rem] max-w-[3rem] px-0.5 py-1 text-white print:text-black font-medium border border-gray-600 whitespace-nowrap overflow-hidden text-ellipsis align-middle"
-                    title={name}
-                  >
-                    {name}
-                  </td>
-                  {days.map((d) => {
-                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                    const text = getCellText(name, dateStr)
-                    const ck = cellKey(name, dateStr)
-                    const isOverride = overrides[ck] != null && String(overrides[ck]).trim() !== ''
-                    return (
-                      <td
-                        key={d}
-                        className={`px-0.5 py-1 align-top border border-gray-700 text-[9px] sm:text-[10px] max-w-[90px] print:text-black ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20 print:bg-amber-50' : 'text-gray-200'}`}
-                        title={isAdmin ? (isOverride ? '手動覆寫（點擊編輯）' : '點擊可手動編輯') : text}
-                        onClick={() => isAdmin && openEdit(name, dateStr)}
-                        onKeyDown={(e) => isAdmin && e.key === 'Enter' && openEdit(name, dateStr)}
-                        role={isAdmin ? 'button' : undefined}
-                        tabIndex={isAdmin ? 0 : undefined}
-                      >
-                        {text ? (
-                          <span className={isLeaveOnlyCell(text) ? 'text-red-400 font-medium leave-red-print' : ''}>
-                            {text}
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
+              {days.map((d) => {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+                return (
+                  <tr key={d} className="border-b border-gray-700">
+                    <td
+                      className="sticky left-0 z-[1] bg-gray-800 print:bg-white px-1 py-1 text-white print:text-black font-medium border border-gray-600 align-top whitespace-nowrap"
+                      title={dateStr}
+                    >
+                      <span className="block text-[10px] sm:text-xs">{d}</span>
+                      <span className="block text-[6px] sm:text-[7px] text-gray-400 print:text-gray-600 font-normal">
+                        {weekdayChar(year, month, d)}
+                      </span>
+                    </td>
+                    {userNames.map((name) => {
+                      const text = getCellText(name, dateStr)
+                      const ck = cellKey(name, dateStr)
+                      const isOverride = overrides[ck] != null && String(overrides[ck]).trim() !== ''
+                      return (
+                        <td
+                          key={name}
+                          className={`px-0.5 py-1 align-top border border-gray-700 text-[8px] sm:text-[9px] print:text-black ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20 print:bg-amber-50' : 'text-gray-200'}`}
+                          title={isAdmin ? (isOverride ? '手動覆寫（點擊編輯）' : '點擊可手動編輯') : text || '—'}
+                          onClick={() => isAdmin && openEdit(name, dateStr)}
+                          onKeyDown={(e) => isAdmin && e.key === 'Enter' && openEdit(name, dateStr)}
+                          role={isAdmin ? 'button' : undefined}
+                          tabIndex={isAdmin ? 0 : undefined}
+                        >
+                          {text ? (
+                            <span className={isLeaveOnlyCell(text) ? 'text-red-400 font-medium leave-red-print' : ''}>
+                              {text}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
