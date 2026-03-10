@@ -226,7 +226,8 @@ export default function MonthlyLocationReport() {
             opacity: 1 !important; z-index: 0 !important; width: 100% !important;
             background: #fff !important; color: #111 !important; padding: 12px !important;
           }
-          .monthly-report-print-area table { font-size: 9px !important; }
+          .monthly-report-print-area table { font-size: 9px !important; table-layout: fixed !important; }
+          .monthly-report-print-area col:first-child { width: 3rem !important; max-width: 3rem !important; }
           .monthly-report-print-area th,
           .monthly-report-print-area td { border: 1px solid #333 !important; color: #111 !important; }
           .monthly-report-no-print { display: none !important; }
@@ -379,10 +380,16 @@ export default function MonthlyLocationReport() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[10px] sm:text-xs min-w-[640px] print:text-black">
+          <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs min-w-[640px] print:text-black">
+            <colgroup>
+              <col className="w-[2.6rem] sm:w-[3rem]" />
+              {days.map((d) => (
+                <col key={d} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="bg-gray-900 border-b border-yellow-500/50 print:bg-gray-200">
-                <th className="sticky left-0 z-10 bg-gray-900 print:bg-gray-200 px-1 sm:px-2 py-1 text-left text-yellow-400 print:text-black font-semibold border border-gray-600 whitespace-nowrap">姓名</th>
+                <th className="sticky left-0 z-10 bg-gray-900 print:bg-gray-200 w-[2.6rem] sm:w-[3rem] max-w-[3rem] px-0.5 py-1 text-left text-yellow-400 print:text-black font-semibold border border-gray-600 whitespace-nowrap overflow-hidden text-ellipsis" title="姓名">姓名</th>
                 {days.map((d) => (
                   <th key={d} className="px-0.5 py-1 text-center text-yellow-400 print:text-black font-semibold border border-gray-700 w-8 sm:w-10">{d}</th>
                 ))}
@@ -391,7 +398,12 @@ export default function MonthlyLocationReport() {
             <tbody>
               {userNames.map((name) => (
                 <tr key={name} className="border-b border-gray-700">
-                  <td className="sticky left-0 z-[1] bg-gray-800 print:bg-white px-1 sm:px-2 py-1 text-white print:text-black font-medium border border-gray-600 whitespace-nowrap">{name}</td>
+                  <td
+                    className="sticky left-0 z-[1] bg-gray-800 print:bg-white w-[2.6rem] sm:w-[3rem] max-w-[3rem] px-0.5 py-1 text-white print:text-black font-medium border border-gray-600 whitespace-nowrap overflow-hidden text-ellipsis align-middle"
+                    title={name}
+                  >
+                    {name}
+                  </td>
                   {days.map((d) => {
                     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
                     const text = getCellText(name, dateStr)
