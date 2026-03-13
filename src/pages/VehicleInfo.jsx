@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getAllVehicleSettings, saveVehicleSettings } from '../utils/vehicleSettingsStorage'
 
 /** 與 Calendar 一致：取得排程的案場段落（多案場時每個案場一筆，含 siteName + vehicleEntries） */
 function getScheduleSegments(schedule) {
@@ -31,8 +32,34 @@ function getScheduleSegments(schedule) {
 
 function VehicleInfo() {
   const [vehicleData, setVehicleData] = useState({})
+  const [vehicleSettings, setVehicleSettings] = useState({})
   const [expandedVehicles, setExpandedVehicles] = useState({})
   const [expandedActivities, setExpandedActivities] = useState({})
+  const loadVehicleSettings = () => setVehicleSettings(getAllVehicleSettings())
+  const updateVehicleSetting = (vehicleKey, field, value) => {
+    saveVehicleSettings(vehicleKey, { [field]: value })
+    setVehicleSettings((prev) => {
+      const key = String(vehicleKey || '').trim()
+      if (!key) return prev
+      return { ...prev, [key]: { ...(prev[key] || {}), [field]: value } }
+    })
+  }
+  const applyIntervalUpdate = (vehicleKey, lastReturnMileage) => {
+    const s = vehicleSettings[String(vehicleKey).trim()] || {}
+    const intervalKm = parseFloat(s.maintenanceIntervalKm) || 0
+    const intervalDays = parseInt(s.inspectionIntervalDays, 10) || 0
+    const nextMain = intervalKm > 0 && lastReturnMileage != null && !Number.isNaN(Number(lastReturnMileage))
+      ? String(Math.round(Number(lastReturnMileage) + intervalKm))
+      : s.nextMaintenanceMileage ?? ''
+    const nextDate = intervalDays > 0
+      ? (() => { const d = new Date(); d.setDate(d.getDate() + intervalDays); return d.toISOString().slice(0, 10); })()
+      : s.nextInspectionDate ?? ''
+    saveVehicleSettings(vehicleKey, { nextMaintenanceMileage: nextMain, nextInspectionDate: nextDate })
+    setVehicleSettings((prev) => {
+      const key = String(vehicleKey || '').trim()
+      return { ...prev, [key]: { ...(prev[key] || {}), nextMaintenanceMileage: nextMain, nextInspectionDate: nextDate } }
+    })
+  }
   const toggleVehicle = (vehicleKey) => {
     setExpandedVehicles((prev) => ({ ...prev, [vehicleKey]: !prev[vehicleKey] }))
   }
@@ -176,6 +203,10 @@ function VehicleInfo() {
     loadVehicleData()
   }, [])
 
+  useEffect(() => {
+    loadVehicleSettings()
+  }, [vehicleData])
+
   const formatMonth = (monthKey) => {
     const [year, month] = monthKey.split('-')
     return `${year}年${parseInt(month)}月`
@@ -201,7 +232,7 @@ function VehicleInfo() {
               <button
                 type="button"
                 onClick={() => toggleVehicle(vehicle.vehicle)}
-                className="w-full flex items-center justify-between py-4 px-5 text-left hover:bg-gray-700/50 transition-colors"
+                className="w-full flex items-center justify-between py-4 px-5 text-left hover:bg-gray-700/50 transition-colors flex-wrap gap-2"
               >
                 <div className="flex items-center gap-3">
                   <svg
@@ -217,6 +248,18 @@ function VehicleInfo() {
                   </svg>
                   <span className="text-xl font-semibold text-yellow-400">{vehicle.vehicle}</span>
                 </div>
+                {(() => {
+                  const s = vehicleSettings[String(vehicle.vehicle).trim()] || {}
+                  const hasMain = s.nextMaintenanceMileage != null && String(s.nextMaintenanceMileage).trim() !== ''
+                  const hasInsp = s.nextInspectionDate != null && String(s.nextInspectionDate).trim() !== ''
+                  if (!hasMain && !hasInsp) return null
+                  return (
+                    <div className="flex items-center gap-4 text-sm text-gray-300">
+                      {hasMain && <span>下次保養：<span className="text-amber-300 font-medium">{Number(s.nextMaintenanceMileage).toLocaleString()} km</span></span>}
+                      {hasInsp && <span>下次驗車：<span className="text-amber-300 font-medium">{String(s.nextInspectionDate)}</span></span>}
+                    </div>
+                  )
+                })()}
               </button>
               {isVehicleExpanded && (
               <div className="px-5 pb-5 pt-0 border-t border-gray-700">
@@ -231,6 +274,68 @@ function VehicleInfo() {
                     </div>
                   </div>
                 )}
+
+                {/* 下次保養里程、下次驗車日期、間隔設定與依間隔更新 */}
+                <div className="mb-6 p-4 bg-gray-900 rounded-lg border border-gray-700">
+                  <h4 className="text-base font-semibold text-white mb-3">下次保養與驗車</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">下次保養里程 (km)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.nextMaintenanceMileage ?? ''}
+                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'nextMaintenanceMileage', e.target.value)}
+                        placeholder="請輸入"
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">下次驗車日期</label>
+                      <input
+                        type="date"
+                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.nextInspectionDate ?? ''}
+                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'nextInspectionDate', e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">保養間隔 (km) — 滿此里程後更新下次保養</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.maintenanceIntervalKm ?? ''}
+                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'maintenanceIntervalKm', e.target.value)}
+                        placeholder="例：5000"
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">驗車間隔 (天) — 滿此天數後更新下次驗車</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.inspectionIntervalDays ?? ''}
+                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'inspectionIntervalDays', e.target.value)}
+                        placeholder="例：365"
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyIntervalUpdate(vehicle.vehicle, vehicle.lastReturnMileage)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/80 text-black hover:bg-amber-500 border border-amber-500/50"
+                    >
+                      依間隔更新（上次回程＋保養間隔 km / 今日＋驗車間隔 天）
+                    </button>
+                    <span className="text-gray-500 text-xs">填寫保養間隔與驗車間隔後，點擊可自動填入下次保養里程與下次驗車日期</span>
+                  </div>
+                </div>
 
               {/* 按活动统计里程 */}
               {Object.keys(vehicle.activities).length > 0 && (
