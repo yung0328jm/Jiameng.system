@@ -363,7 +363,7 @@ function VehicleInfo() {
                   const hasInsp = s.nextInspectionDate != null && String(s.nextInspectionDate).trim() !== ''
                   if (!hasMain && !hasInsp) return null
                   return (
-                    <div className="flex items-center gap-4 text-sm text-gray-300">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-4 text-sm text-gray-300">
                       {hasMain && <span>下次保養：<span className="text-amber-300 font-medium">{Number(s.nextMaintenanceMileage).toLocaleString()} km</span></span>}
                       {hasInsp && <span>下次驗車：<span className="text-amber-300 font-medium">{String(s.nextInspectionDate)}</span></span>}
                     </div>
@@ -402,16 +402,6 @@ function VehicleInfo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm mb-1">上次驗車日期</label>
-                      <input
-                        type="date"
-                        readOnly={!canEditVehicleSettings}
-                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.lastInspectionDate ?? ''}
-                        onChange={(e) => canEditVehicleSettings && updateVehicleSettingWithAutoNext(vehicle.vehicle, 'lastInspectionDate', e.target.value)}
-                        className={`w-full border border-gray-600 rounded px-3 py-2 text-sm ${canEditVehicleSettings ? 'bg-gray-700 text-white focus:outline-none focus:border-amber-500' : 'bg-gray-800 text-amber-200 cursor-default'}`}
-                      />
-                    </div>
-                    <div>
                       <label className="block text-gray-400 text-sm mb-1">下次保養里程 (km)</label>
                       <input
                         type="number"
@@ -422,6 +412,16 @@ function VehicleInfo() {
                         onChange={(e) => canEditVehicleSettings && updateVehicleSetting(vehicle.vehicle, 'nextMaintenanceMileage', e.target.value)}
                         placeholder="請輸入"
                         className={`w-full border border-gray-600 rounded px-3 py-2 text-sm ${canEditVehicleSettings ? 'bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500' : 'bg-gray-800 text-amber-200 cursor-default'}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">上次驗車日期</label>
+                      <input
+                        type="date"
+                        readOnly={!canEditVehicleSettings}
+                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.lastInspectionDate ?? ''}
+                        onChange={(e) => canEditVehicleSettings && updateVehicleSettingWithAutoNext(vehicle.vehicle, 'lastInspectionDate', e.target.value)}
+                        className={`w-full border border-gray-600 rounded px-3 py-2 text-sm ${canEditVehicleSettings ? 'bg-gray-700 text-white focus:outline-none focus:border-amber-500' : 'bg-gray-800 text-amber-200 cursor-default'}`}
                       />
                     </div>
                     <div>
