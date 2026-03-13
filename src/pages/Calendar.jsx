@@ -15,6 +15,37 @@ import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplicationsByScheduleId, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getAllVehicleSettings } from '../utils/vehicleSettingsStorage'
+
+const KEY_INSPECTION_REMINDER_DISMISSED = 'jiameng_vehicle_inspection_reminder_dismissed'
+function getDismissedInspectionReminder () {
+  try {
+    const raw = localStorage.getItem(KEY_INSPECTION_REMINDER_DISMISSED)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+function setDismissedInspectionReminder (vehicleKey, untilDate) {
+  const o = getDismissedInspectionReminder()
+  o[String(vehicleKey)] = untilDate
+  localStorage.setItem(KEY_INSPECTION_REMINDER_DISMISSED, JSON.stringify(o))
+}
+
+const KEY_MAINTENANCE_REMINDER_DISMISSED = 'jiameng_vehicle_maintenance_reminder_dismissed'
+function getDismissedMaintenanceReminder () {
+  try {
+    const raw = localStorage.getItem(KEY_MAINTENANCE_REMINDER_DISMISSED)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+function setDismissedMaintenanceReminder (vehicleKey, untilMileage) {
+  const o = getDismissedMaintenanceReminder()
+  o[String(vehicleKey)] = untilMileage
+  localStorage.setItem(KEY_MAINTENANCE_REMINDER_DISMISSED, JSON.stringify(o))
+}
+
 import {
   normalizeWorkItem,
   getWorkItemCollaborators,
@@ -762,10 +793,12 @@ function Calendar() {
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
 
-  // 行事曆卡片里程（最後回程）接近下次保養約 100km 或下次驗車約 1 週時彈窗提示
+  // 行事曆卡片里程（最後回程）接近下次保養約 100km 或下次驗車約 1 週時彈窗提示；保養/驗車可設「不再提醒」直到本次保養里程/驗車日後
   useEffect(() => {
     const lastByVehicle = getLastReturnMileageByVehicle()
     const allSettings = getAllVehicleSettings()
+    const dismissedInsp = getDismissedInspectionReminder()
+    const dismissedMain = getDismissedMaintenanceReminder()
     const today = new Date().toISOString().slice(0, 10)
     const maintenance = []
     const inspection = []
@@ -774,11 +807,15 @@ function Calendar() {
       if (!Number.isNaN(nextMain)) {
         const current = lastByVehicle[vehicleKey]
         if (current != null && current >= nextMain - 100) {
+          const untilMileage = dismissedMain[vehicleKey]
+          if (untilMileage != null && current < untilMileage) return // 用戶已點選不再提醒，直到達本次保養里程後才再提示
           maintenance.push({ vehicle: vehicleKey, current, next: nextMain })
         }
       }
       const nextInsp = String(s?.nextInspectionDate || '').trim()
       if (/^\d{4}-\d{2}-\d{2}$/.test(nextInsp)) {
+        const until = dismissedInsp[vehicleKey]
+        if (until && today <= until) return // 用戶已點選不再提醒，直到該驗車日後才再提示
         // 僅在「下次驗車日落在今天～今天+7天」內才提示（約一週內要驗車）
         const todayDate = new Date(today + 'T12:00:00')
         const weekLater = new Date(todayDate)
@@ -4044,13 +4081,39 @@ function Calendar() {
                 </ul>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setMaintenanceInspectionAlert((a) => ({ ...a, show: false }))}
-              className="w-full py-2 rounded-lg bg-amber-500 text-black font-medium hover:bg-amber-400"
-            >
-              知道了
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setMaintenanceInspectionAlert((a) => ({ ...a, show: false }))}
+                className="w-full py-2 rounded-lg bg-amber-500 text-black font-medium hover:bg-amber-400"
+              >
+                知道了
+              </button>
+              {maintenanceInspectionAlert.maintenance.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    maintenanceInspectionAlert.maintenance.forEach(({ vehicle, next }) => setDismissedMaintenanceReminder(vehicle, next))
+                    setMaintenanceInspectionAlert((a) => ({ ...a, show: false }))
+                  }}
+                  className="w-full py-2 rounded-lg bg-gray-600 text-gray-300 text-sm font-medium hover:bg-gray-500"
+                >
+                  不再提醒（直到本次保養里程後才會再提示下次保養）
+                </button>
+              )}
+              {maintenanceInspectionAlert.inspection.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    maintenanceInspectionAlert.inspection.forEach(({ vehicle, date }) => setDismissedInspectionReminder(vehicle, date))
+                    setMaintenanceInspectionAlert((a) => ({ ...a, show: false }))
+                  }}
+                  className="w-full py-2 rounded-lg bg-gray-600 text-gray-300 text-sm font-medium hover:bg-gray-500"
+                >
+                  不再提醒（直到本次驗車日後才會再提示下次驗車）
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
