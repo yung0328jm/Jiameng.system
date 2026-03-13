@@ -423,59 +423,11 @@ export default function MonthlyLocationReport() {
           </div>
         )}
 
-        {/* 手機直式：日期在上，當日各人員列在下方 */}
-        <div className="md:hidden space-y-3 pb-8">
-          {userNames.length === 0 ? (
-            <p className="text-gray-500 text-sm">此月份尚無資料；管理員可點格新增（請用桌機版表格較順）。</p>
-          ) : (
-            <>
-            {days.map((d) => {
-              const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-              const entries = userNames
-                .map((name) => ({ name, text: getCellText(name, dateStr) }))
-                .filter((x) => x.text)
-              if (entries.length === 0) return null
-              return (
-                <div key={d} className="rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
-                  <div className="bg-gray-900 px-2 py-2 text-sm font-semibold text-yellow-400 border-b border-gray-600">
-                    {d} 日（{weekdayChar(year, month, d)}）
-                  </div>
-                  <div className="divide-y divide-gray-700/80">
-                    {entries.map(({ name, text }) => (
-                      <button
-                        key={name}
-                        type="button"
-                        disabled={!isAdmin}
-                        onClick={() => openEdit(name, dateStr)}
-                        className={`flex w-full flex-col gap-0.5 px-2 py-1.5 text-left ${isAdmin ? 'hover:bg-gray-700/50 cursor-pointer active:bg-gray-700/70' : ''}`}
-                      >
-                        <span className="text-xs sm:text-sm font-medium text-yellow-500/90">{name}</span>
-                        <span className={`text-xs sm:text-sm leading-snug break-words ${isLeaveOnlyCell(text) ? 'text-red-400 font-medium' : 'text-gray-200'}`}>
-                          {text}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-            {days.every((d) => {
-              const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-              return !userNames.some((name) => getCellText(name, dateStr))
-            }) && (
-              <p className="text-gray-500 text-sm">此月份各日尚無排程或請假顯示。</p>
-            )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* PDF 截圖用區塊（html2canvas）；桌機可捲動檢視 */}
-      <div
-        ref={pdfRef}
-        className="monthly-report-pdf-capture border border-gray-700 rounded-lg bg-gray-800/50 p-2 sm:p-4 md:relative md:block
-          max-md:fixed max-md:left-[-9999px] max-md:top-0 max-md:w-[960px] max-md:z-[-1] max-md:opacity-0 max-md:pointer-events-none"
-      >
+        {/* 表格：手機與網頁同版型（日期在左、姓名在上），手機可左右滑動 */}
+        <div
+          ref={pdfRef}
+          className="monthly-report-pdf-capture border border-gray-700 rounded-lg bg-gray-800/50 p-2 sm:p-4 block w-full"
+        >
         <h2 className="text-yellow-400 font-bold mb-2 text-base sm:text-lg">
           每月份工時匯總報表 {year} 年 {month} 月
         </h2>
@@ -560,6 +512,7 @@ export default function MonthlyLocationReport() {
         {userNames.length === 0 && (
           <p className="text-gray-500 text-sm">此月份尚無資料。</p>
         )}
+        </div>
       </div>
 
       {/* 編輯 Modal */}
@@ -584,7 +537,7 @@ export default function MonthlyLocationReport() {
       )}
 
       <div className="md:hidden">
-        <p className="text-[10px] text-gray-500 mb-2">手機直式僅顯示有資料的日期；要新增空白格請用桌機點該格編輯。</p>
+        <p className="text-[10px] text-gray-500 mb-2">左右滑動可查看完整表格；管理員可點格編輯。</p>
       </div>
     </div>
   )
