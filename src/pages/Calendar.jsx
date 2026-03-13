@@ -779,13 +779,13 @@ function Calendar() {
       }
       const nextInsp = String(s?.nextInspectionDate || '').trim()
       if (/^\d{4}-\d{2}-\d{2}$/.test(nextInsp)) {
-        const d = new Date(nextInsp + 'T00:00:00')
-        if (!Number.isNaN(d.getTime())) {
-          const weekAgo = new Date(d)
-          weekAgo.setDate(weekAgo.getDate() - 7)
-          if (today >= weekAgo.toISOString().slice(0, 10)) {
-            inspection.push({ vehicle: vehicleKey, date: nextInsp })
-          }
+        // 僅在「下次驗車日落在今天～今天+7天」內才提示（約一週內要驗車）
+        const todayDate = new Date(today + 'T12:00:00')
+        const weekLater = new Date(todayDate)
+        weekLater.setDate(weekLater.getDate() + 7)
+        const weekLaterStr = `${weekLater.getFullYear()}-${String(weekLater.getMonth() + 1).padStart(2, '0')}-${String(weekLater.getDate()).padStart(2, '0')}`
+        if (nextInsp >= today && nextInsp <= weekLaterStr) {
+          inspection.push({ vehicle: vehicleKey, date: nextInsp })
         }
       }
     })
