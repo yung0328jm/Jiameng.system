@@ -4840,11 +4840,15 @@ function Calendar() {
                                 }
                               }
                               const next = segs[idx] || {}
+                              let entries = Array.isArray(next.vehicleEntries) ? next.vehicleEntries : []
+                              if (entries.length === 0 && idx > 0 && Array.isArray(segs[0]?.vehicleEntries) && segs[0].vehicleEntries.length > 0) {
+                                entries = segs[0].vehicleEntries.map((e) => ({ ...emptyVehicleEntry(), vehicle: String(e?.vehicle || '').trim() }))
+                              }
                               return {
                                 ...prev,
                                 segments: segs,
                                 workItems: next.workItems || [],
-                                vehicleEntries: next.vehicleEntries || []
+                                vehicleEntries: entries
                               }
                             })
                             setEditingFormSegmentIndex(idx)
@@ -5031,7 +5035,10 @@ function Calendar() {
                   </p>
                 )}
                 {(() => {
-                  const lastReturnMap = getLastReturnMileageByVehicle()
+                  const excludeOptions = (editingFormSegmentIndex > 0 && editingScheduleId)
+                    ? { excludeScheduleId: editingScheduleId, excludeSegmentIndexMax: editingFormSegmentIndex - 1 }
+                    : {}
+                  const lastReturnMap = getLastReturnMileageByVehicle(excludeOptions)
                   const editingSchedule = schedules.find((s) => String(s?.id) === editingScheduleId)
                   const pendingReturnMileageReqs = (Array.isArray(editingSchedule?.vehicleReturnMileageChangeRequests) ? editingSchedule.vehicleReturnMileageChangeRequests : []).filter((r) => String(r?.status || '') === 'pending')
                   return (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map((entry, idx) => {
