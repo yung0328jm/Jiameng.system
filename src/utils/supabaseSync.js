@@ -165,7 +165,9 @@ export const APP_DATA_KEYS = [
   'jiameng_card_back_url',
   'jiameng_card_back_definitions',
   'jiameng_card_back_owned',
-  'jiameng_card_back_equipped'
+  'jiameng_card_back_equipped',
+  'jiameng_vehicle_settings',
+  'jiameng_vehicle_settings_editors'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
