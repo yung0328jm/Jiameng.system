@@ -5,7 +5,7 @@ import { deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
 import { getDropdownOptionsByCategory, addDropdownOption, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
-import { getTripReportsByProject, addTripReport, actionTypes as tripReportActionTypes } from '../utils/tripReportStorage'
+import { getTripReportsBySchedule, addTripReport, actionTypes as tripReportActionTypes } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getUsers } from '../utils/storage'
@@ -3704,12 +3704,14 @@ function Calendar() {
                     )
                   })()}
 
-                  {/* 行程回報紀錄：依此排程案場（siteName）顯示；可點卡片回報下一狀態，同步後全部用戶可見 */}
+                  {/* 行程回報紀錄：依此排程＋段落＋日期顯示，各卡片各自回報，不會抓到其他卡片或他日資料 */}
                   {selectedDetailType === 'schedule' && !isLeaveScheduleItem(selectedDetailItem) && (() => {
                     const seg = getScheduleSegments(selectedDetailItem)[selectedDetailSegmentIndex] || getScheduleSegments(selectedDetailItem)[0]
                     const siteName = (seg?.siteName || selectedDetailItem?.siteName || '').trim()
+                    const scheduleId = String(selectedDetailItem?.id ?? '').trim()
+                    const segmentIndex = Number.isInteger(selectedDetailSegmentIndex) && selectedDetailSegmentIndex >= 0 ? selectedDetailSegmentIndex : 0
                     const ymd = String(selectedDetailItem?.date || '').slice(0, 10)
-                    const tripReports = siteName ? getTripReportsByProject(siteName, ymd) : []
+                    const tripReports = scheduleId && ymd ? getTripReportsBySchedule(scheduleId, segmentIndex, ymd) : []
                     const order = Array.isArray(tripReportActionTypes) ? tripReportActionTypes : ['出發', '抵達', '休息', '上工', '收工', '離場']
                     const latestAction = tripReports.length > 0 ? tripReports[0].actionType : null
                     const latestIndex = order.indexOf(latestAction)
@@ -3720,7 +3722,7 @@ function Calendar() {
                     const participantNames = new Set(participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean))
                     const userNames = currentUser ? (getDisplayNamesForAccount(currentUser) || []).map((n) => String(n || '').trim()).filter(Boolean) : []
                     const isParticipant = userNames.some((n) => participantNames.has(n)) || participantNames.has(currentUser || '')
-                    const canReport = !!currentUser && !!siteName && (role === 'admin' || isParticipant)
+                    const canReport = !!currentUser && !!scheduleId && !!siteName && (role === 'admin' || isParticipant)
                     const leaderboardItems = getLeaderboardItems()
                     const formatTime = (iso) => {
                       try {
@@ -3735,6 +3737,8 @@ function Calendar() {
                       if (!canReport || !nextAction || actionType !== nextAction) return
                       setTripReportFlashAt(Date.now())
                       const result = addTripReport({
+                        scheduleId,
+                        segmentIndex,
                         projectId: siteName,
                         projectName: siteName,
                         actionType,
@@ -3745,7 +3749,7 @@ function Calendar() {
                       if (result.success) setTripReportsRevision((r) => r + 1)
                     }
                     return (
-                      <div className="mt-4" key={`trip-${siteName}-${ymd}-${tripReportsRevision}`}>
+                      <div className="mt-4" key={`trip-${scheduleId}-${segmentIndex}-${ymd}-${tripReportsRevision}`}>
                         <div className="text-blue-300 mb-2">行程回報紀錄:</div>
                         {nextAction && canReport && (
                           <div className="mb-2">
