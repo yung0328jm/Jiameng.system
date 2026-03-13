@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getCurrentUserInfo } from '../utils/authStorage'
+import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
 import { getAllVehicleSettings, saveVehicleSettings, getVehicleSettingsEditors, saveVehicleSettingsEditors } from '../utils/vehicleSettingsStorage'
 
 /** 與 Calendar 一致：取得排程的案場段落（多案場時每個案場一筆，含 siteName + vehicleEntries） */
@@ -233,6 +234,21 @@ function VehicleInfo() {
 
   useEffect(() => {
     loadVehicleData()
+  }, [])
+
+  // 進入頁面時從雲端拉取最新車輛設定，讓所有用戶（含手機）都能看到管理員輸入的資訊
+  useEffect(() => {
+    let cancelled = false
+    const pull = async () => {
+      await refreshAppDataKeyFromSupabase('jiameng_vehicle_settings')
+      if (cancelled) return
+      await refreshAppDataKeyFromSupabase('jiameng_vehicle_settings_editors')
+      if (cancelled) return
+      loadVehicleSettings()
+      loadEditors()
+    }
+    pull()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
