@@ -22,7 +22,7 @@ export const getAllVehicleSettings = () => {
   }
 }
 
-const FIELDS = ['nextMaintenanceMileage', 'nextInspectionDate', 'maintenanceIntervalKm', 'inspectionIntervalDays']
+const FIELDS = ['lastMaintenanceMileage', 'lastInspectionDate', 'nextMaintenanceMileage', 'nextInspectionDate', 'maintenanceIntervalKm', 'inspectionIntervalDays']
 
 export const saveVehicleSettings = (vehicleKey, data) => {
   try {
