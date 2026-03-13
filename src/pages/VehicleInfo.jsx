@@ -64,6 +64,7 @@ function VehicleInfo() {
         const d = new Date(lastStr + 'T00:00:00')
         if (!Number.isNaN(d.getTime())) {
           d.setMonth(d.getMonth() + months)
+          d.setDate(d.getDate() + 1)
           next.nextInspectionDate = d.toISOString().slice(0, 10)
         }
       }
@@ -79,7 +80,7 @@ function VehicleInfo() {
       ? String(Math.round(Number(lastReturnMileage) + intervalKm))
       : s.nextMaintenanceMileage ?? ''
     const nextDate = intervalMonths > 0
-      ? (() => { const d = new Date(); d.setMonth(d.getMonth() + intervalMonths); return d.toISOString().slice(0, 10); })()
+      ? (() => { const d = new Date(); d.setMonth(d.getMonth() + intervalMonths); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()
       : s.nextInspectionDate ?? ''
     saveVehicleSettings(vehicleKey, { nextMaintenanceMileage: nextMain, nextInspectionDate: nextDate })
     setVehicleSettings((prev) => {
@@ -362,7 +363,7 @@ function VehicleInfo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm mb-1">驗車間隔 (月) — 輸入後依上次驗車＋此月數自動帶入下次驗車</label>
+                      <label className="block text-gray-400 text-sm mb-1">驗車間隔 (月＋1天) — 輸入月數後依上次驗車＋此月數＋1天自動帶入下次驗車</label>
                       <input
                         type="number"
                         min="0"
@@ -380,7 +381,7 @@ function VehicleInfo() {
                       onClick={() => applyIntervalUpdate(vehicle.vehicle, vehicle.lastReturnMileage)}
                       className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/80 text-black hover:bg-amber-500 border border-amber-500/50"
                     >
-                      依間隔更新（上次回程＋保養間隔 km / 今日＋驗車間隔 月）
+                      依間隔更新（上次回程＋保養間隔 km / 今日＋驗車間隔 月＋1天）
                     </button>
                     <span className="text-gray-500 text-xs">填寫保養間隔與驗車間隔後，點擊可自動填入下次保養里程與下次驗車日期</span>
                   </div>
