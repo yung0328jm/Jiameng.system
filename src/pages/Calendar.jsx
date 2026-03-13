@@ -14,6 +14,7 @@ import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplicationsByScheduleId, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
+import { getAllVehicleSettings } from '../utils/vehicleSettingsStorage'
 import {
   normalizeWorkItem,
   getWorkItemCollaborators,
@@ -75,6 +76,7 @@ function Calendar() {
   const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
   const [copyScheduleTarget, setCopyScheduleTarget] = useState(null) // 要複製的排程
   const [copyScheduleNewDate, setCopyScheduleNewDate] = useState('') // 複製後的新日期 YYYY-MM-DD
+  const [maintenanceInspectionAlert, setMaintenanceInspectionAlert] = useState({ show: false, maintenance: [], inspection: [] }) // 接近下次保養/驗車時彈窗
   const [overtimeFormData, setOvertimeFormData] = useState({
     applicant: '',
     date: '',
@@ -759,6 +761,38 @@ function Calendar() {
   useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
+
+  // 行事曆卡片里程（最後回程）接近下次保養約 100km 或下次驗車約 1 週時彈窗提示
+  useEffect(() => {
+    const lastByVehicle = getLastReturnMileageByVehicle()
+    const allSettings = getAllVehicleSettings()
+    const today = new Date().toISOString().slice(0, 10)
+    const maintenance = []
+    const inspection = []
+    Object.entries(allSettings).forEach(([vehicleKey, s]) => {
+      const nextMain = parseFloat(s?.nextMaintenanceMileage)
+      if (!Number.isNaN(nextMain)) {
+        const current = lastByVehicle[vehicleKey]
+        if (current != null && current >= nextMain - 100) {
+          maintenance.push({ vehicle: vehicleKey, current, next: nextMain })
+        }
+      }
+      const nextInsp = String(s?.nextInspectionDate || '').trim()
+      if (/^\d{4}-\d{2}-\d{2}$/.test(nextInsp)) {
+        const d = new Date(nextInsp + 'T00:00:00')
+        if (!Number.isNaN(d.getTime())) {
+          const weekAgo = new Date(d)
+          weekAgo.setDate(weekAgo.getDate() - 7)
+          if (today >= weekAgo.toISOString().slice(0, 10)) {
+            inspection.push({ vehicle: vehicleKey, date: nextInsp })
+          }
+        }
+      }
+    })
+    if (maintenance.length > 0 || inspection.length > 0) {
+      setMaintenanceInspectionAlert({ show: true, maintenance, inspection })
+    }
+  }, [schedules])
 
   // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
   useEffect(() => {
@@ -3981,6 +4015,42 @@ function Calendar() {
                 確定複製
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 保養／驗車接近提醒彈窗 */}
+      {maintenanceInspectionAlert.show && (maintenanceInspectionAlert.maintenance.length > 0 || maintenanceInspectionAlert.inspection.length > 0) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4" onClick={() => setMaintenanceInspectionAlert((a) => ({ ...a, show: false }))}>
+          <div className="bg-gray-900 border border-amber-500 rounded-lg shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-amber-400 mb-3">車輛保養／驗車提醒</h3>
+            {maintenanceInspectionAlert.maintenance.length > 0 && (
+              <div className="mb-4">
+                <p className="text-amber-300 text-sm font-medium mb-1">以下車輛已接近下次保養里程（約 100 km 內）：</p>
+                <ul className="text-gray-300 text-sm list-disc list-inside space-y-0.5">
+                  {maintenanceInspectionAlert.maintenance.map(({ vehicle, current, next }) => (
+                    <li key={vehicle}>{vehicle} — 目前約 {Number(current).toLocaleString()} km，下次保養 {Number(next).toLocaleString()} km</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {maintenanceInspectionAlert.inspection.length > 0 && (
+              <div className="mb-4">
+                <p className="text-amber-300 text-sm font-medium mb-1">以下車輛已接近下次驗車日期（約 1 週內）：</p>
+                <ul className="text-gray-300 text-sm list-disc list-inside space-y-0.5">
+                  {maintenanceInspectionAlert.inspection.map(({ vehicle, date }) => (
+                    <li key={vehicle}>{vehicle} — 下次驗車 {date}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setMaintenanceInspectionAlert((a) => ({ ...a, show: false }))}
+              className="w-full py-2 rounded-lg bg-amber-500 text-black font-medium hover:bg-amber-400"
+            >
+              知道了
+            </button>
           </div>
         </div>
       )}
