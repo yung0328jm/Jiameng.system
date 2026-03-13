@@ -44,19 +44,12 @@ function VehicleInfo() {
       return { ...prev, [key]: { ...(prev[key] || {}), [field]: value } }
     })
   }
-  /** 更新欄位並在「上次＋間隔」都有時自動帶入下次 */
+  /** 更新欄位；驗車為「上次＋間隔」自動帶入下次，保養改為手動輸入 */
   const updateVehicleSettingWithAutoNext = (vehicleKey, field, value) => {
     const key = String(vehicleKey || '').trim()
     if (!key) return
     const prev = vehicleSettings[key] || {}
     const next = { ...prev, [field]: value }
-    if (field === 'lastMaintenanceMileage' || field === 'maintenanceIntervalKm') {
-      const last = field === 'lastMaintenanceMileage' ? parseFloat(value) : parseFloat(prev.lastMaintenanceMileage)
-      const interval = field === 'maintenanceIntervalKm' ? parseFloat(value) : parseFloat(prev.maintenanceIntervalKm)
-      if (!Number.isNaN(last) && !Number.isNaN(interval) && interval > 0) {
-        next.nextMaintenanceMileage = String(Math.round(last + interval))
-      }
-    }
     if (field === 'lastInspectionDate' || field === 'inspectionIntervalMonths') {
       const lastStr = field === 'lastInspectionDate' ? value : (prev.lastInspectionDate || '')
       const months = field === 'inspectionIntervalMonths' ? parseInt(value, 10) : parseInt(prev.inspectionIntervalMonths, 10)
@@ -72,21 +65,19 @@ function VehicleInfo() {
     saveVehicleSettings(vehicleKey, next)
     setVehicleSettings((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), ...next } }))
   }
-  const applyIntervalUpdate = (vehicleKey, lastReturnMileage) => {
-    const s = vehicleSettings[String(vehicleKey).trim()] || {}
-    const intervalKm = parseFloat(s.maintenanceIntervalKm) || 0
+  const [inspectionDoneChecked, setInspectionDoneChecked] = useState({})
+  const applyInspectionDone = (vehicleKey) => {
+    const key = String(vehicleKey || '').trim()
+    if (!key) return
+    const s = vehicleSettings[key] || {}
     const intervalMonths = parseInt(s.inspectionIntervalMonths, 10) || 0
-    const nextMain = intervalKm > 0 && lastReturnMileage != null && !Number.isNaN(Number(lastReturnMileage))
-      ? String(Math.round(Number(lastReturnMileage) + intervalKm))
-      : s.nextMaintenanceMileage ?? ''
-    const nextDate = intervalMonths > 0
-      ? (() => { const d = new Date(); d.setMonth(d.getMonth() + intervalMonths); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()
-      : s.nextInspectionDate ?? ''
-    saveVehicleSettings(vehicleKey, { nextMaintenanceMileage: nextMain, nextInspectionDate: nextDate })
-    setVehicleSettings((prev) => {
-      const key = String(vehicleKey || '').trim()
-      return { ...prev, [key]: { ...(prev[key] || {}), nextMaintenanceMileage: nextMain, nextInspectionDate: nextDate } }
-    })
+    const today = new Date().toISOString().slice(0, 10)
+    const d = new Date(today + 'T00:00:00')
+    d.setMonth(d.getMonth() + intervalMonths)
+    d.setDate(d.getDate() + 1)
+    const nextDate = d.toISOString().slice(0, 10)
+    saveVehicleSettings(vehicleKey, { lastInspectionDate: today, nextInspectionDate: nextDate })
+    setVehicleSettings((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), lastInspectionDate: today, nextInspectionDate: nextDate } }))
   }
   const toggleVehicle = (vehicleKey) => {
     setExpandedVehicles((prev) => ({ ...prev, [vehicleKey]: !prev[vehicleKey] }))
@@ -314,7 +305,7 @@ function VehicleInfo() {
                         min="0"
                         step="1"
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.lastMaintenanceMileage ?? ''}
-                        onChange={(e) => updateVehicleSettingWithAutoNext(vehicle.vehicle, 'lastMaintenanceMileage', e.target.value)}
+                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'lastMaintenanceMileage', e.target.value)}
                         placeholder="請輸入"
                         className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
                       />
@@ -329,15 +320,15 @@ function VehicleInfo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm mb-1">下次保養里程 (km) <span className="text-gray-500 font-normal">（依上次＋保養間隔自動帶入）</span></label>
+                      <label className="block text-gray-400 text-sm mb-1">下次保養里程 (km)</label>
                       <input
                         type="number"
                         min="0"
                         step="1"
-                        readOnly
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.nextMaintenanceMileage ?? ''}
-                        placeholder="請填寫上次保養里程與保養間隔"
-                        className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-amber-200 placeholder-gray-500 cursor-default text-sm"
+                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'nextMaintenanceMileage', e.target.value)}
+                        placeholder="請輸入"
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
                       />
                     </div>
                     <div>
@@ -348,18 +339,6 @@ function VehicleInfo() {
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.nextInspectionDate ?? ''}
                         placeholder="請填寫上次驗車日期與驗車間隔"
                         className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-amber-200 cursor-default text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-400 text-sm mb-1">保養間隔 (km) — 輸入後依上次保養＋此間隔自動帶入下次保養</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.maintenanceIntervalKm ?? ''}
-                        onChange={(e) => updateVehicleSettingWithAutoNext(vehicle.vehicle, 'maintenanceIntervalKm', e.target.value)}
-                        placeholder="例：5000"
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
                       />
                     </div>
                     <div>
@@ -375,15 +354,23 @@ function VehicleInfo() {
                       />
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => applyIntervalUpdate(vehicle.vehicle, vehicle.lastReturnMileage)}
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/80 text-black hover:bg-amber-500 border border-amber-500/50"
-                    >
-                      依間隔更新（上次回程＋保養間隔 km / 今日＋驗車間隔 月＋1天）
-                    </button>
-                    <span className="text-gray-500 text-xs">填寫保養間隔與驗車間隔後，點擊可自動填入下次保養里程與下次驗車日期</span>
+                  <div className="mt-4 pt-3 border-t border-gray-700">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!inspectionDoneChecked[String(vehicle.vehicle).trim()]}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setInspectionDoneChecked((prev) => ({ ...prev, [String(vehicle.vehicle).trim()]: checked }))
+                            if (checked) applyInspectionDone(vehicle.vehicle)
+                          }}
+                          className="w-4 h-4 rounded border-gray-500 text-amber-500 focus:ring-amber-500"
+                        />
+                        <span className="text-white text-sm font-medium">本次已經驗車</span>
+                      </label>
+                      <span className="text-gray-500 text-xs">勾選後以今日為上次驗車，並依驗車間隔（月＋1天）自動帶入下次驗車日期</span>
+                    </div>
                   </div>
                 </div>
 
