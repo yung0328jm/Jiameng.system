@@ -31,6 +31,11 @@ function getScheduleSegments(schedule) {
 
 function VehicleInfo() {
   const [vehicleData, setVehicleData] = useState({})
+  const [expandedActivities, setExpandedActivities] = useState({})
+  const toggleActivity = (vehicleIndex, activityName) => {
+    const key = `${vehicleIndex}-${activityName}`
+    setExpandedActivities((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   const loadVehicleData = () => {
     const schedules = getSchedules()
@@ -140,11 +145,14 @@ function VehicleInfo() {
             vehicleSummary[vehicle].activities[activity] = {
               activity,
               totalMileage: 0,
-              tripCount: 0
+              tripCount: 0,
+              trips: []
             }
           }
-          vehicleSummary[vehicle].activities[activity].totalMileage += delta
-          vehicleSummary[vehicle].activities[activity].tripCount += 1
+          const act = vehicleSummary[vehicle].activities[activity]
+          act.totalMileage += delta
+          act.tripCount += 1
+          act.trips.push({ ymd, delta })
         })
       })
     })
@@ -213,22 +221,61 @@ function VehicleInfo() {
                     活動里程統計
                   </h4>
                   <div className="bg-gray-900 rounded-lg p-4">
-                    <div className="space-y-3">
-                      {Object.values(vehicle.activities).map((activity, actIndex) => (
-                        <div key={actIndex} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-b-0">
-                          <div className="flex-1">
-                            <div className="text-white font-medium">{activity.activity}</div>
-                            <div className="text-gray-400 text-sm">
-                              出車次數: {activity.tripCount} 次
-                            </div>
+                    <div className="space-y-1">
+                      {Object.values(vehicle.activities).map((activity, actIndex) => {
+                        const expKey = `${index}-${activity.activity}`
+                        const isExpanded = expandedActivities[expKey]
+                        const trips = Array.isArray(activity.trips) ? activity.trips : []
+                        const sortedTrips = [...trips].sort((a, b) => (a.ymd || '').localeCompare(b.ymd || ''))
+                        return (
+                          <div key={actIndex} className="border border-gray-700 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => toggleActivity(index, activity.activity)}
+                              className="w-full flex items-center justify-between py-3 px-4 text-left hover:bg-gray-800/80 transition-colors"
+                            >
+                              <div className="flex-1 flex items-center gap-2">
+                                <svg
+                                  className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <div>
+                                  <div className="text-white font-medium">{activity.activity}</div>
+                                  <div className="text-gray-400 text-sm">
+                                    出車次數: {activity.tripCount} 次
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-yellow-400 font-semibold text-lg">
+                                  {`${Number(activity.totalMileage || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`}
+                                </div>
+                              </div>
+                            </button>
+                            {isExpanded && sortedTrips.length > 0 && (
+                              <div className="border-t border-gray-700 bg-gray-800/60 px-4 py-3">
+                                <div className="text-gray-400 text-xs font-medium mb-2">各次出車里程</div>
+                                <ul className="space-y-1.5">
+                                  {sortedTrips.map((trip, i) => {
+                                    const [y, m, d] = (trip.ymd || '').split('-')
+                                    const dateStr = y && m && d ? `${y}/${m}/${d}` : trip.ymd || '—'
+                                    return (
+                                      <li key={i} className="flex justify-between text-sm">
+                                        <span className="text-gray-300">{dateStr}</span>
+                                        <span className="text-amber-300/90">{Number(trip.delta || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} km</span>
+                                      </li>
+                                    )
+                                  })}
+                                </ul>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <div className="text-yellow-400 font-semibold text-lg">
-                              {`${Number(activity.totalMileage || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 </div>
