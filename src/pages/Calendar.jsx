@@ -1708,20 +1708,6 @@ function Calendar() {
     }
   }
 
-  const handlePrintDetail = () => {
-    if (selectedDetailType !== 'schedule' || !selectedDetailItem) return
-    const item = selectedDetailItem
-    const title = getScheduleDisplayTitle(item)
-    const body = getDetailPrintBody(item)
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title || '工程排程詳情')}</title><style>body{font-family:system-ui,sans-serif;padding:20px;max-width:600px;color:#111;line-height:1.45;} h1,h2,h3,p{margin:0.4em 0;}</style></head><body>${body}</body></html>`
-    const win = window.open('', '_blank')
-    if (!win) { alert('請允許彈出視窗以使用列印'); return }
-    win.document.write(html)
-    win.document.close()
-    win.focus()
-    setTimeout(() => { win.print(); win.close() }, 300)
-  }
-
   const handleDeleteTopic = () => {
     if (selectedDetailItem && selectedDetailType === 'topic') {
       if (window.confirm('確定要刪除此主題嗎？')) {
@@ -2970,23 +2956,14 @@ function Calendar() {
               </div>
               <div className="flex items-center space-x-2 flex-shrink-0">
                 {selectedDetailType === 'schedule' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handlePrintDetail(); }}
-                      className="bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-500 transition-colors text-sm"
-                    >
-                      列印
-                    </button>
-                    <button
-                      type="button"
-                      disabled={exportingPdf}
-                      onClick={(e) => { e.stopPropagation(); handleExportDetailPdf(); }}
-                      className="bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-500 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {exportingPdf ? '匯出中…' : '匯出 PDF'}
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    disabled={exportingPdf}
+                    onClick={(e) => { e.stopPropagation(); handleExportDetailPdf(); }}
+                    className="bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-500 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {exportingPdf ? '匯出中…' : '匯出 PDF'}
+                  </button>
                 )}
                 {/* 排程詳情：上方不顯示編輯/刪除（避免擠在一起），改用下方大按鈕 */}
                 {selectedDetailType === 'topic' && (
