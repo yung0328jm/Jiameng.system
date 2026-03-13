@@ -273,9 +273,13 @@ function Advance() {
                       key={r.id}
                       className="bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-2"
                     >
-                      <span className="text-white">{name} · {Number(r.amount || 0).toLocaleString()} 元</span>
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-white">{name} · {Number(r.amount || 0).toLocaleString()} 元</span>
+                        <span className="text-gray-400 text-sm">{formatDate(r.createdAt)}</span>
+                        {r.reason && <span className="text-gray-300 text-sm">原因：{r.reason}</span>}
+                      </div>
                       <span
-                        className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                        className={`px-2 py-0.5 text-xs font-semibold rounded shrink-0 ${
                           r.status === 'pending' ? 'bg-yellow-600' : r.status === 'transferred' ? 'bg-green-600' : 'bg-gray-600'
                         } text-white`}
                       >
