@@ -31,7 +31,11 @@ function getScheduleSegments(schedule) {
 
 function VehicleInfo() {
   const [vehicleData, setVehicleData] = useState({})
+  const [expandedVehicles, setExpandedVehicles] = useState({})
   const [expandedActivities, setExpandedActivities] = useState({})
+  const toggleVehicle = (vehicleKey) => {
+    setExpandedVehicles((prev) => ({ ...prev, [vehicleKey]: !prev[vehicleKey] }))
+  }
   const toggleActivity = (vehicleIndex, activityName) => {
     const key = `${vehicleIndex}-${activityName}`
     setExpandedActivities((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -189,27 +193,44 @@ function VehicleInfo() {
           <p className="text-sm mt-2">請在行事曆中新增工程排程並填寫車輛資訊</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {vehicles.map((vehicle, index) => (
-            <div key={index} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              {/* 車輛標題：車牌 + 最後回程公里數（下次出發可填此值） */}
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700 flex-wrap gap-2">
-                <h3 className="text-xl font-semibold text-yellow-400 flex items-center gap-2">
-                  <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="space-y-3">
+          {vehicles.map((vehicle, index) => {
+            const isVehicleExpanded = expandedVehicles[vehicle.vehicle]
+            return (
+            <div key={index} className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleVehicle(vehicle.vehicle)}
+                className="w-full flex items-center justify-between py-4 px-5 text-left hover:bg-gray-700/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <svg
+                    className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${isVehicleExpanded ? 'rotate-90' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <svg className="w-6 h-6 shrink-0 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  {vehicle.vehicle}
-                </h3>
+                  <span className="text-xl font-semibold text-yellow-400">{vehicle.vehicle}</span>
+                </div>
+              </button>
+              {isVehicleExpanded && (
+              <div className="px-5 pb-5 pt-0 border-t border-gray-700">
                 {(vehicle.lastReturnMileage != null && !Number.isNaN(Number(vehicle.lastReturnMileage))) && (
-                  <div className="text-sm text-gray-300 bg-gray-700/80 px-3 py-1.5 rounded-lg border border-gray-600">
-                    <span className="text-gray-400">最後回程公里數：</span>
-                    <span className="text-amber-300 font-semibold ml-1">
-                      {Number(vehicle.lastReturnMileage).toLocaleString(undefined, { maximumFractionDigits: 0 })} km
-                    </span>
-                    <span className="text-gray-500 text-xs ml-2">（下次出發可填此值）</span>
+                  <div className="flex justify-end mb-4">
+                    <div className="text-sm text-gray-300 bg-gray-700/80 px-3 py-1.5 rounded-lg border border-gray-600">
+                      <span className="text-gray-400">最後回程公里數：</span>
+                      <span className="text-amber-300 font-semibold ml-1">
+                        {Number(vehicle.lastReturnMileage).toLocaleString(undefined, { maximumFractionDigits: 0 })} km
+                      </span>
+                      <span className="text-gray-500 text-xs ml-2">（下次出發可填此值）</span>
+                    </div>
                   </div>
                 )}
-              </div>
 
               {/* 按活动统计里程 */}
               {Object.keys(vehicle.activities).length > 0 && (
@@ -318,8 +339,11 @@ function VehicleInfo() {
                   <p>此車輛尚無活動或加油記錄</p>
                 </div>
               )}
+              </div>
+              )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
