@@ -57,13 +57,13 @@ function VehicleInfo() {
         next.nextMaintenanceMileage = String(Math.round(last + interval))
       }
     }
-    if (field === 'lastInspectionDate' || field === 'inspectionIntervalDays') {
+    if (field === 'lastInspectionDate' || field === 'inspectionIntervalMonths') {
       const lastStr = field === 'lastInspectionDate' ? value : (prev.lastInspectionDate || '')
-      const days = field === 'inspectionIntervalDays' ? parseInt(value, 10) : parseInt(prev.inspectionIntervalDays, 10)
-      if (lastStr && /^\d{4}-\d{2}-\d{2}$/.test(String(lastStr).trim()) && !Number.isNaN(days) && days > 0) {
+      const months = field === 'inspectionIntervalMonths' ? parseInt(value, 10) : parseInt(prev.inspectionIntervalMonths, 10)
+      if (lastStr && /^\d{4}-\d{2}-\d{2}$/.test(String(lastStr).trim()) && !Number.isNaN(months) && months > 0) {
         const d = new Date(lastStr + 'T00:00:00')
         if (!Number.isNaN(d.getTime())) {
-          d.setDate(d.getDate() + days)
+          d.setMonth(d.getMonth() + months)
           next.nextInspectionDate = d.toISOString().slice(0, 10)
         }
       }
@@ -74,12 +74,12 @@ function VehicleInfo() {
   const applyIntervalUpdate = (vehicleKey, lastReturnMileage) => {
     const s = vehicleSettings[String(vehicleKey).trim()] || {}
     const intervalKm = parseFloat(s.maintenanceIntervalKm) || 0
-    const intervalDays = parseInt(s.inspectionIntervalDays, 10) || 0
+    const intervalMonths = parseInt(s.inspectionIntervalMonths, 10) || 0
     const nextMain = intervalKm > 0 && lastReturnMileage != null && !Number.isNaN(Number(lastReturnMileage))
       ? String(Math.round(Number(lastReturnMileage) + intervalKm))
       : s.nextMaintenanceMileage ?? ''
-    const nextDate = intervalDays > 0
-      ? (() => { const d = new Date(); d.setDate(d.getDate() + intervalDays); return d.toISOString().slice(0, 10); })()
+    const nextDate = intervalMonths > 0
+      ? (() => { const d = new Date(); d.setMonth(d.getMonth() + intervalMonths); return d.toISOString().slice(0, 10); })()
       : s.nextInspectionDate ?? ''
     saveVehicleSettings(vehicleKey, { nextMaintenanceMileage: nextMain, nextInspectionDate: nextDate })
     setVehicleSettings((prev) => {
@@ -362,14 +362,14 @@ function VehicleInfo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm mb-1">驗車間隔 (天) — 輸入後依上次驗車＋此天數自動帶入下次驗車</label>
+                      <label className="block text-gray-400 text-sm mb-1">驗車間隔 (月) — 輸入後依上次驗車＋此月數自動帶入下次驗車</label>
                       <input
                         type="number"
                         min="0"
                         step="1"
-                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.inspectionIntervalDays ?? ''}
-                        onChange={(e) => updateVehicleSettingWithAutoNext(vehicle.vehicle, 'inspectionIntervalDays', e.target.value)}
-                        placeholder="例：365"
+                        value={vehicleSettings[String(vehicle.vehicle).trim()]?.inspectionIntervalMonths ?? ''}
+                        onChange={(e) => updateVehicleSettingWithAutoNext(vehicle.vehicle, 'inspectionIntervalMonths', e.target.value)}
+                        placeholder="例：6"
                         className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
                       />
                     </div>
@@ -380,7 +380,7 @@ function VehicleInfo() {
                       onClick={() => applyIntervalUpdate(vehicle.vehicle, vehicle.lastReturnMileage)}
                       className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/80 text-black hover:bg-amber-500 border border-amber-500/50"
                     >
-                      依間隔更新（上次回程＋保養間隔 km / 今日＋驗車間隔 天）
+                      依間隔更新（上次回程＋保養間隔 km / 今日＋驗車間隔 月）
                     </button>
                     <span className="text-gray-500 text-xs">填寫保養間隔與驗車間隔後，點擊可自動填入下次保養里程與下次驗車日期</span>
                   </div>
