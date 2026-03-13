@@ -328,24 +328,25 @@ function VehicleInfo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm mb-1">下次保養里程 (km)</label>
+                      <label className="block text-gray-400 text-sm mb-1">下次保養里程 (km) <span className="text-gray-500 font-normal">（依上次＋保養間隔自動帶入）</span></label>
                       <input
                         type="number"
                         min="0"
                         step="1"
+                        readOnly
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.nextMaintenanceMileage ?? ''}
-                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'nextMaintenanceMileage', e.target.value)}
-                        placeholder="可依上次＋保養間隔自動帶入"
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+                        placeholder="請填寫上次保養里程與保養間隔"
+                        className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-amber-200 placeholder-gray-500 cursor-default text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm mb-1">下次驗車日期</label>
+                      <label className="block text-gray-400 text-sm mb-1">下次驗車日期 <span className="text-gray-500 font-normal">（依上次＋驗車間隔自動帶入）</span></label>
                       <input
                         type="date"
+                        readOnly
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.nextInspectionDate ?? ''}
-                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'nextInspectionDate', e.target.value)}
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500 text-sm"
+                        placeholder="請填寫上次驗車日期與驗車間隔"
+                        className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-amber-200 cursor-default text-sm"
                       />
                     </div>
                     <div>
