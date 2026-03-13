@@ -108,6 +108,7 @@ function Calendar() {
   const [copyScheduleTarget, setCopyScheduleTarget] = useState(null) // 要複製的排程
   const [copyScheduleNewDate, setCopyScheduleNewDate] = useState('') // 複製後的新日期 YYYY-MM-DD
   const [maintenanceInspectionAlert, setMaintenanceInspectionAlert] = useState({ show: false, maintenance: [], inspection: [] }) // 接近下次保養/驗車時彈窗
+  const [vehicleSettingsRevision, setVehicleSettingsRevision] = useState(0) // 車輛設定同步後重算保養/驗車提醒
   const [overtimeFormData, setOvertimeFormData] = useState({
     applicant: '',
     date: '',
@@ -792,6 +793,7 @@ function Calendar() {
   useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
+  useRealtimeKeys(['jiameng_vehicle_settings'], () => setVehicleSettingsRevision((r) => r + 1))
 
   // 行事曆卡片里程（最後回程）接近下次保養約 100km 或下次驗車約 1 週時彈窗提示；保養/驗車可設「不再提醒」直到本次保養里程/驗車日後
   useEffect(() => {
@@ -799,7 +801,8 @@ function Calendar() {
     const allSettings = getAllVehicleSettings()
     const dismissedInsp = getDismissedInspectionReminder()
     const dismissedMain = getDismissedMaintenanceReminder()
-    const today = new Date().toISOString().slice(0, 10)
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const maintenance = []
     const inspection = []
     Object.entries(allSettings).forEach(([vehicleKey, s]) => {
@@ -812,24 +815,24 @@ function Calendar() {
           maintenance.push({ vehicle: vehicleKey, current, next: nextMain })
         }
       }
-      const nextInsp = String(s?.nextInspectionDate || '').trim()
-      if (/^\d{4}-\d{2}-\d{2}$/.test(nextInsp)) {
+      const nextInspRaw = String(s?.nextInspectionDate || '').trim().replace(/\//g, '-')
+      if (/^\d{4}-\d{2}-\d{2}$/.test(nextInspRaw)) {
         const until = dismissedInsp[vehicleKey]
         if (until && today <= until) return // 用戶已點選不再提醒，直到該驗車日後才再提示
         // 僅在「下次驗車日落在今天～今天+7天」內才提示（約一週內要驗車）
-        const todayDate = new Date(today + 'T12:00:00')
+        const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
         const weekLater = new Date(todayDate)
         weekLater.setDate(weekLater.getDate() + 7)
         const weekLaterStr = `${weekLater.getFullYear()}-${String(weekLater.getMonth() + 1).padStart(2, '0')}-${String(weekLater.getDate()).padStart(2, '0')}`
-        if (nextInsp >= today && nextInsp <= weekLaterStr) {
-          inspection.push({ vehicle: vehicleKey, date: nextInsp })
+        if (nextInspRaw >= today && nextInspRaw <= weekLaterStr) {
+          inspection.push({ vehicle: vehicleKey, date: nextInspRaw })
         }
       }
     })
     if (maintenance.length > 0 || inspection.length > 0) {
       setMaintenanceInspectionAlert({ show: true, maintenance, inspection })
     }
-  }, [schedules])
+  }, [schedules, vehicleSettingsRevision])
 
   // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
   useEffect(() => {
