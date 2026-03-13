@@ -1523,7 +1523,7 @@ function Calendar() {
   const cardTitleStyle = 'margin:0 0 8px 0;font-size:15px;font-weight:bold;word-break:break-word;'
   const cardLineStyle = 'margin:4px 0;font-size:13px;word-break:break-word;overflow-wrap:break-word;'
 
-  /** 與列印相同的內容。options: { workItemFrom, workItemTo, continuation } 用於 PDF 每頁 3 格分頁（第一頁 1–3，第二頁 4–6…） */
+  /** 與列印相同的內容。options: { workItemFrom, workItemTo, continuation } 用於 PDF 分頁（第一頁 3 格，第二頁起每頁 6 格） */
   const getDetailPrintBody = (item, segmentIndex, options) => {
     const title = getScheduleDisplayTitle(item)
     const dateStr = item.date ? String(item.date).replace(/-/g, '/') : '—'
@@ -1754,10 +1754,12 @@ function Calendar() {
           await renderOnePage(getDetailPrintBody(item, segmentIndex))
           return
         }
-        const pages = Math.ceil(count / 3)
+        const firstPageSize = 3
+        const laterPageSize = 6
+        const pages = count <= firstPageSize ? 1 : 1 + Math.ceil((count - firstPageSize) / laterPageSize)
         for (let p = 0; p < pages; p++) {
-          const from = p * 3
-          const to = Math.min((p + 1) * 3, count)
+          const from = p === 0 ? 0 : firstPageSize + (p - 1) * laterPageSize
+          const to = p === 0 ? Math.min(firstPageSize, count) : Math.min(firstPageSize + p * laterPageSize, count)
           if (p > 0) pdf.addPage()
           const html = p === 0
             ? getDetailPrintBody(item, segmentIndex, { workItemFrom: 0, workItemTo: to })
