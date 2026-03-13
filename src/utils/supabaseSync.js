@@ -299,10 +299,14 @@ async function _doUpsert(sb, key, value) {
       }
       const byKey = new Map()
       const keyOf = (r) => {
+        const sid = String(r?.scheduleId ?? '').trim()
+        const seg = Number(r?.segmentIndex)
+        const segIdx = Number.isInteger(seg) && seg >= 0 ? seg : 0
         const pid = String(r?.projectId || '').trim()
         const ymd = ymdOf(r)
         const action = String(r?.actionType || '').trim()
-        return `${pid}\n${ymd}\n${action}`
+        if (sid) return `${sid}\n${segIdx}\n${ymd}\n${action}`
+        return `${pid}\n0\n${ymd}\n${action}`
       }
       ;[...cloud, ...incoming].forEach((r) => {
         const k = keyOf(r)

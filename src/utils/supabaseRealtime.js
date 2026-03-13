@@ -86,10 +86,14 @@ export function subscribeRealtime(onUpdate) {
     const b = Array.isArray(incomingArr) ? incomingArr : []
     const byKey = new Map()
     function key(r) {
+      const sid = String(r?.scheduleId ?? '').trim()
+      const seg = Number(r?.segmentIndex)
+      const segIdx = Number.isInteger(seg) && seg >= 0 ? seg : 0
       const pid = String(r?.projectId || '').trim()
       const ymd = ymdOf(r)
       const action = String(r?.actionType || '').trim()
-      return `${pid}\n${ymd}\n${action}`
+      if (sid) return `${sid}\n${segIdx}\n${ymd}\n${action}`
+      return `${pid}\n0\n${ymd}\n${action}`
     }
     ;[...a, ...b].forEach((r) => {
       const k = key(r)
