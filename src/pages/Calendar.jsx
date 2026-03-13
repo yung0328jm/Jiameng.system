@@ -1516,7 +1516,12 @@ function Calendar() {
     return div.innerHTML
   }
 
-  /** 與列印相同的內容（中文正常），供列印視窗與匯出 PDF 擷圖使用 */
+  /** 卡片樣式（PDF/列印一致）：淺灰底、圓角、留白 */
+  const cardStyle = 'margin-bottom:14px;padding:12px 14px;background:#f0f0f0;border-radius:8px;border:1px solid #e0e0e0;'
+  const cardTitleStyle = 'margin:0 0 8px 0;font-size:15px;font-weight:bold;'
+  const cardLineStyle = 'margin:4px 0;font-size:13px;'
+
+  /** 與列印相同的內容（中文正常），供列印視窗與匯出 PDF 擷圖使用；版型比照卡片排列 */
   const getDetailPrintBody = (item) => {
     const title = getScheduleDisplayTitle(item)
     const dateStr = item.date ? String(item.date).replace(/-/g, '/') : '—'
@@ -1525,75 +1530,88 @@ function Calendar() {
       : '全天'
     const segments = getScheduleSegments(item)
     const seg = segments[selectedDetailSegmentIndex] || segments[0]
-    let body = `<h1>工程排程詳情</h1><h2>${escapeHtml(title)}</h2><p><strong>日期:</strong> ${escapeHtml(dateStr)} ${timeStr}</p><p><strong>建立者:</strong> ${escapeHtml(displayCreator(item.createdBy))}</p>`
-    if (item.participants) body += `<p><strong>參與人員:</strong> ${escapeHtml(item.participants)}</p>`
+    let body = `<h1 style="font-size:1.35rem;margin:0 0 6px 0;">工程排程詳情</h1>`
+    body += `<p style="font-size:1.05rem;font-weight:600;margin:0 0 10px 0;">${escapeHtml(title)}</p>`
+    body += `<p style="margin:4px 0;"><strong>日期:</strong> ${escapeHtml(dateStr)} ${timeStr}</p>`
+    body += `<p style="margin:4px 0;"><strong>建立者:</strong> ${escapeHtml(displayCreator(item.createdBy))}</p>`
+    if (item.participants) body += `<p style="margin:4px 0;"><strong>參與人員:</strong> ${escapeHtml(item.participants)}</p>`
     if (seg) {
       const entries = Array.isArray(seg.vehicleEntries) ? seg.vehicleEntries : []
       const vehicleLabel = entries.length > 0 ? entries.map((e) => e.vehicle).filter(Boolean).join(', ') : item.vehicle
-      if (vehicleLabel) body += `<p><strong>車輛:</strong> ${escapeHtml(vehicleLabel)}</p>`
+      if (vehicleLabel) body += `<p style="margin:4px 0;"><strong>車輛:</strong> ${escapeHtml(vehicleLabel)}</p>`
       if (entries.length > 0) {
         entries.forEach((entry, idx) => {
-          body += `<p><strong>車輛 ${idx + 1}:</strong> ${escapeHtml(entry.vehicle || '—')}`
-          if (entry.departureDriver) body += ` | 出發駕駛: ${escapeHtml(entry.departureDriver)}`
-          if (entry.returnDriver) body += ` | 回程駕駛: ${escapeHtml(entry.returnDriver)}`
-          if (entry.departureMileage) body += ` | 出發里程: ${escapeHtml(entry.departureMileage)} km`
-          if (entry.returnMileage) body += ` | 回程里程: ${escapeHtml(entry.returnMileage)} km`
-          body += ` | 是否加油: ${entry.needRefuel ? '是' : '否'}`
-          if (entry.fuelCost) body += ` | 油資: NT$ ${parseFloat(entry.fuelCost).toLocaleString()}`
-          body += '</p>'
+          const dep = parseFloat(entry.departureMileage) || 0
+          const ret = parseFloat(entry.returnMileage) || 0
+          const segmentKm = dep > 0 || ret > 0 ? Math.max(0, ret - dep) : null
+          body += `<div style="${cardStyle}">`
+          body += `<p style="${cardTitleStyle}">車輛 ${idx + 1} : ${escapeHtml(entry.vehicle || '—')}</p>`
+          if (entry.departureDriver) body += `<p style="${cardLineStyle}">出發駕駛: ${escapeHtml(entry.departureDriver)}</p>`
+          if (entry.returnDriver) body += `<p style="${cardLineStyle}">回程駕駛: ${escapeHtml(entry.returnDriver)}</p>`
+          if (entry.departureMileage) body += `<p style="${cardLineStyle}">出發里程: ${escapeHtml(entry.departureMileage)} km</p>`
+          if (entry.returnMileage) body += `<p style="${cardLineStyle}">回程里程: ${escapeHtml(entry.returnMileage)} km</p>`
+          if (segmentKm != null) body += `<p style="${cardLineStyle}">本段里程: ${segmentKm} km</p>`
+          body += `<p style="${cardLineStyle}">是否加油: ${entry.needRefuel ? '是' : '否'}</p>`
+          if (entry.fuelCost) body += `<p style="${cardLineStyle}">油資: NT$ ${parseFloat(entry.fuelCost).toLocaleString()}</p>`
+          body += `<p style="${cardLineStyle}">發票是否繳回: ${entry.invoiceReturned ? '是' : '否'}</p>`
+          body += '</div>'
         })
       } else {
-        if (item.departureDriver) body += `<p>出發駕駛: ${escapeHtml(item.departureDriver)}</p>`
-        if (item.returnDriver) body += `<p>回程駕駛: ${escapeHtml(item.returnDriver)}</p>`
-        if (item.departureMileage) body += `<p>出發里程: ${escapeHtml(item.departureMileage)} km</p>`
-        if (item.returnMileage) body += `<p>回程里程: ${escapeHtml(item.returnMileage)} km</p>`
-        body += `<p>是否加油: ${item.needRefuel ? '是' : '否'}</p>`
-        if (item.fuelCost) body += `<p>油資: NT$ ${parseFloat(item.fuelCost).toLocaleString()}</p>`
+        if (item.departureDriver || item.returnDriver || item.departureMileage || item.returnMileage || item.needRefuel || item.fuelCost) {
+          body += `<div style="${cardStyle}">`
+          body += `<p style="${cardTitleStyle}">車輛</p>`
+          if (item.departureDriver) body += `<p style="${cardLineStyle}">出發駕駛: ${escapeHtml(item.departureDriver)}</p>`
+          if (item.returnDriver) body += `<p style="${cardLineStyle}">回程駕駛: ${escapeHtml(item.returnDriver)}</p>`
+          if (item.departureMileage) body += `<p style="${cardLineStyle}">出發里程: ${escapeHtml(item.departureMileage)} km</p>`
+          if (item.returnMileage) body += `<p style="${cardLineStyle}">回程里程: ${escapeHtml(item.returnMileage)} km</p>`
+          body += `<p style="${cardLineStyle}">是否加油: ${item.needRefuel ? '是' : '否'}</p>`
+          if (item.fuelCost) body += `<p style="${cardLineStyle}">油資: NT$ ${parseFloat(item.fuelCost).toLocaleString()}</p>`
+          body += '</div>'
+        }
       }
       const overtimeList = getOvertimeApplicationsByScheduleId(item.id)
       if (overtimeList.length > 0) {
-        body += '<h3>加班申請</h3>'
+        body += '<h3 style="margin:16px 0 8px 0;font-size:1rem;">加班申請</h3>'
         overtimeList.forEach((oa) => {
           const status = (oa.status || 'pending').trim()
           const statusText = status === 'approved' ? '已核准' : status === 'rejected' ? '已駁回' : '待審核'
           const timeRange = oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : ''
           const hoursStr = oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''
           const personnelStr = oa.overtimePersonnel && oa.overtimePersonnel.length > 0 ? ` | 加班人員: ${oa.overtimePersonnel.join(', ')}` : ''
-          body += `<p><strong>申請人:</strong> ${escapeHtml(oa.applicant || '—')} | ${escapeHtml(oa.date || '—')}${timeRange}${hoursStr}${personnelStr} | <strong>${statusText}</strong></p>`
+          body += `<p style="margin:4px 0;"><strong>申請人:</strong> ${escapeHtml(oa.applicant || '—')} | ${escapeHtml(oa.date || '—')}${timeRange}${hoursStr}${personnelStr} | <strong>${statusText}</strong></p>`
         })
       }
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
       if (workItems.length > 0) {
-        body += '<h3>預排工作項目</h3>'
+        body += '<h3 style="margin:16px 0 10px 0;font-size:1rem;">預排工作項目</h3>'
         expandWorkItemsToLogical(workItems).forEach((wi) => {
           const it = normalizeWorkItem(wi)
           const isCollab = !!it?.isCollaborative
           const collabs = getWorkItemCollaborators(it)
           const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
-          const title = wi.workContent || wi.content || '工作項目'
+          const workTitle = wi.workContent || wi.content || '工作項目'
           const hasContentRows = Array.isArray(wi.contentRows) && wi.contentRows.length > 0
-          body += '<div style="margin-bottom:12px;padding:10px;background:#f5f5f5;border-radius:6px;">'
+          body += `<div style="${cardStyle}">`
+          body += `<p style="margin:0 0 8px 0;font-size:14px;font-weight:bold;">・ ${escapeHtml(workTitle)}</p>`
           if (hasContentRows) {
-            if (isCollab) body += `<p style="margin:0 0 6px 0;font-size:13px;"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
-            else body += `<p style="margin:0 0 6px 0;font-size:13px;"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
-            body += `<p style="margin:0 0 6px 0;"><strong>・${escapeHtml(title)}</strong></p>`
+            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
             wi.contentRows.forEach((row) => {
               const tw = row.targetQuantity != null && row.targetQuantity !== '' ? row.targetQuantity : '—'
               const aw = row.actualQuantity != null && row.actualQuantity !== '' ? row.actualQuantity : '—'
               body += `<p style="margin:2px 0 2px 12px;font-size:13px;">・ ${escapeHtml(row.workContent || '未填')} — 目標 ${escapeHtml(String(tw))} / 實際 ${escapeHtml(String(aw))}</p>`
             })
           } else {
-            body += `<p style="margin:0 0 6px 0;"><strong>・${escapeHtml(title)}</strong></p>`
-            if (isCollab) body += `<p style="margin:0 0 4px 0;font-size:13px;"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
-            else if (it?.responsiblePerson) body += `<p style="margin:0 0 4px 0;font-size:13px;"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
+            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else if (it?.responsiblePerson) body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
           }
-          body += `<p style="margin:0 0 4px 0;font-size:12px;color:#555;">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
+          body += `<p style="${cardLineStyle}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
           if (!hasContentRows) {
             const t = parseFloat(it?.targetQuantity) || 0
             const a = parseFloat(it?.actualQuantity) || 0
             const sharedA = getWorkItemSharedActual(it)
             if (isCollab && mode === 'shared' && (t > 0 || sharedA > 0)) {
-              body += `<p style="margin:0;font-size:13px;">共同：目標 ${t > 0 ? t : 'N/A'} / 實際 ${sharedA > 0 ? sharedA : 'N/A'}</p>`
+              body += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${sharedA > 0 ? sharedA : 'N/A'}</p>`
             } else if (isCollab && mode === 'separate' && collabs.length > 0) {
               collabs.forEach((c) => {
                 const cn = String(c?.name || '').trim() || '—'
@@ -1603,7 +1621,7 @@ function Calendar() {
                 body += `<p style="margin:2px 0;font-size:13px;">- ${escapeHtml(cn)}：目標 ${ct || 'N/A'} / 實際 ${ca || 'N/A'}${cr ? `（${cr}%）` : ''}</p>`
               })
             } else if (!isCollab && (t > 0 || a > 0)) {
-              body += `<p style="margin:0;font-size:13px;">目標: ${t > 0 ? t : 'N/A'} / 實際: ${a > 0 ? a : 'N/A'}</p>`
+              body += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${a > 0 ? a : 'N/A'}</p>`
             }
           }
           body += '</div>'
@@ -1660,7 +1678,7 @@ function Calendar() {
     const item = selectedDetailItem
     const title = getScheduleDisplayTitle(item)
     const body = getDetailPrintBody(item)
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title || '工程排程詳情')}</title><style>body{font-family:system-ui,sans-serif;padding:20px;max-width:600px;} h1{font-size:1.25rem;} h2{font-size:1.1rem;} p,li{margin:0.4em 0;}</style></head><body>${body}</body></html>`
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title || '工程排程詳情')}</title><style>body{font-family:system-ui,sans-serif;padding:20px;max-width:600px;color:#111;line-height:1.45;} h1,h2,h3,p{margin:0.4em 0;}</style></head><body>${body}</body></html>`
     const win = window.open('', '_blank')
     if (!win) { alert('請允許彈出視窗以使用列印'); return }
     win.document.write(html)
