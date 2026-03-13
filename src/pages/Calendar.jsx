@@ -1518,15 +1518,13 @@ function Calendar() {
 
   /** 卡片樣式（PDF/列印一致）：淺灰底、圓角、留白；word-break 避免 PDF 擷圖時右側裁切 */
   const cardStyle = 'margin-bottom:14px;padding:12px 14px;background:#f0f0f0;border-radius:8px;border:1px solid #e0e0e0;max-width:100%;word-break:break-word;overflow-wrap:break-word;'
-  /** 工作項目網格用：縮小字體與留白，第一頁 3 格、第二頁起 6 格 */
-  const cardStyleGrid = 'padding:8px 10px;background:#f0f0f0;border-radius:6px;border:1px solid #e0e0e0;word-break:break-word;overflow-wrap:break-word;font-size:11px;'
+  /** 工作項目卡片：與畫面上同款，僅縮小卡片間距讓一頁可排 3 格（PDF 每頁 3 格分頁） */
+  const workItemCardStyle = 'margin-bottom:6px;padding:10px 12px;background:#f0f0f0;border-radius:8px;border:1px solid #e0e0e0;max-width:100%;word-break:break-word;overflow-wrap:break-word;'
   const cardTitleStyle = 'margin:0 0 8px 0;font-size:15px;font-weight:bold;word-break:break-word;'
-  const cardTitleStyleGrid = 'margin:0 0 4px 0;font-size:12px;font-weight:bold;word-break:break-word;'
   const cardLineStyle = 'margin:4px 0;font-size:13px;word-break:break-word;overflow-wrap:break-word;'
-  const cardLineStyleGrid = 'margin:2px 0;font-size:10px;word-break:break-word;overflow-wrap:break-word;'
 
-  /** 與列印相同的內容（中文正常），供列印視窗與匯出 PDF 擷圖使用；版型比照卡片排列。segmentIndex 用於 PDF 分頁時指定第幾個活動（未傳則用目前選中的 segment） */
-  const getDetailPrintBody = (item, segmentIndex) => {
+  /** 與列印相同的內容。options: { workItemFrom, workItemTo, continuation } 用於 PDF 每頁 3 格分頁（第一頁 1–3，第二頁 4–6…） */
+  const getDetailPrintBody = (item, segmentIndex, options) => {
     const title = getScheduleDisplayTitle(item)
     const dateStr = item.date ? String(item.date).replace(/-/g, '/') : '—'
     const timeStr = item.isAllDay === false
@@ -1537,6 +1535,64 @@ function Calendar() {
     const seg = segments[idx] || segments[0]
     const activityName = seg?.siteName ? String(seg.siteName).trim() : ''
     const showActivitySubtitle = segmentIndex !== undefined && segments.length > 1 && activityName
+    const workItemRange = options?.workItemFrom != null && options?.workItemTo != null ? { from: options.workItemFrom, to: options.workItemTo } : null
+    const continuation = !!options?.continuation
+
+    if (continuation && workItemRange) {
+      const segs = getScheduleSegments(item)
+      const idx = segmentIndex !== undefined ? segmentIndex : selectedDetailSegmentIndex
+      const seg = segs[idx] || segs[0]
+      const workItems = Array.isArray(seg?.workItems) ? seg.workItems : []
+      const expanded = expandWorkItemsToLogical(workItems)
+      const slice = expanded.slice(workItemRange.from, workItemRange.to)
+      let out = `<div style="max-width:100%;word-break:break-word;overflow-wrap:break-word;">`
+      out += '<h3 style="margin:0 0 8px 0;font-size:1rem;">預排工作項目 (續)</h3>'
+      slice.forEach((wi) => {
+        const it = normalizeWorkItem(wi)
+        const isCollab = !!it?.isCollaborative
+        const collabs = getWorkItemCollaborators(it)
+        const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
+        const workTitle = wi.workContent || wi.content || '工作項目'
+        const hasContentRows = Array.isArray(wi.contentRows) && wi.contentRows.length > 0
+        out += `<div style="${workItemCardStyle}">`
+        out += `<p style="${cardTitleStyle}">・ ${escapeHtml(workTitle)}</p>`
+        if (hasContentRows) {
+          if (isCollab) out += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+          else out += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
+          wi.contentRows.forEach((row) => {
+            const tw = row.targetQuantity != null && row.targetQuantity !== '' ? row.targetQuantity : '—'
+            const aw = row.actualQuantity != null && row.actualQuantity !== '' ? row.actualQuantity : '—'
+            out += `<p style="margin:2px 0 2px 12px;font-size:13px;">・ ${escapeHtml(row.workContent || '未填')} — 目標 ${escapeHtml(String(tw))} / 實際 ${escapeHtml(String(aw))}</p>`
+          })
+        } else {
+          if (isCollab) out += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+          else if (it?.responsiblePerson) out += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
+        }
+        out += `<p style="${cardLineStyle}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
+        if (!hasContentRows) {
+          const t = parseFloat(it?.targetQuantity) || 0
+          const a = parseFloat(it?.actualQuantity) || 0
+          const sharedA = getWorkItemSharedActual(it)
+          if (isCollab && mode === 'shared' && (t > 0 || sharedA > 0)) {
+            out += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${sharedA > 0 ? sharedA : 'N/A'}</p>`
+          } else if (isCollab && mode === 'separate' && collabs.length > 0) {
+            collabs.forEach((c) => {
+              const cn = String(c?.name || '').trim() || '—'
+              const ct = parseFloat(c?.targetQuantity) || 0
+              const ca = parseFloat(c?.actualQuantity) || 0
+              const cr = ct > 0 ? ((ca / ct) * 100).toFixed(1) : ''
+              out += `<p style="margin:2px 0;font-size:13px;">- ${escapeHtml(cn)}：目標 ${ct || 'N/A'} / 實際 ${ca || 'N/A'}${cr ? `（${cr}%）` : ''}</p>`
+            })
+          } else if (!isCollab && (t > 0 || a > 0)) {
+            out += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${a > 0 ? a : 'N/A'}</p>`
+          }
+        }
+        out += '</div>'
+      })
+      out += '</div>'
+      return out
+    }
+
     let body = `<div style="max-width:100%;word-break:break-word;overflow-wrap:break-word;">`
     body += `<h1 style="font-size:1.35rem;margin:0 0 6px 0;">工程排程詳情</h1>`
     body += `<p style="font-size:1.05rem;font-weight:600;margin:0 0 10px 0;">${escapeHtml(title)}</p>`
@@ -1592,59 +1648,53 @@ function Calendar() {
       }
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
       if (workItems.length > 0) {
-        body += '<h3 style="margin:16px 0 10px 0;font-size:1rem;">預排工作項目</h3>'
+        body += '<h3 style="margin:16px 0 8px 0;font-size:1rem;">預排工作項目</h3>'
         const expanded = expandWorkItemsToLogical(workItems)
-        const cardHtmls = expanded.map((wi) => {
+        const from = workItemRange ? workItemRange.from : 0
+        const to = workItemRange ? workItemRange.to : expanded.length
+        const slice = expanded.slice(from, to)
+        slice.forEach((wi) => {
           const it = normalizeWorkItem(wi)
           const isCollab = !!it?.isCollaborative
           const collabs = getWorkItemCollaborators(it)
           const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
           const workTitle = wi.workContent || wi.content || '工作項目'
           const hasContentRows = Array.isArray(wi.contentRows) && wi.contentRows.length > 0
-          let card = `<div style="${cardStyleGrid}">`
-          card += `<p style="${cardTitleStyleGrid}">・ ${escapeHtml(workTitle)}</p>`
+          body += `<div style="${workItemCardStyle}">`
+          body += `<p style="${cardTitleStyle}">・ ${escapeHtml(workTitle)}</p>`
           if (hasContentRows) {
-            if (isCollab) card += `<p style="${cardLineStyleGrid}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
-            else card += `<p style="${cardLineStyleGrid}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
+            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
             wi.contentRows.forEach((row) => {
               const tw = row.targetQuantity != null && row.targetQuantity !== '' ? row.targetQuantity : '—'
               const aw = row.actualQuantity != null && row.actualQuantity !== '' ? row.actualQuantity : '—'
-              card += `<p style="margin:1px 0 1px 8px;font-size:10px;">・ ${escapeHtml(row.workContent || '未填')} — ${escapeHtml(String(tw))}/${escapeHtml(String(aw))}</p>`
+              body += `<p style="margin:2px 0 2px 12px;font-size:13px;">・ ${escapeHtml(row.workContent || '未填')} — 目標 ${escapeHtml(String(tw))} / 實際 ${escapeHtml(String(aw))}</p>`
             })
           } else {
-            if (isCollab) card += `<p style="${cardLineStyleGrid}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
-            else if (it?.responsiblePerson) card += `<p style="${cardLineStyleGrid}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
+            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else if (it?.responsiblePerson) body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
           }
-          card += `<p style="${cardLineStyleGrid}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
+          body += `<p style="${cardLineStyle}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
           if (!hasContentRows) {
             const t = parseFloat(it?.targetQuantity) || 0
             const a = parseFloat(it?.actualQuantity) || 0
             const sharedA = getWorkItemSharedActual(it)
             if (isCollab && mode === 'shared' && (t > 0 || sharedA > 0)) {
-              card += `<p style="${cardLineStyleGrid}">共同: ${t > 0 ? t : 'N/A'}/${sharedA > 0 ? sharedA : 'N/A'}</p>`
+              body += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${sharedA > 0 ? sharedA : 'N/A'}</p>`
             } else if (isCollab && mode === 'separate' && collabs.length > 0) {
               collabs.forEach((c) => {
                 const cn = String(c?.name || '').trim() || '—'
                 const ct = parseFloat(c?.targetQuantity) || 0
                 const ca = parseFloat(c?.actualQuantity) || 0
                 const cr = ct > 0 ? ((ca / ct) * 100).toFixed(1) : ''
-                card += `<p style="margin:1px 0;font-size:10px;">- ${escapeHtml(cn)}：${ct || 'N/A'}/${ca || 'N/A'}${cr ? `（${cr}%）` : ''}</p>`
+                body += `<p style="margin:2px 0;font-size:13px;">- ${escapeHtml(cn)}：目標 ${ct || 'N/A'} / 實際 ${ca || 'N/A'}${cr ? `（${cr}%）` : ''}</p>`
               })
             } else if (!isCollab && (t > 0 || a > 0)) {
-              card += `<p style="${cardLineStyleGrid}">共同: ${t > 0 ? t : 'N/A'}/${a > 0 ? a : 'N/A'}</p>`
+              body += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${a > 0 ? a : 'N/A'}</p>`
             }
           }
-          card += '</div>'
-          return card
+          body += '</div>'
         })
-        const firstThree = cardHtmls.slice(0, 3)
-        const rest = cardHtmls.slice(3)
-        if (firstThree.length > 0) {
-          body += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">${firstThree.join('')}</div>`
-        }
-        if (rest.length > 0) {
-          body += `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">${rest.join('')}</div>`
-        }
       }
     }
     body += '</div>'
@@ -1668,36 +1718,10 @@ function Calendar() {
       const pageH = pdf.internal.pageSize.getHeight()
       const wrapStyle = 'position:fixed;left:-9999px;top:0;width:595px;max-width:595px;background:#fff;padding:28px;padding-bottom:48px;font-family:system-ui,sans-serif;font-size:14px;box-sizing:border-box;color:#000;overflow:visible;word-break:break-word;overflow-wrap:break-word;height:auto;min-height:0;'
 
-      if (onePagePerActivity) {
-        for (let i = 0; i < segmentCount; i++) {
-          const wrap = document.createElement('div')
-          wrap.style.cssText = wrapStyle
-          wrap.innerHTML = getDetailPrintBody(item, i)
-          document.body.appendChild(wrap)
-          await new Promise(r => setTimeout(r, 150))
-          const w = Math.max(wrap.scrollWidth, 1)
-          const h = Math.max(wrap.scrollHeight, 1)
-          const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false, width: w, height: h, windowWidth: w, windowHeight: h })
-          document.body.removeChild(wrap)
-          const img = canvas.toDataURL('image/png')
-          const imgW = pageW
-          const imgH = (canvas.height * pageW) / canvas.width
-          let y = 0
-          let hLeft = imgH
-          if (i > 0) pdf.addPage()
-          pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
-          hLeft -= pageH
-          while (hLeft > 0) {
-            y = hLeft - imgH
-            pdf.addPage()
-            pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
-            hLeft -= pageH
-          }
-        }
-      } else {
+      const renderOnePage = async (html, onePageOnly = false) => {
         const wrap = document.createElement('div')
         wrap.style.cssText = wrapStyle
-        wrap.innerHTML = getDetailPrintBody(item)
+        wrap.innerHTML = html
         document.body.appendChild(wrap)
         await new Promise(r => setTimeout(r, 150))
         const w = Math.max(wrap.scrollWidth, 1)
@@ -1706,17 +1730,51 @@ function Calendar() {
         document.body.removeChild(wrap)
         const img = canvas.toDataURL('image/png')
         const imgW = pageW
-        const imgH = (canvas.height * pageW) / canvas.width
+        let imgH = (canvas.height * pageW) / canvas.width
+        if (onePageOnly && imgH > pageH) imgH = pageH
         let y = 0
         let hLeft = imgH
         pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
         hLeft -= pageH
-        while (hLeft > 0) {
-          y = hLeft - imgH
-          pdf.addPage()
-          pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
-          hLeft -= pageH
+        if (!onePageOnly) {
+          while (hLeft > 0) {
+            y = hLeft - imgH
+            pdf.addPage()
+            pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+            hLeft -= pageH
+          }
         }
+      }
+
+      const renderWorkItemPages = async (segmentIndex, seg) => {
+        const workItems = Array.isArray(seg?.workItems) ? seg.workItems : []
+        const expanded = expandWorkItemsToLogical(workItems)
+        const count = expanded.length
+        if (count === 0) {
+          await renderOnePage(getDetailPrintBody(item, segmentIndex))
+          return
+        }
+        const pages = Math.ceil(count / 3)
+        for (let p = 0; p < pages; p++) {
+          const from = p * 3
+          const to = Math.min((p + 1) * 3, count)
+          if (p > 0) pdf.addPage()
+          const html = p === 0
+            ? getDetailPrintBody(item, segmentIndex, { workItemFrom: 0, workItemTo: to })
+            : getDetailPrintBody(item, segmentIndex, { workItemFrom: from, workItemTo: to, continuation: true })
+          await renderOnePage(html, true)
+        }
+      }
+
+      if (onePagePerActivity) {
+        for (let i = 0; i < segmentCount; i++) {
+          if (i > 0) pdf.addPage()
+          const seg = segments[i] || segments[0]
+          await renderWorkItemPages(i, seg)
+        }
+      } else {
+        const seg = segments[0]
+        await renderWorkItemPages(0, seg)
       }
       const fileName = (title || '工程排程詳情').replace(/[/\\?%*:|"<>]/g, '-')
       pdf.save(`${fileName}.pdf`)
