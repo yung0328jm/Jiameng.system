@@ -1516,10 +1516,10 @@ function Calendar() {
     return div.innerHTML
   }
 
-  /** 卡片樣式（PDF/列印一致）：淺灰底、圓角、留白 */
-  const cardStyle = 'margin-bottom:14px;padding:12px 14px;background:#f0f0f0;border-radius:8px;border:1px solid #e0e0e0;'
-  const cardTitleStyle = 'margin:0 0 8px 0;font-size:15px;font-weight:bold;'
-  const cardLineStyle = 'margin:4px 0;font-size:13px;'
+  /** 卡片樣式（PDF/列印一致）：淺灰底、圓角、留白；word-break 避免 PDF 擷圖時右側裁切 */
+  const cardStyle = 'margin-bottom:14px;padding:12px 14px;background:#f0f0f0;border-radius:8px;border:1px solid #e0e0e0;max-width:100%;word-break:break-word;overflow-wrap:break-word;'
+  const cardTitleStyle = 'margin:0 0 8px 0;font-size:15px;font-weight:bold;word-break:break-word;'
+  const cardLineStyle = 'margin:4px 0;font-size:13px;word-break:break-word;overflow-wrap:break-word;'
 
   /** 與列印相同的內容（中文正常），供列印視窗與匯出 PDF 擷圖使用；版型比照卡片排列。segmentIndex 用於 PDF 分頁時指定第幾個活動（未傳則用目前選中的 segment） */
   const getDetailPrintBody = (item, segmentIndex) => {
@@ -1533,7 +1533,8 @@ function Calendar() {
     const seg = segments[idx] || segments[0]
     const activityName = seg?.siteName ? String(seg.siteName).trim() : ''
     const showActivitySubtitle = segmentIndex !== undefined && segments.length > 1 && activityName
-    let body = `<h1 style="font-size:1.35rem;margin:0 0 6px 0;">工程排程詳情</h1>`
+    let body = `<div style="max-width:100%;word-break:break-word;overflow-wrap:break-word;">`
+    body += `<h1 style="font-size:1.35rem;margin:0 0 6px 0;">工程排程詳情</h1>`
     body += `<p style="font-size:1.05rem;font-weight:600;margin:0 0 10px 0;">${escapeHtml(title)}</p>`
     if (showActivitySubtitle) body += `<p style="font-size:1rem;font-weight:600;margin:0 0 8px 0;color:#333;">活動：${escapeHtml(activityName)}</p>`
     body += `<p style="margin:4px 0;"><strong>日期:</strong> ${escapeHtml(dateStr)} ${timeStr}</p>`
@@ -1632,6 +1633,7 @@ function Calendar() {
         })
       }
     }
+    body += '</div>`
     return body
   }
 
@@ -1650,7 +1652,7 @@ function Calendar() {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = pdf.internal.pageSize.getWidth()
       const pageH = pdf.internal.pageSize.getHeight()
-      const wrapStyle = 'position:fixed;left:-9999px;top:0;width:595px;background:#fff;padding:24px;font-family:system-ui,sans-serif;font-size:14px;box-sizing:border-box;color:#000;'
+      const wrapStyle = 'position:fixed;left:-9999px;top:0;width:595px;max-width:595px;background:#fff;padding:28px;font-family:system-ui,sans-serif;font-size:14px;box-sizing:border-box;color:#000;overflow:visible;word-break:break-word;overflow-wrap:break-word;'
 
       if (onePagePerActivity) {
         for (let i = 0; i < segmentCount; i++) {
