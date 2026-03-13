@@ -258,34 +258,53 @@ export const getSchedules = () => {
   }
 }
 
-/** 依排程計算每台車「最後一次回程里程」，供行事曆填寫出發里程參考。回傳 { 車牌: 公里數 } */
-export const getLastReturnMileageByVehicle = () => {
+/** 依排程計算每台車「最後一次回程里程」，供行事曆填寫出發里程參考。回傳 { 車牌: 公里數 }
+ * options: { excludeScheduleId, excludeSegmentIndexMax } 編輯同一排程第二個活動時排除前面案場，讓第二活動可手動輸入里程 */
+export const getLastReturnMileageByVehicle = (options = {}) => {
   const schedules = getSchedules()
   const byVehicle = {} // vehicleKey -> { date, returnMileage }
+  const excludeId = options?.excludeScheduleId
+  const excludeSegmentMax = options?.excludeSegmentIndexMax ?? -1
+
+  const addEntry = (vehicleKey, ymd, ret) => {
+    if (!vehicleKey) return
+    const cur = byVehicle[vehicleKey]
+    if (!cur || ymd >= cur.date) {
+      byVehicle[vehicleKey] = { date: ymd, returnMileage: ret }
+    }
+  }
+
   schedules.forEach((schedule) => {
     const ymd = String(schedule.date || '').slice(0, 10)
     if (!ymd) return
-    if (Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0) {
-      schedule.vehicleEntries.forEach((entry) => {
-        const vehicleKey = String(entry?.vehicle || '').trim()
-        if (!vehicleKey) return
-        const ret = parseFloat(entry.returnMileage) || 0
-        const cur = byVehicle[vehicleKey]
-        if (!cur || ymd >= cur.date) {
-          byVehicle[vehicleKey] = { date: ymd, returnMileage: ret }
+    const segs = Array.isArray(schedule.segments) && schedule.segments.length > 0 ? schedule.segments : null
+    if (segs) {
+      segs.forEach((seg, segIdx) => {
+        if (excludeId === schedule.id && segIdx <= excludeSegmentMax) return
+        const entries = Array.isArray(seg?.vehicleEntries) ? seg.vehicleEntries : []
+        if (entries.length > 0) {
+          entries.forEach((entry) => {
+            const vehicleKey = String(entry?.vehicle || '').trim()
+            const ret = parseFloat(entry.returnMileage) || 0
+            addEntry(vehicleKey, ymd, ret)
+          })
         }
       })
-    } else {
-      const vehicleStr = String(schedule.vehicle || '').trim()
-      if (!vehicleStr) return
-      const ret = parseFloat(schedule.returnMileage) || 0
-      const vehicleKeys = vehicleStr.split(',').map((v) => String(v).trim()).filter(Boolean)
-      vehicleKeys.forEach((vehicleKey) => {
-        const cur = byVehicle[vehicleKey]
-        if (!cur || ymd >= cur.date) {
-          byVehicle[vehicleKey] = { date: ymd, returnMileage: ret }
-        }
-      })
+    } else if (excludeId !== schedule.id || excludeSegmentMax < 0) {
+      if (Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0) {
+        schedule.vehicleEntries.forEach((entry) => {
+          const vehicleKey = String(entry?.vehicle || '').trim()
+          const ret = parseFloat(entry.returnMileage) || 0
+          addEntry(vehicleKey, ymd, ret)
+        })
+      } else {
+        const vehicleStr = String(schedule.vehicle || '').trim()
+        if (!vehicleStr) return
+        const ret = parseFloat(schedule.returnMileage) || 0
+        vehicleStr.split(',').map((v) => String(v).trim()).filter(Boolean).forEach((vehicleKey) => {
+          addEntry(vehicleKey, ymd, ret)
+        })
+      }
     }
   })
   const result = {}
@@ -353,15 +372,29 @@ export const updateSchedule = (scheduleId, updates) => {
       if ('workItems' in (updates || {})) {
         next.workItems = mergeWorkItemsWithLock(prev?.workItems, updates?.workItems, lockAt)
       }
+      // segments：支援多案場排程之異動核准/退回（直接採用傳入的 segments）
+      if ('segments' in (updates || {}) && Array.isArray(updates.segments)) {
+        next.segments = updates.segments
+      }
       // 特例：僅允許「取消申請已核准」的工作項目被刪除
-      if (deleteIds.length > 0 && Array.isArray(next.workItems)) {
-        next.workItems = next.workItems.filter((wi) => {
+      const filterDeletedWorkItems = (workItems) => {
+        if (!Array.isArray(workItems) || deleteIds.length === 0) return workItems
+        return workItems.filter((wi) => {
           const id = String(wi?.id || '').trim()
           if (!deleteIds.includes(id)) return true
           const kind = String(wi?.changeRequest?.kind || wi?.changeRequest?.type || '').trim()
           const status = String(wi?.changeRequest?.status || '').trim()
           return !(kind === 'cancel' && status === 'approved')
         })
+      }
+      if (deleteIds.length > 0 && Array.isArray(next.workItems)) {
+        next.workItems = filterDeletedWorkItems(next.workItems)
+      }
+      if (deleteIds.length > 0 && Array.isArray(next.segments)) {
+        next.segments = next.segments.map((seg) => ({
+          ...seg,
+          workItems: filterDeletedWorkItems(seg?.workItems)
+        }))
       }
 
       schedules[index] = next
