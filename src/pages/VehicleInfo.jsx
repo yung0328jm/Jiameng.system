@@ -34,7 +34,7 @@ function VehicleInfo() {
   const [expandedActivities, setExpandedActivities] = useState({})
   const toggleActivity = (vehicleIndex, activityName) => {
     const key = `${vehicleIndex}-${activityName}`
-    setExpandedActivities((prev) => ({ ...prev, [key]: !prev[key] }))
+    setExpandedActivities((prev) => ({ ...prev, [key]: prev[key] === false }))
   }
 
   const loadVehicleData = () => {
@@ -224,7 +224,7 @@ function VehicleInfo() {
                     <div className="space-y-1">
                       {Object.values(vehicle.activities).map((activity, actIndex) => {
                         const expKey = `${index}-${activity.activity}`
-                        const isExpanded = expandedActivities[expKey]
+                        const isExpanded = expandedActivities[expKey] !== false
                         const trips = Array.isArray(activity.trips) ? activity.trips : []
                         const sortedTrips = [...trips].sort((a, b) => (a.ymd || '').localeCompare(b.ymd || ''))
                         return (
