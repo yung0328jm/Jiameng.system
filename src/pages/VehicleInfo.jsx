@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { getAllVehicleSettings, saveVehicleSettings } from '../utils/vehicleSettingsStorage'
+import { getCurrentUserInfo } from '../utils/authStorage'
+import { getAllVehicleSettings, saveVehicleSettings, getVehicleSettingsEditors, saveVehicleSettingsEditors } from '../utils/vehicleSettingsStorage'
 
 /** 與 Calendar 一致：取得排程的案場段落（多案場時每個案場一筆，含 siteName + vehicleEntries） */
 function getScheduleSegments(schedule) {
@@ -33,9 +34,17 @@ function getScheduleSegments(schedule) {
 function VehicleInfo() {
   const [vehicleData, setVehicleData] = useState({})
   const [vehicleSettings, setVehicleSettings] = useState({})
+  const [vehicleSettingsEditors, setVehicleSettingsEditors] = useState(() => getVehicleSettingsEditors())
+  const [newEditorAccount, setNewEditorAccount] = useState('')
   const [expandedVehicles, setExpandedVehicles] = useState({})
   const [expandedActivities, setExpandedActivities] = useState({})
   const loadVehicleSettings = () => setVehicleSettings(getAllVehicleSettings())
+  const loadEditors = () => setVehicleSettingsEditors(getVehicleSettingsEditors())
+  const currentUser = getCurrentUserInfo()
+  const currentAccount = currentUser?.username ? String(currentUser.username).trim() : ''
+  const isAdmin = currentUser?.role === 'admin'
+  const allowedAccounts = vehicleSettingsEditors?.allowedAccounts || []
+  const canEditVehicleSettings = !!currentAccount && (isAdmin || allowedAccounts.includes(currentAccount))
   const updateVehicleSetting = (vehicleKey, field, value) => {
     saveVehicleSettings(vehicleKey, { [field]: value })
     setVehicleSettings((prev) => {
@@ -216,7 +225,11 @@ function VehicleInfo() {
     setVehicleData(vehicleSummary)
   }
 
-  useRealtimeKeys(['jiameng_engineering_schedules'], loadVehicleData)
+  useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_vehicle_settings', 'jiameng_vehicle_settings_editors'], () => {
+    loadVehicleData()
+    loadVehicleSettings()
+    loadEditors()
+  })
 
   useEffect(() => {
     loadVehicleData()
@@ -224,6 +237,7 @@ function VehicleInfo() {
 
   useEffect(() => {
     loadVehicleSettings()
+    loadEditors()
   }, [vehicleData])
 
   const formatMonth = (monthKey) => {
@@ -236,7 +250,67 @@ function VehicleInfo() {
   return (
     <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
       <h2 className="text-2xl font-bold text-yellow-400 mb-6">車輛資訊</h2>
-      
+
+      {isAdmin && (
+        <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-600">
+          <h3 className="text-white font-semibold mb-2">指定可編輯／勾選用戶</h3>
+          <p className="text-gray-400 text-sm mb-3">僅以下帳號可編輯保養與驗車、勾選「本次已經驗車」；未指定時僅管理員可編輯。此設定同步給所有用戶。</p>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            {(allowedAccounts || []).map((acc) => (
+              <span key={acc} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-amber-200 text-sm">
+                {acc}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = (allowedAccounts || []).filter((a) => a !== acc)
+                    saveVehicleSettingsEditors({ allowedAccounts: next })
+                    loadEditors()
+                  }}
+                  className="text-gray-400 hover:text-red-400"
+                  aria-label="移除"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newEditorAccount}
+              onChange={(e) => setNewEditorAccount(e.target.value)}
+              placeholder="輸入帳號後按新增"
+              className="flex-1 max-w-xs bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                const v = newEditorAccount.trim()
+                if (!v || (allowedAccounts || []).includes(v)) return
+                saveVehicleSettingsEditors({ allowedAccounts: [...(allowedAccounts || []), v] })
+                loadEditors()
+                setNewEditorAccount('')
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const v = newEditorAccount.trim()
+                if (!v || (allowedAccounts || []).includes(v)) return
+                saveVehicleSettingsEditors({ allowedAccounts: [...(allowedAccounts || []), v] })
+                loadEditors()
+                setNewEditorAccount('')
+              }}
+              className="px-3 py-2 rounded bg-amber-600 text-black text-sm font-medium hover:bg-amber-500"
+            >
+              新增
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!canEditVehicleSettings && (
+        <p className="text-gray-400 text-sm mb-4">目前僅供檢視；僅管理員或已指定之用戶可編輯保養／驗車與勾選。</p>
+      )}
+
       {vehicles.length === 0 ? (
         <div className="text-gray-400 text-center py-12">
           <p>目前尚無車輛資訊</p>
@@ -304,19 +378,21 @@ function VehicleInfo() {
                         type="number"
                         min="0"
                         step="1"
+                        readOnly={!canEditVehicleSettings}
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.lastMaintenanceMileage ?? ''}
-                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'lastMaintenanceMileage', e.target.value)}
+                        onChange={(e) => canEditVehicleSettings && updateVehicleSetting(vehicle.vehicle, 'lastMaintenanceMileage', e.target.value)}
                         placeholder="請輸入"
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+                        className={`w-full border border-gray-600 rounded px-3 py-2 text-sm ${canEditVehicleSettings ? 'bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500' : 'bg-gray-800 text-amber-200 cursor-default'}`}
                       />
                     </div>
                     <div>
                       <label className="block text-gray-400 text-sm mb-1">上次驗車日期</label>
                       <input
                         type="date"
+                        readOnly={!canEditVehicleSettings}
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.lastInspectionDate ?? ''}
-                        onChange={(e) => updateVehicleSettingWithAutoNext(vehicle.vehicle, 'lastInspectionDate', e.target.value)}
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500 text-sm"
+                        onChange={(e) => canEditVehicleSettings && updateVehicleSettingWithAutoNext(vehicle.vehicle, 'lastInspectionDate', e.target.value)}
+                        className={`w-full border border-gray-600 rounded px-3 py-2 text-sm ${canEditVehicleSettings ? 'bg-gray-700 text-white focus:outline-none focus:border-amber-500' : 'bg-gray-800 text-amber-200 cursor-default'}`}
                       />
                     </div>
                     <div>
@@ -325,10 +401,11 @@ function VehicleInfo() {
                         type="number"
                         min="0"
                         step="1"
+                        readOnly={!canEditVehicleSettings}
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.nextMaintenanceMileage ?? ''}
-                        onChange={(e) => updateVehicleSetting(vehicle.vehicle, 'nextMaintenanceMileage', e.target.value)}
+                        onChange={(e) => canEditVehicleSettings && updateVehicleSetting(vehicle.vehicle, 'nextMaintenanceMileage', e.target.value)}
                         placeholder="請輸入"
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+                        className={`w-full border border-gray-600 rounded px-3 py-2 text-sm ${canEditVehicleSettings ? 'bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500' : 'bg-gray-800 text-amber-200 cursor-default'}`}
                       />
                     </div>
                     <div>
@@ -347,13 +424,15 @@ function VehicleInfo() {
                         type="number"
                         min="0"
                         step="1"
+                        readOnly={!canEditVehicleSettings}
                         value={vehicleSettings[String(vehicle.vehicle).trim()]?.inspectionIntervalMonths ?? ''}
-                        onChange={(e) => updateVehicleSettingWithAutoNext(vehicle.vehicle, 'inspectionIntervalMonths', e.target.value)}
+                        onChange={(e) => canEditVehicleSettings && updateVehicleSettingWithAutoNext(vehicle.vehicle, 'inspectionIntervalMonths', e.target.value)}
                         placeholder="例：6"
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+                        className={`w-full border border-gray-600 rounded px-3 py-2 text-sm ${canEditVehicleSettings ? 'bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500' : 'bg-gray-800 text-amber-200 cursor-default'}`}
                       />
                     </div>
                   </div>
+                  {canEditVehicleSettings && (
                   <div className="mt-4 pt-3 border-t border-gray-700">
                     <div className="flex flex-wrap items-center gap-3">
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -372,6 +451,7 @@ function VehicleInfo() {
                       <span className="text-gray-500 text-xs">勾選後以今日為上次驗車，並依驗車間隔（月＋1天）自動帶入下次驗車日期</span>
                     </div>
                   </div>
+                  )}
                 </div>
 
               {/* 按活动统计里程 */}
