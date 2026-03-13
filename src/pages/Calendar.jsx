@@ -1521,17 +1521,21 @@ function Calendar() {
   const cardTitleStyle = 'margin:0 0 8px 0;font-size:15px;font-weight:bold;'
   const cardLineStyle = 'margin:4px 0;font-size:13px;'
 
-  /** 與列印相同的內容（中文正常），供列印視窗與匯出 PDF 擷圖使用；版型比照卡片排列 */
-  const getDetailPrintBody = (item) => {
+  /** 與列印相同的內容（中文正常），供列印視窗與匯出 PDF 擷圖使用；版型比照卡片排列。segmentIndex 用於 PDF 分頁時指定第幾個活動（未傳則用目前選中的 segment） */
+  const getDetailPrintBody = (item, segmentIndex) => {
     const title = getScheduleDisplayTitle(item)
     const dateStr = item.date ? String(item.date).replace(/-/g, '/') : '—'
     const timeStr = item.isAllDay === false
       ? `${item.startTime || ''}${(item.startTime && item.endTime) ? ' - ' : ''}${item.endTime || ''}`
       : '全天'
     const segments = getScheduleSegments(item)
-    const seg = segments[selectedDetailSegmentIndex] || segments[0]
+    const idx = segmentIndex !== undefined ? segmentIndex : selectedDetailSegmentIndex
+    const seg = segments[idx] || segments[0]
+    const activityName = seg?.siteName ? String(seg.siteName).trim() : ''
+    const showActivitySubtitle = segmentIndex !== undefined && segments.length > 1 && activityName
     let body = `<h1 style="font-size:1.35rem;margin:0 0 6px 0;">工程排程詳情</h1>`
     body += `<p style="font-size:1.05rem;font-weight:600;margin:0 0 10px 0;">${escapeHtml(title)}</p>`
+    if (showActivitySubtitle) body += `<p style="font-size:1rem;font-weight:600;margin:0 0 8px 0;color:#333;">活動：${escapeHtml(activityName)}</p>`
     body += `<p style="margin:4px 0;"><strong>日期:</strong> ${escapeHtml(dateStr)} ${timeStr}</p>`
     body += `<p style="margin:4px 0;"><strong>建立者:</strong> ${escapeHtml(displayCreator(item.createdBy))}</p>`
     if (item.participants) body += `<p style="margin:4px 0;"><strong>參與人員:</strong> ${escapeHtml(item.participants)}</p>`
@@ -1636,32 +1640,63 @@ function Calendar() {
     setExportingPdf(true)
     const item = selectedDetailItem
     const title = getScheduleDisplayTitle(item)
+    const segments = getScheduleSegments(item)
+    const segmentCount = Array.isArray(segments) ? segments.length : 0
+    const onePagePerActivity = segmentCount > 1
     try {
       const [jspdfMod, h2cMod] = await Promise.all([import('jspdf'), import('html2canvas')])
       const jsPDF = jspdfMod.jsPDF
       const html2canvas = h2cMod.default
-      const wrap = document.createElement('div')
-      wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:595px;background:#fff;padding:24px;font-family:system-ui,sans-serif;font-size:14px;box-sizing:border-box;color:#000;'
-      wrap.innerHTML = getDetailPrintBody(item)
-      document.body.appendChild(wrap)
-      await new Promise(r => setTimeout(r, 100))
-      const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false })
-      document.body.removeChild(wrap)
-      const img = canvas.toDataURL('image/png')
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = pdf.internal.pageSize.getWidth()
       const pageH = pdf.internal.pageSize.getHeight()
-      const imgW = pageW
-      const imgH = (canvas.height * pageW) / canvas.width
-      let y = 0
-      let hLeft = imgH
-      pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
-      hLeft -= pageH
-      while (hLeft > 0) {
-        y = hLeft - imgH
-        pdf.addPage()
+      const wrapStyle = 'position:fixed;left:-9999px;top:0;width:595px;background:#fff;padding:24px;font-family:system-ui,sans-serif;font-size:14px;box-sizing:border-box;color:#000;'
+
+      if (onePagePerActivity) {
+        for (let i = 0; i < segmentCount; i++) {
+          const wrap = document.createElement('div')
+          wrap.style.cssText = wrapStyle
+          wrap.innerHTML = getDetailPrintBody(item, i)
+          document.body.appendChild(wrap)
+          await new Promise(r => setTimeout(r, 100))
+          const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false })
+          document.body.removeChild(wrap)
+          const img = canvas.toDataURL('image/png')
+          const imgW = pageW
+          const imgH = (canvas.height * pageW) / canvas.width
+          let y = 0
+          let hLeft = imgH
+          if (i > 0) pdf.addPage()
+          pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+          hLeft -= pageH
+          while (hLeft > 0) {
+            y = hLeft - imgH
+            pdf.addPage()
+            pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+            hLeft -= pageH
+          }
+        }
+      } else {
+        const wrap = document.createElement('div')
+        wrap.style.cssText = wrapStyle
+        wrap.innerHTML = getDetailPrintBody(item)
+        document.body.appendChild(wrap)
+        await new Promise(r => setTimeout(r, 100))
+        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false })
+        document.body.removeChild(wrap)
+        const img = canvas.toDataURL('image/png')
+        const imgW = pageW
+        const imgH = (canvas.height * pageW) / canvas.width
+        let y = 0
+        let hLeft = imgH
         pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
         hLeft -= pageH
+        while (hLeft > 0) {
+          y = hLeft - imgH
+          pdf.addPage()
+          pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+          hLeft -= pageH
+        }
       }
       const fileName = (title || '工程排程詳情').replace(/[/\\?%*:|"<>]/g, '-')
       pdf.save(`${fileName}.pdf`)
