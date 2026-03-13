@@ -1652,7 +1652,7 @@ function Calendar() {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = pdf.internal.pageSize.getWidth()
       const pageH = pdf.internal.pageSize.getHeight()
-      const wrapStyle = 'position:fixed;left:-9999px;top:0;width:595px;max-width:595px;background:#fff;padding:28px;font-family:system-ui,sans-serif;font-size:14px;box-sizing:border-box;color:#000;overflow:visible;word-break:break-word;overflow-wrap:break-word;'
+      const wrapStyle = 'position:fixed;left:-9999px;top:0;width:595px;max-width:595px;background:#fff;padding:28px;padding-bottom:48px;font-family:system-ui,sans-serif;font-size:14px;box-sizing:border-box;color:#000;overflow:visible;word-break:break-word;overflow-wrap:break-word;height:auto;min-height:0;'
 
       if (onePagePerActivity) {
         for (let i = 0; i < segmentCount; i++) {
@@ -1660,8 +1660,10 @@ function Calendar() {
           wrap.style.cssText = wrapStyle
           wrap.innerHTML = getDetailPrintBody(item, i)
           document.body.appendChild(wrap)
-          await new Promise(r => setTimeout(r, 100))
-          const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false })
+          await new Promise(r => setTimeout(r, 150))
+          const w = Math.max(wrap.scrollWidth, 1)
+          const h = Math.max(wrap.scrollHeight, 1)
+          const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false, width: w, height: h, windowWidth: w, windowHeight: h })
           document.body.removeChild(wrap)
           const img = canvas.toDataURL('image/png')
           const imgW = pageW
@@ -1683,8 +1685,10 @@ function Calendar() {
         wrap.style.cssText = wrapStyle
         wrap.innerHTML = getDetailPrintBody(item)
         document.body.appendChild(wrap)
-        await new Promise(r => setTimeout(r, 100))
-        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false })
+        await new Promise(r => setTimeout(r, 150))
+        const w = Math.max(wrap.scrollWidth, 1)
+        const h = Math.max(wrap.scrollHeight, 1)
+        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff', logging: false, width: w, height: h, windowWidth: w, windowHeight: h })
         document.body.removeChild(wrap)
         const img = canvas.toDataURL('image/png')
         const imgW = pageW
