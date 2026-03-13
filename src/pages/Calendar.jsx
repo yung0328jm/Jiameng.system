@@ -1518,8 +1518,12 @@ function Calendar() {
 
   /** 卡片樣式（PDF/列印一致）：淺灰底、圓角、留白；word-break 避免 PDF 擷圖時右側裁切 */
   const cardStyle = 'margin-bottom:14px;padding:12px 14px;background:#f0f0f0;border-radius:8px;border:1px solid #e0e0e0;max-width:100%;word-break:break-word;overflow-wrap:break-word;'
+  /** 工作項目網格用：縮小字體與留白，第一頁 3 格、第二頁起 6 格 */
+  const cardStyleGrid = 'padding:8px 10px;background:#f0f0f0;border-radius:6px;border:1px solid #e0e0e0;word-break:break-word;overflow-wrap:break-word;font-size:11px;'
   const cardTitleStyle = 'margin:0 0 8px 0;font-size:15px;font-weight:bold;word-break:break-word;'
+  const cardTitleStyleGrid = 'margin:0 0 4px 0;font-size:12px;font-weight:bold;word-break:break-word;'
   const cardLineStyle = 'margin:4px 0;font-size:13px;word-break:break-word;overflow-wrap:break-word;'
+  const cardLineStyleGrid = 'margin:2px 0;font-size:10px;word-break:break-word;overflow-wrap:break-word;'
 
   /** 與列印相同的內容（中文正常），供列印視窗與匯出 PDF 擷圖使用；版型比照卡片排列。segmentIndex 用於 PDF 分頁時指定第幾個活動（未傳則用目前選中的 segment） */
   const getDetailPrintBody = (item, segmentIndex) => {
@@ -1589,48 +1593,58 @@ function Calendar() {
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
       if (workItems.length > 0) {
         body += '<h3 style="margin:16px 0 10px 0;font-size:1rem;">預排工作項目</h3>'
-        expandWorkItemsToLogical(workItems).forEach((wi) => {
+        const expanded = expandWorkItemsToLogical(workItems)
+        const cardHtmls = expanded.map((wi) => {
           const it = normalizeWorkItem(wi)
           const isCollab = !!it?.isCollaborative
           const collabs = getWorkItemCollaborators(it)
           const mode = isCollab ? getWorkItemCollabMode(it) : 'separate'
           const workTitle = wi.workContent || wi.content || '工作項目'
           const hasContentRows = Array.isArray(wi.contentRows) && wi.contentRows.length > 0
-          body += `<div style="${cardStyle}">`
-          body += `<p style="margin:0 0 8px 0;font-size:14px;font-weight:bold;">・ ${escapeHtml(workTitle)}</p>`
+          let card = `<div style="${cardStyleGrid}">`
+          card += `<p style="${cardTitleStyleGrid}">・ ${escapeHtml(workTitle)}</p>`
           if (hasContentRows) {
-            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
-            else body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
+            if (isCollab) card += `<p style="${cardLineStyleGrid}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else card += `<p style="${cardLineStyleGrid}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
             wi.contentRows.forEach((row) => {
               const tw = row.targetQuantity != null && row.targetQuantity !== '' ? row.targetQuantity : '—'
               const aw = row.actualQuantity != null && row.actualQuantity !== '' ? row.actualQuantity : '—'
-              body += `<p style="margin:2px 0 2px 12px;font-size:13px;">・ ${escapeHtml(row.workContent || '未填')} — 目標 ${escapeHtml(String(tw))} / 實際 ${escapeHtml(String(aw))}</p>`
+              card += `<p style="margin:1px 0 1px 8px;font-size:10px;">・ ${escapeHtml(row.workContent || '未填')} — ${escapeHtml(String(tw))}/${escapeHtml(String(aw))}</p>`
             })
           } else {
-            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
-            else if (it?.responsiblePerson) body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
+            if (isCollab) card += `<p style="${cardLineStyleGrid}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            else if (it?.responsiblePerson) card += `<p style="${cardLineStyleGrid}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
           }
-          body += `<p style="${cardLineStyle}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
+          card += `<p style="${cardLineStyleGrid}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
           if (!hasContentRows) {
             const t = parseFloat(it?.targetQuantity) || 0
             const a = parseFloat(it?.actualQuantity) || 0
             const sharedA = getWorkItemSharedActual(it)
             if (isCollab && mode === 'shared' && (t > 0 || sharedA > 0)) {
-              body += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${sharedA > 0 ? sharedA : 'N/A'}</p>`
+              card += `<p style="${cardLineStyleGrid}">共同: ${t > 0 ? t : 'N/A'}/${sharedA > 0 ? sharedA : 'N/A'}</p>`
             } else if (isCollab && mode === 'separate' && collabs.length > 0) {
               collabs.forEach((c) => {
                 const cn = String(c?.name || '').trim() || '—'
                 const ct = parseFloat(c?.targetQuantity) || 0
                 const ca = parseFloat(c?.actualQuantity) || 0
                 const cr = ct > 0 ? ((ca / ct) * 100).toFixed(1) : ''
-                body += `<p style="margin:2px 0;font-size:13px;">- ${escapeHtml(cn)}：目標 ${ct || 'N/A'} / 實際 ${ca || 'N/A'}${cr ? `（${cr}%）` : ''}</p>`
+                card += `<p style="margin:1px 0;font-size:10px;">- ${escapeHtml(cn)}：${ct || 'N/A'}/${ca || 'N/A'}${cr ? `（${cr}%）` : ''}</p>`
               })
             } else if (!isCollab && (t > 0 || a > 0)) {
-              body += `<p style="${cardLineStyle}">共同: 目標 ${t > 0 ? t : 'N/A'} / 實際 ${a > 0 ? a : 'N/A'}</p>`
+              card += `<p style="${cardLineStyleGrid}">共同: ${t > 0 ? t : 'N/A'}/${a > 0 ? a : 'N/A'}</p>`
             }
           }
-          body += '</div>'
+          card += '</div>'
+          return card
         })
+        const firstThree = cardHtmls.slice(0, 3)
+        const rest = cardHtmls.slice(3)
+        if (firstThree.length > 0) {
+          body += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">${firstThree.join('')}</div>`
+        }
+        if (rest.length > 0) {
+          body += `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">${rest.join('')}</div>`
+        }
       }
     }
     body += '</div>'
