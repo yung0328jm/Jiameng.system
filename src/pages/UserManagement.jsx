@@ -491,12 +491,6 @@ function UserManagement() {
                     角色
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    績效評分
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    平均完成率
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     工作項目
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -519,10 +513,6 @@ function UserManagement() {
               <tbody className="bg-gray-800 divide-y divide-gray-700">
                 {users.map((user) => {
                   const perfData = userPerformanceData[user.account] || {}
-                  const scoreRounded = typeof perfData.performanceScoreRounded === 'number'
-                    ? perfData.performanceScoreRounded
-                    : (typeof perfData.performanceScore === 'number' ? Math.round(perfData.performanceScore) : 100)
-                  const deltaRounded = scoreRounded - 100
                   return (
                     <tr key={user.id} className="hover:bg-gray-750">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
@@ -538,33 +528,6 @@ function UserManagement() {
                             : 'bg-blue-500 text-white'
                         }`}>
                           {user.role === 'admin' ? '管理者' : '普通用戶'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`font-bold ${getPerformanceScoreColor(typeof scoreRounded === 'number' ? scoreRounded : 100)}`}
-                            title={[
-                              `管理者調整：${(perfData.totalAdjustment ?? 0).toFixed ? (perfData.totalAdjustment ?? 0).toFixed(1) : (perfData.totalAdjustment ?? 0)}`,
-                              `達成率調整：${(perfData.completionRateAdjustment ?? 0).toFixed ? (perfData.completionRateAdjustment ?? 0).toFixed(1) : (perfData.completionRateAdjustment ?? 0)}`,
-                              `遲到調整：${(perfData.lateAdjustment ?? 0).toFixed ? (perfData.lateAdjustment ?? 0).toFixed(1) : (perfData.lateAdjustment ?? 0)}`,
-                              `未打卡調整：${(perfData.noClockInAdjustment ?? 0).toFixed ? (perfData.noClockInAdjustment ?? 0).toFixed(1) : (perfData.noClockInAdjustment ?? 0)}`,
-                              `全部調整總和：${(perfData.totalAdjustmentAll ?? 0).toFixed ? (perfData.totalAdjustmentAll ?? 0).toFixed(1) : (perfData.totalAdjustmentAll ?? 0)}`,
-                              `顯示用總分（四捨五入）：${scoreRounded}`
-                            ].join('\n')}
-                          >
-                            {scoreRounded}
-                          </span>
-                          {deltaRounded !== 0 && (
-                            <span className={`text-xs ${deltaRounded >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              ({deltaRounded >= 0 ? '+' : ''}{deltaRounded.toFixed(1)})
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`font-semibold ${getCompletionColor(perfData.averageCompletionRate || 0)}`}>
-                          {perfData.averageCompletionRate ? perfData.averageCompletionRate.toFixed(1) : 0}%
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
