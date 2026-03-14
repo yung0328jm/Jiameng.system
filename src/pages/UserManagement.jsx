@@ -224,6 +224,7 @@ function UserManagement() {
         if (!schedule.workItems || schedule.workItems.length === 0) return
         const logicalItems = expandWorkItemsToLogical(schedule.workItems)
         logicalItems.forEach(item => {
+          if (String(item?.changeRequest?.status || '') === 'pending') return
           const it = normalizeWorkItem(item)
           const collabs = it.isCollaborative
             ? getWorkItemCollaborators(it)
@@ -253,6 +254,44 @@ function UserManagement() {
 
       const averageCompletionRate = itemsWithRate > 0 ? (totalCompletionRate / itemsWithRate) : 0
 
+      // 施工照片未勾選扣分（與個人績效評分一致）
+      const isLeaveSchedule = (s) => {
+        const tag = String(s?.tag || '').trim()
+        const siteName = String(s?.siteName || '').trim()
+        return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
+      }
+      const scheduleDaysWithDocPenalty = new Set()
+      schedules.forEach((schedule) => {
+        if (startDate && schedule.date && schedule.date < startDate) return
+        if (schedule.date && schedule.date > effectiveEndDate) return
+        if (isLeaveSchedule(schedule)) return
+        if (schedule.constructionPhotos === true) return
+        const rawWorkItems = (Array.isArray(schedule.segments) && schedule.segments.length > 0)
+          ? schedule.segments.flatMap((s) => s.workItems || [])
+          : (schedule.workItems || [])
+        if (rawWorkItems.length === 0) {
+          const participantsStr = String(schedule.participants || '').trim()
+          if (!participantsStr) return
+          const participantNames = participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean)
+          if (participantNames.some((p) => displayNames.includes(p))) scheduleDaysWithDocPenalty.add(schedule.date)
+          return
+        }
+        const logicalItemsDoc = expandWorkItemsToLogical(rawWorkItems)
+        let userInGroup = false
+        const participantNames = String(schedule.participants || '').split(',').map((p) => String(p || '').trim()).filter(Boolean)
+        if (participantNames.some((p) => displayNames.includes(p))) userInGroup = true
+        logicalItemsDoc.forEach((item) => {
+          if (String(item?.changeRequest?.status || '') === 'pending') return
+          const it = normalizeWorkItem(item)
+          const collabs = it.isCollaborative
+            ? getWorkItemCollaborators(it)
+            : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
+          if (collabs.some((c) => displayNames.includes(String(c?.name || '').trim()))) userInGroup = true
+        })
+        if (userInGroup) scheduleDaysWithDocPenalty.add(schedule.date)
+      })
+      const scheduleDocAdjustment = -1 * scheduleDaysWithDocPenalty.size
+
       // 計算遲到次數
       const lateRecords = getUserLateRecords(userName, startDate, endDate)
       const lateCount = lateRecords.length
@@ -280,11 +319,11 @@ function UserManagement() {
         if (isNoClockIn) noClockInCount++
       })
 
-      // 將達成率/出勤扣分計入「實際績效」（每條工項依完成率查表加減分後加總）
+      // 將達成率/出勤/施工照片扣分計入「實際績效」（與個人績效評分一致）
       const completionRateAdjustment = totalCompletionRateAdjustment
       const lateAdjustment = lateConfig?.enabled ? calculateLateCountAdjustment(lateCount) : 0
       const noClockInAdjustment = lateConfig?.enabled ? calculateNoClockInAdjustment(noClockInCount) : 0
-      const totalAdjustmentAll = totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment
+      const totalAdjustmentAll = totalAdjustment + completionRateAdjustment + lateAdjustment + noClockInAdjustment + scheduleDocAdjustment
       const performanceScore = 100 + totalAdjustmentAll
       const performanceScoreRounded = Math.round(performanceScore)
 
@@ -292,7 +331,7 @@ function UserManagement() {
         performanceScore,
         performanceScoreRounded,
         totalAdjustment, // 管理者手動加減分
-        totalAdjustmentAll, // 全部調整（含完成率/遲到/未打卡）
+        totalAdjustmentAll, // 全部調整（含完成率/遲到/未打卡/施工照片）
         averageCompletionRate,
         totalWorkItems: totalItems,
         completedItems,
@@ -301,7 +340,8 @@ function UserManagement() {
         noClockInCount,
         completionRateAdjustment,
         lateAdjustment,
-        noClockInAdjustment
+        noClockInAdjustment,
+        scheduleDocAdjustment
       }
     })
 
