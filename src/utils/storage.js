@@ -304,8 +304,9 @@ function getRepaymentEntry(account, yearMonth) {
   if (!byAccount || typeof byAccount !== 'object') return null
   const v = byAccount[yearMonth]
   if (v == null) return null
-  if (typeof v === 'number') return { actual: v, min: undefined, unpaid: undefined }
-  return { actual: v.actual, min: v.min, unpaid: v.unpaid }
+  if (typeof v === 'number') return { actual: v, min: undefined, balanceEnd: undefined }
+  const balanceEnd = v.balanceEnd != null && v.balanceEnd !== '' ? Number(v.balanceEnd) : (v.unpaid != null && v.unpaid !== '' ? Number(v.unpaid) : undefined)
+  return { actual: v.actual, min: v.min, balanceEnd }
 }
 
 /** 取得某帳號某年月的實際還款金額 */
@@ -314,11 +315,11 @@ export function getAdvanceRepayment(account, yearMonth) {
   return e != null ? Math.max(0, Number(e.actual) || 0) : 0
 }
 
-/** 取得某帳號某年月的未清償覆寫值（無則回傳 null，表示用計算值） */
-export function getAdvanceRepaymentUnpaid(account, yearMonth) {
+/** 取得某帳號某年月的本月剩餘（存檔用於隔月顯示為上月剩餘） */
+export function getAdvanceRepaymentBalanceEnd(account, yearMonth) {
   const e = getRepaymentEntry(account, yearMonth)
-  if (e == null || e.unpaid == null || e.unpaid === '') return null
-  return Number(e.unpaid)
+  if (e == null || e.balanceEnd == null) return null
+  return Number(e.balanceEnd)
 }
 
 /** 取得某帳號某年月的最低還款覆寫值（無則回傳 null，表示用本月新增） */
@@ -328,7 +329,7 @@ export function getAdvanceRepaymentMin(account, yearMonth) {
   return Math.max(0, Number(e.min) || 0)
 }
 
-/** 設定某帳號某年月的還款資料（actual, min, unpaid 可省略表示不覆寫） */
+/** 設定某帳號某年月的還款資料；儲存時會寫入 本月剩餘 = 上月剩餘 - 本月實際，供隔月顯示為上月剩餘 */
 export function setAdvanceRepayment(account, yearMonth, payload) {
   try {
     const acc = String(account || '').trim()
@@ -339,8 +340,9 @@ export function setAdvanceRepayment(account, yearMonth, payload) {
     const existing = getRepaymentEntry(acc, ym)
     const actual = payload.actual != null && payload.actual !== '' ? Math.max(0, Number(payload.actual) || 0) : (existing ? Number(existing.actual) || 0 : 0)
     const min = payload.min != null && payload.min !== '' ? Math.max(0, Number(payload.min) || 0) : (existing && existing.min != null ? Number(existing.min) : undefined)
-    const unpaid = payload.unpaid != null && payload.unpaid !== '' ? Number(payload.unpaid) || 0 : (existing && existing.unpaid != null ? Number(existing.unpaid) : undefined)
-    map[acc][ym] = { actual, min, unpaid }
+    const lastMonthUnpaid = getAdvanceRepaymentStats(acc, ym).lastMonthUnpaid
+    const balanceEnd = Math.max(0, lastMonthUnpaid - actual)
+    map[acc][ym] = { actual, min, balanceEnd }
     saveAdvanceRepayments(map)
     return { success: true }
   } catch (e) {
@@ -356,14 +358,14 @@ function prevYearMonth(ymKey) {
   return `${y}-${String(m - 1).padStart(2, '0')}`
 }
 
-/** 計算某帳號某年月的：上月剩餘、本月新增、本月最低還款、本月實際還款、未清償金額（含覆寫） */
+/** 計算某帳號某年月的：上月剩餘、本月新增、本月最低還款、本月實際還款、本月剩餘（本月剩餘 = 上月剩餘 - 本月實際，隔月後本月剩餘變上月剩餘） */
 export function getAdvanceRepaymentStats(account, yearMonth) {
   const acc = String(account || '').trim()
   const ym = String(yearMonth || '').trim()
   const monthlyAdded = getMonthlyTransferredByAccount(acc)
   const getAdded = (y) => Number(monthlyAdded[y] || 0)
   const getRepay = (y) => getAdvanceRepayment(acc, y)
-  const getStoredUnpaid = (y) => getAdvanceRepaymentUnpaid(acc, y)
+  const getBalanceEnd = (y) => getAdvanceRepaymentBalanceEnd(acc, y)
   const getStoredMin = (y) => getAdvanceRepaymentMin(acc, y)
 
   const prevYm = prevYearMonth(ym)
@@ -374,26 +376,26 @@ export function getAdvanceRepaymentStats(account, yearMonth) {
   allMonths.add(ym)
   const sorted = [...allMonths].filter((m) => m.length === 7).sort()
 
-  let unpaid = 0
+  let balanceEnd = 0
   let lastMonthUnpaid = 0
   for (const m of sorted) {
-    const stored = getStoredUnpaid(m)
-    unpaid = stored != null ? stored : unpaid + getAdded(m) - getRepay(m)
-    if (m === prevYm) lastMonthUnpaid = unpaid
+    const stored = getBalanceEnd(m)
+    const actual = getRepay(m)
+    balanceEnd = stored != null ? stored : Math.max(0, balanceEnd - actual)
+    if (m === prevYm) lastMonthUnpaid = balanceEnd
   }
 
   const monthAdded = getAdded(ym)
   const minStored = getStoredMin(ym)
   const minRepayment = minStored != null ? minStored : monthAdded
   const actualRepayment = getRepay(ym)
-  const unpaidStored = getStoredUnpaid(ym)
-  const unpaidNow = unpaidStored != null ? unpaidStored : lastMonthUnpaid + monthAdded - actualRepayment
+  const monthRemaining = Math.max(0, lastMonthUnpaid - actualRepayment)
 
   return {
     lastMonthUnpaid,
     monthAdded,
     minRepayment,
     actualRepayment,
-    unpaid: unpaidNow
+    monthRemaining
   }
 }
