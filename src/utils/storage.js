@@ -2,6 +2,7 @@
 import { syncKeyToSupabase } from './supabaseSync'
 const STORAGE_KEY = 'jiameng_users'
 const ADVANCE_KEY = 'jiameng_advances'
+const ADVANCE_REPAYMENTS_KEY = 'jiameng_advance_repayments'
 
 /** 寫入本地並同步到 Supabase；回傳 sync 的 Promise，呼叫方可 await 以確保刷新前已寫入雲端 */
 const setUsersAndSync = (users) => {
@@ -275,4 +276,93 @@ export function getMonthlyTransferredByAccount(account) {
       if (dateStr) byMonth[dateStr] = (byMonth[dateStr] || 0) + (Number(r.amount) || 0)
     })
   return byMonth
+}
+
+// ---------- 預支還款紀錄（本月實際還款，依帳號與年月） ----------
+function getAdvanceRepaymentsRaw() {
+  try {
+    const raw = localStorage.getItem(ADVANCE_REPAYMENTS_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch (e) {
+    return {}
+  }
+}
+function saveAdvanceRepayments(data) {
+  try {
+    const val = JSON.stringify(typeof data === 'object' && data !== null ? data : {})
+    localStorage.setItem(ADVANCE_REPAYMENTS_KEY, val)
+    syncKeyToSupabase(ADVANCE_REPAYMENTS_KEY, val)
+  } catch (e) {}
+}
+
+/** 取得某帳號某年月的實際還款金額 */
+export function getAdvanceRepayment(account, yearMonth) {
+  const acc = String(account || '').trim()
+  if (!acc) return 0
+  const map = getAdvanceRepaymentsRaw()
+  const byAccount = map[acc]
+  if (!byAccount || typeof byAccount !== 'object') return 0
+  return Math.max(0, Number(byAccount[yearMonth]) || 0)
+}
+
+/** 設定某帳號某年月的實際還款金額（管理員用） */
+export function setAdvanceRepayment(account, yearMonth, amount) {
+  try {
+    const acc = String(account || '').trim()
+    const ym = String(yearMonth || '').trim()
+    if (!acc || !ym) return { success: false, message: '帳號與年月必填' }
+    const map = getAdvanceRepaymentsRaw()
+    if (!map[acc]) map[acc] = {}
+    map[acc][ym] = Math.max(0, Number(amount) || 0)
+    saveAdvanceRepayments(map)
+    return { success: true }
+  } catch (e) {
+    return { success: false, message: '儲存失敗' }
+  }
+}
+
+function prevYearMonth(ymKey) {
+  if (!ymKey || ymKey.length < 7) return ''
+  const y = ymKey.slice(0, 4)
+  const m = parseInt(ymKey.slice(5), 10)
+  if (m <= 1) return `${Number(y) - 1}-12`
+  return `${y}-${String(m - 1).padStart(2, '0')}`
+}
+
+/** 計算某帳號某年月的：上月剩餘、本月新增、本月最低還款、本月實際還款、未清償金額 */
+export function getAdvanceRepaymentStats(account, yearMonth) {
+  const acc = String(account || '').trim()
+  const ym = String(yearMonth || '').trim()
+  const monthlyAdded = getMonthlyTransferredByAccount(acc)
+  const getAdded = (y) => Number(monthlyAdded[y] || 0)
+  const getRepay = (y) => getAdvanceRepayment(acc, y)
+
+  const prevYm = prevYearMonth(ym)
+  const allMonths = new Set(Object.keys(monthlyAdded || {}))
+  const repayMap = getAdvanceRepaymentsRaw()[acc]
+  if (repayMap && typeof repayMap === 'object') Object.keys(repayMap).forEach((m) => allMonths.add(m))
+  if (prevYm) allMonths.add(prevYm)
+  allMonths.add(ym)
+  const sorted = [...allMonths].filter((m) => m.length === 7).sort()
+
+  let unpaid = 0
+  let lastMonthUnpaid = 0
+  for (const m of sorted) {
+    unpaid = unpaid + getAdded(m) - getRepay(m)
+    if (m === prevYm) lastMonthUnpaid = unpaid
+  }
+
+  const monthAdded = getAdded(ym)
+  const minRepayment = monthAdded
+  const actualRepayment = getRepay(ym)
+  const unpaidNow = lastMonthUnpaid + monthAdded - actualRepayment
+
+  return {
+    lastMonthUnpaid,
+    monthAdded,
+    minRepayment,
+    actualRepayment,
+    unpaid: unpaidNow
+  }
 }
