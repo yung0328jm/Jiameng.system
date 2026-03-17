@@ -94,6 +94,22 @@ body {
   animation: light-blink 1.5s ease-in-out infinite;
 }
 
+/* 預支說明文字：明顯閃爍提醒 */
+@keyframes advance-notice-blink {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1.1);
+  }
+  50% {
+    opacity: 0.65;
+    filter: brightness(0.9);
+  }
+}
+
+.animate-advance-notice-blink {
+  animation: advance-notice-blink 1.4s ease-in-out infinite;
+}
+
 /* 行程回報按鈕：點擊時火焰閃光 */
 @keyframes trip-report-flame-burst {
   0% {
