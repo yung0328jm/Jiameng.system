@@ -296,9 +296,11 @@ function Advance() {
             <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4">
               <div className="text-gray-400 text-sm mb-3">還款與未清償（{currentYm}）</div>
               <ul className="space-y-2 text-white">
+                <li className="flex justify-between"><span className="text-gray-300">上月剩餘</span><span className="text-yellow-400 font-medium">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</span></li>
                 <li className="flex justify-between"><span className="text-gray-300">本月新增</span><span className="text-yellow-400 font-medium">{Number(stats.monthAdded).toLocaleString()} 元</span></li>
                 <li className="flex justify-between"><span className="text-gray-300">本月最低還款</span><span className="text-yellow-400 font-medium">{Number(stats.minRepayment).toLocaleString()} 元</span></li>
                 <li className="flex justify-between"><span className="text-gray-300">本月實際還款</span><span className="text-green-400 font-medium">{Number(stats.actualRepayment).toLocaleString()} 元</span></li>
+                <li className="flex justify-between border-t border-gray-600 pt-2 mt-2"><span className="text-white font-medium">本月剩餘</span><span className="text-amber-300 font-bold">{Number(stats.monthRemaining).toLocaleString()} 元</span></li>
               </ul>
             </div>
             {monthlyEntries.length > 0 && (
@@ -404,7 +406,7 @@ function Advance() {
           </section>
           <section className="mb-8">
             <h3 className="text-lg font-semibold text-white mb-3">設定還款與未清償</h3>
-            <p className="text-gray-400 text-sm mb-3">點選成員與年月後可檢視並編輯該員本月新增、本月最低、本月實際還款。</p>
+            <p className="text-gray-400 text-sm mb-3">點選成員與年月後可檢視並編輯。本月剩餘 = 上月剩餘 - 本月實際還款，隔月後本月剩餘會顯示為上月剩餘。</p>
             <form onSubmit={handleRepaymentSubmit} className="space-y-4 max-w-md">
               <div>
                 <label className="block text-gray-300 text-sm mb-1">選擇成員</label>
@@ -436,6 +438,10 @@ function Advance() {
                   <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-3">
                     <div className="text-yellow-400 font-medium mb-2">{getMemberDisplayName(repayAccount)} · {repayYearMonth}</div>
                     <div className="flex justify-between text-white">
+                      <span className="text-gray-400">上月剩餘</span>
+                      <span className="font-medium">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</span>
+                    </div>
+                    <div className="flex justify-between text-white">
                       <span className="text-gray-400">本月新增</span>
                       <span className="font-medium">{Number(stats.monthAdded).toLocaleString()} 元</span>
                     </div>
@@ -458,6 +464,10 @@ function Advance() {
                         onChange={(e) => setRepayAmount(e.target.value)}
                         className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
                       />
+                    </div>
+                    <div className="flex justify-between text-white border-t border-gray-600 pt-2 mt-2">
+                      <span className="font-medium">本月剩餘</span>
+                      <span className="text-amber-300 font-bold">{Number(stats.monthRemaining).toLocaleString()} 元</span>
                     </div>
                   </div>
                 )
