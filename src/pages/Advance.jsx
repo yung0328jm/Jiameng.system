@@ -12,7 +12,9 @@ import {
   rejectAdvance,
   markTransferred,
   getTotalTransferredByAccount,
-  getMonthlyTransferredByAccount
+  getMonthlyTransferredByAccount,
+  getAdvanceRepaymentStats,
+  setAdvanceRepayment
 } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
@@ -71,6 +73,13 @@ function Advance() {
   const [manualPaymentMethod, setManualPaymentMethod] = useState('transfer')
   const [manualMessage, setManualMessage] = useState(null)
   const [filterByAccount, setFilterByAccount] = useState(null)
+  const [repayAccount, setRepayAccount] = useState('')
+  const [repayYearMonth, setRepayYearMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [repayAmount, setRepayAmount] = useState('')
+  const [repayMessage, setRepayMessage] = useState(null)
 
   const loadData = () => {
     if (currentUser) {
@@ -82,7 +91,7 @@ function Advance() {
     }
   }
 
-  useRealtimeKeys(['jiameng_advances'], loadData)
+  useRealtimeKeys(['jiameng_advances', 'jiameng_advance_repayments'], loadData)
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -137,6 +146,30 @@ function Advance() {
       loadData()
     } else {
       alert(result.message || '操作失敗')
+    }
+  }
+
+  const handleRepaymentSubmit = (e) => {
+    e.preventDefault()
+    setRepayMessage(null)
+    const account = String(repayAccount || '').trim()
+    if (!account) {
+      setRepayMessage({ type: 'error', text: '請選擇成員' })
+      return
+    }
+    const ym = String(repayYearMonth || '').trim()
+    if (!ym) {
+      setRepayMessage({ type: 'error', text: '請選擇年月' })
+      return
+    }
+    const amount = Math.max(0, Number(repayAmount) || 0)
+    const result = setAdvanceRepayment(account, ym, amount)
+    if (result.success) {
+      setRepayAmount('')
+      setRepayMessage({ type: 'success', text: '已儲存本月實際還款' })
+      loadData()
+    } else {
+      setRepayMessage({ type: 'error', text: result.message || '儲存失敗' })
     }
   }
 
@@ -236,7 +269,11 @@ function Advance() {
       )}
 
       {/* 使用者：我的申請紀錄 + 借支總額與每月統計 */}
-      {currentUser && userRole !== 'admin' && (
+      {currentUser && userRole !== 'admin' && (() => {
+            const now = new Date()
+            const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+            const stats = getAdvanceRepaymentStats(currentUser, currentYm)
+            return (
         <>
           <section className="mb-6">
             <h3 className="text-lg font-semibold text-white mb-2">借支總額與每月統計</h3>
@@ -245,6 +282,16 @@ function Advance() {
               <div className="text-yellow-400 text-2xl font-bold">
                 {Number(totalTransferred).toLocaleString()} 元
               </div>
+            </div>
+            <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4">
+              <div className="text-gray-400 text-sm mb-3">還款與未清償（{currentYm}）</div>
+              <ul className="space-y-2 text-white">
+                <li className="flex justify-between"><span className="text-gray-300">上月剩餘</span><span className="text-yellow-400 font-medium">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</span></li>
+                <li className="flex justify-between"><span className="text-gray-300">本月新增</span><span className="text-yellow-400 font-medium">{Number(stats.monthAdded).toLocaleString()} 元</span></li>
+                <li className="flex justify-between"><span className="text-gray-300">本月最低還款</span><span className="text-yellow-400 font-medium">{Number(stats.minRepayment).toLocaleString()} 元</span></li>
+                <li className="flex justify-between"><span className="text-gray-300">本月實際還款</span><span className="text-green-400 font-medium">{Number(stats.actualRepayment).toLocaleString()} 元</span></li>
+                <li className="flex justify-between border-t border-gray-600 pt-2 mt-2"><span className="text-white font-medium">未清償金額</span><span className="text-amber-300 font-bold">{Number(stats.unpaid).toLocaleString()} 元</span></li>
+              </ul>
             </div>
             {monthlyEntries.length > 0 && (
               <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
@@ -300,7 +347,8 @@ function Advance() {
             )}
           </section>
         </>
-      )}
+            )
+          })()}
 
       {/* 管理員：待審清單 + 全部紀錄 */}
       {userRole === 'admin' && (
@@ -345,6 +393,56 @@ function Advance() {
                 })}
               </ul>
             )}
+          </section>
+          <section className="mb-8">
+            <h3 className="text-lg font-semibold text-white mb-3">設定還款（本月實際還款）</h3>
+            <p className="text-gray-400 text-sm mb-3">登錄成員於某年月的實際還款金額（領薪日扣除），用於計算未清償金額。</p>
+            <form onSubmit={handleRepaymentSubmit} className="space-y-4 max-w-md mb-6">
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">選擇成員</label>
+                <select
+                  value={repayAccount}
+                  onChange={(e) => setRepayAccount(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                >
+                  <option value="">請選擇成員</option>
+                  {getAllMembers().map((m) => (
+                    <option key={m.account} value={m.account}>
+                      {m.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">年月</label>
+                <input
+                  type="month"
+                  value={repayYearMonth}
+                  onChange={(e) => setRepayYearMonth(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">本月實際還款（元）</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={repayAmount}
+                  onChange={(e) => setRepayAmount(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                  placeholder="0"
+                />
+              </div>
+              {repayMessage && (
+                <p className={repayMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}>{repayMessage.text}</p>
+              )}
+              <button
+                type="submit"
+                className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-white font-medium"
+              >
+                儲存還款
+              </button>
+            </form>
           </section>
           <section className="mb-8">
             <h3 className="text-lg font-semibold text-white mb-3">手動新增預支紀錄</h3>
