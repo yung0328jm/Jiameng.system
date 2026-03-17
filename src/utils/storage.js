@@ -197,6 +197,33 @@ export function addAdvance({ account, amount, reason }) {
     return { success: false, message: '儲存失敗' }
   }
 }
+
+/** 管理員手動新增預支紀錄（非 APP 申請，如現金等），直接為已付款狀態並可選付款方式 */
+export function addManualAdvance({ account, amount, reason, paymentMethod }) {
+  try {
+    const list = getAdvanceList()
+    const id = `adv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    const now = new Date().toISOString()
+    const method = (paymentMethod === 'cash' || paymentMethod === 'transfer') ? paymentMethod : 'transfer'
+    const rec = {
+      id,
+      account: String(account || '').trim(),
+      amount: Math.max(0, Number(amount) || 0),
+      reason: String(reason || '').trim(),
+      status: 'transferred',
+      paymentMethod: method,
+      createdAt: now,
+      reviewedBy: '',
+      reviewedAt: now,
+      transferredAt: now
+    }
+    list.push(rec)
+    saveAdvanceList(list)
+    return { success: true, id, record: rec }
+  } catch (e) {
+    return { success: false, message: '儲存失敗' }
+  }
+}
 export function rejectAdvance(id, reviewedBy = '') {
   try {
     const list = getAdvanceList()
