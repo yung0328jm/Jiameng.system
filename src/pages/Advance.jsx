@@ -291,9 +291,9 @@ function Advance() {
           <section className="mb-6">
             <h3 className="text-lg font-semibold text-white mb-2">借支總額與每月統計</h3>
             <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4">
-              <div className="text-gray-400 text-sm">累計已匯款借支總額</div>
+              <div className="text-gray-400 text-sm">目前未清償金額（與下方還款與未清償一致）</div>
               <div className="text-yellow-400 text-2xl font-bold">
-                {Number(totalTransferred).toLocaleString()} 元
+                {Number(stats.unpaid).toLocaleString()} 元
               </div>
             </div>
             <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4">
