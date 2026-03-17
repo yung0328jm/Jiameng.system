@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import {
+  getUsers,
   getAllAdvances,
   getAdvancesByAccount,
   getPendingAdvances,
   addAdvance,
+  addManualAdvance,
   rejectAdvance,
   markTransferred,
   getTotalTransferredByAccount,
@@ -19,6 +21,8 @@ const STATUS_LABEL = {
   rejected: '已駁回'
 }
 
+const PAYMENT_LABEL = { cash: '已付現', transfer: '已匯款' }
+
 function Advance() {
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
@@ -28,6 +32,11 @@ function Advance() {
   const [myList, setMyList] = useState([])
   const [pendingList, setPendingList] = useState([])
   const [allList, setAllList] = useState([])
+  const [manualAccount, setManualAccount] = useState('')
+  const [manualAmount, setManualAmount] = useState('')
+  const [manualReason, setManualReason] = useState('')
+  const [manualPaymentMethod, setManualPaymentMethod] = useState('transfer')
+  const [manualMessage, setManualMessage] = useState(null)
 
   const loadData = () => {
     if (currentUser) {
@@ -94,6 +103,42 @@ function Advance() {
       loadData()
     } else {
       alert(result.message || '操作失敗')
+    }
+  }
+
+  const handleManualSubmit = (e) => {
+    e.preventDefault()
+    setManualMessage(null)
+    const account = String(manualAccount || '').trim()
+    if (!account) {
+      setManualMessage({ type: 'error', text: '請選擇成員' })
+      return
+    }
+    const amt = Math.max(0, Number(manualAmount) || 0)
+    if (amt <= 0) {
+      setManualMessage({ type: 'error', text: '請輸入有效借支金額' })
+      return
+    }
+    const reason = String(manualReason || '').trim()
+    if (!reason) {
+      setManualMessage({ type: 'error', text: '請填寫事由' })
+      return
+    }
+    const result = addManualAdvance({
+      account,
+      amount: amt,
+      reason,
+      paymentMethod: manualPaymentMethod
+    })
+    if (result.success) {
+      setManualAccount('')
+      setManualAmount('')
+      setManualReason('')
+      setManualPaymentMethod('transfer')
+      setManualMessage({ type: 'success', text: '已新增預支紀錄' })
+      loadData()
+    } else {
+      setManualMessage({ type: 'error', text: result.message || '新增失敗' })
     }
   }
 
@@ -206,7 +251,9 @@ function Advance() {
                             : 'bg-gray-600 text-gray-300'
                       }`}
                     >
-                      {STATUS_LABEL[r.status] || r.status}
+                      {r.status === 'transferred'
+                        ? (PAYMENT_LABEL[r.paymentMethod] || '已匯款')
+                        : (STATUS_LABEL[r.status] || r.status)}
                     </span>
                   </li>
                 ))}
@@ -260,6 +307,68 @@ function Advance() {
               </ul>
             )}
           </section>
+          <section className="mb-8">
+            <h3 className="text-lg font-semibold text-white mb-3">手動新增預支紀錄</h3>
+            <p className="text-gray-400 text-sm mb-3">用於記錄非 APP 申請的預支（例如現場拿現金），可選擇付款方式。</p>
+            <form onSubmit={handleManualSubmit} className="space-y-4 max-w-md">
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">選擇成員</label>
+                <select
+                  value={manualAccount}
+                  onChange={(e) => setManualAccount(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                >
+                  <option value="">請選擇成員</option>
+                  {(getUsers() || []).map((u) => (
+                    <option key={u.account} value={u.account}>
+                      {getDisplayNameForAccount(u.account) || u.account}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">借支金額</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={manualAmount}
+                  onChange={(e) => setManualAmount(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                  placeholder="請輸入金額"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">事由</label>
+                <input
+                  type="text"
+                  value={manualReason}
+                  onChange={(e) => setManualReason(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                  placeholder="請填寫事由"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">付款方式</label>
+                <select
+                  value={manualPaymentMethod}
+                  onChange={(e) => setManualPaymentMethod(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                >
+                  <option value="transfer">匯款</option>
+                  <option value="cash">現金</option>
+                </select>
+              </div>
+              {manualMessage && (
+                <p className={manualMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}>{manualMessage.text}</p>
+              )}
+              <button
+                type="submit"
+                className="px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-medium"
+              >
+                新增預支紀錄
+              </button>
+            </form>
+          </section>
           <section>
             <h3 className="text-lg font-semibold text-white mb-3">全部預支紀錄</h3>
             {allList.length === 0 ? (
@@ -283,7 +392,9 @@ function Advance() {
                           r.status === 'pending' ? 'bg-yellow-600' : r.status === 'transferred' ? 'bg-green-600' : 'bg-gray-600'
                         } text-white`}
                       >
-                        {STATUS_LABEL[r.status] || r.status}
+                        {r.status === 'transferred'
+                          ? (PAYMENT_LABEL[r.paymentMethod] || '已匯款')
+                          : (STATUS_LABEL[r.status] || r.status)}
                       </span>
                     </li>
                   )
