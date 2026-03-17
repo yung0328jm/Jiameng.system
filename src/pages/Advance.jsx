@@ -220,12 +220,15 @@ function Advance() {
             {message && (
               <p className={message.type === 'success' ? 'text-green-400' : 'text-red-400'}>{message.text}</p>
             )}
-            <button
-              type="submit"
-              className="px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-medium"
-            >
-              送出申請
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                className="px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-medium"
+              >
+                送出申請
+              </button>
+              <span className="text-gray-400 text-sm">該月份預支於下月領薪一次還清，不得分期。</span>
+            </div>
           </form>
         </section>
       )}
