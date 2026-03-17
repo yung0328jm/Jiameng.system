@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
+import { getDropdownOptionsByCategory } from '../utils/dropdownStorage'
 import {
   getUsers,
   getAllAdvances,
@@ -22,6 +23,38 @@ const STATUS_LABEL = {
 }
 
 const PAYMENT_LABEL = { cash: '已付現', transfer: '已匯款' }
+
+/** 取得所有成員：參與人員 + 負責人選單（去重）+ 登入帳號中尚未出現在選單者 */
+function getAllMembers() {
+  const seen = new Set()
+  const list = []
+  const add = (account, displayName) => {
+    const key = String(account || '').trim()
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    list.push({ account: key, displayName: displayName || key })
+  }
+  const participants = getDropdownOptionsByCategory('participants') || []
+  const responsible = getDropdownOptionsByCategory('responsible_persons') || []
+  ;[...participants, ...responsible].forEach((opt) => {
+    const name = (opt.value || '').trim()
+    if (!name) return
+    if (opt.boundAccount) add(opt.boundAccount.trim(), name)
+    else add('name:' + name, name)
+  })
+  ;(getUsers() || []).forEach((u) => {
+    const acc = (u?.account || '').trim()
+    if (acc) add(acc, getDisplayNameForAccount(acc) || acc)
+  })
+  return list.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
+}
+
+function getMemberDisplayName(account) {
+  if (!account) return ''
+  const s = String(account).trim()
+  if (s.startsWith('name:')) return s.slice(5)
+  return getDisplayNameForAccount(s) || s
+}
 
 function Advance() {
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
@@ -273,14 +306,14 @@ function Advance() {
             ) : (
               <ul className="space-y-3">
                 {pendingList.map((r) => {
-                  const name = getDisplayNameForAccount(r.account) || r.account
+                  const name = getMemberDisplayName(r.account)
                   return (
                     <li
                       key={r.id}
                       className="bg-gray-800 border border-gray-600 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3"
                     >
                       <div>
-                        <div className="text-white font-medium">{name}（{r.account}）</div>
+                        <div className="text-white font-medium">{name}{!String(r.account || '').startsWith('name:') ? `（${r.account}）` : ''}</div>
                         <div className="text-yellow-400">{Number(r.amount || 0).toLocaleString()} 元</div>
                         <div className="text-gray-400 text-sm">{r.reason || '-'}</div>
                         <div className="text-gray-500 text-xs mt-1">申請時間：{formatDate(r.createdAt)}</div>
@@ -319,9 +352,9 @@ function Advance() {
                   className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
                 >
                   <option value="">請選擇成員</option>
-                  {(getUsers() || []).map((u) => (
-                    <option key={u.account} value={u.account}>
-                      {getDisplayNameForAccount(u.account) || u.account}
+                  {getAllMembers().map((m) => (
+                    <option key={m.account} value={m.account}>
+                      {m.displayName}
                     </option>
                   ))}
                 </select>
@@ -376,7 +409,7 @@ function Advance() {
             ) : (
               <ul className="space-y-2">
                 {[...allList].sort((a, b) => (new Date(b.createdAt || 0)).getTime() - (new Date(a.createdAt || 0)).getTime()).map((r) => {
-                  const name = getDisplayNameForAccount(r.account) || r.account
+                  const name = getMemberDisplayName(r.account)
                   return (
                     <li
                       key={r.id}
