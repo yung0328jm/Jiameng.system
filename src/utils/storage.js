@@ -341,6 +341,17 @@ export function setAdvanceRepayment(account, yearMonth, payload) {
     const min = payload.min != null && payload.min !== '' ? Math.max(0, Number(payload.min) || 0) : (existing && existing.min != null ? Number(existing.min) : undefined)
     const unpaid = payload.unpaid != null && payload.unpaid !== '' ? Number(payload.unpaid) || 0 : (existing && existing.unpaid != null ? Number(existing.unpaid) : undefined)
     map[acc][ym] = { actual, min, unpaid }
+    // 同步上月剩餘：使 上月剩餘(ym) = 未清償(ym) - 本月新增(ym) + 本月實際(ym)，公式一致
+    if (unpaid != null && prevYearMonth(ym)) {
+      const prevYm = prevYearMonth(ym)
+      const monthAdded = Number(getMonthlyTransferredByAccount(acc)[ym] || 0)
+      const prevUnpaid = unpaid - monthAdded + actual
+      const prevEntry = getRepaymentEntry(acc, prevYm)
+      const prevActual = prevEntry != null ? Math.max(0, Number(prevEntry.actual) || 0) : 0
+      const prevMin = prevEntry && prevEntry.min != null ? prevEntry.min : undefined
+      if (!map[acc][prevYm]) map[acc][prevYm] = { actual: prevActual, min: prevMin, unpaid: undefined }
+      map[acc][prevYm] = { ...map[acc][prevYm], unpaid: Math.max(0, Math.round(prevUnpaid)) }
+    }
     saveAdvanceRepayments(map)
     return { success: true }
   } catch (e) {
