@@ -228,7 +228,7 @@ function Advance() {
                 送出申請
               </button>
               <span className="text-amber-300 text-base sm:text-lg font-medium animate-advance-notice-blink">
-                該月份預支於下月領薪一次還清，不得分期。
+                還款金額需大於該月預支總額，並於領薪日扣除。
               </span>
             </div>
           </form>
