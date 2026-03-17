@@ -227,7 +227,9 @@ function Advance() {
               >
                 送出申請
               </button>
-              <span className="text-gray-400 text-sm">該月份預支於下月領薪一次還清，不得分期。</span>
+              <span className="text-amber-300 text-base sm:text-lg font-medium animate-advance-notice-blink">
+                該月份預支於下月領薪一次還清，不得分期。
+              </span>
             </div>
           </form>
         </section>
