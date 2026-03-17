@@ -70,6 +70,7 @@ function Advance() {
   const [manualReason, setManualReason] = useState('')
   const [manualPaymentMethod, setManualPaymentMethod] = useState('transfer')
   const [manualMessage, setManualMessage] = useState(null)
+  const [filterByAccount, setFilterByAccount] = useState(null)
 
   const loadData = () => {
     if (currentUser) {
@@ -404,11 +405,28 @@ function Advance() {
           </section>
           <section>
             <h3 className="text-lg font-semibold text-white mb-3">全部預支紀錄</h3>
+            {filterByAccount && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="text-gray-400 text-sm">
+                  正在顯示：<span className="text-yellow-400 font-medium">{getMemberDisplayName(filterByAccount)}</span> 的預支紀錄
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFilterByAccount(null)}
+                  className="px-2 py-1 text-sm rounded bg-gray-600 hover:bg-gray-500 text-white"
+                >
+                  顯示全部
+                </button>
+              </div>
+            )}
             {allList.length === 0 ? (
               <p className="text-gray-400">尚無預支紀錄</p>
             ) : (
               <ul className="space-y-2">
-                {[...allList].sort((a, b) => (new Date(b.createdAt || 0)).getTime() - (new Date(a.createdAt || 0)).getTime()).map((r) => {
+                {[...allList]
+                  .filter((r) => !filterByAccount || String(r.account || '').trim() === String(filterByAccount).trim())
+                  .sort((a, b) => (new Date(b.createdAt || 0)).getTime() - (new Date(a.createdAt || 0)).getTime())
+                  .map((r) => {
                   const name = getMemberDisplayName(r.account)
                   return (
                     <li
@@ -416,7 +434,16 @@ function Advance() {
                       className="bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-2"
                     >
                       <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-white">{name} · {Number(r.amount || 0).toLocaleString()} 元</span>
+                        <span className="text-white">
+                          <button
+                            type="button"
+                            onClick={() => setFilterByAccount(r.account)}
+                            className="hover:text-yellow-400 hover:underline focus:outline-none focus:underline text-inherit"
+                          >
+                            {name}
+                          </button>
+                          <span> · {Number(r.amount || 0).toLocaleString()} 元</span>
+                        </span>
                         <span className="text-gray-400 text-sm">{formatDate(r.createdAt)}</span>
                         {r.reason && <span className="text-gray-300 text-sm">原因：{r.reason}</span>}
                       </div>
