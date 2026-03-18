@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getCompanyActivitiesForDisplay, getCompanyActivities, addCompanyActivity, updateCompanyActivity, deleteCompanyActivity, approveCompanyActivity, rejectCompanyActivity, signUpForActivity, cancelSignUp, getPendingActivitiesCount } from '../utils/companyActivityStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
+import { getDisplayNameForAccount } from '../utils/displayName'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function CompanyActivities() {
@@ -556,7 +557,7 @@ function CompanyActivities() {
                   {(viewingActivity.signups || []).map((s, i) => (
                     <li key={i} className="flex items-center justify-between py-2 px-3 bg-gray-700/50 rounded-lg">
                       <span className="text-white">
-                        {s.username}
+                        {getDisplayNameForAccount(s.username) || s.username}
                         {s.includeFamily && (
                           <span className="text-yellow-400 text-sm ml-2">
                             ＋眷屬{s.familyCount > 0 ? ` ${s.familyCount} 人` : ''}
