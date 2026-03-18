@@ -80,6 +80,7 @@ function Advance() {
   })
   const [repayAmount, setRepayAmount] = useState('')
   const [repayMin, setRepayMin] = useState('')
+  const [repayLastMonth, setRepayLastMonth] = useState('')
   const [repayMessage, setRepayMessage] = useState(null)
 
   const loadData = () => {
@@ -99,6 +100,7 @@ function Advance() {
       const stats = getAdvanceRepaymentStats(repayAccount, repayYearMonth)
       setRepayAmount(String(stats.actualRepayment))
       setRepayMin(String(stats.minRepayment))
+      setRepayLastMonth(String(stats.lastMonthUnpaid))
     }
   }, [repayAccount, repayYearMonth])
 
@@ -173,7 +175,8 @@ function Advance() {
     }
     const result = setAdvanceRepayment(account, ym, {
       actual: repayAmount,
-      min: repayMin
+      min: repayMin,
+      lastMonthUnpaid: repayLastMonth
     })
     if (result.success) {
       setRepayMessage({ type: 'success', text: '已儲存還款' })
@@ -437,9 +440,15 @@ function Advance() {
                 return (
                   <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-3">
                     <div className="text-yellow-400 font-medium mb-2">{getMemberDisplayName(repayAccount)} · {repayYearMonth}</div>
-                    <div className="flex justify-between text-white">
-                      <span className="text-gray-400">上月剩餘</span>
-                      <span className="font-medium">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</span>
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">上月剩餘（可編輯）</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={repayLastMonth}
+                        onChange={(e) => setRepayLastMonth(e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                      />
                     </div>
                     <div className="flex justify-between text-white">
                       <span className="text-gray-400">本月新增</span>
@@ -467,7 +476,7 @@ function Advance() {
                     </div>
                     <div className="flex justify-between text-white border-t border-gray-600 pt-2 mt-2">
                       <span className="font-medium">本月剩餘</span>
-                      <span className="text-amber-300 font-bold">{Number(stats.monthRemaining).toLocaleString()} 元</span>
+                      <span className="text-amber-300 font-bold">{Math.max(0, (Number(repayLastMonth) || 0) - (Number(repayAmount) || 0)).toLocaleString()} 元</span>
                     </div>
                   </div>
                 )
