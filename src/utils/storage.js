@@ -340,7 +340,17 @@ export function setAdvanceRepayment(account, yearMonth, payload) {
     const existing = getRepaymentEntry(acc, ym)
     const actual = payload.actual != null && payload.actual !== '' ? Math.max(0, Number(payload.actual) || 0) : (existing ? Number(existing.actual) || 0 : 0)
     const min = payload.min != null && payload.min !== '' ? Math.max(0, Number(payload.min) || 0) : (existing && existing.min != null ? Number(existing.min) : undefined)
-    const lastMonthUnpaid = getAdvanceRepaymentStats(acc, ym).lastMonthUnpaid
+    
+    // 如果有指定上月剩餘，則存到上個月的 balanceEnd
+    const prevYm = prevYearMonth(ym)
+    if (payload.lastMonthUnpaid != null && payload.lastMonthUnpaid !== '' && prevYm) {
+      const prevEntry = getRepaymentEntry(acc, prevYm)
+      const prevActual = prevEntry ? Number(prevEntry.actual) || 0 : 0
+      const prevMin = prevEntry && prevEntry.min != null ? prevEntry.min : undefined
+      map[acc][prevYm] = { actual: prevActual, min: prevMin, balanceEnd: Math.max(0, Number(payload.lastMonthUnpaid) || 0) }
+    }
+    
+    const lastMonthUnpaid = payload.lastMonthUnpaid != null && payload.lastMonthUnpaid !== '' ? Math.max(0, Number(payload.lastMonthUnpaid) || 0) : getAdvanceRepaymentStats(acc, ym).lastMonthUnpaid
     const balanceEnd = Math.max(0, lastMonthUnpaid - actual)
     map[acc][ym] = { actual, min, balanceEnd }
     saveAdvanceRepayments(map)
