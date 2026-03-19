@@ -606,7 +606,8 @@ function PersonalPerformance() {
     allOvertime.forEach((oa) => {
       const status = String(oa.status || 'approved').trim()
       if (status !== 'approved') return
-      const dateStr = String(oa.date || '').trim()
+      // 兼容歷史資料：有些加班日期可能是 YYYY/MM/DD（用字串比較會壞掉），統一轉成 YYYY-MM-DD
+      const dateStr = String(oa.date || '').trim().replace(/\//g, '-')
       if (!dateStr || dateStr < startDate || dateStr > effectiveEndDate) return
       const isApplicant = namesToMatch.some((n) => String(oa.applicant || '').trim() === n)
       const isInPersonnel = Array.isArray(oa.overtimePersonnel) && oa.overtimePersonnel.some((p) => namesToMatch.some((n) => String(p).trim() === n))
@@ -698,6 +699,44 @@ function PersonalPerformance() {
       return
     }
     
+    // 施工照片未勾選扣分：與個人績效評分一致，該用戶在範圍內被扣分的日期集合
+    const isLeaveSchedule = (s) => {
+      const tag = String(s?.tag || '').trim()
+      const siteName = String(s?.siteName || '').trim()
+      return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
+    }
+    const scheduleDaysWithDocPenalty = new Set()
+    const viewUserDisplayNames = getDisplayNamesForAccount(targetUser.account)
+    schedules.forEach((schedule) => {
+      if (schedule.date && schedule.date < startDate) return
+      if (schedule.date && schedule.date > endDate) return
+      if (isLeaveSchedule(schedule)) return
+      if (schedule.constructionPhotos === true) return
+      const rawWorkItems = (Array.isArray(schedule.segments) && schedule.segments.length > 0)
+        ? schedule.segments.flatMap((s) => s.workItems || [])
+        : (schedule.workItems || [])
+      if (rawWorkItems.length === 0) {
+        const participantsStr = String(schedule.participants || '').trim()
+        if (!participantsStr) return
+        const participantNames = participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean)
+        if (participantNames.some((p) => viewUserDisplayNames.includes(p))) scheduleDaysWithDocPenalty.add(schedule.date)
+        return
+      }
+      const logicalItems = expandWorkItemsToLogical(rawWorkItems)
+      let userInGroup = false
+      const participantNames = String(schedule.participants || '').split(',').map((p) => String(p || '').trim()).filter(Boolean)
+      if (participantNames.some((p) => viewUserDisplayNames.includes(p))) userInGroup = true
+      logicalItems.forEach((item) => {
+        if (String(item?.changeRequest?.status || '') === 'pending') return
+        const it = normalizeWorkItem(item)
+        const collabs = it.isCollaborative
+          ? getWorkItemCollaborators(it)
+          : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
+        if (collabs.some((c) => viewUserDisplayNames.includes(String(c?.name || '').trim()))) userInGroup = true
+      })
+      if (userInGroup) scheduleDaysWithDocPenalty.add(schedule.date)
+    })
+
     // 生成該月的所有日期
     const start = new Date(startDate)
     const end = new Date(endDate)
@@ -706,6 +745,7 @@ function PersonalPerformance() {
     // 累積調整分數（用於累積計算績效分數）
     let cumulativeManagerAdjustment = 0
     let cumulativeLateAdjustment = 0
+    let cumulativeScheduleDocPenaltyCount = 0 // 累積施工照片扣分天數（與個人績效評分一致）
     
     // 累積統計（用於計算當月總出勤問題和達成率）
     let cumulativeLateCount = 0
@@ -842,8 +882,12 @@ function PersonalPerformance() {
       // 累積管理者調整
       cumulativeManagerAdjustment += dailyManagerAdjustment
       
-      // 績效分數 = 100 + 累積到當天的所有調整分數（遲到和未打卡分開計算）
-      const dailyPerformanceScore = 100 + cumulativeManagerAdjustment + cumulativeCompletionRateAdjustment + cumulativeLateAdjustment + cumulativeNoClockInAdjustmentTotal
+      // 累積施工照片未勾選扣分（與個人績效評分一致）
+      if (scheduleDaysWithDocPenalty.has(dateStr)) cumulativeScheduleDocPenaltyCount++
+      const cumulativeScheduleDocAdjustment = -1 * cumulativeScheduleDocPenaltyCount
+      
+      // 績效分數 = 100 + 累積到當天的所有調整分數（含施工照片扣分，與個人績效評分一致）
+      const dailyPerformanceScore = 100 + cumulativeManagerAdjustment + cumulativeCompletionRateAdjustment + cumulativeLateAdjustment + cumulativeNoClockInAdjustmentTotal + cumulativeScheduleDocAdjustment
       
       // 判斷是否為週末
       const dayOfWeek = currentDate.getDay() // 0 = 週日, 6 = 週六
