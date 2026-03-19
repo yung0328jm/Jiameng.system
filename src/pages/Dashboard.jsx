@@ -33,6 +33,7 @@ import { getItems } from '../utils/itemStorage'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getAdminUnreadCount, getUserMessages } from '../utils/messageStorage'
 import { getPendingLeaveApplications, getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { getPendingOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import { getAnnouncements } from '../utils/announcementStorage'
 import { getGlobalMessages } from '../utils/memoStorage'
 import { getLastSeen, touchLastSeen } from '../utils/lastSeenStorage'
@@ -222,7 +223,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
   const personalServiceButtonRef = useRef(null)
   const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
-  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0, activities: 0 })
+  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0, activities: 0, overtime: 0 })
   const prevMessagesBadgeRef = useRef(0)
 
   const calcNavBadges = (me, role) => {
@@ -259,8 +260,10 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
     // 請假申請
     let leaveBadge = 0
+    let overtimePendingBadge = 0
     if (r === 'admin') {
       leaveBadge = getPendingLeaveApplications().length
+      overtimePendingBadge = getPendingOvertimeApplications().length
     } else if (account) {
       const lastSeen = getLastSeen(account, 'leave')
       const lastTs = Date.parse(lastSeen || '') || 0
@@ -336,7 +339,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       }
     }
 
-    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge, activities: activitiesBadge }
+    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge, activities: activitiesBadge, overtime: overtimePendingBadge }
   }
 
   const loadAllUsersForAdmin = async () => {
@@ -476,7 +479,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   useRealtimeKeys(
     [
       'jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests',
-      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_memos', 'jiameng_last_seen_v1',
+      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_overtime_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_memos', 'jiameng_last_seen_v1',
       'jiameng_company_activities'
     ],
     refetchDashboard
@@ -1278,6 +1281,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="行事曆"
             isActive={activeTab === 'calendar'}
             onClick={() => handleTabClick('calendar', '/calendar')}
+            badge={userRole === 'admin' && activeTab !== 'calendar' && navBadges.overtime > 0 ? navBadges.overtime : null}
           />
           <NavItem
             icon={<AlertIcon />}

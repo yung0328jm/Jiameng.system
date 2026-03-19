@@ -12,7 +12,7 @@ import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplicationsByScheduleId, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
+import { getOvertimeApplicationsByScheduleId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
@@ -72,6 +72,7 @@ function Calendar() {
   })
   const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
   const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪已送出的申請列表
+  const [overtimePendingBannerOpen, setOvertimePendingBannerOpen] = useState(true) // 管理員：待審加班清單是否展開
   const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
   const [copyScheduleTarget, setCopyScheduleTarget] = useState(null) // 要複製的排程
   const [copyScheduleNewDate, setCopyScheduleNewDate] = useState('') // 複製後的新日期 YYYY-MM-DD
@@ -758,6 +759,7 @@ function Calendar() {
   }
   useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
+  useRealtimeKeys(['jiameng_overtime_applications'], () => setOvertimeReviewRevision((r) => r + 1))
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
 
   // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
@@ -1251,6 +1253,13 @@ function Calendar() {
     const siteName = String(schedule?.siteName || '').trim()
     // 兼容不同資料來源：tag=leave 或 siteName 以「請假」開頭（例如：請假 - account - 事假）
     return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
+  }
+
+  const hasPendingOvertimeApplication = (schedule) => {
+    if (!schedule || isLeaveScheduleItem(schedule)) return false
+    const sid = String(schedule?.id || '').trim()
+    if (!sid) return false
+    return getOvertimeApplicationsByScheduleId(sid).some((oa) => String(oa?.status || 'pending').trim() === 'pending')
   }
 
   const parseLeaveSiteName = (siteName) => {
@@ -2639,6 +2648,85 @@ function Calendar() {
           </button>
         </div>
 
+        {/* 管理員：待審核加班集中清單（審核按鈕原僅在「點開排程詳情」內，易被忽略） */}
+        {currentRole === 'admin' && (() => {
+          void overtimeReviewRevision
+          const pendingOt = getPendingOvertimeApplications().slice().sort((a, b) => {
+            const da = String(a?.date || '').localeCompare(String(b?.date || ''))
+            if (da !== 0) return da
+            return String(a?.createdAt || '').localeCompare(String(b?.createdAt || ''))
+          })
+          if (pendingOt.length === 0) return null
+          return (
+            <div className="mb-3 rounded-lg border border-amber-500/60 bg-amber-950/40 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setOvertimePendingBannerOpen((o) => !o)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-amber-200 text-sm font-semibold hover:bg-amber-900/30"
+              >
+                <span>待審核加班（{pendingOt.length}）— 點此{overtimePendingBannerOpen ? '收合' : '展開'}</span>
+                <span className="text-amber-400/90">{overtimePendingBannerOpen ? '▼' : '▶'}</span>
+              </button>
+              {overtimePendingBannerOpen && (
+                <div className="px-3 pb-3 space-y-2 max-h-56 overflow-y-auto border-t border-amber-600/30">
+                  {pendingOt.map((oa) => {
+                    const sch = schedules.find((s) => String(s?.id) === String(oa?.scheduleId))
+                    const siteLabel = sch ? getScheduleDisplayTitle(sch) : '（找不到對應排程，可能已刪除）'
+                    const timeStr = oa.startTime && oa.endTime ? `${oa.startTime}～${oa.endTime}` : ''
+                    return (
+                      <div key={oa.id} className="rounded-md bg-gray-900/80 border border-amber-700/40 p-2 text-xs text-gray-200">
+                        <div className="font-medium text-amber-100/95">{siteLabel}</div>
+                        <div className="text-gray-400 mt-0.5">
+                          {oa.date || '—'}
+                          {timeStr ? ` ${timeStr}` : ''}
+                          {oa.hours != null && oa.hours !== '' ? ` · ${oa.hours} 小時` : ''}
+                        </div>
+                        <div>申請人：{oa.applicant || '—'}</div>
+                        {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
+                          <div className="text-gray-400">加班人員：{oa.overtimePersonnel.join(', ')}</div>
+                        )}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {sch && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleScheduleClick(e, sch)}
+                              className="px-2 py-1 rounded bg-gray-600 text-white hover:bg-gray-500"
+                            >
+                              開啟排程詳情
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const res = updateOvertimeApplicationStatus(oa.id, 'approved', getCurrentUser())
+                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
+                              else alert(res.message || '操作失敗')
+                            }}
+                            className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-500"
+                          >
+                            核准
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const res = updateOvertimeApplicationStatus(oa.id, 'rejected', getCurrentUser())
+                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
+                              else alert(res.message || '操作失敗')
+                            }}
+                            className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-500"
+                          >
+                            駁回
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* 周标题 */}
         <div className="grid grid-cols-7 gap-px sm:gap-1 mb-1.5 sm:mb-2">
           {weekDays.map((day, index) => (
@@ -2733,6 +2821,12 @@ function Calendar() {
                             <div
                               className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-400 shadow-[0_0_4px_1px_rgba(168,85,247,0.9)]"
                               title="有工作項目異動待審（暫不計分）"
+                            />
+                          )}
+                          {currentRole === 'admin' && hasPendingOvertimeApplication(schedule) && (
+                            <div
+                              className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 shadow-[0_0_4px_1px_rgba(251,191,36,0.85)]"
+                              title="加班申請待審核（管理員請於上方清單或排程詳情核准／駁回）"
                             />
                           )}
                           {/* 出發或回程公里數未填時顯示小車圖示提醒 */}
