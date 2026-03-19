@@ -3343,10 +3343,22 @@ function Calendar() {
                       </div>
                     ) : (
                       <>
+                        {(() => {
+                          // 工程排程詳情中「案場」切換按鈕旁顯示加班狀態（所有用戶可見）
+                          const overtimeDetailLabel = getOvertimeStatusLabelForCell(selectedDetailItem, selectedDetailItem?.date)
+                          const showPending = overtimeDetailLabel === '加班待審核'
+                          const showApproved = overtimeDetailLabel === '當日有加班'
+                          return (
+                            <span className="hidden">
+                              {showPending ? 'pending' : showApproved ? 'approved' : ''}
+                            </span>
+                          )
+                        })()}
                         {/* 多處行程：案場切換按鈕（紅框位置） */}
                         {(() => {
                           const segments = getScheduleSegments(selectedDetailItem)
                           const currentSegment = segments[selectedDetailSegmentIndex] || segments[0]
+                          const overtimeDetailLabel = getOvertimeStatusLabelForCell(selectedDetailItem, selectedDetailItem?.date)
                           return (
                             <>
                               <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -3362,6 +3374,16 @@ function Calendar() {
                                     }`}
                                   >
                                     {seg.siteName || `案場 ${idx + 1}`}
+                                    {overtimeDetailLabel === '加班待審核' && (
+                                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/40 text-[11px] font-bold">
+                                        加班待審核
+                                      </span>
+                                    )}
+                                    {overtimeDetailLabel === '當日有加班' && (
+                                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 text-[11px] font-bold">
+                                        當日有加班
+                                      </span>
+                                    )}
                                   </button>
                                 ))}
                               </div>
