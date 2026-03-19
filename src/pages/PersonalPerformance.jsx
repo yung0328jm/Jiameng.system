@@ -608,7 +608,9 @@ function PersonalPerformance() {
       if (status !== 'approved') return
       // 兼容歷史資料：有些加班日期可能是 YYYY/MM/DD（用字串比較會壞掉），統一轉成 YYYY-MM-DD
       const dateStr = String(oa.date || '').trim().replace(/\//g, '-')
-      if (!dateStr || dateStr < startDate || dateStr > effectiveEndDate) return
+      // 工項績效用 effectiveEndDate（只算到今天）；加班明細改為整個「所選月份」都顯示，
+      // 否則已核准但申請日在未來幾天（例如今天 3/19、加班日 3/20）會被誤判排除。
+      if (!dateStr || dateStr < startDate || dateStr > endDate) return
       const isApplicant = namesToMatch.some((n) => String(oa.applicant || '').trim() === n)
       const isInPersonnel = Array.isArray(oa.overtimePersonnel) && oa.overtimePersonnel.some((p) => namesToMatch.some((n) => String(p).trim() === n))
       if (!isApplicant && !isInPersonnel) return
