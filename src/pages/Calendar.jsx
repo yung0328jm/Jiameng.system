@@ -1255,18 +1255,20 @@ function Calendar() {
     return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
   }
 
-  /** 月曆單格日期 YYYY-MM-DD：該日與此排程綁定之加班申請狀態（所有用戶可見文案） */
+  /** 月曆上該排程列：凡有此排程之加班申請（同一 scheduleId）即顯示，不依賴申請單「申請日期」是否等於排程日（避免預設成今天導致不顯示） */
   const getOvertimeStatusLabelForCell = (schedule, cellDateStr) => {
     if (!schedule || isLeaveScheduleItem(schedule)) return ''
     const sid = String(schedule?.id || '').trim()
     const cell = String(cellDateStr || '').trim().replace(/\//g, '-')
-    if (!sid || !cell) return ''
     const norm = (d) => String(d || '').trim().replace(/\//g, '-')
-    const dayList = getOvertimeApplicationsByScheduleId(sid).filter((oa) => norm(oa?.date) === cell)
-    if (dayList.length === 0) return ''
-    const hasPending = dayList.some((oa) => String(oa?.status || 'pending').trim() === 'pending')
+    if (!sid || !cell) return ''
+    // 排程只會出現在 schedule.date 那一格；僅在該格顯示（防資料異常時誤顯於他日）
+    if (norm(schedule?.date) !== cell) return ''
+    const list = getOvertimeApplicationsByScheduleId(sid)
+    if (list.length === 0) return ''
+    const hasPending = list.some((oa) => String(oa?.status || 'pending').trim() === 'pending')
     if (hasPending) return '加班待審核'
-    if (dayList.some((oa) => String(oa?.status || '').trim() === 'approved')) return '當日有加班'
+    if (list.some((oa) => String(oa?.status || '').trim() === 'approved')) return '當日有加班'
     return ''
   }
 
@@ -3125,10 +3127,11 @@ function Calendar() {
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!showOvertimeForm) {
+                        const schedDay = String(selectedDetailItem?.date || '').trim().replace(/\//g, '-')
                         const today = new Date().toISOString().slice(0, 10)
                         setOvertimeFormData({
                           applicant: getDisplayNameForAccount(getCurrentUser()) || '',
-                          date: today,
+                          date: schedDay || today,
                           startTime: '',
                           endTime: '',
                           overtimePersonnel: []
@@ -3669,7 +3672,8 @@ function Calendar() {
                                 overtimePersonnel: overtimeFormData.overtimePersonnel || []
                               })
                               if (result.success) {
-                                setOvertimeFormData({ applicant: getDisplayNameForAccount(getCurrentUser()) || '', date: new Date().toISOString().slice(0, 10), startTime: '', endTime: '', overtimePersonnel: [] })
+                                const nextDay = String(selectedDetailItem?.date || '').trim().replace(/\//g, '-') || new Date().toISOString().slice(0, 10)
+                                setOvertimeFormData({ applicant: getDisplayNameForAccount(getCurrentUser()) || '', date: nextDay, startTime: '', endTime: '', overtimePersonnel: [] })
                                 setOvertimeReviewRevision((r) => r + 1)
                               } else alert(result.message || '送出失敗')
                             }}
