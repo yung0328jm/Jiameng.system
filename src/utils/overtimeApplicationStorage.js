@@ -1,5 +1,17 @@
 // 加班申請儲存：與排程綁定，記錄申請人、日期、開始/結束時間、時數、加班人員
+import { syncKeyToSupabase } from './supabaseSync'
+import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
+
 const OVERTIME_APPLICATION_KEY = 'jiameng_overtime_applications'
+
+const notifyOvertimeKeyChanged = () => {
+  try {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: OVERTIME_APPLICATION_KEY } }))
+  } catch (_) {
+    // ignore
+  }
+}
 
 export const getOvertimeApplications = () => {
   try {
@@ -38,6 +50,9 @@ export const addOvertimeApplication = ({ scheduleId, applicant, date, startTime,
     }
     list.push(rec)
     localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(list))
+    // 同步到 Supabase，確保不同用戶/裝置也能看見「待審核/已核准」狀態
+    syncKeyToSupabase(OVERTIME_APPLICATION_KEY, list).catch(() => {})
+    notifyOvertimeKeyChanged()
     return { success: true, id, record: rec }
   } catch (e) {
     console.error('addOvertimeApplication:', e)
@@ -59,6 +74,8 @@ export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '') => 
       reviewedAt: (status === 'approved' || status === 'rejected') ? new Date().toISOString() : (next[idx].reviewedAt || null)
     }
     localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(next))
+    syncKeyToSupabase(OVERTIME_APPLICATION_KEY, next).catch(() => {})
+    notifyOvertimeKeyChanged()
     return { success: true }
   } catch (e) {
     console.error('updateOvertimeApplicationStatus:', e)
@@ -75,6 +92,8 @@ export const deleteOvertimeApplication = (id) => {
     const list = getOvertimeApplications()
     const next = list.filter((r) => String(r?.id || '') !== String(id || ''))
     localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(next))
+    syncKeyToSupabase(OVERTIME_APPLICATION_KEY, next).catch(() => {})
+    notifyOvertimeKeyChanged()
     return { success: true }
   } catch (e) {
     console.error('deleteOvertimeApplication:', e)
