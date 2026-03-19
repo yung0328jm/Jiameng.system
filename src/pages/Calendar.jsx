@@ -1255,11 +1255,19 @@ function Calendar() {
     return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
   }
 
-  const hasPendingOvertimeApplication = (schedule) => {
-    if (!schedule || isLeaveScheduleItem(schedule)) return false
+  /** 月曆單格日期 YYYY-MM-DD：該日與此排程綁定之加班申請狀態（所有用戶可見文案） */
+  const getOvertimeStatusLabelForCell = (schedule, cellDateStr) => {
+    if (!schedule || isLeaveScheduleItem(schedule)) return ''
     const sid = String(schedule?.id || '').trim()
-    if (!sid) return false
-    return getOvertimeApplicationsByScheduleId(sid).some((oa) => String(oa?.status || 'pending').trim() === 'pending')
+    const cell = String(cellDateStr || '').trim().replace(/\//g, '-')
+    if (!sid || !cell) return ''
+    const norm = (d) => String(d || '').trim().replace(/\//g, '-')
+    const dayList = getOvertimeApplicationsByScheduleId(sid).filter((oa) => norm(oa?.date) === cell)
+    if (dayList.length === 0) return ''
+    const hasPending = dayList.some((oa) => String(oa?.status || 'pending').trim() === 'pending')
+    if (hasPending) return '加班待審核'
+    if (dayList.some((oa) => String(oa?.status || '').trim() === 'approved')) return '當日有加班'
+    return ''
   }
 
   const parseLeaveSiteName = (siteName) => {
@@ -2806,27 +2814,33 @@ function Calendar() {
                     const timeDisplay = !isAllDay && schedule.startTime
                       ? ` ${schedule.startTime}${schedule.endTime ? ` - ${schedule.endTime}` : ''}`
                       : ''
+                    const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                    const overtimeCellLabel = getOvertimeStatusLabelForCell(schedule, cellDateStr)
+                    const overtimeTitleSuffix = overtimeCellLabel ? ` · ${overtimeCellLabel}` : ''
                     
                     return (
                       <div 
                         key={schedule.id} 
                         className={`${displayClass} text-[8px] sm:text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-start justify-between gap-0.5 min-w-0 overflow-hidden leading-tight`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
-                        title={`${getScheduleDisplayTitle(schedule)}${timeDisplay} - 工程排程${docIncomplete ? '（施工照片未勾選）' : ''}`}
+                        title={`${getScheduleDisplayTitle(schedule)}${overtimeTitleSuffix}${timeDisplay} - 工程排程${docIncomplete ? '（施工照片未勾選）' : ''}`}
                       >
-                        <span className="flex-1 min-w-0 line-clamp-2 break-words overflow-hidden">{getScheduleDisplayTitle(schedule)}{timeDisplay}</span>
+                        <span className="flex-1 min-w-0 line-clamp-2 break-words overflow-hidden">
+                          {getScheduleDisplayTitle(schedule)}
+                          {overtimeCellLabel === '加班待審核' && (
+                            <span className="text-amber-200 font-bold"> · 加班待審核</span>
+                          )}
+                          {overtimeCellLabel === '當日有加班' && (
+                            <span className="text-emerald-200 font-bold"> · 當日有加班</span>
+                          )}
+                          {timeDisplay}
+                        </span>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                           {/* 異動待審提示 */}
                           {hasPendingChangeRequest(schedule) && (
                             <div
                               className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-400 shadow-[0_0_4px_1px_rgba(168,85,247,0.9)]"
                               title="有工作項目異動待審（暫不計分）"
-                            />
-                          )}
-                          {currentRole === 'admin' && hasPendingOvertimeApplication(schedule) && (
-                            <div
-                              className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 shadow-[0_0_4px_1px_rgba(251,191,36,0.85)]"
-                              title="加班申請待審核（管理員請於上方清單或排程詳情核准／駁回）"
                             />
                           )}
                           {/* 出發或回程公里數未填時顯示小車圖示提醒 */}
