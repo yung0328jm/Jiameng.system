@@ -611,9 +611,14 @@ function PersonalPerformance() {
       // 工項績效用 effectiveEndDate（只算到今天）；加班明細改為整個「所選月份」都顯示，
       // 否則已核准但申請日在未來幾天（例如今天 3/19、加班日 3/20）會被誤判排除。
       if (!dateStr || dateStr < startDate || dateStr > endDate) return
-      const isApplicant = namesToMatch.some((n) => String(oa.applicant || '').trim() === n)
-      const isInPersonnel = Array.isArray(oa.overtimePersonnel) && oa.overtimePersonnel.some((p) => namesToMatch.some((n) => String(p).trim() === n))
-      if (!isApplicant && !isInPersonnel) return
+      // 有勾選「加班人員」時：只依名單計入（申請人若未勾在名單內則不計），避免同一人代送多筆時被算多次
+      // 未勾任何人（選填為空）時：回退為只認申請人（相容舊資料／單人申請）
+      const personnelList = (Array.isArray(oa.overtimePersonnel) ? oa.overtimePersonnel : [])
+        .map((p) => String(p || '').trim())
+        .filter(Boolean)
+      const matchesPersonnel = personnelList.some((p) => namesToMatch.some((n) => p === n))
+      const matchesApplicantFallback = personnelList.length === 0 && namesToMatch.some((n) => String(oa.applicant || '').trim() === n)
+      if (!matchesPersonnel && !matchesApplicantFallback) return
       const schedule = schedules.find((s) => String(s?.id || '') === String(oa.scheduleId || ''))
       if (!schedule) return // 排程已從行事曆刪除：同步移除，不顯示
       const siteName = schedule?.siteName || (schedule?.segments?.[0]?.siteName) || '—'
@@ -3375,7 +3380,7 @@ function PersonalPerformance() {
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mt-6">
         <div className="mb-4">
           <h3 className="text-lg font-bold text-yellow-400">加班時數明細</h3>
-          <p className="text-gray-500 text-xs mt-1">當月您為申請人或被勾選為加班人員的紀錄；總計 {performanceData.totalOvertimeHours != null ? Number(performanceData.totalOvertimeHours).toFixed(1) : '0'} 小時</p>
+          <p className="text-gray-500 text-xs mt-1">當月僅計入「加班人員」含您之筆數與時數；若該筆未勾選人員則以申請人計。總計 {performanceData.totalOvertimeHours != null ? Number(performanceData.totalOvertimeHours).toFixed(1) : '0'} 小時</p>
         </div>
         {!performanceData.overtimeDetails || performanceData.overtimeDetails.length === 0 ? (
           <div className="text-gray-400 text-center py-6">
