@@ -60,18 +60,24 @@ export const addOvertimeApplication = ({ scheduleId, applicant, date, startTime,
   }
 }
 
-/** 管理員審核：更新加班申請狀態 */
-export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '') => {
+/** 管理員審核：更新加班申請狀態；駁回時可傳 rejectionReason */
+export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '', rejectionReason = '') => {
   try {
     const list = getOvertimeApplications()
     const idx = list.findIndex((r) => String(r?.id || '') === String(id || ''))
     if (idx < 0) return { success: false, message: '找不到該申請' }
     const next = list.slice()
+    const reasonTrim = String(rejectionReason || '').trim()
     next[idx] = {
       ...next[idx],
       status: status === 'approved' || status === 'rejected' ? status : next[idx].status,
       reviewedBy: String(reviewedBy || '').trim(),
-      reviewedAt: (status === 'approved' || status === 'rejected') ? new Date().toISOString() : (next[idx].reviewedAt || null)
+      reviewedAt: (status === 'approved' || status === 'rejected') ? new Date().toISOString() : (next[idx].reviewedAt || null),
+      ...(status === 'rejected'
+        ? { rejectionReason: reasonTrim }
+        : status === 'approved'
+          ? { rejectionReason: undefined }
+          : {})
     }
     localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(next))
     syncKeyToSupabase(OVERTIME_APPLICATION_KEY, next).catch(() => {})
