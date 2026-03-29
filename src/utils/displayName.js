@@ -1,4 +1,4 @@
-import { getDisplayNamesForAccount } from './dropdownStorage'
+import { getDisplayNamesForAccount, getBoundAccountByValue } from './dropdownStorage'
 import { getUsers } from './storage'
 
 /**
@@ -26,3 +26,25 @@ export const getDisplayNameForAccount = (account) => {
   if (acc === 'jiameng.system') return '系統'
   return acc
 }
+
+/** 將畫面上顯示的姓名／帳號字串解析為可發站內信的帳號；無法解析時回傳空字串 */
+export const resolveDisplayNameToAccount = (displayName) => {
+  const raw = String(displayName || '').trim()
+  if (!raw) return ''
+  try {
+    const users = getUsers() || []
+    const byAccount = users.find((u) => String(u?.account || '').trim() === raw)
+    if (byAccount?.account) return String(byAccount.account).trim()
+
+    const byName = users.find((u) => String(u?.name || '').trim() === raw)
+    if (byName?.account) return String(byName.account).trim()
+
+    for (const cat of ['participants', 'responsible_persons']) {
+      const bound = getBoundAccountByValue(raw, cat)
+      const b = String(bound || '').trim()
+      if (b && b !== raw && users.some((u) => String(u?.account || '').trim() === b)) return b
+    }
+  } catch (_) {}
+  return ''
+}
+

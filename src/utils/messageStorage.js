@@ -1,6 +1,8 @@
 // 站內信（用戶 → 管理員 / 管理員回覆）存儲工具
 import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
+import { getUsers } from './storage'
+import { sendPushToAccount, sendPushToAccounts } from './pushNotifyBackend'
 
 const STORAGE_KEY = 'jiameng_messages'
 
@@ -77,6 +79,13 @@ export function addUserMessage({ from, subject, body }) {
   }
   list.push(msg)
   persist(list)
+  const adminAccounts = (getUsers() || [])
+    .filter((u) => String(u?.role || '').trim() === 'admin')
+    .map((u) => String(u?.account || '').trim())
+    .filter(Boolean)
+  if (adminAccounts.length > 0) {
+    sendPushToAccounts(adminAccounts, { body: '用戶送出了站內信給管理員，請至「個人服務」→ 站內信 查看。' })
+  }
   return { success: true, message: '已送出', item: msg }
 }
 
@@ -132,6 +141,11 @@ export function addAdminToUserMessage({ fromAdminAccount, to, subject, body }) {
   }
   list.push(msg)
   persist(list)
+  if (toVal === '__all__') {
+    sendPushToAccounts(['__all__'], { body: '管理員發送了站內信給全體，請至「個人服務」→ 站內信 查看。' })
+  } else {
+    sendPushToAccount(toVal)
+  }
   return { success: true, message: '已送出', item: msg }
 }
 
@@ -193,6 +207,8 @@ export function addAdminReply(messageId, { fromAdminAccount, body }) {
     resolvedAt: null
   }
   persist(list)
+  const recipient = String(list[idx]?.from || '').trim()
+  if (recipient) sendPushToAccount(recipient, { body: '管理員回覆了您的站內信，請至「個人服務」→ 站內信 查看。' })
   return { success: true }
 }
 
