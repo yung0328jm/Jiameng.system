@@ -7,12 +7,13 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { getTripReportsBySchedule, addTripReport, actionTypes as tripReportActionTypes } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
-import { getDisplayNameForAccount } from '../utils/displayName'
+import { getDisplayNameForAccount, resolveDisplayNameToAccount } from '../utils/displayName'
+import { addAdminToUserMessage } from '../utils/messageStorage'
 import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplicationsByScheduleId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
+import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
@@ -76,6 +77,8 @@ function Calendar() {
   const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
   const [copyScheduleTarget, setCopyScheduleTarget] = useState(null) // 要複製的排程
   const [copyScheduleNewDate, setCopyScheduleNewDate] = useState('') // 複製後的新日期 YYYY-MM-DD
+  const [overtimeRejectModal, setOvertimeRejectModal] = useState({ open: false, oaId: null })
+  const [overtimeRejectReasonDraft, setOvertimeRejectReasonDraft] = useState('')
   const [overtimeFormData, setOvertimeFormData] = useState({
     applicant: '',
     date: '',
@@ -1316,6 +1319,78 @@ function Calendar() {
     return String(schedule?.siteName || '').trim()
   }
 
+  const openOvertimeRejectModal = (oaId) => {
+    setOvertimeRejectModal({ open: true, oaId })
+    setOvertimeRejectReasonDraft('')
+  }
+
+  const closeOvertimeRejectModal = () => {
+    setOvertimeRejectModal({ open: false, oaId: null })
+    setOvertimeRejectReasonDraft('')
+  }
+
+  const submitOvertimeReject = () => {
+    const reason = String(overtimeRejectReasonDraft || '').trim()
+    if (!reason) {
+      alert('請填寫駁回原因')
+      return
+    }
+    const oaId = overtimeRejectModal.oaId
+    if (!oaId) return
+    const oa = getOvertimeApplications().find((r) => String(r?.id) === String(oaId))
+    if (!oa) {
+      alert('找不到該申請')
+      closeOvertimeRejectModal()
+      return
+    }
+    const adminAcc = getCurrentUser()
+    const res = updateOvertimeApplicationStatus(oa.id, 'rejected', adminAcc, reason)
+    if (!res.success) {
+      alert(res.message || '操作失敗')
+      return
+    }
+    const sch = schedules.find((s) => String(s?.id) === String(oa?.scheduleId))
+    const siteLabel = sch ? getScheduleDisplayTitle(sch) : '（找不到對應排程）'
+    const timeSpan = oa.startTime && oa.endTime ? `${oa.startTime}～${oa.endTime}` : ''
+
+    const nameSeen = new Set()
+    const addName = (n) => {
+      const t = String(n || '').trim()
+      if (t) nameSeen.add(t)
+    }
+    addName(oa.applicant)
+    ;(Array.isArray(oa.overtimePersonnel) ? oa.overtimePersonnel : []).forEach(addName)
+
+    const accountSeen = new Set()
+    const unresolved = []
+    nameSeen.forEach((displayName) => {
+      const acc = resolveDisplayNameToAccount(displayName)
+      if (!acc) {
+        unresolved.push(displayName)
+        return
+      }
+      if (accountSeen.has(acc)) return
+      accountSeen.add(acc)
+      const body =
+        `您的加班申請已被駁回。\n\n` +
+        `案場：${siteLabel}\n` +
+        `日期：${oa.date || '—'}${timeSpan ? ` ${timeSpan}` : ''}\n` +
+        (oa.hours != null && oa.hours !== '' ? `時數：${oa.hours} 小時\n` : '') +
+        `\n駁回原因：${reason}`
+      addAdminToUserMessage({
+        fromAdminAccount: adminAcc,
+        to: acc,
+        subject: '加班申請駁回通知',
+        body
+      })
+    })
+    if (unresolved.length > 0) {
+      alert(`駁回已儲存。以下人員無法對應到系統帳號，未收到站內信：${unresolved.join('、')}`)
+    }
+    closeOvertimeRejectModal()
+    setOvertimeReviewRevision((r) => r + 1)
+  }
+
   const handleEventClick = (e, event) => {
     e.stopPropagation()
     if (event.isTopic) {
@@ -1662,7 +1737,11 @@ function Calendar() {
           const timeRange = oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : ''
           const hoursStr = oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''
           const personnelStr = oa.overtimePersonnel && oa.overtimePersonnel.length > 0 ? ` | 加班人員: ${oa.overtimePersonnel.join(', ')}` : ''
-          body += `<p style="margin:4px 0;"><strong>申請人:</strong> ${escapeHtml(oa.applicant || '—')} | ${escapeHtml(oa.date || '—')}${timeRange}${hoursStr}${personnelStr} | <strong>${statusText}</strong></p>`
+          const rejectStr =
+            status === 'rejected' && String(oa.rejectionReason || '').trim() !== ''
+              ? ` | 駁回原因: ${escapeHtml(String(oa.rejectionReason).trim())}`
+              : ''
+          body += `<p style="margin:4px 0;"><strong>申請人:</strong> ${escapeHtml(oa.applicant || '—')} | ${escapeHtml(oa.date || '—')}${timeRange}${hoursStr}${personnelStr} | <strong>${statusText}</strong>${rejectStr}</p>`
         })
       }
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
@@ -2718,11 +2797,7 @@ function Calendar() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const res = updateOvertimeApplicationStatus(oa.id, 'rejected', getCurrentUser())
-                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
-                              else alert(res.message || '操作失敗')
-                            }}
+                            onClick={() => openOvertimeRejectModal(oa.id)}
                             className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-500"
                           >
                             駁回
@@ -3524,6 +3599,11 @@ function Calendar() {
                                       {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
                                         <div>加班人員：{oa.overtimePersonnel.join(', ')}</div>
                                       )}
+                                      {status === 'rejected' && String(oa.rejectionReason || '').trim() !== '' && (
+                                        <div className="text-red-300 mt-1.5 whitespace-pre-wrap break-words">
+                                          駁回原因：{String(oa.rejectionReason).trim()}
+                                        </div>
+                                      )}
                                     </div>
                                     <div className={`flex-shrink-0 font-medium ${statusColor}`}>{statusText}</div>
                                   </div>
@@ -3542,11 +3622,7 @@ function Calendar() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          const res = updateOvertimeApplicationStatus(oa.id, 'rejected', getCurrentUser())
-                                          if (res.success) setOvertimeReviewRevision((r) => r + 1)
-                                          else alert(res.message || '操作失敗')
-                                        }}
+                                        onClick={() => openOvertimeRejectModal(oa.id)}
                                         className="px-2 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-500"
                                       >
                                         駁回
@@ -4082,6 +4158,49 @@ function Calendar() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 駁回加班申請：填寫原因並發站內信 */}
+      {overtimeRejectModal.open && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+          onClick={closeOvertimeRejectModal}
+          role="presentation"
+        >
+          <div
+            className="bg-blue-900 border border-red-500/70 rounded-lg shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="overtime-reject-title"
+          >
+            <h3 id="overtime-reject-title" className="text-lg font-semibold text-white mb-2">駁回加班申請</h3>
+            <p className="text-blue-200 text-sm mb-3">請填寫駁回原因。原因會顯示在申請卡片上，並以站內信通知申請人與加班人員（需能對應到系統帳號）。</p>
+            <label className="block text-gray-300 text-sm mb-1">駁回原因</label>
+            <textarea
+              value={overtimeRejectReasonDraft}
+              onChange={(e) => setOvertimeRejectReasonDraft(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm mb-4 resize-y min-h-[96px]"
+              placeholder="請說明駁回理由…"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={closeOvertimeRejectModal}
+                className="flex-1 py-2 rounded-lg bg-gray-600 text-white font-medium hover:bg-gray-500"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={submitOvertimeReject}
+                className="flex-1 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-500"
+              >
+                確定駁回
+              </button>
+            </div>
           </div>
         </div>
       )}
