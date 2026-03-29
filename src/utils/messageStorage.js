@@ -2,9 +2,40 @@
 import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
 import { getUsers } from './storage'
-import { sendPushToAccount, sendPushToAccounts } from './pushNotifyBackend'
+import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 
 const STORAGE_KEY = 'jiameng_messages'
+
+const PUSH_DEFAULT_TITLE = '佳盟事業群'
+const PUSH_DEFAULT_BODY = '您有新的站內信，請至「個人服務」→ 站內信 查看。'
+
+function sendPushToAccount(account, options = {}) {
+  if (!account) return
+  const sb = getSupabaseClient()
+  if (!sb || !isSupabaseEnabled()) return
+  const title = options.title ?? PUSH_DEFAULT_TITLE
+  const body = options.body ?? PUSH_DEFAULT_BODY
+  sb.functions
+    .invoke('send-push', { body: { account, title, body } })
+    .then(({ error }) => {
+      if (error) console.warn('send-push error:', error)
+    })
+    .catch((err) => console.warn('send-push failed:', err))
+}
+
+function sendPushToAccounts(accounts, options = {}) {
+  if (!Array.isArray(accounts) || accounts.length === 0) return
+  const sb = getSupabaseClient()
+  if (!sb || !isSupabaseEnabled()) return
+  const title = options.title ?? PUSH_DEFAULT_TITLE
+  const body = options.body ?? PUSH_DEFAULT_BODY
+  sb.functions
+    .invoke('send-push', { body: { accounts, title, body } })
+    .then(({ error }) => {
+      if (error) console.warn('send-push error:', error)
+    })
+    .catch((err) => console.warn('send-push failed:', err))
+}
 
 function safeParseArray(raw) {
   try {
