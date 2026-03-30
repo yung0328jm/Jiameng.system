@@ -1395,6 +1395,8 @@ function PersonalPerformance() {
     // 請假表（已核准）→ 視為正常不扣分
     const leaveSetByUser = buildLeaveDateSetByUser(getLeaveApplications(), userDirectory)
 
+    const schedulesForPreview = getSchedules()
+
     // 處理SOYA格式：日期和時間分開，且用戶名可能只在第一行
     let currentUserName = null
     
@@ -1483,6 +1485,29 @@ function PersonalPerformance() {
               late: false,
               userName: userAcc,
               userDisplayName: user ? (user.name || user.account) : userIdentifier
+            }
+          }
+
+          // 若行事曆該日為出差排程：顯示為出差，不算未打卡
+          const isTripDay = !!(inferredDate && userAcc && buildBusinessTripDateSetByUser(
+            schedulesForPreview,
+            [userAcc],
+            inferredDate,
+            inferredDate
+          ).get(userAcc)?.has(inferredDate))
+          if (isTripDay) {
+            return {
+              index: index + 1,
+              raw: row,
+              date: inferredDate,
+              time: '出差',
+              leave: true,
+              trip: true,
+              late: false,
+              userName: userAcc,
+              userDisplayName: user ? (user.name || user.account) : userIdentifier,
+              dateTimeField: dateTimeField || (dateField && timeField ? `${dateField}+${timeField}` : null),
+              userField
             }
           }
           
@@ -3162,7 +3187,9 @@ function PersonalPerformance() {
                             <td className="px-3 py-2 text-white">{item.time || '—'}</td>
                             <td className="px-3 py-2 text-white">{item.userDisplayName || '—'}</td>
                             <td className="px-3 py-2 text-center">
-                              {item.error ? (
+                              {item.trip ? (
+                                <span className="text-blue-400 font-semibold">出差</span>
+                              ) : item.error ? (
                                 <span className="text-red-400 text-xs">{item.error}</span>
                               ) : item.late ? (
                                 <span className="text-red-400 font-semibold">遲到</span>
@@ -3178,7 +3205,8 @@ function PersonalPerformance() {
                   <div className="mt-3 flex items-center justify-between">
                     <div className="text-sm text-gray-400">
                       共 {importPreview.length} 筆記錄，
-                      正常: <span className="text-green-400">{importPreview.filter(p => !p.error && !p.late).length}</span> 筆，
+                      正常: <span className="text-green-400">{importPreview.filter(p => !p.error && !p.late && !p.trip).length}</span> 筆，
+                      出差: <span className="text-blue-400">{importPreview.filter(p => p.trip).length}</span> 筆，
                       遲到: <span className="text-red-400">{importPreview.filter(p => !p.error && p.late).length}</span> 筆，
                       錯誤: <span className="text-yellow-400">{importPreview.filter(p => p.error).length}</span> 筆
                     </div>
