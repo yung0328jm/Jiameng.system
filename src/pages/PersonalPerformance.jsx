@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
@@ -95,6 +95,8 @@ function PersonalPerformance() {
   const [importPreview, setImportPreview] = useState([]) // 預覽數據
   const [importResult, setImportResult] = useState(null) // 導入結果
   const [dataRevision, setDataRevision] = useState(0)
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const performancePdfRef = useRef(null)
   const loadUsersForAdmin = useCallback(async () => {
     try {
       const me = getCurrentUser()
@@ -2040,8 +2042,58 @@ function PersonalPerformance() {
     calculatePerformance(getViewUser())
   }
 
+  const handleExportPerformancePdf = async () => {
+    const el = performancePdfRef.current
+    if (!el || exportingPdf) return
+    setExportingPdf(true)
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const { jsPDF } = await import('jspdf')
+      const w = Math.max(el.scrollWidth, el.clientWidth, 1)
+      const h = Math.max(el.scrollHeight, el.clientHeight, 1)
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        backgroundColor: '#1A1A1A',
+        logging: false,
+        width: w,
+        height: h,
+        windowWidth: w,
+        windowHeight: h,
+        useCORS: true
+      })
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const img = canvas.toDataURL('image/png')
+      const imgW = pageW
+      const imgH = (canvas.height * pageW) / canvas.width
+      let y = 0
+      let hLeft = imgH
+      pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+      hLeft -= pageH
+      while (hLeft > 0) {
+        y = hLeft - imgH
+        pdf.addPage()
+        pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+        hLeft -= pageH
+      }
+      const viewAcc = getViewUser()
+      const viewLabel = selectedViewUser
+        ? (users.find((u) => u.account === selectedViewUser)?.name || selectedViewUser)
+        : getDisplayNameForAccount(viewAcc) || viewAcc || '使用者'
+      const safe = `個人績效_${viewLabel}_${selectedYear}年${selectedMonth}月`.replace(/[/\\?%*:|"<>]/g, '-')
+      pdf.save(`${safe}.pdf`)
+    } catch (err) {
+      console.error('個人績效 PDF 匯出失敗', err)
+      alert('匯出失敗：' + (err?.message || String(err)))
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   return (
-    <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
+    <div ref={performancePdfRef} className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
@@ -2071,7 +2123,15 @@ function PersonalPerformance() {
               )}
             </div>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2 flex-wrap justify-end">
+            <button
+              type="button"
+              onClick={handleExportPerformancePdf}
+              disabled={exportingPdf}
+              className="mb-0 px-3 py-2 rounded-lg bg-yellow-500 text-black text-xs sm:text-sm font-semibold hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px]"
+            >
+              {exportingPdf ? '匯出中…' : '匯出 PDF'}
+            </button>
             <div>
               <label className="block text-gray-400 text-[10px] sm:text-xs mb-1">年份</label>
               <select
