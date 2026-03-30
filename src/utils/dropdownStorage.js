@@ -153,7 +153,8 @@ export const reorderDropdownOptionsByCategory = (category, orderedIds = []) => {
 export const getBoundAccountByValue = (value, category = 'participants') => {
   try {
     const options = getDropdownOptionsByCategory(category)
-    const option = options.find(opt => opt.value === value)
+    const needle = String(value || '').trim()
+    const option = options.find((opt) => String(opt?.value || '').trim() === needle)
     if (option && option.boundAccount) {
       return option.boundAccount
     }
@@ -161,6 +162,22 @@ export const getBoundAccountByValue = (value, category = 'participants') => {
   } catch (error) {
     console.error('Error getting bound account:', error)
     return value
+  }
+}
+
+/** 在所有分類的下拉選項中，依顯示名稱（value）找出已綁定的系統帳號（與排程／加班人員字串比對時雙方 trim） */
+export const findBoundAccountForDisplayName = (displayName) => {
+  const raw = String(displayName || '').trim()
+  if (!raw) return ''
+  try {
+    const options = getDropdownOptions()
+    const opt = options.find(
+      (o) => String(o?.value || '').trim() === raw && String(o?.boundAccount || '').trim() !== ''
+    )
+    return opt ? String(opt.boundAccount).trim() : ''
+  } catch (error) {
+    console.error('Error finding bound account for display name:', error)
+    return ''
   }
 }
 

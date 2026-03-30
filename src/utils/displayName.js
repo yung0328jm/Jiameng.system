@@ -1,4 +1,4 @@
-import { getDisplayNamesForAccount, getBoundAccountByValue } from './dropdownStorage'
+import { getDisplayNamesForAccount, findBoundAccountForDisplayName } from './dropdownStorage'
 import { getUsers } from './storage'
 
 /**
@@ -39,11 +39,9 @@ export const resolveDisplayNameToAccount = (displayName) => {
     const byName = users.find((u) => String(u?.name || '').trim() === raw)
     if (byName?.account) return String(byName.account).trim()
 
-    for (const cat of ['participants', 'responsible_persons']) {
-      const bound = getBoundAccountByValue(raw, cat)
-      const b = String(bound || '').trim()
-      if (b && b !== raw && users.some((u) => String(u?.account || '').trim() === b)) return b
-    }
+    // 下拉「綁定帳號」即為寄信對象，不再強制要求該字串須出現在 users 列表（避免同步落差導致對不到）
+    const fromDropdown = findBoundAccountForDisplayName(raw)
+    if (fromDropdown) return fromDropdown
   } catch (_) {}
   return ''
 }
