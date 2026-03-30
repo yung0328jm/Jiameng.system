@@ -360,6 +360,12 @@ function PersonalPerformance() {
       if (userInGroup) scheduleDaysWithDocPenalty.add(schedule.date)
     })
     const scheduleDocAdjustment = -1 * scheduleDaysWithDocPenalty.size
+    const businessTripDateSet = buildBusinessTripDateSetByUser(
+      schedules,
+      [userName],
+      startDate,
+      effectiveEndDate
+    ).get(userName) || new Set()
 
     // 統計遲到次數
     const lateRecords = getUserLateRecords(userName, startDate, endDate)
@@ -459,7 +465,7 @@ function PersonalPerformance() {
         const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
         
         // 只統計非週末的未打卡記錄（但這裡只統計當前月份的）
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !businessTripDateSet.has(normalizeYMD(record?.date))) {
           noClockInCountFromRecords++
         }
       } else if (record.isLate && record.clockInTime) {
@@ -493,7 +499,8 @@ function PersonalPerformance() {
       if (!isNoClockIn) return false
       const recordDate = new Date(`${normalizeYMD(record?.date)}T00:00:00`)
       const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
-      return dayOfWeek !== 0 && dayOfWeek !== 6
+      if (dayOfWeek === 0 || dayOfWeek === 6) return false
+      return !businessTripDateSet.has(normalizeYMD(record?.date))
     })
 
     // 統計績效評分（初始100分 + 該時間範圍內的所有加減分）
@@ -756,6 +763,13 @@ function PersonalPerformance() {
       if (userInGroup) scheduleDaysWithDocPenalty.add(schedule.date)
     })
 
+    const businessTripDateSet = buildBusinessTripDateSetByUser(
+      schedules,
+      [targetUser.account],
+      startDate,
+      endDate
+    ).get(targetUser.account) || new Set()
+
     // 生成該月的所有日期
     const start = new Date(startDate)
     const end = new Date(endDate)
@@ -863,7 +877,8 @@ function PersonalPerformance() {
         const s = String(r?.details || '').trim()
         return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
       })
-      const dailyNoClockInRecords = hasLeaveThatDay ? [] : (dailyAttendance || []).filter(record => {
+      const isBusinessTripDay = businessTripDateSet.has(dateStr)
+      const dailyNoClockInRecords = (hasLeaveThatDay || isBusinessTripDay) ? [] : (dailyAttendance || []).filter(record => {
         const isNoClockIn = !record.clockInTime || 
                            record.details === '缺少打卡時間' || 
                            record.details === '匯入檔案後無記錄' ||
@@ -1063,6 +1078,62 @@ function PersonalPerformance() {
         s.add(formatLocalYMD(cur))
         cur.setDate(cur.getDate() + 1)
       }
+    })
+    return map
+  }
+
+  const isBusinessTripSchedule = (schedule) => {
+    const tag = String(schedule?.tag || '').trim().toLowerCase()
+    const siteName = String(schedule?.siteName || '').trim()
+    return tag === 'yellow' || /^出差(\s|[-—])/u.test(siteName) || siteName === '出差'
+  }
+
+  const scheduleIncludesUser = (schedule, account) => {
+    const names = getDisplayNamesForAccount(account)
+    if (!Array.isArray(names) || names.length === 0) return false
+
+    const participants = String(schedule?.participants || '')
+      .split(',')
+      .map((p) => String(p || '').trim())
+      .filter(Boolean)
+    if (participants.some((p) => names.includes(p))) return true
+
+    const rawWorkItems = (Array.isArray(schedule?.segments) && schedule.segments.length > 0)
+      ? schedule.segments.flatMap((s) => s.workItems || [])
+      : (schedule?.workItems || [])
+    if (!Array.isArray(rawWorkItems) || rawWorkItems.length === 0) return false
+
+    const logicalItems = expandWorkItemsToLogical(rawWorkItems)
+    return logicalItems.some((item) => {
+      if (String(item?.changeRequest?.status || '') === 'pending') return false
+      const it = normalizeWorkItem(item)
+      const collabs = it.isCollaborative
+        ? getWorkItemCollaborators(it)
+        : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
+      return collabs.some((c) => names.includes(String(c?.name || '').trim()))
+    })
+  }
+
+  const buildBusinessTripDateSetByUser = (schedules, accounts, startDate = '', endDate = '') => {
+    const map = new Map() // account -> Set<YYYY-MM-DD>
+    const list = Array.isArray(schedules) ? schedules : []
+    const users = (Array.isArray(accounts) ? accounts : [])
+      .map((a) => String(a || '').trim())
+      .filter(Boolean)
+    users.forEach((acc) => map.set(acc, new Set()))
+
+    list.forEach((schedule) => {
+      const dateStr = String(schedule?.date || '').slice(0, 10)
+      if (!dateStr) return
+      if (startDate && dateStr < startDate) return
+      if (endDate && dateStr > endDate) return
+      if (!isBusinessTripSchedule(schedule)) return
+
+      users.forEach((acc) => {
+        if (scheduleIncludesUser(schedule, acc)) {
+          map.get(acc)?.add(dateStr)
+        }
+      })
     })
     return map
   }
@@ -1643,6 +1714,10 @@ function PersonalPerformance() {
     
     // 請假表（已核准）：不產生未打卡扣分
     const leaveSetByUser = buildLeaveDateSetByUser(getLeaveApplications(), getUsers())
+    const previewAccounts = Array.from(new Set(
+      (importPreview || []).map((p) => String(p?.userName || '').trim()).filter(Boolean)
+    ))
+    const businessTripSetByUser = buildBusinessTripDateSetByUser(getSchedules(), previewAccounts)
 
     // 處理未打卡記錄：將"缺少打卡時間"視為未打卡，並檢查沒有記錄的日期（排除週末）
     let noClockInSuccessCount = 0
@@ -1652,8 +1727,9 @@ function PersonalPerformance() {
     const missingTimeRecords = importPreview.filter(p => p.error === '缺少打卡時間')
     missingTimeRecords.forEach(item => {
       if (item.date && item.userName) {
-        // 請假：不算未打卡
+        // 請假/出差：不算未打卡
         if (leaveSetByUser.get(item.userName)?.has(item.date)) return
+        if (businessTripSetByUser.get(item.userName)?.has(item.date)) return
         const recordDate = parseLocalYMD(item.date)
         const dayOfWeek = recordDate ? recordDate.getDay() : -1 // 0 = 週日, 6 = 週六
         
@@ -1743,8 +1819,12 @@ function PersonalPerformance() {
             if (dayOfWeek !== 0 && dayOfWeek !== 6) {
               const dateStr = formatLocalYMD(currentDate)
 
-              // 請假：視為正常，不產生未打卡
+              // 請假/出差：視為正常，不產生未打卡
               if (leaveSetByUser.get(userName)?.has(dateStr)) {
+                currentDate.setDate(currentDate.getDate() + 1)
+                continue
+              }
+              if (businessTripSetByUser.get(userName)?.has(dateStr)) {
                 currentDate.setDate(currentDate.getDate() + 1)
                 continue
               }
@@ -2294,8 +2374,8 @@ function PersonalPerformance() {
         
         {/* 出勤記錄詳情 */}
         {showLateRecords && (() => {
-          // 從導入預覽中計算未打卡記錄（排除週末）
-          // 邏輯：1. 將"缺少打卡紀錄"視為未打卡 2. 匯入檔案後，沒有記錄的日期一律視為未打卡 3. 但要排除週六和週日
+          // 從導入預覽中計算未打卡記錄（排除週末與出差日）
+          // 邏輯：1. 將"缺少打卡紀錄"視為未打卡 2. 匯入檔案後，沒有記錄的日期一律視為未打卡 3. 但要排除週六、週日與出差
           const noClockInRecordsFromPreview = []
           let calculatedNoClockInCount = performanceData.noClockInCount || 0
           
@@ -2303,7 +2383,9 @@ function PersonalPerformance() {
             const currentUser = getCurrentUser()
             const userName = currentUser?.account || ''
             
-            // 1. 處理"缺少打卡時間"的記錄（視為未打卡，但排除週末）
+            const tripDates = buildBusinessTripDateSetByUser(getSchedules(), [userName]).get(userName) || new Set()
+
+            // 1. 處理"缺少打卡時間"的記錄（視為未打卡，但排除週末與出差）
             importPreview.forEach(item => {
               if (item.error === '缺少打卡時間' && item.date && item.userName === userName) {
                 // 判斷日期是否為週六或週日
@@ -2311,7 +2393,7 @@ function PersonalPerformance() {
                 const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
                 
                 // 只統計非週末的未打卡記錄
-                if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                if (dayOfWeek !== 0 && dayOfWeek !== 6 && !tripDates.has(String(item.date).slice(0, 10))) {
                   const dateStr = item.date.split('T')[0] || item.date
                   noClockInRecordsFromPreview.push({
                     id: `no-clockin-missing-${item.index}`,
@@ -2351,7 +2433,7 @@ function PersonalPerformance() {
               const minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
               const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
               
-              // 4. 遍歷該日期範圍內的每一天（排除週末）
+              // 4. 遍歷該日期範圍內的每一天（排除週末與出差）
               const currentDate = new Date(minDate)
               while (currentDate <= maxDate) {
                 const dayOfWeek = currentDate.getDay() // 0 = 週日, 6 = 週六
@@ -2359,6 +2441,10 @@ function PersonalPerformance() {
                 // 只處理非週末的日期
                 if (dayOfWeek !== 0 && dayOfWeek !== 6) {
                   const dateStr = currentDate.toISOString().split('T')[0]
+                  if (tripDates.has(dateStr)) {
+                    currentDate.setDate(currentDate.getDate() + 1)
+                    continue
+                  }
                   
                   // 5. 檢查該天是否有有效打卡記錄（不包括缺少打卡時間）
                   if (!datesWithValidRecords.has(dateStr)) {
