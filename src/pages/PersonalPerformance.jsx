@@ -160,7 +160,10 @@ function PersonalPerformance() {
   useEffect(() => {
     const syncKeys = ['jiameng_engineering_schedules', 'jiameng_overtime_applications']
     const onStorage = (e) => {
-      if (e && e.key && syncKeys.includes(e.key)) setDataRevision((r) => r + 1)
+      if (!e?.key) return
+      if (syncKeys.includes(e.key)) setDataRevision((r) => r + 1)
+      // 他分頁／他裝置變更「全員績效檢視指定人」時重讀權限與員工清單
+      if (e.key === 'jiameng_performance_viewer_account') setDataRevision((r) => r + 1)
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
