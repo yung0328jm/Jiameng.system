@@ -2200,6 +2200,11 @@ function PersonalPerformance() {
     userRole === 'admin' ||
     canViewAllPersonalPerformance(currentUser) ||
     !selectedViewUser
+  const viewUserForAttendance = getViewUser()
+  const businessTripDatesForViewUser = buildBusinessTripDateSetByUser(
+    getSchedules(),
+    [viewUserForAttendance]
+  ).get(viewUserForAttendance) || new Set()
 
   return (
     <div ref={performancePdfRef} className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
@@ -2562,6 +2567,8 @@ function PersonalPerformance() {
                                           record.details === '缺少打卡時間' || 
                                           record.details === '匯入檔案後無記錄' ||
                                           record.details === '匯入檔案後無紀錄'
+                        const recordDate = String(record?.date || '').slice(0, 10)
+                        const isBusinessTrip = !!recordDate && businessTripDatesForViewUser.has(recordDate)
                         const isLeave = (() => {
                           const s = String(record?.details || '').trim()
                           return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
@@ -2581,7 +2588,9 @@ function PersonalPerformance() {
                             {record.clockInTime || '—'}
                           </td>
                           <td className="px-2 py-1.5 text-center">
-                            {isLeave ? (
+                            {isBusinessTrip ? (
+                              <span className="text-blue-400 font-semibold text-[10px] sm:text-xs">出差</span>
+                            ) : isLeave ? (
                               <span className="text-green-400 font-semibold text-[10px] sm:text-xs">請假</span>
                             ) : isNoClockIn ? (
                               <span className="text-yellow-400 font-semibold text-[10px] sm:text-xs">未打卡</span>
