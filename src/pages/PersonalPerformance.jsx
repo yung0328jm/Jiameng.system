@@ -2115,6 +2115,7 @@ function PersonalPerformance() {
   }
 
   const canViewAllUsers = userRole === 'admin' || canViewAllPersonalPerformance(currentUser)
+  const canUseAttendanceImport = userRole === 'admin' || canViewAllPersonalPerformance(currentUser)
   const canExportPerformancePdf =
     userRole === 'admin' ||
     canViewAllPersonalPerformance(currentUser) ||
@@ -2990,8 +2991,8 @@ function PersonalPerformance() {
         </div>
       )}
 
-      {/* 刷卡記錄導入（僅管理者） */}
-      {userRole === 'admin' && (
+      {/* 刷卡記錄導入（管理者或指定檢視者） */}
+      {canUseAttendanceImport && (
         <div className="pdf-exclude-from-export bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-yellow-400">SOYA刷卡機記錄導入</h3>
