@@ -2055,6 +2055,11 @@ function PersonalPerformance() {
   const handleExportPerformancePdf = async () => {
     const el = performancePdfRef.current
     if (!el || exportingPdf) return
+    const me = getCurrentUser()
+    const role = getCurrentUserRole()
+    const mayExportOthers =
+      role === 'admin' || canViewAllPersonalPerformance(me)
+    if (selectedViewUser && !mayExportOthers) return
     setExportingPdf(true)
     try {
       const html2canvas = (await import('html2canvas')).default
@@ -2070,7 +2075,14 @@ function PersonalPerformance() {
         height: h,
         windowWidth: w,
         windowHeight: h,
-        useCORS: true
+        useCORS: true,
+        onclone: (_doc, cloned) => {
+          try {
+            cloned.querySelectorAll('.pdf-exclude-from-export').forEach((node) => {
+              node.style.setProperty('display', 'none', 'important')
+            })
+          } catch (_) {}
+        }
       })
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = pdf.internal.pageSize.getWidth()
@@ -2103,6 +2115,10 @@ function PersonalPerformance() {
   }
 
   const canViewAllUsers = userRole === 'admin' || canViewAllPersonalPerformance(currentUser)
+  const canExportPerformancePdf =
+    userRole === 'admin' ||
+    canViewAllPersonalPerformance(currentUser) ||
+    !selectedViewUser
 
   return (
     <div ref={performancePdfRef} className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
@@ -2136,14 +2152,18 @@ function PersonalPerformance() {
             </div>
           </div>
           <div className="flex items-end gap-2 flex-wrap justify-end">
-            <button
-              type="button"
-              onClick={handleExportPerformancePdf}
-              disabled={exportingPdf}
-              className="mb-0 px-3 py-2 rounded-lg bg-yellow-500 text-black text-xs sm:text-sm font-semibold hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px]"
-            >
-              {exportingPdf ? '匯出中…' : '匯出 PDF'}
-            </button>
+            {canExportPerformancePdf && (
+            <div className="pdf-exclude-from-export">
+              <button
+                type="button"
+                onClick={handleExportPerformancePdf}
+                disabled={exportingPdf}
+                className="mb-0 px-3 py-2 rounded-lg bg-yellow-500 text-black text-xs sm:text-sm font-semibold hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px]"
+              >
+                {exportingPdf ? '匯出中…' : '匯出 PDF'}
+              </button>
+            </div>
+            )}
             <div>
               <label className="block text-gray-400 text-[10px] sm:text-xs mb-1">年份</label>
               <select
@@ -2667,7 +2687,7 @@ function PersonalPerformance() {
 
       {/* 管理者評分區塊 */}
       {userRole === 'admin' && (
-        <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700 mb-4">
+        <div className="pdf-exclude-from-export bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm sm:text-base font-bold text-yellow-400">管理者評分</h3>
             <button
@@ -2885,7 +2905,7 @@ function PersonalPerformance() {
 
       {/* 每日績效表現（僅管理者） */}
       {userRole === 'admin' && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+        <div className="pdf-exclude-from-export bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-yellow-400">每日績效表現</h3>
             <button
@@ -2972,7 +2992,7 @@ function PersonalPerformance() {
 
       {/* 刷卡記錄導入（僅管理者） */}
       {userRole === 'admin' && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+        <div className="pdf-exclude-from-export bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-yellow-400">SOYA刷卡機記錄導入</h3>
             <button
@@ -3118,7 +3138,7 @@ function PersonalPerformance() {
 
       {/* 達成率調整規則配置（僅管理者） */}
       {userRole === 'admin' && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+        <div className="pdf-exclude-from-export bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-yellow-400">達成率調整規則設定</h3>
             <button
@@ -3262,7 +3282,7 @@ function PersonalPerformance() {
 
       {/* 遲到績效評分配置（僅管理者） */}
       {userRole === 'admin' && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+        <div className="pdf-exclude-from-export bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-yellow-400">出勤績效評分配置</h3>
             <button
