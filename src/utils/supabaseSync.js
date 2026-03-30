@@ -144,8 +144,8 @@ export const APP_DATA_KEYS = [
   'jiameng_last_seen_v1',
   // 請假代填人（管理員指派一人可代他人填寫請假）
   'jiameng_leave_filler_account',
-  // 個人績效：指定帳號可檢視全員（非管理者）
-  'jiameng_performance_view_all_accounts',
+  // 個人績效：指定「一人」可檢視全員（唯讀）
+  'jiameng_performance_viewer_account',
   // 加班申請（待審核/已核准狀態對所有用戶可見）
   'jiameng_overtime_applications',
   // 預支申請（借支金額、事由、審核／已匯款）

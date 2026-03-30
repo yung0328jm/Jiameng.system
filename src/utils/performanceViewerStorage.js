@@ -1,31 +1,43 @@
-// 指定帳號可於「個人績效」檢視所有員工（非管理者）；清單由管理員在用戶管理維護
+// 管理者指定「一人」可於個人績效檢視全員資料（唯讀，僅切換查看）
 import { syncKeyToSupabase } from './supabaseSync'
 
-const KEY = 'jiameng_performance_view_all_accounts'
+const KEY = 'jiameng_performance_viewer_account'
+const LEGACY_LIST_KEY = 'jiameng_performance_view_all_accounts'
 
-export function getPerformanceViewAllAccounts() {
+/** 取得目前指定的帳號（空字串＝未指定） */
+export function getPerformanceViewerAccount() {
   try {
-    const raw = localStorage.getItem(KEY)
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed.map((a) => String(a || '').trim()).filter(Boolean) : []
-  } catch (_) {
-    return []
-  }
+    let v = String(localStorage.getItem(KEY) || '').trim()
+    if (v) return v
+    // 舊版為帳號陣列：自動改為只取第一位並遷移
+    const legacyRaw = localStorage.getItem(LEGACY_LIST_KEY)
+    if (legacyRaw) {
+      const parsed = JSON.parse(legacyRaw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const first = String(parsed[0] || '').trim()
+        if (first) {
+          localStorage.setItem(KEY, first)
+          localStorage.removeItem(LEGACY_LIST_KEY)
+          syncKeyToSupabase(KEY, first).catch(() => {})
+        }
+        return first || ''
+      }
+    }
+  } catch (_) {}
+  return ''
 }
 
-export function setPerformanceViewAllAccounts(accounts) {
-  const list = Array.isArray(accounts)
-    ? [...new Set(accounts.map((a) => String(a || '').trim()).filter(Boolean))]
-    : []
-  const val = JSON.stringify(list)
-  localStorage.setItem(KEY, val)
-  syncKeyToSupabase(KEY, val).catch(() => {})
-  return { success: true, list }
+export function setPerformanceViewerAccount(account) {
+  const v = String(account || '').trim()
+  localStorage.setItem(KEY, v)
+  syncKeyToSupabase(KEY, v).catch(() => {})
+  return { success: true, account: v }
 }
 
-/** 是否可於個人績效切換檢視其他員工（管理者永遠為 true，無需列入清單） */
+/** 目前登入帳號是否為「指定可檢視全員」者（管理者請用 role 判斷，此函式不含 admin） */
 export function canViewAllPersonalPerformance(account) {
   const acc = String(account || '').trim()
-  if (!acc) return false
-  return getPerformanceViewAllAccounts().includes(acc)
+  const designated = getPerformanceViewerAccount()
+  if (!acc || !designated) return false
+  return acc === designated
 }
