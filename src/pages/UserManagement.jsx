@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getUsers, updateUserRole, deleteUser, getTotalTransferredByAccount, getPendingCountByAccount, getTransferredCountByAccount, getMonthlyTransferredByAccount } from '../utils/storage'
 import { getCurrentUserRole, getCurrentUser, saveCurrentUser } from '../utils/authStorage'
 import { getUserAttendanceRecords, getUserPerformanceRecords, getUserLateRecords } from '../utils/performanceStorage'
@@ -13,6 +13,7 @@ import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameFo
 import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
+import { getPerformanceViewAllAccounts, setPerformanceViewAllAccounts } from '../utils/performanceViewerStorage'
 
 function UserAdvanceCell({ account }) {
   const pending = getPendingCountByAccount(account)
@@ -55,6 +56,7 @@ function UserManagement() {
   const [perfRevision, setPerfRevision] = useState(0)
   const [assetsRevision, setAssetsRevision] = useState(0)
   const [advanceRevision, setAdvanceRevision] = useState(0)
+  const [viewAllListVersion, setViewAllListVersion] = useState(0)
   const [showUserAssets, setShowUserAssets] = useState(false)
   const [selectedAssetsUser, setSelectedAssetsUser] = useState(null) // { account, name }
   const [selectedAssetsData, setSelectedAssetsData] = useState({ balance: 0, inventory: [] })
@@ -99,6 +101,18 @@ function UserManagement() {
   useRealtimeKeys(['jiameng_wallets', 'jiameng_inventories', 'jiameng_items'], () => setAssetsRevision((v) => v + 1))
   // 預支：審核/匯款後列表即時更新
   useRealtimeKeys(['jiameng_advances'], () => setAdvanceRevision((v) => v + 1))
+  useRealtimeKeys(['jiameng_performance_view_all_accounts'], () => setViewAllListVersion((v) => v + 1))
+
+  const performanceViewAllAccounts = useMemo(() => getPerformanceViewAllAccounts(), [viewAllListVersion, users.length])
+
+  const handleToggleViewAllPerformance = (account, enabled) => {
+    const acc = String(account || '').trim()
+    if (!acc) return
+    const cur = getPerformanceViewAllAccounts()
+    const next = enabled ? [...new Set([...cur, acc])] : cur.filter((a) => a !== acc)
+    setPerformanceViewAllAccounts(next)
+    setViewAllListVersion((v) => v + 1)
+  }
 
   const buildUserAssetsData = (account) => {
     const balance = getWalletBalance(account || '')
@@ -506,6 +520,9 @@ function UserManagement() {
                     角色管理
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    全員績效檢視
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     操作
                   </th>
                 </tr>
@@ -557,6 +574,21 @@ function UserManagement() {
                           <option value="user">普通用戶</option>
                           <option value="admin">管理者</option>
                         </select>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {user.role === 'admin' ? (
+                          <span className="text-gray-500 text-xs" title="管理者已可檢視全員">—</span>
+                        ) : (
+                          <label className="inline-flex items-center gap-2 cursor-pointer text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={performanceViewAllAccounts.includes(user.account)}
+                              onChange={(e) => handleToggleViewAllPerformance(user.account, e.target.checked)}
+                              className="rounded border-gray-500 text-yellow-500 focus:ring-yellow-400"
+                            />
+                            <span className="text-xs text-gray-400">個人績效頁</span>
+                          </label>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2">

@@ -13,6 +13,7 @@ import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
+import { canViewAllPersonalPerformance } from '../utils/performanceViewerStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
 function PersonalPerformance() {
@@ -125,9 +126,12 @@ function PersonalPerformance() {
 
   const refetchPerformance = () => {
     const role = getCurrentUserRole()
-    if (role === 'admin') {
-      // Supabase 模式也要能取得員工清單，避免「評分/查看用戶」下拉只看到自己
+    const me = getCurrentUser()
+    const canPickUsers = role === 'admin' || canViewAllPersonalPerformance(me)
+    if (canPickUsers) {
       loadUsersForAdmin()
+    }
+    if (role === 'admin') {
       setCompletionRateRules(getCompletionRateRules())
       const lateConfig = getLatePerformanceConfig()
       setLatePerformanceConfig(lateConfig)
@@ -139,7 +143,7 @@ function PersonalPerformance() {
     setDataRevision(r => r + 1)
   }
   useRealtimeKeys(
-    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_overtime_applications', 'jiameng_leave_applications'],
+    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_overtime_applications', 'jiameng_leave_applications', 'jiameng_performance_view_all_accounts'],
     refetchPerformance
   )
 
@@ -168,9 +172,12 @@ function PersonalPerformance() {
     setCurrentUser(user || '')
     setUserRole(role)
     
-    // 如果是管理者，載入用戶列表和達成率規則
-    if (role === 'admin') {
+    const canPickUsers = role === 'admin' || canViewAllPersonalPerformance(user)
+    if (canPickUsers) {
       loadUsersForAdmin()
+    }
+    // 如果是管理者，載入達成率規則與遲到配置
+    if (role === 'admin') {
       // 載入達成率調整規則
       const rules = getCompletionRateRules()
       setCompletionRateRules(rules)
@@ -2092,6 +2099,8 @@ function PersonalPerformance() {
     }
   }
 
+  const canViewAllUsers = userRole === 'admin' || canViewAllPersonalPerformance(currentUser)
+
   return (
     <div ref={performancePdfRef} className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
       <div className="mb-6">
@@ -2104,7 +2113,7 @@ function PersonalPerformance() {
                   {selectedViewUser ? (users.find(u => u.account === selectedViewUser)?.name || selectedViewUser) : (currentUser || '—')}
                 </span>
               </p>
-              {userRole === 'admin' && users.length > 0 && (
+              {canViewAllUsers && users.length > 0 && (
                 <select
                   value={selectedViewUser || currentUser || ''}
                   onChange={(e) => {
