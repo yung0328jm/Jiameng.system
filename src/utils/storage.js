@@ -94,7 +94,9 @@ export const updateUserRole = (account, newRole) => {
       return { success: false, message: '用戶不存在' }
     }
     users[userIndex].role = newRole
-    setUsersAndSync(users)
+    setUsersAndSync(users).catch((e) => {
+      console.error('Error syncing user role to cloud:', e)
+    })
     return { success: true }
   } catch (error) {
     console.error('Error updating user role:', error)
@@ -103,7 +105,7 @@ export const updateUserRole = (account, newRole) => {
 }
 
 // 删除用户（仅管理者可用）
-export const deleteUser = (account) => {
+export const deleteUser = async (account) => {
   try {
     const users = getUsers()
     const userIndex = users.findIndex(u => u.account === account)
@@ -118,11 +120,11 @@ export const deleteUser = (account) => {
     }
     
     users.splice(userIndex, 1)
-    setUsersAndSync(users)
+    await setUsersAndSync(users)
     return { success: true }
   } catch (error) {
     console.error('Error deleting user:', error)
-    return { success: false, message: '刪除失敗' }
+    return { success: false, message: '刪除失敗（雲端同步未完成）' }
   }
 }
 

@@ -380,13 +380,10 @@ export function deleteDailyTodoItem(boardId, itemId, account, options = {}) {
     const board = { ...todos[idx] }
     const acc = String(account || '').trim()
     const allowManager = !!options?.allowManager
-    if (!canUserWriteDailyBoard(board, acc) && !allowManager) return { success: false, message: '你沒有刪除權限' }
+    if (!allowManager) return { success: false, message: '僅代辦管理者可刪除' }
     const items = Array.isArray(board.items) ? [...board.items] : []
     const target = items.find((x) => x?.id === itemId)
     if (!target) return { success: false, message: '找不到代辦項目' }
-    if (!allowManager && String(target?.createdBy || '').trim() !== acc && String(board?.createdBy || '').trim() !== acc) {
-      return { success: false, message: '僅建立者可刪除此項目' }
-    }
     const filtered = items.filter((x) => x?.id !== itemId).map((x, i) => ({ ...x, no: i + 1 }))
     board.items = filtered
     board.deletedItemIds = { ...(board.deletedItemIds || {}), [String(itemId)]: nowIso() }
@@ -408,7 +405,7 @@ export function deleteDailyTodoBoard(boardId, account, options = {}) {
     const board = todos[idx]
     const acc = String(account || '').trim()
     const allowManager = !!options?.allowManager
-    if (!allowManager && String(board?.createdBy || '').trim() !== acc) return { success: false, message: '僅建立者可刪除整張代辦' }
+    if (!allowManager) return { success: false, message: '僅代辦管理者可刪除整張提醒' }
     const filtered = todos.filter((x) => x?.id !== boardId)
     return saveTodos(filtered)
   } catch (e) {
