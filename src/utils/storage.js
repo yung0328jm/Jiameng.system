@@ -85,13 +85,21 @@ export const getUserRole = (account) => {
   }
 }
 
-// 更新用户角色（仅管理者可用）
+// 更新用户角色（仅管理者可用）；角色含 resigned（離職，無法登入）
 export const updateUserRole = (account, newRole) => {
+  const allowed = ['admin', 'user', 'resigned']
+  if (!allowed.includes(newRole)) {
+    return { success: false, message: '無效角色' }
+  }
   try {
     const users = getUsers()
     const userIndex = users.findIndex(u => u.account === account)
     if (userIndex === -1) {
       return { success: false, message: '用戶不存在' }
+    }
+    const adminCount = users.filter(u => u.role === 'admin').length
+    if (users[userIndex].role === 'admin' && adminCount <= 1 && newRole !== 'admin') {
+      return { success: false, message: '無法變更最後一個管理者的角色' }
     }
     users[userIndex].role = newRole
     setUsersAndSync(users).catch((e) => {
@@ -142,7 +150,13 @@ export const verifyUser = (account, password) => {
   try {
     const users = getUsers()
     const user = users.find(u => u.account === account && u.password === password)
-    return user ? { success: true, user } : { success: false, message: '帳號或密碼錯誤' }
+    if (!user) {
+      return { success: false, message: '帳號或密碼錯誤' }
+    }
+    if (user.role === 'resigned') {
+      return { success: false, message: '此帳號已標記為離職，無法登入' }
+    }
+    return { success: true, user }
   } catch (error) {
     console.error('Error verifying user:', error)
     return { success: false, message: '登錄失敗，請稍後再試' }

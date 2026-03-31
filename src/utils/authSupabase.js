@@ -30,6 +30,10 @@ export async function loginWithAccountOrEmail(accountOrEmail, password) {
     }
 
     const profile = await fetchProfileByUserId(data.user.id)
+    if (profile?.is_resigned) {
+      await logout()
+      return { success: false, message: '此帳號已標記為離職，無法登入' }
+    }
     if (profile) {
       saveCurrentUser(profile.account, profile.is_admin ? 'admin' : 'user')
     } else {
@@ -55,7 +59,7 @@ export async function getProfile() {
 async function fetchProfileByUserId(userId) {
   const sb = getSupabaseClient()
   if (!sb || !userId) return null
-  const { data, error } = await sb.from('profiles').select('id, account, display_name, is_admin, email').eq('id', userId).single()
+  const { data, error } = await sb.from('profiles').select('id, account, display_name, is_admin, is_resigned, email').eq('id', userId).single()
   if (error || !data) return null
   return data
 }
@@ -150,6 +154,17 @@ export async function setProfileAdmin(account, isAdmin) {
   const sb = getSupabaseClient()
   if (!sb) return { success: false, message: '未設定 Supabase' }
   const { error } = await sb.rpc('set_profile_admin', { acc: account, new_is_admin: !!isAdmin })
+  if (error) return { success: false, message: error.message || '更新失敗' }
+  return { success: true }
+}
+
+/** 設定角色：admin / user / resigned（離職者無法登入）；僅管理員可呼叫 */
+export async function setProfileRole(account, newRole) {
+  const sb = getSupabaseClient()
+  if (!sb) return { success: false, message: '未設定 Supabase' }
+  const r = String(newRole || '').trim()
+  if (!['admin', 'user', 'resigned'].includes(r)) return { success: false, message: '無效角色' }
+  const { error } = await sb.rpc('set_profile_role', { acc: account, new_role: r })
   if (error) return { success: false, message: error.message || '更新失敗' }
   return { success: true }
 }
