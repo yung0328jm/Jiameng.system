@@ -547,7 +547,7 @@ function UserManagement() {
                   </th>
                   <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
-                    title="可選：普通用戶、離職人員（無法登入）、管理者"
+                    title="角色僅普通用戶／管理者；離職請按「標記離職」"
                   >
                     角色管理
                   </th>
@@ -597,17 +597,39 @@ function UserManagement() {
                         <UserAdvanceCell account={user.account} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <select
-                          value={user.role === 'resigned' ? 'resigned' : user.role || 'user'}
-                          onChange={(e) => handleRoleChange(user.account, e.target.value)}
-                          className="bg-gray-700 border border-gray-500 rounded px-3 py-1 text-white text-sm min-w-[9rem] focus:outline-none focus:border-yellow-400"
-                          title="含離職人員：標記後該帳號無法登入"
-                          aria-label="變更角色"
-                        >
-                          <option value="user">普通用戶</option>
-                          <option value="resigned">離職人員</option>
-                          <option value="admin">管理者</option>
-                        </select>
+                        {user.role === 'resigned' ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-gray-400 text-xs">離職中</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRoleChange(user.account, 'user')}
+                              className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
+                            >
+                              改為普通用戶
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              value={user.role || 'user'}
+                              onChange={(e) => handleRoleChange(user.account, e.target.value)}
+                              className="bg-gray-700 border border-gray-500 rounded px-3 py-1 text-white text-sm min-w-[7.5rem] focus:outline-none focus:border-yellow-400"
+                              title="僅能選普通用戶或管理者"
+                              aria-label="變更角色"
+                            >
+                              <option value="user">普通用戶</option>
+                              <option value="admin">管理者</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleRoleChange(user.account, 'resigned')}
+                              className="px-2.5 py-1.5 rounded border border-gray-500 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-medium whitespace-nowrap"
+                              title="標記離職後該帳號無法登入"
+                            >
+                              標記離職
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2">
