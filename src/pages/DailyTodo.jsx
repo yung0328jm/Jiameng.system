@@ -95,14 +95,18 @@ function DailyTodo() {
     markDailyTodoBoardRead(selectedBoard.id, currentUser)
   }, [selectedBoard, currentUser, unlockedBoardIds])
 
-  const allNormalAccounts = (users || [])
-    .filter((u) => {
-      const acc = String(u?.account || '').trim()
-      if (!acc) return false
-      if (acc === 'admin' || acc === 'jiameng.system') return false
-      return true
-    })
-    .map((u) => String(u.account).trim())
+  const allNormalAccounts = Array.from(new Set(
+    (users || [])
+      .filter((u) => {
+        const acc = String(u?.account || '').trim()
+        if (!acc) return false
+        if (acc === 'jiameng.system') return false
+        return true
+      })
+      .map((u) => String(u.account).trim())
+      .concat(currentUser ? [String(currentUser).trim()] : [])
+      .filter(Boolean)
+  ))
 
   const getUserLabel = (account) => {
     const acc = String(account || '').trim()
@@ -118,8 +122,11 @@ function DailyTodo() {
 
   const handleCreateBoard = async () => {
     if (userRole !== 'admin') return
-    if ((createForm.writerAccounts || []).length !== 1) {
-      alert('填寫人員需指定 1 位')
+    const writerAccounts = (createForm.writerAccounts || []).length === 0
+      ? [String(currentUser || '').trim()].filter(Boolean)
+      : createForm.writerAccounts
+    if (writerAccounts.length !== 1) {
+      alert('填寫人員需指定 1 位（未選時會預設管理員自己）')
       return
     }
     if ((createForm.viewerAccounts || []).length === 0) {
@@ -130,7 +137,7 @@ function DailyTodo() {
       createdBy: currentUser,
       date: createForm.date,
       title: createForm.title,
-      writerAccounts: createForm.writerAccounts,
+      writerAccounts,
       viewerAccounts: createForm.viewerAccounts,
       password: createForm.password
     })
