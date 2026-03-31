@@ -124,6 +124,12 @@ function accountsEqual(a, b) {
   return x !== '' && y !== '' && x === y
 }
 
+function includesAccount(list, account) {
+  const target = String(account || '').trim()
+  if (!target) return false
+  return (Array.isArray(list) ? list : []).some((x) => accountsEqual(x, target))
+}
+
 export function getDailyTodoManagerAccount() {
   try {
     return parseStoredString(localStorage.getItem(DAILY_TODO_MANAGER_KEY))
@@ -211,17 +217,17 @@ export function getDailyTodoBoards() {
 export function canUserSeeDailyBoard(board, account) {
   const acc = String(account || '').trim()
   if (!acc || !board) return false
-  if (String(board?.createdBy || '').trim() === acc) return true
+  if (accountsEqual(board?.createdBy, acc)) return true
   const viewers = uniqAccounts(board?.viewerAccounts)
   const writers = uniqAccounts(board?.writerAccounts)
-  return viewers.includes(acc) || writers.includes(acc)
+  return includesAccount(viewers, acc) || includesAccount(writers, acc)
 }
 
 export function canUserWriteDailyBoard(board, account) {
   const acc = String(account || '').trim()
   if (!acc || !board) return false
-  if (String(board?.createdBy || '').trim() === acc) return true
-  return uniqAccounts(board?.writerAccounts).includes(acc)
+  if (accountsEqual(board?.createdBy, acc)) return true
+  return includesAccount(uniqAccounts(board?.writerAccounts), acc)
 }
 
 export function getVisibleDailyTodoBoards(account) {
