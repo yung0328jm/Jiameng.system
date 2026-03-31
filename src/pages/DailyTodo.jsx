@@ -104,6 +104,13 @@ function DailyTodo() {
     })
     .map((u) => String(u.account).trim())
 
+  const getUserLabel = (account) => {
+    const acc = String(account || '').trim()
+    if (!acc) return '—'
+    const u = (users || []).find((x) => String(x?.account || '').trim() === acc)
+    return String(u?.name || acc)
+  }
+
   const handleMultiSelectChange = (field, e) => {
     const values = Array.from(e.target.selectedOptions || []).map((x) => x.value)
     setCreateForm((prev) => ({ ...prev, [field]: values }))
@@ -111,8 +118,8 @@ function DailyTodo() {
 
   const handleCreateBoard = async () => {
     if (userRole !== 'admin') return
-    if ((createForm.writerAccounts || []).length === 0) {
-      alert('請至少指定 1 位填寫人員')
+    if ((createForm.writerAccounts || []).length !== 1) {
+      alert('填寫人員需指定 1 位')
       return
     }
     if ((createForm.viewerAccounts || []).length === 0) {
@@ -205,19 +212,18 @@ function DailyTodo() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">指定填寫人員（可多選）</label>
+              <label className="block text-xs text-gray-400 mb-1">指定填寫人員（限 1 位）</label>
               <select
-                multiple
-                size={6}
-                value={createForm.writerAccounts || []}
-                onChange={(e) => handleMultiSelectChange('writerAccounts', e)}
-                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm min-h-[140px]"
+                value={(createForm.writerAccounts || [])[0] || ''}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, writerAccounts: e.target.value ? [e.target.value] : [] }))}
+                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm"
               >
+                <option value="">請選擇填寫人員</option>
                 {allNormalAccounts.map((acc) => (
-                  <option key={`w_${acc}`} value={acc}>{acc}</option>
+                  <option key={`w_${acc}`} value={acc}>{getUserLabel(acc)}</option>
                 ))}
               </select>
-              <p className="text-[11px] text-gray-500 mt-1">按住 Ctrl 可多選（手機可連續點選）</p>
+              <p className="text-[11px] text-gray-500 mt-1">此欄位僅可指定 1 位填寫者</p>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">指定可查看對象（可多選）</label>
@@ -229,7 +235,7 @@ function DailyTodo() {
                 className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm min-h-[140px]"
               >
                 {allNormalAccounts.map((acc) => (
-                  <option key={`v_${acc}`} value={acc}>{acc}</option>
+                  <option key={`v_${acc}`} value={acc}>{getUserLabel(acc)}</option>
                 ))}
               </select>
               <p className="text-[11px] text-gray-500 mt-1">按住 Ctrl 可多選（手機可連續點選）</p>
@@ -273,7 +279,7 @@ function DailyTodo() {
               >
                 <div className="text-sm font-semibold">{b.title}</div>
                 <div className="text-xs text-gray-400 mt-0.5">
-                  {b.date} | 填寫: {(b.writerAccounts || []).join(', ') || '—'}
+                  {b.date} | 填寫: {(b.writerAccounts || []).map((acc) => getUserLabel(acc)).join(', ') || '—'}
                 </div>
                 {b.hasPassword && <div className="text-xs text-purple-300 mt-1">密碼保護</div>}
               </button>
@@ -287,9 +293,13 @@ function DailyTodo() {
             <>
               <div className="mb-3">
                 <h3 className="text-lg font-bold text-yellow-400">{selectedBoard.title}</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  日期: {selectedBoard.date} / 指定填寫: {(selectedBoard.writerAccounts || []).join(', ') || '—'} / 指定查看: {(selectedBoard.viewerAccounts || []).join(', ') || '—'}
-                </p>
+                {userRole === 'admin' ? (
+                  <p className="text-xs text-gray-400 mt-1">
+                    日期: {selectedBoard.date} / 指定填寫: {(selectedBoard.writerAccounts || []).map((acc) => getUserLabel(acc)).join(', ') || '—'} / 指定查看: {(selectedBoard.viewerAccounts || []).map((acc) => getUserLabel(acc)).join(', ') || '—'}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">日期: {selectedBoard.date}</p>
+                )}
               </div>
 
               {selectedBoard.hasPassword && !isBoardUnlocked(selectedBoard) ? (
@@ -341,12 +351,12 @@ function DailyTodo() {
                       <div key={item.id} className="bg-gray-900 border border-gray-700 rounded p-3">
                         <div className="font-semibold text-white">{item.no}. {item.content}</div>
                         <div className="text-xs text-gray-400 mt-1">
-                          建立者: {item.createdBy || '—'} / {new Date(item.createdAt).toLocaleString('zh-TW')}
+                          建立者: {getUserLabel(item.createdBy)} / {new Date(item.createdAt).toLocaleString('zh-TW')}
                         </div>
                         <div className="mt-2 space-y-1">
                           {(item.replies || []).map((r) => (
                             <div key={r.id} className="text-sm text-gray-200 bg-gray-800 rounded px-2 py-1">
-                              <span className="text-yellow-300">{r.author}</span>: {r.text}
+                              <span className="text-yellow-300">{getUserLabel(r.author)}</span>: {r.text}
                             </div>
                           ))}
                         </div>
