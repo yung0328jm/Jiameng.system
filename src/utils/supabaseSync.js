@@ -504,10 +504,56 @@ export async function syncFromSupabase() {
     ;(appRes.data || []).forEach((r) => {
       try {
         const key = r.key
-        // 待辦：本機有寫過就不覆寫。交流區：本機有寫過就不覆寫，訊息僅能由管理員手動清除
-        if (key === 'jiameng_todos' || key === 'jiameng_memos') {
+        // 交流區：本機有寫過就不覆寫，訊息僅能由管理員手動清除
+        if (key === 'jiameng_memos') {
           const existing = localStorage.getItem(key)
           if (existing != null) return
+        }
+        // 待辦：改為合併而非跳過，避免「未在頁面時收不到更新」
+        if (key === 'jiameng_todos') {
+          const incoming = Array.isArray(r.data)
+            ? r.data
+            : (typeof r.data === 'string' ? (() => { try { return JSON.parse(r.data || '[]') } catch (_) { return [] } })() : [])
+          const existing = (() => {
+            try {
+              const raw = localStorage.getItem(key)
+              return raw ? JSON.parse(raw) : []
+            } catch (_) {
+              return []
+            }
+          })()
+          const byId = new Map()
+          ;[...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])].forEach((x) => {
+            const id = String(x?.id || '').trim()
+            if (!id) return
+            const prev = byId.get(id)
+            if (!prev) { byId.set(id, x); return }
+            const ta = Date.parse(prev?.updatedAt || prev?.createdAt || '') || 0
+            const tb = Date.parse(x?.updatedAt || x?.createdAt || '') || 0
+            byId.set(id, tb >= ta ? x : prev)
+          })
+          const merged = Array.from(byId.values())
+          const deletedMap = new Map()
+          merged.forEach((x) => {
+            if (String(x?.kind || '') !== 'daily_board_deleted') return
+            const bid = String(x?.boardId || '').trim()
+            if (!bid) return
+            const t = Date.parse(x?.deletedAt || x?.createdAt || '') || 0
+            const prev = deletedMap.get(bid) || 0
+            if (t >= prev) deletedMap.set(bid, t)
+          })
+          const filtered = merged.filter((x) => {
+            if (String(x?.kind || '') !== 'daily_board') return true
+            const bid = String(x?.id || '').trim()
+            const del = deletedMap.get(bid) || 0
+            if (!del) return true
+            const ts = Date.parse(x?.updatedAt || x?.createdAt || '') || 0
+            return ts > del
+          })
+          const val = JSON.stringify(filtered)
+          localStorage.setItem(key, val)
+          try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
+          return
         }
         // 牌庫：剛寫入 8 秒內不覆寫，避免購買卡包後被雲端舊資料蓋回、牌庫看不到新卡
         if (key === 'jiameng_card_collection') {
@@ -589,8 +635,34 @@ export async function refreshAppDataKeyFromSupabase(key) {
   try {
     const { data: row, error } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
     if (error || row == null) return
-    const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? (Array.isArray(row.data) ? [] : {}))
-    localStorage.setItem(key, val)
+    if (key === 'jiameng_todos') {
+      const incoming = Array.isArray(row.data)
+        ? row.data
+        : (typeof row.data === 'string' ? (() => { try { return JSON.parse(row.data || '[]') } catch (_) { return [] } })() : [])
+      const existing = (() => {
+        try {
+          const raw = localStorage.getItem(key)
+          return raw ? JSON.parse(raw) : []
+        } catch (_) {
+          return []
+        }
+      })()
+      const byId = new Map()
+      ;[...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])].forEach((x) => {
+        const id = String(x?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, x); return }
+        const ta = Date.parse(prev?.updatedAt || prev?.createdAt || '') || 0
+        const tb = Date.parse(x?.updatedAt || x?.createdAt || '') || 0
+        byId.set(id, tb >= ta ? x : prev)
+      })
+      const merged = JSON.stringify(Array.from(byId.values()))
+      localStorage.setItem(key, merged)
+    } else {
+      const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? (Array.isArray(row.data) ? [] : {}))
+      localStorage.setItem(key, val)
+    }
     try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
   } catch (_) {}
 }
