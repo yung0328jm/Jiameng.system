@@ -39,7 +39,6 @@ function DailyTodo() {
     return {
       date: ymd,
       title: `${ymd} 每日代辦`,
-      writerAccounts: [],
       viewerAccounts: [],
       password: ''
     }
@@ -133,13 +132,7 @@ function DailyTodo() {
 
   const handleCreateBoard = async () => {
     if (!isDailyTodoManager) return
-    const writerAccounts = (createForm.writerAccounts || []).length === 0
-      ? [String(currentUser || '').trim()].filter(Boolean)
-      : createForm.writerAccounts
-    if (writerAccounts.length !== 1) {
-      alert('填寫人員需指定 1 位（未選時會預設管理員自己）')
-      return
-    }
+    const writerAccounts = [String(currentUser || '').trim()].filter(Boolean)
     if ((createForm.viewerAccounts || []).length === 0) {
       alert('請至少指定 1 位可查看對象')
       return
@@ -157,7 +150,7 @@ function DailyTodo() {
       return
     }
     alert('每日代辦建立成功')
-    setCreateForm((prev) => ({ ...prev, writerAccounts: [], viewerAccounts: [], password: '' }))
+    setCreateForm((prev) => ({ ...prev, viewerAccounts: [], password: '' }))
     setRefreshKey((x) => x + 1)
   }
 
@@ -285,20 +278,6 @@ function DailyTodo() {
                 placeholder="例如：2026-03-30 每日代辦"
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
               />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">指定填寫人員（限 1 位）</label>
-              <select
-                value={(createForm.writerAccounts || [])[0] || ''}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, writerAccounts: e.target.value ? [e.target.value] : [] }))}
-                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm"
-              >
-                <option value="">請選擇填寫人員</option>
-                {allNormalAccounts.map((acc) => (
-                  <option key={`w_${acc}`} value={acc}>{getUserLabel(acc)}</option>
-                ))}
-              </select>
-              <p className="text-[11px] text-gray-500 mt-1">此欄位僅可指定 1 位填寫者</p>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">指定可查看對象（可多選）</label>
