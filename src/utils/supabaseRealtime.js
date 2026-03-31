@@ -170,7 +170,7 @@ export function subscribeRealtime(onUpdate) {
     })
     return Array.from(byKey.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
   }
-  function mergeTodoItems(existingArr, incomingArr) {
+  function mergeTodoItems(existingArr, incomingArr, deletedMap = {}) {
     const a = Array.isArray(existingArr) ? existingArr : []
     const b = Array.isArray(incomingArr) ? incomingArr : []
     const byKey = new Map()
@@ -186,12 +186,28 @@ export function subscribeRealtime(onUpdate) {
       const newer = todoTs(it) >= todoTs(prev) ? it : prev
       byKey.set(key, { ...newer, replies: mergeTodoReplies(prev?.replies, it?.replies) })
     })
-    return Array.from(byKey.values()).sort((x, y) => {
+    const deleted = deletedMap && typeof deletedMap === 'object' ? deletedMap : {}
+    return Array.from(byKey.values()).filter((x) => {
+      const id = String(x?.id || '').trim()
+      if (!id) return true
+      return !deleted[id]
+    }).sort((x, y) => {
       const n0 = Number(x?.no) || 0
       const n1 = Number(y?.no) || 0
       if (n0 !== n1) return n0 - n1
       return (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0)
     })
+  }
+  function mergeDeletedItemIds(existingObj, incomingObj) {
+    const a = existingObj && typeof existingObj === 'object' ? existingObj : {}
+    const b = incomingObj && typeof incomingObj === 'object' ? incomingObj : {}
+    const out = { ...a }
+    Object.keys(b).forEach((id) => {
+      const ta = Date.parse(a?.[id] || '') || 0
+      const tb = Date.parse(b?.[id] || '') || 0
+      out[id] = tb >= ta ? b[id] : a[id]
+    })
+    return out
   }
   function mergeReadBy(existingObj, incomingObj) {
     const a = existingObj && typeof existingObj === 'object' ? existingObj : {}
@@ -216,13 +232,15 @@ export function subscribeRealtime(onUpdate) {
       const newer = todoTs(todo) >= todoTs(prev) ? todo : prev
       const older = todoTs(todo) >= todoTs(prev) ? prev : todo
       if (String(newer?.kind || '') === 'daily_board' || String(older?.kind || '') === 'daily_board') {
+        const mergedDeleted = mergeDeletedItemIds(older?.deletedItemIds, newer?.deletedItemIds)
         byId.set(id, {
           ...older,
           ...newer,
           writerAccounts: Array.from(new Set([...(older?.writerAccounts || []), ...(newer?.writerAccounts || [])])),
           viewerAccounts: Array.from(new Set([...(older?.viewerAccounts || []), ...(newer?.viewerAccounts || [])])),
-          items: mergeTodoItems(older?.items, newer?.items),
-          readBy: mergeReadBy(older?.readBy, newer?.readBy)
+          items: mergeTodoItems(older?.items, newer?.items, mergedDeleted),
+          readBy: mergeReadBy(older?.readBy, newer?.readBy),
+          deletedItemIds: mergedDeleted
         })
       } else {
         byId.set(id, newer)

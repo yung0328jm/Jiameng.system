@@ -389,6 +389,7 @@ export function deleteDailyTodoItem(boardId, itemId, account, options = {}) {
     }
     const filtered = items.filter((x) => x?.id !== itemId).map((x, i) => ({ ...x, no: i + 1 }))
     board.items = filtered
+    board.deletedItemIds = { ...(board.deletedItemIds || {}), [String(itemId)]: nowIso() }
     board.updatedAt = nowIso()
     board.readBy = { ...(board.readBy || {}), [acc]: nowIso() }
     todos[idx] = board
