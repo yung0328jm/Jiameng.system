@@ -3,6 +3,7 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getPublicProfiles, isSupabaseEnabled as isAuthSupabase } from '../utils/authSupabase'
+import { addAdminToUserMessage } from '../utils/messageStorage'
 import {
   addDailyTodoItems,
   addDailyTodoReply,
@@ -180,6 +181,29 @@ function DailyTodo() {
     if (!result.success) {
       alert(result.message || '建立失敗')
       return
+    }
+    // 若有設定密碼保護：自動發站內信給「指定查看對象」
+    const plainPassword = String(createForm.password || '').trim()
+    if (plainPassword) {
+      const recipients = Array.from(new Set((createForm.viewerAccounts || []).map((x) => String(x || '').trim()).filter(Boolean)))
+      const me = String(currentUser || '').trim()
+      recipients
+        .filter((acc) => acc && acc !== me)
+        .forEach((toAcc) => {
+          addAdminToUserMessage({
+            fromAdminAccount: me,
+            to: toAcc,
+            subject: `【溫馨提醒】${createForm.title || result?.board?.title || ''}`.trim(),
+            body: [
+              '您有一則新的溫馨提醒，已啟用密碼保護。',
+              `日期：${createForm.date || result?.board?.date || ''}`,
+              `標題：${createForm.title || result?.board?.title || ''}`,
+              `閱讀密碼：${plainPassword}`,
+              '',
+              '請至「溫馨提醒」頁面閱讀。'
+            ].join('\n')
+          })
+        })
     }
     alert('溫馨提醒建立成功')
     setCreateForm((prev) => ({ ...prev, viewerAccounts: [], password: '' }))
