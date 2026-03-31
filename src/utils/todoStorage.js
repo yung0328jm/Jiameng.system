@@ -1,6 +1,7 @@
 // 待辦事項存儲工具
 import { syncKeyToSupabase } from './supabaseSync'
 const TODO_STORAGE_KEY = 'jiameng_todos'
+const DAILY_TODO_MANAGER_KEY = 'jiameng_daily_todo_manager_account'
 
 // 獲取所有待辦事項
 export const getTodos = () => {
@@ -104,6 +105,51 @@ export function toggleTodo(id) {
 // ===== 每日代辦（新功能） =====
 
 const DAILY_BOARD_KIND = 'daily_board'
+
+function parseStoredString(raw) {
+  if (raw == null || raw === '') return ''
+  const s = String(raw).trim()
+  if (!s) return ''
+  try {
+    const p = JSON.parse(s)
+    if (typeof p === 'string') return p.trim()
+  } catch (_) {}
+  return s.replace(/^["']|["']$/g, '').trim()
+}
+
+function accountsEqual(a, b) {
+  const x = String(a || '').trim().toLowerCase()
+  const y = String(b || '').trim().toLowerCase()
+  return x !== '' && y !== '' && x === y
+}
+
+export function getDailyTodoManagerAccount() {
+  try {
+    return parseStoredString(localStorage.getItem(DAILY_TODO_MANAGER_KEY))
+  } catch (_) {
+    return ''
+  }
+}
+
+export function setDailyTodoManagerAccount(account) {
+  try {
+    const v = String(account || '').trim()
+    const val = JSON.stringify(v)
+    localStorage.setItem(DAILY_TODO_MANAGER_KEY, val)
+    syncKeyToSupabase(DAILY_TODO_MANAGER_KEY, val).catch(() => {})
+    return { success: true, account: v }
+  } catch (e) {
+    console.error('setDailyTodoManagerAccount failed', e)
+    return { success: false, message: '設定代辦管理者失敗' }
+  }
+}
+
+export function canManageDailyTodo(account, role = null) {
+  const r = String(role || '').trim().toLowerCase()
+  if (r === 'admin') return true
+  const manager = getDailyTodoManagerAccount()
+  return accountsEqual(account, manager)
+}
 
 function nowIso() {
   return new Date().toISOString()
@@ -256,13 +302,14 @@ function normalizeItemLines(input) {
     .filter(Boolean)
 }
 
-export function addDailyTodoItems(boardId, account, lines) {
+export function addDailyTodoItems(boardId, account, lines, options = {}) {
   try {
     const todos = getTodos()
     const idx = todos.findIndex((x) => x?.id === boardId && x?.kind === DAILY_BOARD_KIND)
     if (idx < 0) return { success: false, message: '找不到代辦看板' }
     const board = { ...todos[idx] }
-    if (!canUserWriteDailyBoard(board, account)) return { success: false, message: '你沒有填寫權限' }
+    const allowManager = !!options?.allowManager
+    if (!canUserWriteDailyBoard(board, account) && !allowManager) return { success: false, message: '你沒有填寫權限' }
     const parsed = normalizeItemLines(lines)
     if (parsed.length === 0) return { success: false, message: '請輸入至少一項代辦內容' }
     const prev = Array.isArray(board.items) ? board.items : []
@@ -291,13 +338,14 @@ export function addDailyTodoItems(boardId, account, lines) {
   }
 }
 
-export function addDailyTodoReply(boardId, itemId, account, text) {
+export function addDailyTodoReply(boardId, itemId, account, text, options = {}) {
   try {
     const todos = getTodos()
     const idx = todos.findIndex((x) => x?.id === boardId && x?.kind === DAILY_BOARD_KIND)
     if (idx < 0) return { success: false, message: '找不到代辦看板' }
     const board = { ...todos[idx] }
-    if (!canUserSeeDailyBoard(board, account)) return { success: false, message: '你沒有查看權限' }
+    const allowManager = !!options?.allowManager
+    if (!canUserSeeDailyBoard(board, account) && !allowManager) return { success: false, message: '你沒有查看權限' }
     const content = String(text || '').trim()
     if (!content) return { success: false, message: '回覆內容不可為空' }
     const items = Array.isArray(board.items) ? [...board.items] : []
@@ -321,5 +369,49 @@ export function addDailyTodoReply(boardId, itemId, account, text) {
   } catch (e) {
     console.error('addDailyTodoReply failed', e)
     return { success: false, message: '新增回覆失敗' }
+  }
+}
+
+export function deleteDailyTodoItem(boardId, itemId, account, options = {}) {
+  try {
+    const todos = getTodos()
+    const idx = todos.findIndex((x) => x?.id === boardId && x?.kind === DAILY_BOARD_KIND)
+    if (idx < 0) return { success: false, message: '找不到代辦看板' }
+    const board = { ...todos[idx] }
+    const acc = String(account || '').trim()
+    const allowManager = !!options?.allowManager
+    if (!canUserWriteDailyBoard(board, acc) && !allowManager) return { success: false, message: '你沒有刪除權限' }
+    const items = Array.isArray(board.items) ? [...board.items] : []
+    const target = items.find((x) => x?.id === itemId)
+    if (!target) return { success: false, message: '找不到代辦項目' }
+    if (!allowManager && String(target?.createdBy || '').trim() !== acc && String(board?.createdBy || '').trim() !== acc) {
+      return { success: false, message: '僅建立者可刪除此項目' }
+    }
+    const filtered = items.filter((x) => x?.id !== itemId).map((x, i) => ({ ...x, no: i + 1 }))
+    board.items = filtered
+    board.updatedAt = nowIso()
+    board.readBy = { ...(board.readBy || {}), [acc]: nowIso() }
+    todos[idx] = board
+    return saveTodos(todos)
+  } catch (e) {
+    console.error('deleteDailyTodoItem failed', e)
+    return { success: false, message: '刪除代辦項目失敗' }
+  }
+}
+
+export function deleteDailyTodoBoard(boardId, account, options = {}) {
+  try {
+    const todos = getTodos()
+    const idx = todos.findIndex((x) => x?.id === boardId && x?.kind === DAILY_BOARD_KIND)
+    if (idx < 0) return { success: false, message: '找不到代辦看板' }
+    const board = todos[idx]
+    const acc = String(account || '').trim()
+    const allowManager = !!options?.allowManager
+    if (!allowManager && String(board?.createdBy || '').trim() !== acc) return { success: false, message: '僅建立者可刪除整張代辦' }
+    const filtered = todos.filter((x) => x?.id !== boardId)
+    return saveTodos(filtered)
+  } catch (e) {
+    console.error('deleteDailyTodoBoard failed', e)
+    return { success: false, message: '刪除代辦看板失敗' }
   }
 }

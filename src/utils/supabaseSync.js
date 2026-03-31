@@ -146,6 +146,8 @@ export const APP_DATA_KEYS = [
   'jiameng_leave_filler_account',
   // 個人績效：指定「一人」可檢視全員（唯讀）
   'jiameng_performance_viewer_account',
+  // 每日代辦：指定一位代理管理者（可處理所有代辦事項）
+  'jiameng_daily_todo_manager_account',
   // 加班申請（待審核/已核准狀態對所有用戶可見）
   'jiameng_overtime_applications',
   // 預支申請（借支金額、事由、審核／已匯款）
