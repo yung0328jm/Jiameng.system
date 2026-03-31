@@ -14,6 +14,7 @@ import ExchangeShop from './ExchangeShop'
 import Exchange from './Exchange'
 import MyBackpack from './MyBackpack'
 import CheckIn from './CheckIn'
+import DailyTodo from './DailyTodo'
 import LeaveApplication from './LeaveApplication'
 import Advance from './Advance'
 import Messages from './Messages'
@@ -39,6 +40,7 @@ import { getGlobalMessages } from '../utils/memoStorage'
 import { getLastSeen, touchLastSeen } from '../utils/lastSeenStorage'
 import { maybeShowMessageNotification } from '../utils/browserNotification'
 import { getCompanyActivities, getPendingActivitiesCount } from '../utils/companyActivityStorage'
+import { getDailyTodoUnreadCount } from '../utils/todoStorage'
 
 // 图标组件
 function HomeIcon() {
@@ -223,7 +225,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
   const personalServiceButtonRef = useRef(null)
   const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
-  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0, activities: 0, overtime: 0 })
+  const [navBadges, setNavBadges] = useState({ memo: 0, messages: 0, leave: 0, advance: 0, activities: 0, overtime: 0, dailyTodo: 0 })
   const prevMessagesBadgeRef = useRef(0)
 
   const calcNavBadges = (me, role) => {
@@ -339,7 +341,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       }
     }
 
-    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge, activities: activitiesBadge, overtime: overtimePendingBadge }
+    const dailyTodoBadge = account ? getDailyTodoUnreadCount(account) : 0
+    return { memo: memoBadge, messages: messagesBadge, leave: leaveBadge, advance: advanceBadge, activities: activitiesBadge, overtime: overtimePendingBadge, dailyTodo: dailyTodoBadge }
   }
 
   const loadAllUsersForAdmin = async () => {
@@ -479,7 +482,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   useRealtimeKeys(
     [
       'jiameng_wallets', 'jiameng_transactions', 'jiameng_users', 'jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests',
-      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_overtime_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_memos', 'jiameng_last_seen_v1',
+      'jiameng_messages', 'jiameng_leave_applications', 'jiameng_overtime_applications', 'jiameng_advances', 'jiameng_announcements', 'jiameng_memos', 'jiameng_last_seen_v1', 'jiameng_todos',
       'jiameng_company_activities'
     ],
     refetchDashboard
@@ -716,6 +719,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('exchange')) return 'exchange'
     if (path.includes('my-backpack')) return 'my-backpack'
     if (path.includes('check-in')) return 'check-in'
+    if (path.includes('daily-todo')) return 'daily-todo'
     if (path.includes('leave-application')) return 'leave-application'
     if (path.includes('advance')) return 'advance'
     if (path.includes('messages')) return 'messages'
@@ -734,6 +738,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         if (tab === 'messages') touchLastSeen(me, 'messages')
         if (tab === 'leave-application') touchLastSeen(me, 'leave')
         if (tab === 'advance') touchLastSeen(me, 'advance')
+        if (tab === 'daily-todo') touchLastSeen(me, 'daily_todo')
         if (tab === 'memo') {
           touchLastSeen(me, 'memo_announcements')
           touchLastSeen(me, 'memo_chat')
@@ -763,6 +768,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       exchange: '交易所',
       'my-backpack': '我的背包',
       'check-in': '每日簽到',
+      'daily-todo': '每日代辦事項',
       'leave-application': '請假申請',
       'advance': '預支',
       'user-management': '用戶管理',
@@ -835,6 +841,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <MyBackpack />
       case 'check-in':
         return <CheckIn />
+      case 'daily-todo':
+        return <DailyTodo />
       case 'leave-application':
         return <LeaveApplication />
       case 'advance':
@@ -1343,7 +1351,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative
-                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab)
+                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'daily-todo'].includes(activeTab)
                   ? 'bg-yellow-400 text-gray-800 font-semibold'
                   : 'text-white hover:bg-gray-600 active:bg-gray-600'
                 }
@@ -1351,9 +1359,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             >
               <PersonalServiceIcon />
               <span>個人服務</span>
-              {(navBadges.messages + navBadges.leave + navBadges.advance) > 0 && (
-                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab) ? 'bg-gray-800 text-yellow-400' : 'bg-yellow-400 text-gray-800'}`}>
-                  {navBadges.messages + navBadges.leave + navBadges.advance > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance}
+              {(navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo) > 0 && (
+                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'daily-todo'].includes(activeTab) ? 'bg-gray-800 text-yellow-400' : 'bg-yellow-400 text-gray-800'}`}>
+                  {navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo}
                 </span>
               )}
               <svg className="w-4 h-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1388,15 +1396,26 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                     <AdvanceIcon /> 預支
                     {navBadges.advance > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.advance}</span>}
                   </button>
-                  <button type="button" onClick={() => { handleTabClick('messages', '/messages'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                  <button type="button" onClick={() => { handleTabClick('messages', '/messages'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <MailIcon /> 站內信
                     {navBadges.messages > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.messages}</span>}
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('daily-todo', '/daily-todo'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                    <DocumentIcon /> 每日代辦
+                    {navBadges.dailyTodo > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.dailyTodo}</span>}
                   </button>
                 </div>
               </>,
               document.body
             )}
           </div>
+          <NavItem
+            icon={<DocumentIcon />}
+            label="每日代辦"
+            isActive={activeTab === 'daily-todo'}
+            onClick={() => handleTabClick('daily-todo', '/daily-todo')}
+            badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
+          />
           <NavItem
             icon={<CheckInIcon />}
             label="每日簽到"
