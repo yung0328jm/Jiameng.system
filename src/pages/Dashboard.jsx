@@ -1311,6 +1311,13 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             badge={activeTab === 'memo' ? null : (navBadges.memo > 0 ? navBadges.memo : null)}
           />
           <NavItem
+            icon={<DocumentIcon />}
+            label="溫馨提醒"
+            isActive={activeTab === 'daily-todo'}
+            onClick={() => handleTabClick('daily-todo', '/daily-todo')}
+            badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
+          />
+          <NavItem
             icon={<PeopleIcon />}
             label="公司活動"
             isActive={activeTab === 'activities'}
@@ -1409,13 +1416,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               document.body
             )}
           </div>
-          <NavItem
-            icon={<DocumentIcon />}
-            label="溫馨提醒"
-            isActive={activeTab === 'daily-todo'}
-            onClick={() => handleTabClick('daily-todo', '/daily-todo')}
-            badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
-          />
           <NavItem
             icon={<CheckInIcon />}
             label="每日簽到"
