@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
+import { getPublicProfiles, isSupabaseEnabled as isAuthSupabase } from '../utils/authSupabase'
 import {
   addDailyTodoItems,
   addDailyTodoReply,
@@ -47,12 +48,32 @@ function DailyTodo() {
     return unlockedBoardIds.includes(board.id)
   }
 
-  const loadBase = () => {
+  const loadUsers = async () => {
+    try {
+      if (typeof isAuthSupabase === 'function' && isAuthSupabase()) {
+        const profiles = await getPublicProfiles()
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          const mapped = profiles.map((p) => ({
+            account: p.account,
+            name: p.display_name || p.account,
+            role: p.is_admin ? 'admin' : 'user'
+          }))
+          setUsers(mapped)
+          return
+        }
+      }
+    } catch (e) {
+      console.warn('DailyTodo loadUsers via profiles failed', e)
+    }
+    setUsers(getUsers() || [])
+  }
+
+  const loadBase = async () => {
     const me = String(getCurrentUser() || '').trim()
     const role = getCurrentUserRole()
     setCurrentUser(me)
     setUserRole(role)
-    setUsers(getUsers() || [])
+    await loadUsers()
     const visible = getVisibleDailyTodoBoards(me)
     setBoards(visible)
     if (!selectedBoardId && visible.length > 0) setSelectedBoardId(visible[0].id)
@@ -83,13 +104,9 @@ function DailyTodo() {
     })
     .map((u) => String(u.account).trim())
 
-  const handleToggleMulti = (field, account) => {
-    setCreateForm((prev) => {
-      const set = new Set(prev[field] || [])
-      if (set.has(account)) set.delete(account)
-      else set.add(account)
-      return { ...prev, [field]: Array.from(set) }
-    })
+  const handleMultiSelectChange = (field, e) => {
+    const values = Array.from(e.target.selectedOptions || []).map((x) => x.value)
+    setCreateForm((prev) => ({ ...prev, [field]: values }))
   }
 
   const handleCreateBoard = async () => {
@@ -189,33 +206,33 @@ function DailyTodo() {
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">指定填寫人員（可多選）</label>
-              <div className="max-h-28 overflow-y-auto bg-gray-900 border border-gray-700 rounded p-2 space-y-1">
+              <select
+                multiple
+                size={6}
+                value={createForm.writerAccounts || []}
+                onChange={(e) => handleMultiSelectChange('writerAccounts', e)}
+                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm min-h-[140px]"
+              >
                 {allNormalAccounts.map((acc) => (
-                  <label key={`w_${acc}`} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={(createForm.writerAccounts || []).includes(acc)}
-                      onChange={() => handleToggleMulti('writerAccounts', acc)}
-                    />
-                    <span>{acc}</span>
-                  </label>
+                  <option key={`w_${acc}`} value={acc}>{acc}</option>
                 ))}
-              </div>
+              </select>
+              <p className="text-[11px] text-gray-500 mt-1">按住 Ctrl 可多選（手機可連續點選）</p>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">指定可查看對象（可多選）</label>
-              <div className="max-h-28 overflow-y-auto bg-gray-900 border border-gray-700 rounded p-2 space-y-1">
+              <select
+                multiple
+                size={6}
+                value={createForm.viewerAccounts || []}
+                onChange={(e) => handleMultiSelectChange('viewerAccounts', e)}
+                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm min-h-[140px]"
+              >
                 {allNormalAccounts.map((acc) => (
-                  <label key={`v_${acc}`} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={(createForm.viewerAccounts || []).includes(acc)}
-                      onChange={() => handleToggleMulti('viewerAccounts', acc)}
-                    />
-                    <span>{acc}</span>
-                  </label>
+                  <option key={`v_${acc}`} value={acc}>{acc}</option>
                 ))}
-              </div>
+              </select>
+              <p className="text-[11px] text-gray-500 mt-1">按住 Ctrl 可多選（手機可連續點選）</p>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs text-gray-400 mb-1">閱讀密碼（可留空）</label>
