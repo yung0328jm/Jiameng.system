@@ -35,6 +35,7 @@ function DailyTodo() {
   const [managerPicker, setManagerPicker] = useState('')
   const [searchDate, setSearchDate] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [viewerFilter, setViewerFilter] = useState('all')
 
   const [createForm, setCreateForm] = useState(() => {
     const d = new Date()
@@ -56,9 +57,13 @@ function DailyTodo() {
       if (searchDate && String(b?.date || '') !== String(searchDate)) return false
       if (statusFilter === 'completed' && !b?.completed) return false
       if (statusFilter === 'pending' && !!b?.completed) return false
+      if (viewerFilter !== 'all') {
+        const viewers = Array.isArray(b?.viewerAccounts) ? b.viewerAccounts.map((x) => String(x || '').trim()) : []
+        if (!viewers.includes(viewerFilter)) return false
+      }
       return true
     })
-  }, [boards, searchDate, statusFilter])
+  }, [boards, searchDate, statusFilter, viewerFilter])
 
   const isBoardUnlocked = (board) => {
     if (!board?.hasPassword) return true
@@ -127,6 +132,16 @@ function DailyTodo() {
       .concat(currentUser ? [String(currentUser).trim()] : [])
       .filter(Boolean)
   ))
+  const allViewerAccountsInBoards = useMemo(() => {
+    const set = new Set()
+    ;(boards || []).forEach((b) => {
+      ;(Array.isArray(b?.viewerAccounts) ? b.viewerAccounts : []).forEach((acc) => {
+        const a = String(acc || '').trim()
+        if (a) set.add(a)
+      })
+    })
+    return Array.from(set)
+  }, [boards])
 
   const getUserLabel = (account) => {
     const acc = String(account || '').trim()
@@ -353,6 +368,16 @@ function DailyTodo() {
               <option value="all">全部狀態</option>
               <option value="pending">未完成</option>
               <option value="completed">已完成</option>
+            </select>
+            <select
+              value={viewerFilter}
+              onChange={(e) => setViewerFilter(e.target.value)}
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+            >
+              <option value="all">全部查看對象</option>
+              {allViewerAccountsInBoards.map((acc) => (
+                <option key={`vf_${acc}`} value={acc}>{getUserLabel(acc)}</option>
+              ))}
             </select>
           </div>
           <div className="space-y-2 max-h-[65vh] overflow-y-auto">
