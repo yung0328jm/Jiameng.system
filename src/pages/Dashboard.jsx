@@ -768,7 +768,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       exchange: '交易所',
       'my-backpack': '我的背包',
       'check-in': '每日簽到',
-      'daily-todo': '每日代辦事項',
+      'daily-todo': '溫馨提醒',
       'leave-application': '請假申請',
       'advance': '預支',
       'user-management': '用戶管理',
@@ -1351,7 +1351,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-lg transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative
-                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'daily-todo'].includes(activeTab)
+                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab)
                   ? 'bg-yellow-400 text-gray-800 font-semibold'
                   : 'text-white hover:bg-gray-600 active:bg-gray-600'
                 }
@@ -1360,7 +1360,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               <PersonalServiceIcon />
               <span>個人服務</span>
               {(navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo) > 0 && (
-                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'daily-todo'].includes(activeTab) ? 'bg-gray-800 text-yellow-400' : 'bg-yellow-400 text-gray-800'}`}>
+                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab) ? 'bg-gray-800 text-yellow-400' : 'bg-yellow-400 text-gray-800'}`}>
                   {navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo}
                 </span>
               )}
@@ -1401,7 +1401,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                     {navBadges.messages > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.messages}</span>}
                   </button>
                   <button type="button" onClick={() => { handleTabClick('daily-todo', '/daily-todo'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-white hover:bg-gray-700 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
-                    <DocumentIcon /> 每日代辦
+                    <DocumentIcon /> 溫馨提醒
                     {navBadges.dailyTodo > 0 && <span className="ml-auto bg-yellow-400 text-gray-800 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.dailyTodo}</span>}
                   </button>
                 </div>
@@ -1411,7 +1411,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           </div>
           <NavItem
             icon={<DocumentIcon />}
-            label="每日代辦"
+            label="溫馨提醒"
             isActive={activeTab === 'daily-todo'}
             onClick={() => handleTabClick('daily-todo', '/daily-todo')}
             badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
