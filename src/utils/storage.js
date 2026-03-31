@@ -154,7 +154,7 @@ export const verifyUser = (account, password) => {
       return { success: false, message: '帳號或密碼錯誤' }
     }
     if (user.role === 'resigned') {
-      return { success: false, message: '此帳號已標記為離職，無法登入' }
+      return { success: false, message: '謝謝你曾經付出，祝您一帆風順、事事如意' }
     }
     return { success: true, user }
   } catch (error) {

@@ -32,7 +32,7 @@ export async function loginWithAccountOrEmail(accountOrEmail, password) {
     const profile = await fetchProfileByUserId(data.user.id)
     if (profile?.is_resigned) {
       await logout()
-      return { success: false, message: '此帳號已標記為離職，無法登入' }
+      return { success: false, message: '謝謝你曾經付出，祝您一帆風順、事事如意' }
     }
     if (profile) {
       saveCurrentUser(profile.account, profile.is_admin ? 'admin' : 'user')
