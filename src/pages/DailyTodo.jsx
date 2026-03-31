@@ -15,6 +15,7 @@ import {
   getDailyTodoManagerAccount,
   getVisibleDailyTodoBoards,
   markDailyTodoBoardRead,
+  setDailyTodoBoardCompleted,
   setDailyTodoManagerAccount,
   verifyDailyTodoBoardPassword
 } from '../utils/todoStorage'
@@ -32,6 +33,8 @@ function DailyTodo() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [dailyTodoManagerAccount, setDailyTodoManagerAccountState] = useState('')
   const [managerPicker, setManagerPicker] = useState('')
+  const [searchDate, setSearchDate] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   const [createForm, setCreateForm] = useState(() => {
     const d = new Date()
@@ -48,6 +51,14 @@ function DailyTodo() {
     () => boards.find((b) => b.id === selectedBoardId) || null,
     [boards, selectedBoardId]
   )
+  const filteredBoards = useMemo(() => {
+    return (boards || []).filter((b) => {
+      if (searchDate && String(b?.date || '') !== String(searchDate)) return false
+      if (statusFilter === 'completed' && !b?.completed) return false
+      if (statusFilter === 'pending' && !!b?.completed) return false
+      return true
+    })
+  }, [boards, searchDate, statusFilter])
 
   const isBoardUnlocked = (board) => {
     if (!board?.hasPassword) return true
@@ -218,6 +229,15 @@ function DailyTodo() {
     setRefreshKey((x) => x + 1)
   }
 
+  const handleToggleBoardCompleted = (board, checked) => {
+    const result = setDailyTodoBoardCompleted(board.id, checked, currentUser, { allowManager: isDailyTodoManager })
+    if (!result.success) {
+      alert(result.message || '更新失敗')
+      return
+    }
+    setRefreshKey((x) => x + 1)
+  }
+
   return (
     <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen text-white">
       <h2 className="text-xl font-bold text-yellow-400 mb-4">溫馨提醒</h2>
@@ -318,9 +338,26 @@ function DailyTodo() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
           <h3 className="text-yellow-400 font-semibold mb-2">我的溫馨提醒</h3>
+          <div className="mb-2 grid grid-cols-1 gap-2">
+            <input
+              type="date"
+              value={searchDate}
+              onChange={(e) => setSearchDate(e.target.value)}
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs"
+            >
+              <option value="all">全部狀態</option>
+              <option value="pending">未完成</option>
+              <option value="completed">已完成</option>
+            </select>
+          </div>
           <div className="space-y-2 max-h-[65vh] overflow-y-auto">
-            {boards.length === 0 && <p className="text-gray-400 text-sm">目前沒有可查看的代辦</p>}
-            {boards.map((b) => (
+            {filteredBoards.length === 0 && <p className="text-gray-400 text-sm">目前沒有符合條件的提醒</p>}
+            {filteredBoards.map((b) => (
               <button
                 key={b.id}
                 type="button"
@@ -334,6 +371,9 @@ function DailyTodo() {
                 <div className="text-sm font-semibold">{b.title}</div>
                 <div className="text-xs text-gray-400 mt-0.5">
                   {b.date} | 填寫: {(b.writerAccounts || []).map((acc) => getUserLabel(acc)).join(', ') || '—'}
+                </div>
+                <div className={`text-xs mt-1 ${b.completed ? 'text-green-300' : 'text-yellow-300'}`}>
+                  {b.completed ? '已完成' : '未完成'}
                 </div>
                 {b.hasPassword && <div className="text-xs text-purple-300 mt-1">密碼保護</div>}
               </button>
@@ -353,6 +393,26 @@ function DailyTodo() {
                   </p>
                 ) : (
                   <p className="text-xs text-gray-400 mt-1">日期: {selectedBoard.date}</p>
+                )}
+                {isDailyTodoManager && (
+                  <div className="mt-1 text-xs text-gray-300">
+                    發送給：{(selectedBoard.viewerAccounts || []).map((acc) => getUserLabel(acc)).join('、') || '—'}
+                  </div>
+                )}
+                {isDailyTodoManager && selectedBoard.hasPassword && (
+                  <div className="mt-1 text-xs text-purple-300">
+                    密碼：{selectedBoard.passwordPlain || '（舊資料無法顯示）'}
+                  </div>
+                )}
+                {isDailyTodoManager && (
+                  <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedBoard.completed}
+                      onChange={(e) => handleToggleBoardCompleted(selectedBoard, e.target.checked)}
+                    />
+                    標記已完成
+                  </label>
                 )}
                 {(String(selectedBoard?.createdBy || '').trim() === String(currentUser || '').trim() || isDailyTodoManager) && (
                   <button
