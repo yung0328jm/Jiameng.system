@@ -3,6 +3,7 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getPublicProfiles, isSupabaseEnabled as isAuthSupabase } from '../utils/authSupabase'
+import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
 import { addAdminToUserMessage } from '../utils/messageStorage'
 import {
   addDailyTodoItems,
@@ -118,6 +119,18 @@ function DailyTodo() {
     loadBase()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
+
+  useEffect(() => {
+    // 進入頁面先主動拉一次，避免用戶不在此頁時錯過 realtime 後看不到新提醒
+    refreshAppDataKeyFromSupabase('jiameng_todos').finally(() => setRefreshKey((x) => x + 1))
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshAppDataKeyFromSupabase('jiameng_todos').finally(() => setRefreshKey((x) => x + 1))
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
 
   useRealtimeKeys(['jiameng_todos', 'jiameng_users', 'jiameng_daily_todo_manager_account'], () => setRefreshKey((x) => x + 1))
 
