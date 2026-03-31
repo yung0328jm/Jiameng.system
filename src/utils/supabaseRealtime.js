@@ -151,6 +151,86 @@ export function subscribeRealtime(onUpdate) {
     return order.map((id) => byId.get(id)).filter(Boolean)
   }
 
+  function todoTs(x) {
+    const t0 = Date.parse(x?.updatedAt || '') || 0
+    const t1 = Date.parse(x?.createdAt || '') || 0
+    return Math.max(t0, t1)
+  }
+  function mergeTodoReplies(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byKey = new Map()
+    ;[...a, ...b].forEach((r) => {
+      const id = String(r?.id || '').trim()
+      const key = id || `${String(r?.author || '').trim()}|${String(r?.text || '').trim()}|${String(r?.createdAt || '').trim()}`
+      if (!key) return
+      const prev = byKey.get(key)
+      if (!prev) { byKey.set(key, r); return }
+      byKey.set(key, todoTs(r) >= todoTs(prev) ? r : prev)
+    })
+    return Array.from(byKey.values()).sort((x, y) => (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0))
+  }
+  function mergeTodoItems(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byKey = new Map()
+    ;[...a, ...b].forEach((it) => {
+      const id = String(it?.id || '').trim()
+      const key = id || `${String(it?.no || '')}|${String(it?.content || '')}|${String(it?.createdAt || '')}`
+      if (!key) return
+      const prev = byKey.get(key)
+      if (!prev) {
+        byKey.set(key, { ...it, replies: mergeTodoReplies(it?.replies, []) })
+        return
+      }
+      const newer = todoTs(it) >= todoTs(prev) ? it : prev
+      byKey.set(key, { ...newer, replies: mergeTodoReplies(prev?.replies, it?.replies) })
+    })
+    return Array.from(byKey.values()).sort((x, y) => {
+      const n0 = Number(x?.no) || 0
+      const n1 = Number(y?.no) || 0
+      if (n0 !== n1) return n0 - n1
+      return (Date.parse(x?.createdAt || '') || 0) - (Date.parse(y?.createdAt || '') || 0)
+    })
+  }
+  function mergeReadBy(existingObj, incomingObj) {
+    const a = existingObj && typeof existingObj === 'object' ? existingObj : {}
+    const b = incomingObj && typeof incomingObj === 'object' ? incomingObj : {}
+    const out = { ...a }
+    Object.keys(b).forEach((k) => {
+      const ta = Date.parse(a?.[k] || '') || 0
+      const tb = Date.parse(b?.[k] || '') || 0
+      out[k] = tb >= ta ? b[k] : a[k]
+    })
+    return out
+  }
+  function mergeTodosData(existingArr, incomingArr) {
+    const a = Array.isArray(existingArr) ? existingArr : []
+    const b = Array.isArray(incomingArr) ? incomingArr : []
+    const byId = new Map()
+    ;[...a, ...b].forEach((todo) => {
+      const id = String(todo?.id || '').trim()
+      if (!id) return
+      const prev = byId.get(id)
+      if (!prev) { byId.set(id, todo); return }
+      const newer = todoTs(todo) >= todoTs(prev) ? todo : prev
+      const older = todoTs(todo) >= todoTs(prev) ? prev : todo
+      if (String(newer?.kind || '') === 'daily_board' || String(older?.kind || '') === 'daily_board') {
+        byId.set(id, {
+          ...older,
+          ...newer,
+          writerAccounts: Array.from(new Set([...(older?.writerAccounts || []), ...(newer?.writerAccounts || [])])),
+          viewerAccounts: Array.from(new Set([...(older?.viewerAccounts || []), ...(newer?.viewerAccounts || [])])),
+          items: mergeTodoItems(older?.items, newer?.items),
+          readBy: mergeReadBy(older?.readBy, newer?.readBy)
+        })
+      } else {
+        byId.set(id, newer)
+      }
+    })
+    return Array.from(byId.values()).sort((x, y) => (Date.parse(y?.updatedAt || y?.createdAt || '') || 0) - (Date.parse(x?.updatedAt || x?.createdAt || '') || 0))
+  }
+
   // 道具清單合併去重：避免多裝置覆蓋造成「背包有 itemId 但道具定義不在 → 未知道具」
   function itemUpdatedAt(x) {
     const t0 = Date.parse(x?.updatedAt || '') || 0
@@ -601,19 +681,24 @@ export function subscribeRealtime(onUpdate) {
                 localStorage.setItem(key, val)
                 notifyKey(key)
               } else if (key === 'jiameng_todos') {
-                // 待辦：內容相同則跳過；若雲端筆數比本機多，且本機剛寫入（3 秒內）才不覆寫，避免刪除被蓋回、又不擋另一台新增
+                // 待辦：同 id 合併（每日代辦回覆/readBy 聯集），避免手機回覆被舊雲端值覆蓋造成「一下有一下沒」
                 const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
-                const val = JSON.stringify(incoming)
                 try {
                   const currentRaw = localStorage.getItem(key)
                   const current = (() => { try { return currentRaw ? JSON.parse(currentRaw) : [] } catch (_) { return [] } })()
+                  const merged = mergeTodosData(current, incoming)
+                  const val = JSON.stringify(merged)
                   if (currentRaw === val) return
                   if (Array.isArray(current) && incoming.length > current.length) {
                     const lastWrite = parseInt(localStorage.getItem('jiameng_todos_last_write') || '', 10)
                     if (lastWrite && (Date.now() - lastWrite < 3000)) return
                   }
                   try { localStorage.removeItem('jiameng_todos_last_write') } catch (_) {}
+                  localStorage.setItem(key, val)
+                  notifyKey(key)
+                  return
                 } catch (_) {}
+                const val = JSON.stringify(incoming)
                 localStorage.setItem(key, val)
                 notifyKey(key)
               } else if (key === 'jiameng_projects') {
