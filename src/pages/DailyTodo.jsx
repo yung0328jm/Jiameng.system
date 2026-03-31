@@ -387,7 +387,7 @@ function DailyTodo() {
                 </div>
               ) : (
                 <>
-                  {(canUserWriteDailyBoard(selectedBoard, currentUser) || isDailyTodoManager) && (
+                  {isDailyTodoManager && (
                     <div className="mb-4 bg-gray-900 border border-gray-700 rounded-lg p-3">
                       <label className="block text-sm text-gray-300 mb-2">新增代辦（每行一項，會自動顯示 1. 2. 3.）</label>
                       <textarea
@@ -414,7 +414,7 @@ function DailyTodo() {
                       <div key={item.id} className="bg-gray-900 border border-gray-700 rounded p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="font-semibold text-white">{item.no}. {item.content}</div>
-                          {(String(item?.createdBy || '').trim() === String(currentUser || '').trim() || String(selectedBoard?.createdBy || '').trim() === String(currentUser || '').trim() || isDailyTodoManager) && (
+                          {isDailyTodoManager && (
                             <button
                               type="button"
                               onClick={() => handleDeleteItem(item)}

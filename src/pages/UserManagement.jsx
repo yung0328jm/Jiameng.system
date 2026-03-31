@@ -365,7 +365,7 @@ function UserManagement() {
     }
   }
 
-  const handleDeleteUser = (account, name) => {
+  const handleDeleteUser = async (account, name) => {
     if (account === currentUserAccount) {
       alert('無法刪除當前登錄的用戶')
       return
@@ -377,7 +377,7 @@ function UserManagement() {
     if (!window.confirm(`確定要刪除用戶「${name || account}」(${account}) 嗎？\n此操作無法復原！`)) {
       return
     }
-    const result = deleteUser(account)
+    const result = await deleteUser(account)
     if (result.success) {
       loadUsers()
       alert('用戶刪除成功')
