@@ -105,6 +105,7 @@ export function toggleTodo(id) {
 // ===== 每日代辦（新功能） =====
 
 const DAILY_BOARD_KIND = 'daily_board'
+const DAILY_BOARD_DELETED_KIND = 'daily_board_deleted'
 
 function parseStoredString(raw) {
   if (raw == null || raw === '') return ''
@@ -185,9 +186,25 @@ async function sha256Hex(input) {
 }
 
 export function getDailyTodoBoards() {
-  const todos = getTodos()
-  return (Array.isArray(todos) ? todos : [])
+  const todos = Array.isArray(getTodos()) ? getTodos() : []
+  const deletedMap = new Map() // boardId -> deletedAt
+  todos.forEach((x) => {
+    if (String(x?.kind || '') !== DAILY_BOARD_DELETED_KIND) return
+    const boardId = String(x?.boardId || '').trim()
+    if (!boardId) return
+    const t = Date.parse(x?.deletedAt || x?.createdAt || '') || 0
+    const prev = deletedMap.get(boardId) || 0
+    if (t >= prev) deletedMap.set(boardId, t)
+  })
+  return todos
     .filter((x) => x?.kind === DAILY_BOARD_KIND)
+    .filter((x) => {
+      const boardId = String(x?.id || '').trim()
+      const deletedAt = deletedMap.get(boardId) || 0
+      if (!deletedAt) return true
+      const boardTs = Date.parse(x?.updatedAt || x?.createdAt || '') || 0
+      return boardTs > deletedAt
+    })
     .sort((a, b) => (Date.parse(b?.updatedAt || b?.createdAt || '') || 0) - (Date.parse(a?.updatedAt || a?.createdAt || '') || 0))
 }
 
@@ -237,7 +254,11 @@ export async function createDailyTodoBoard(payload) {
       viewerAccounts,
       passwordSalt,
       passwordHash,
+      passwordPlain: password || '',
       hasPassword: !!passwordHash,
+      completed: false,
+      completedAt: null,
+      completedBy: '',
       items: [],
       readBy: {},
       createdAt: nowIso(),
@@ -249,6 +270,28 @@ export async function createDailyTodoBoard(payload) {
   } catch (error) {
     console.error('Error creating daily todo board:', error)
     return { success: false, message: '建立每日代辦失敗' }
+  }
+}
+
+export function setDailyTodoBoardCompleted(boardId, completed, account, options = {}) {
+  try {
+    const todos = getTodos()
+    const idx = todos.findIndex((x) => x?.id === boardId && x?.kind === DAILY_BOARD_KIND)
+    if (idx < 0) return { success: false, message: '找不到代辦看板' }
+    const allowManager = !!options?.allowManager
+    if (!allowManager) return { success: false, message: '僅代辦管理者可變更完成狀態' }
+    const acc = String(account || '').trim()
+    const board = { ...todos[idx] }
+    board.completed = !!completed
+    board.completedAt = board.completed ? nowIso() : null
+    board.completedBy = board.completed ? acc : ''
+    board.updatedAt = nowIso()
+    board.readBy = { ...(board.readBy || {}), [acc]: nowIso() }
+    todos[idx] = board
+    return saveTodos(todos)
+  } catch (e) {
+    console.error('setDailyTodoBoardCompleted failed', e)
+    return { success: false, message: '更新完成狀態失敗' }
   }
 }
 
@@ -407,6 +450,20 @@ export function deleteDailyTodoBoard(boardId, account, options = {}) {
     const allowManager = !!options?.allowManager
     if (!allowManager) return { success: false, message: '僅代辦管理者可刪除整張提醒' }
     const filtered = todos.filter((x) => x?.id !== boardId)
+    const tombstoneId = `deleted:${boardId}`
+    const deletedAt = nowIso()
+    const tombstone = {
+      id: tombstoneId,
+      kind: DAILY_BOARD_DELETED_KIND,
+      boardId,
+      deletedBy: acc,
+      deletedAt,
+      createdAt: deletedAt,
+      updatedAt: deletedAt
+    }
+    const tombIdx = filtered.findIndex((x) => x?.id === tombstoneId)
+    if (tombIdx >= 0) filtered[tombIdx] = tombstone
+    else filtered.push(tombstone)
     return saveTodos(filtered)
   } catch (e) {
     console.error('deleteDailyTodoBoard failed', e)
