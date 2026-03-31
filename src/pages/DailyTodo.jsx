@@ -6,11 +6,16 @@ import { getPublicProfiles, isSupabaseEnabled as isAuthSupabase } from '../utils
 import {
   addDailyTodoItems,
   addDailyTodoReply,
+  canManageDailyTodo,
   canUserSeeDailyBoard,
   canUserWriteDailyBoard,
   createDailyTodoBoard,
+  deleteDailyTodoBoard,
+  deleteDailyTodoItem,
+  getDailyTodoManagerAccount,
   getVisibleDailyTodoBoards,
   markDailyTodoBoardRead,
+  setDailyTodoManagerAccount,
   verifyDailyTodoBoardPassword
 } from '../utils/todoStorage'
 
@@ -25,6 +30,8 @@ function DailyTodo() {
   const [replyInputs, setReplyInputs] = useState({})
   const [newItemsInput, setNewItemsInput] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [dailyTodoManagerAccount, setDailyTodoManagerAccountState] = useState('')
+  const [managerPicker, setManagerPicker] = useState('')
 
   const [createForm, setCreateForm] = useState(() => {
     const d = new Date()
@@ -74,6 +81,9 @@ function DailyTodo() {
     setCurrentUser(me)
     setUserRole(role)
     await loadUsers()
+    const managerAcc = getDailyTodoManagerAccount()
+    setDailyTodoManagerAccountState(managerAcc)
+    setManagerPicker(managerAcc)
     const visible = getVisibleDailyTodoBoards(me)
     setBoards(visible)
     if (!selectedBoardId && visible.length > 0) setSelectedBoardId(visible[0].id)
@@ -87,7 +97,7 @@ function DailyTodo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
-  useRealtimeKeys(['jiameng_todos', 'jiameng_users'], () => setRefreshKey((x) => x + 1))
+  useRealtimeKeys(['jiameng_todos', 'jiameng_users', 'jiameng_daily_todo_manager_account'], () => setRefreshKey((x) => x + 1))
 
   useEffect(() => {
     if (!selectedBoard || !currentUser) return
@@ -114,6 +124,7 @@ function DailyTodo() {
     const u = (users || []).find((x) => String(x?.account || '').trim() === acc)
     return String(u?.name || acc)
   }
+  const isDailyTodoManager = canManageDailyTodo(currentUser, userRole)
 
   const handleMultiSelectChange = (field, e) => {
     const values = Array.from(e.target.selectedOptions || []).map((x) => x.value)
@@ -121,7 +132,7 @@ function DailyTodo() {
   }
 
   const handleCreateBoard = async () => {
-    if (userRole !== 'admin') return
+    if (!isDailyTodoManager) return
     const writerAccounts = (createForm.writerAccounts || []).length === 0
       ? [String(currentUser || '').trim()].filter(Boolean)
       : createForm.writerAccounts
@@ -169,7 +180,7 @@ function DailyTodo() {
 
   const handleAddItems = () => {
     if (!selectedBoard) return
-    const result = addDailyTodoItems(selectedBoard.id, currentUser, newItemsInput)
+    const result = addDailyTodoItems(selectedBoard.id, currentUser, newItemsInput, { allowManager: isDailyTodoManager })
     if (!result.success) {
       alert(result.message || '新增代辦失敗')
       return
@@ -182,7 +193,7 @@ function DailyTodo() {
     if (!selectedBoard) return
     const text = String(replyInputs[itemId] || '').trim()
     if (!text) return
-    const result = addDailyTodoReply(selectedBoard.id, itemId, currentUser, text)
+    const result = addDailyTodoReply(selectedBoard.id, itemId, currentUser, text, { allowManager: isDailyTodoManager })
     if (!result.success) {
       alert(result.message || '回覆失敗')
       return
@@ -191,13 +202,70 @@ function DailyTodo() {
     setRefreshKey((x) => x + 1)
   }
 
+  const handleDeleteItem = (item) => {
+    if (!selectedBoard) return
+    if (!window.confirm(`確定刪除第 ${item.no} 點代辦嗎？`)) return
+    const result = deleteDailyTodoItem(selectedBoard.id, item.id, currentUser, { allowManager: isDailyTodoManager })
+    if (!result.success) {
+      alert(result.message || '刪除失敗')
+      return
+    }
+    setRefreshKey((x) => x + 1)
+  }
+
+  const handleDeleteBoard = () => {
+    if (!selectedBoard) return
+    if (!window.confirm('確定要刪除整張每日代辦嗎？此動作無法復原。')) return
+    const result = deleteDailyTodoBoard(selectedBoard.id, currentUser, { allowManager: isDailyTodoManager })
+    if (!result.success) {
+      alert(result.message || '刪除失敗')
+      return
+    }
+    setSelectedBoardId('')
+    setRefreshKey((x) => x + 1)
+  }
+
   return (
     <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen text-white">
       <h2 className="text-xl font-bold text-yellow-400 mb-4">每日代辦事項</h2>
 
-      {userRole === 'admin' && (
+      {isDailyTodoManager && (
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-5">
           <h3 className="text-yellow-400 font-semibold mb-3">建立每日代辦（管理者）</h3>
+          {userRole === 'admin' && (
+            <div className="mb-3">
+              <label className="block text-xs text-gray-400 mb-1">指定代辦管理者（全域 1 位）</label>
+              <div className="flex gap-2">
+                <select
+                  value={managerPicker}
+                  onChange={(e) => setManagerPicker(e.target.value)}
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-sm"
+                >
+                  <option value="">未指定</option>
+                  {allNormalAccounts.map((acc) => (
+                    <option key={`m_${acc}`} value={acc}>{getUserLabel(acc)}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = setDailyTodoManagerAccount(managerPicker)
+                    if (!r.success) {
+                      alert(r.message || '設定失敗')
+                      return
+                    }
+                    setDailyTodoManagerAccountState(managerPicker)
+                    alert('已更新代辦管理者')
+                    setRefreshKey((x) => x + 1)
+                  }}
+                  className="bg-blue-500 hover:bg-blue-400 px-3 py-2 rounded text-sm"
+                >
+                  套用
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">目前代辦管理者：{dailyTodoManagerAccount ? getUserLabel(dailyTodoManagerAccount) : '未指定'}</p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-400 mb-1">日期</label>
@@ -307,6 +375,15 @@ function DailyTodo() {
                 ) : (
                   <p className="text-xs text-gray-400 mt-1">日期: {selectedBoard.date}</p>
                 )}
+                {(String(selectedBoard?.createdBy || '').trim() === String(currentUser || '').trim() || isDailyTodoManager) && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteBoard}
+                    className="mt-2 text-xs text-red-300 hover:text-red-200 border border-red-500/50 rounded px-2 py-1"
+                  >
+                    刪除此每日代辦
+                  </button>
+                )}
               </div>
 
               {selectedBoard.hasPassword && !isBoardUnlocked(selectedBoard) ? (
@@ -331,7 +408,7 @@ function DailyTodo() {
                 </div>
               ) : (
                 <>
-                  {canUserWriteDailyBoard(selectedBoard, currentUser) && (
+                  {(canUserWriteDailyBoard(selectedBoard, currentUser) || isDailyTodoManager) && (
                     <div className="mb-4 bg-gray-900 border border-gray-700 rounded-lg p-3">
                       <label className="block text-sm text-gray-300 mb-2">新增代辦（每行一項，會自動顯示 1. 2. 3.）</label>
                       <textarea
@@ -356,7 +433,18 @@ function DailyTodo() {
                     )}
                     {(selectedBoard.items || []).map((item) => (
                       <div key={item.id} className="bg-gray-900 border border-gray-700 rounded p-3">
-                        <div className="font-semibold text-white">{item.no}. {item.content}</div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-semibold text-white">{item.no}. {item.content}</div>
+                          {(String(item?.createdBy || '').trim() === String(currentUser || '').trim() || String(selectedBoard?.createdBy || '').trim() === String(currentUser || '').trim() || isDailyTodoManager) && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteItem(item)}
+                              className="text-xs text-red-300 hover:text-red-200 border border-red-500/40 rounded px-2 py-0.5 shrink-0"
+                            >
+                              刪除
+                            </button>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-400 mt-1">
                           建立者: {getUserLabel(item.createdBy)} / {new Date(item.createdAt).toLocaleString('zh-TW')}
                         </div>
@@ -367,7 +455,7 @@ function DailyTodo() {
                             </div>
                           ))}
                         </div>
-                        {canUserSeeDailyBoard(selectedBoard, currentUser) && (
+                        {(canUserSeeDailyBoard(selectedBoard, currentUser) || isDailyTodoManager) && (
                           <div className="mt-2 flex gap-2">
                             <input
                               type="text"
