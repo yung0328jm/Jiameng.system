@@ -5,7 +5,7 @@ import { getUserAttendanceRecords, getUserPerformanceRecords, getUserLateRecords
 import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getRegistrationPassword, setRegistrationPassword } from '../utils/registrationPasswordStorage'
-import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, setProfileAdmin } from '../utils/authSupabase'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, setProfileRole } from '../utils/authSupabase'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { calculateCompletionRateAdjustment } from '../utils/completionRateConfigStorage'
 import { getLatePerformanceConfig, calculateLateCountAdjustment, calculateNoClockInAdjustment } from '../utils/latePerformanceConfigStorage'
@@ -83,7 +83,7 @@ function UserManagement() {
         id: p.id,
         account: p.account,
         name: p.display_name || p.account,
-        role: p.is_admin ? 'admin' : 'user',
+        role: p.is_resigned ? 'resigned' : p.is_admin ? 'admin' : 'user',
         createdAt: null
       })))
       return
@@ -351,11 +351,24 @@ function UserManagement() {
     setUserPerformanceData(performanceData)
   }
 
-  const handleRoleChange = (account, newRole) => {
-    if (!window.confirm(`確定要將用戶 ${account} 的角色更改為 ${newRole === 'admin' ? '管理者' : '普通用戶'} 嗎？`)) {
+  const roleLabel = (r) => (r === 'admin' ? '管理者' : r === 'resigned' ? '離職人員' : '普通用戶')
+
+  const handleRoleChange = async (account, newRole) => {
+    if (!window.confirm(`確定要將用戶 ${account} 的角色更改為 ${roleLabel(newRole)} 嗎？`)) {
       return
     }
-    
+
+    if (isAuthSupabase()) {
+      const result = await setProfileRole(account, newRole)
+      if (result.success) {
+        await loadUsers()
+        alert('角色更新成功')
+      } else {
+        alert(result.message || '更新失敗')
+      }
+      return
+    }
+
     const result = updateUserRole(account, newRole)
     if (result.success) {
       loadUsers()
@@ -489,7 +502,7 @@ function UserManagement() {
             className="bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-sm min-w-[220px] focus:outline-none focus:border-yellow-400"
           >
             <option value="">— 不指定 —</option>
-            {users.filter((u) => u.role !== 'admin').map((u) => (
+            {users.filter((u) => u.role !== 'admin' && u.role !== 'resigned').map((u) => (
               <option key={u.account} value={u.account}>
                 {u.name || u.account}（{u.account}）
               </option>
@@ -532,7 +545,10 @@ function UserManagement() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     預支
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                    title="可選：普通用戶、離職人員（無法登入）、管理者"
+                  >
                     角色管理
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -555,9 +571,11 @@ function UserManagement() {
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                           user.role === 'admin'
                             ? 'bg-yellow-400 text-gray-800'
-                            : 'bg-blue-500 text-white'
+                            : user.role === 'resigned'
+                              ? 'bg-gray-600 text-gray-200'
+                              : 'bg-blue-500 text-white'
                         }`}>
-                          {user.role === 'admin' ? '管理者' : '普通用戶'}
+                          {roleLabel(user.role || 'user')}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
@@ -580,11 +598,14 @@ function UserManagement() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <select
-                          value={user.role || 'user'}
+                          value={user.role === 'resigned' ? 'resigned' : user.role || 'user'}
                           onChange={(e) => handleRoleChange(user.account, e.target.value)}
-                          className="bg-gray-700 border border-gray-500 rounded px-3 py-1 text-white text-sm focus:outline-none focus:border-yellow-400"
+                          className="bg-gray-700 border border-gray-500 rounded px-3 py-1 text-white text-sm min-w-[9rem] focus:outline-none focus:border-yellow-400"
+                          title="含離職人員：標記後該帳號無法登入"
+                          aria-label="變更角色"
                         >
                           <option value="user">普通用戶</option>
+                          <option value="resigned">離職人員</option>
                           <option value="admin">管理者</option>
                         </select>
                       </td>
