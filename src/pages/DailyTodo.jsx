@@ -52,13 +52,19 @@ function DailyTodo() {
     () => boards.find((b) => b.id === selectedBoardId) || null,
     [boards, selectedBoardId]
   )
+  const getDisplayRecipientAccounts = (board) => {
+    const viewers = Array.isArray(board?.viewerAccounts) ? board.viewerAccounts.map((x) => String(x || '').trim()).filter(Boolean) : []
+    const writers = new Set((Array.isArray(board?.writerAccounts) ? board.writerAccounts : []).map((x) => String(x || '').trim()).filter(Boolean))
+    const creator = String(board?.createdBy || '').trim()
+    return Array.from(new Set(viewers)).filter((acc) => acc && !writers.has(acc) && acc !== creator)
+  }
   const filteredBoards = useMemo(() => {
     return (boards || []).filter((b) => {
       if (searchDate && String(b?.date || '') !== String(searchDate)) return false
       if (statusFilter === 'completed' && !b?.completed) return false
       if (statusFilter === 'pending' && !!b?.completed) return false
       if (viewerFilter !== 'all') {
-        const viewers = Array.isArray(b?.viewerAccounts) ? b.viewerAccounts.map((x) => String(x || '').trim()) : []
+        const viewers = getDisplayRecipientAccounts(b)
         if (!viewers.includes(viewerFilter)) return false
       }
       return true
@@ -135,7 +141,7 @@ function DailyTodo() {
   const allViewerAccountsInBoards = useMemo(() => {
     const set = new Set()
     ;(boards || []).forEach((b) => {
-      ;(Array.isArray(b?.viewerAccounts) ? b.viewerAccounts : []).forEach((acc) => {
+      getDisplayRecipientAccounts(b).forEach((acc) => {
         const a = String(acc || '').trim()
         if (a) set.add(a)
       })
@@ -414,14 +420,14 @@ function DailyTodo() {
                 <h3 className="text-lg font-bold text-yellow-400">{selectedBoard.title}</h3>
                 {userRole === 'admin' ? (
                   <p className="text-xs text-gray-400 mt-1">
-                    日期: {selectedBoard.date} / 指定填寫: {(selectedBoard.writerAccounts || []).map((acc) => getUserLabel(acc)).join(', ') || '—'} / 指定查看: {(selectedBoard.viewerAccounts || []).map((acc) => getUserLabel(acc)).join(', ') || '—'}
+                    日期: {selectedBoard.date} / 指定填寫: {(selectedBoard.writerAccounts || []).map((acc) => getUserLabel(acc)).join(', ') || '—'} / 指定查看: {getDisplayRecipientAccounts(selectedBoard).map((acc) => getUserLabel(acc)).join(', ') || '—'}
                   </p>
                 ) : (
                   <p className="text-xs text-gray-400 mt-1">日期: {selectedBoard.date}</p>
                 )}
                 {isDailyTodoManager && (
                   <div className="mt-1 text-xs text-gray-300">
-                    發送給：{(selectedBoard.viewerAccounts || []).map((acc) => getUserLabel(acc)).join('、') || '—'}
+                    發送給：{getDisplayRecipientAccounts(selectedBoard).map((acc) => getUserLabel(acc)).join('、') || '—'}
                   </div>
                 )}
                 {isDailyTodoManager && selectedBoard.hasPassword && (
