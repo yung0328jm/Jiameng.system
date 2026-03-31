@@ -25,7 +25,7 @@ import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
 import ClickStarsEffect from './components/ClickStarsEffect'
-import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange } from './utils/authSupabase'
+import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange, logout } from './utils/authSupabase'
 import { getSupabaseClient } from './utils/supabaseClient'
 
 function App() {
@@ -47,6 +47,11 @@ function App() {
       if (session?.user && mounted) {
         const profile = await getProfile()
         if (profile) {
+          if (profile.is_resigned) {
+            await logout()
+            if (mounted) setIsAuthenticated(false)
+            return
+          }
           saveCurrentUser(profile.account, profile.is_admin ? 'admin' : 'user')
           saveAuthStatus(true)
           setIsAuthenticated(true)
