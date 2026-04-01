@@ -284,7 +284,7 @@ function Advance() {
                   </span>
                 </div>
                 <div className="flex justify-between gap-2 text-white">
-                  <span className="text-gray-300 shrink-0">本月最低還款（預估）</span>
+                  <span className="text-gray-300 shrink-0">本月最低還款(預估)</span>
                   <span className="text-amber-200 font-semibold tabular-nums text-right">{advanceApplyPreview.previewMinRepayment.toLocaleString()} 元</span>
                 </div>
                 <p className="text-gray-500 text-xs leading-relaxed">
@@ -353,7 +353,7 @@ function Advance() {
                   <span className="text-yellow-400 font-medium text-right">{Number(stats.monthAdded).toLocaleString()} 元</span>
                 </li>
                 <li className="flex justify-between gap-2">
-                  <span className="text-gray-300 shrink-0">本月至少應還</span>
+                  <span className="text-gray-300 shrink-0">本月最低還款(預估)</span>
                   <span className="text-amber-200 font-medium text-right">{Number(stats.minRepayment).toLocaleString()} 元</span>
                 </li>
                 <li className="text-gray-500 text-[11px] leading-relaxed -mt-1">
@@ -528,7 +528,7 @@ function Advance() {
                           <dd className="text-white font-medium tabular-nums">{Number(stats.monthAdded).toLocaleString()} 元</dd>
                         </div>
                         <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
-                          <dt className="text-gray-400">本月至少應還</dt>
+                          <dt className="text-gray-400">本月最低還款(預估)</dt>
                           <dd className="text-amber-200 font-medium tabular-nums">{Number(stats.minRepayment).toLocaleString()} 元</dd>
                         </div>
                         <p className="text-gray-500 text-xs -mt-1 pb-2 border-b border-gray-700/80 leading-relaxed">
