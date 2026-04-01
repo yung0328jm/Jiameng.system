@@ -26,7 +26,11 @@ import {
   toCollaboratorsCsv,
   expandWorkItemsToLogical
 } from '../utils/workItemCollaboration'
-import { mergeParticipantWorkEntries, prepareBlueTagScheduleForSave } from '../utils/participantWorkEntries'
+import {
+  mergeParticipantWorkEntries,
+  prepareBlueTagScheduleForSave,
+  isBlueTagLegacyWorkScheduleByDate
+} from '../utils/participantWorkEntries'
 
 function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -1799,7 +1803,12 @@ function Calendar() {
     if (item.participants) body += `<p style="margin:4px 0;"><strong>參與人員:</strong> ${escapeHtml(item.participants)}</p>`
     const detailTagForPrint = String(item?.tag || 'blue').trim()
     const pweForPrint = Array.isArray(item.participantWorkEntries) ? item.participantWorkEntries : []
-    if (pweForPrint.length > 0 && detailTagForPrint === 'blue' && !continuation) {
+    if (
+      pweForPrint.length > 0 &&
+      detailTagForPrint === 'blue' &&
+      !continuation &&
+      !isBlueTagLegacyWorkScheduleByDate(item.date, item.tag)
+    ) {
       body += '<h3 style="margin:16px 0 8px 0;font-size:1rem;">各參與人員當日工作內容</h3>'
       pweForPrint.forEach((entry) => {
         const nm = String(entry?.participantName || '').trim() || '—'
@@ -2195,7 +2204,10 @@ function Calendar() {
   }
 
   const handleAddWorkItem = () => {
-    if (scheduleFormData.tag === 'blue') {
+    if (
+      scheduleFormData.tag === 'blue' &&
+      !isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)
+    ) {
       alert('「工作／項目」排程請於下方「各參與人員當日工作內容」由每人自行填寫，無需新增預排工作項目。')
       return
     }
@@ -2247,6 +2259,7 @@ function Calendar() {
       scheduleFormData.tag === 'blue'
         ? mergeParticipantWorkEntries(scheduleFormData.participants, scheduleFormData.participantWorkEntries)
         : []
+    const formBlueLegacyWorkItems = isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)
 
     // 處理工作項目累積到排行榜的邏輯
     const leaderboardItems = getLeaderboardItems()
@@ -2271,7 +2284,8 @@ function Calendar() {
     } else {
       // 今天當天的排程（在24:00前）或之後的排程，都會執行累加邏輯
       // 藍標且已改為「參與人各自填寫」時，排行榜累計改走 participantWorkEntries（下版可擴充）；目前略過預排工項累加避免重複
-      const skipWorkItemLeaderboard = scheduleFormData.tag === 'blue' && mergedPweForLb.length > 0
+      const skipWorkItemLeaderboard =
+        scheduleFormData.tag === 'blue' && mergedPweForLb.length > 0 && !formBlueLegacyWorkItems
       if (skipWorkItemLeaderboard) {
         /* 保留：之後可依 workContent 關鍵字寫入排行榜 */
       } else {
@@ -3454,7 +3468,10 @@ function Calendar() {
                                   <span className="text-blue-300">回程駕駛:</span> {schedule.returnDriver}
                                 </div>
                               )}
-                              {Array.isArray(schedule.participantWorkEntries) && schedule.participantWorkEntries.length > 0 && String(schedule.tag || 'blue').trim() === 'blue' && (
+                              {Array.isArray(schedule.participantWorkEntries) &&
+                                schedule.participantWorkEntries.length > 0 &&
+                                String(schedule.tag || 'blue').trim() === 'blue' &&
+                                !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag) && (
                                 <div className="text-blue-200 text-sm">
                                   <span className="text-blue-300">各參與人員當日工作內容:</span>
                                   <div className="mt-1 space-y-1 pl-4">
@@ -3684,7 +3701,9 @@ function Calendar() {
                         )}
 
                         {/* 工作／項目：各人於此填寫當日工作內容（舊排程也會依參與人員自動產生欄位） */}
-                        {String(selectedDetailItem?.tag || 'blue').trim() === 'blue' && !isLeaveScheduleItem(selectedDetailItem) && (
+                        {String(selectedDetailItem?.tag || 'blue').trim() === 'blue' &&
+                          !isBlueTagLegacyWorkScheduleByDate(selectedDetailItem?.date, selectedDetailItem?.tag) &&
+                          !isLeaveScheduleItem(selectedDetailItem) && (
                           <div className="mt-4 p-3 bg-blue-950/50 border border-blue-500/40 rounded-lg">
                             <div className="text-yellow-300 font-semibold text-sm mb-1">各參與人員當日工作內容</div>
                             <p className="text-blue-200/90 text-xs mb-3 leading-relaxed">
@@ -4551,7 +4570,10 @@ function Calendar() {
                           )}
 
                       {/* 各參與人員當日工作內容（藍標） */}
-                      {Array.isArray(schedule.participantWorkEntries) && schedule.participantWorkEntries.length > 0 && String(schedule.tag || 'blue').trim() === 'blue' && (
+                      {Array.isArray(schedule.participantWorkEntries) &&
+                        schedule.participantWorkEntries.length > 0 &&
+                        String(schedule.tag || 'blue').trim() === 'blue' &&
+                        !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag) && (
                         <div className="text-white text-sm">
                           <span className="text-blue-300">各參與人員當日工作內容:</span>
                           <div className="mt-2 pl-4 space-y-1">
@@ -5367,7 +5389,9 @@ function Calendar() {
                     </div>
                     <p className="text-gray-500 text-xs mt-1">
                       {scheduleFormData.tag === 'blue'
-                        ? '下方「車輛」屬於目前選擇的案場；工作內容改由「參與人員」名單每人各自填寫（與案場切換無關）。'
+                        ? isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)
+                          ? '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'
+                          : '下方「車輛」屬於目前選擇的案場；工作內容改由「參與人員」名單每人各自填寫（與案場切換無關）。'
                         : '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'}
                     </p>
                   </div>
@@ -5491,7 +5515,8 @@ function Calendar() {
                   )}
                 </div>
 
-                {scheduleFormData.tag === 'blue' && (
+                {scheduleFormData.tag === 'blue' &&
+                  !isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag) && (
                   <div className="mt-4 p-4 bg-gray-800/60 border border-blue-500/35 rounded-lg space-y-3">
                     <h4 className="text-blue-300 font-semibold text-sm">各參與人員當日工作內容</h4>
                     <p className="text-gray-400 text-xs leading-relaxed">
@@ -5717,8 +5742,9 @@ function Calendar() {
                 )}
               </div>
 
-              {/* 預排工作項目：非「工作/項目」標籤時使用；藍標改由上方「各參與人員當日工作內容」 */}
-              {scheduleFormData.tag !== 'blue' && (
+              {/* 預排工作項目：非藍標或 2026/3 止之藍標；其餘藍標改由「各參與人員當日工作內容」 */}
+              {(scheduleFormData.tag !== 'blue' ||
+                isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)) && (
               <div className="mt-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-gray-300 text-sm font-semibold">

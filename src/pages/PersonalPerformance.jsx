@@ -16,7 +16,7 @@ import { getOvertimeApplications, deleteOvertimeApplication } from '../utils/ove
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { canViewAllPersonalPerformance } from '../utils/performanceViewerStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
-import { mergeParticipantWorkEntries } from '../utils/participantWorkEntries'
+import { mergeParticipantWorkEntries, isBlueTagLegacyWorkScheduleByDate } from '../utils/participantWorkEntries'
 
 /** 行事曆排程 date 可能為 YYYY-MM-DD 或 YYYY/MM/DD，績效篩選與逐日比對時需一致 */
 function normalizeScheduleYmd(d) {
@@ -267,8 +267,11 @@ function PersonalPerformance() {
       const schedTag = String(schedule.tag || 'blue').trim()
       const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
       const participantsCsv = String(schedule.participants || '').trim()
-      // 藍標：只要「參與人員」有名單就依人計分（與行事曆詳情合併邏輯一致），避免未存過 participantWorkEntries 時完全不扣分
-      const useParticipantWorkRows = schedTag === 'blue' && participantsCsv.length > 0
+      // 藍標：參與人員依人計分；2026/3 止仍走預排 workItems，避免與舊預排雙計分
+      const useParticipantWorkRows =
+        schedTag === 'blue' &&
+        participantsCsv.length > 0 &&
+        !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)
       const pweList = useParticipantWorkRows
         ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
         : []
@@ -956,7 +959,10 @@ function PersonalPerformance() {
         const schedTag = String(schedule.tag || 'blue').trim()
         const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
         const participantsCsv = String(schedule.participants || '').trim()
-        const useDailyPwe = schedTag === 'blue' && participantsCsv.length > 0
+        const useDailyPwe =
+          schedTag === 'blue' &&
+          participantsCsv.length > 0 &&
+          !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)
         const pweList = useDailyPwe
           ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
           : []
