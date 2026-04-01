@@ -16,6 +16,7 @@ import { getOvertimeApplications, deleteOvertimeApplication } from '../utils/ove
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { canViewAllPersonalPerformance } from '../utils/performanceViewerStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
+import { mergeParticipantWorkEntries } from '../utils/participantWorkEntries'
 
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
@@ -244,12 +245,18 @@ function PersonalPerformance() {
       if (startDate && schedule.date && schedule.date < startDate) return
       if (schedule.date && schedule.date > effectiveEndDate) return
 
-      const pweList = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
       const schedTag = String(schedule.tag || 'blue').trim()
-      const useParticipantWorkRows = pweList.length > 0 && schedTag === 'blue'
+      const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
+      const participantsCsv = String(schedule.participants || '').trim()
+      // 藍標：只要「參與人員」有名單就依人計分（與行事曆詳情合併邏輯一致），避免未存過 participantWorkEntries 時完全不扣分
+      const useParticipantWorkRows = schedTag === 'blue' && participantsCsv.length > 0
+      const pweList = useParticipantWorkRows
+        ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
+        : []
 
-      if (useParticipantWorkRows) {
+      if (useParticipantWorkRows && pweList.length > 0) {
         const siteName = String(schedule.siteName || '').trim() || '—'
+        const persistedPweIds = new Set(rawPwe.map((e) => String(e?.id || '').trim()).filter(Boolean))
         pweList.forEach((entry) => {
           const pname = String(entry?.participantName || '').trim()
           if (!pname || !displayNames.includes(pname)) return
@@ -304,13 +311,15 @@ function PersonalPerformance() {
             actualQuantity: 0,
             completionRate: completionRate.toFixed(1),
             detailKey,
-            ...(entryId && {
-              deletePayload: {
-                scheduleId: schedule.id,
-                deleteMode: 'participantEntry',
-                participantEntryId: entryId
-              }
-            })
+            ...(entryId && persistedPweIds.has(entryId)
+              ? {
+                  deletePayload: {
+                    scheduleId: schedule.id,
+                    deleteMode: 'participantEntry',
+                    participantEntryId: entryId
+                  }
+                }
+              : {})
           })
         })
         return
@@ -914,9 +923,14 @@ function PersonalPerformance() {
       // 統計當日工作項目（含獨立負責的 contentRows 展開；藍標＋每人工作列與月結邏輯一致）
       schedules.forEach(schedule => {
         if (schedule.date !== dateStr) return
-        const pweList = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
         const schedTag = String(schedule.tag || 'blue').trim()
-        if (pweList.length > 0 && schedTag === 'blue') {
+        const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
+        const participantsCsv = String(schedule.participants || '').trim()
+        const useDailyPwe = schedTag === 'blue' && participantsCsv.length > 0
+        const pweList = useDailyPwe
+          ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
+          : []
+        if (useDailyPwe && pweList.length > 0) {
           pweList.forEach((entry) => {
             const pname = String(entry?.participantName || '').trim()
             if (!pname || !displayNames.includes(pname)) return
