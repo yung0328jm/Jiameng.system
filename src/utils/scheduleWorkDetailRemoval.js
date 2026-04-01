@@ -123,6 +123,20 @@ export const removeWorkDetailLineFromSchedule = (scheduleId, spec) => {
     if (idx < 0) return { success: false, message: '排程不存在' }
 
     const prev = schedules[idx]
+
+    if (spec?.deleteMode === 'participantEntry') {
+      const eid = String(spec.participantEntryId || '').trim()
+      if (!eid) return { success: false, message: '缺少項目' }
+      const entries = Array.isArray(prev.participantWorkEntries) ? prev.participantWorkEntries : []
+      const filtered = entries.filter((e) => String(e?.id || '') !== eid)
+      if (filtered.length === entries.length) return { success: false, message: '找不到該筆工作內容' }
+      const nextSchedule = { ...prev, participantWorkEntries: filtered }
+      schedules[idx] = nextSchedule
+      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(schedules))
+      syncScheduleToSupabase(nextSchedule)
+      return { success: true }
+    }
+
     const useSegs = Array.isArray(prev.segments) && prev.segments.length > 0
     let nextSchedule = { ...prev }
 
