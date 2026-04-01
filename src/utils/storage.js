@@ -193,10 +193,10 @@ export function getPendingAdvances() {
   return getAdvanceList().filter((r) => (r.status || 'pending') === 'pending')
 }
 
-/** 有累積欠款時，本月若有新借支，最低還款含「本月新增 + 此金額」（並與「至少 1 萬」取較高，見 computeDefaultMinRepayment） */
+/** 有上月舊帳且本月又有新借時：最低還款＝本月新借＋此金額（舊帳慢慢還的底線含在內） */
 export const ADVANCE_MIN_EXTRA_WHEN_CARRIED = 3000
-/** 有累積欠款但本月無新借支時，每月至少還款（不超過實際欠款） */
-export const ADVANCE_MIN_PAY_NO_NEW_BORROW = 10000
+/** 有上月舊帳但本月無新借時：每月至少還此金額（不超過實際欠款） */
+export const ADVANCE_MIN_PAY_NO_NEW_BORROW = 3000
 
 function advanceCurrentYearMonth() {
   const d = new Date()
@@ -225,7 +225,7 @@ export function getAdvanceProjectedDebtTotal(account, yearMonth, opts = {}) {
   return carriedRemain + stats.monthAdded + pending + extra
 }
 
-/** 本月最低還款預設：無累積→至少還本月新增；有累積無新增→至少1萬（不超過尚欠）；有累積且有新增→「新增+3000」與「至少1萬（不超過尚欠）」取較高 */
+/** 本月最低還款：無舊帳→至少還本月新借；有舊帳無新借→至少 3000（不超過尚欠）；有舊帳有新借→新借+3000 */
 export function computeDefaultMinRepayment(lastMonthUnpaid, monthAdded) {
   const carried = Math.max(0, Number(lastMonthUnpaid) || 0)
   const added = Math.max(0, Number(monthAdded) || 0)
@@ -235,10 +235,7 @@ export function computeDefaultMinRepayment(lastMonthUnpaid, monthAdded) {
   if (added === 0) {
     return Math.min(ADVANCE_MIN_PAY_NO_NEW_BORROW, carried)
   }
-  const fromNewBorrowRule = added + ADVANCE_MIN_EXTRA_WHEN_CARRIED
-  const owedApprox = carried + added
-  const fromMonthlyFloor = Math.min(ADVANCE_MIN_PAY_NO_NEW_BORROW, owedApprox)
-  return Math.max(fromNewBorrowRule, fromMonthlyFloor)
+  return added + ADVANCE_MIN_EXTRA_WHEN_CARRIED
 }
 
 /** 申請表單預覽：試算核准後總欠款、若核准後本月最低還款 */
