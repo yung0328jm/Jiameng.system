@@ -2343,6 +2343,11 @@ function PersonalPerformance() {
   }
 
   const canViewAllUsers = userRole === 'admin' || canViewAllPersonalPerformance(currentUser)
+  /** 工作明細刪除：管理者、指定可檢視全員者，或正在查看自己當月績效者 */
+  const mayDeleteWorkDetails =
+    userRole === 'admin' ||
+    canViewAllPersonalPerformance(currentUser) ||
+    (String(getViewUser() || '').trim() === String(currentUser || '').trim() && String(currentUser || '').trim() !== '')
   const canUseAttendanceImport = userRole === 'admin' || canViewAllPersonalPerformance(currentUser)
   const canExportPerformancePdf =
     userRole === 'admin' ||
@@ -3711,7 +3716,7 @@ function PersonalPerformance() {
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">預計數量</th>
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">實際完成</th>
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">完成率</th>
-                  {userRole === 'admin' && (
+                  {mayDeleteWorkDetails && (
                     <th className="px-4 py-3 text-right text-yellow-400 font-semibold w-24">操作</th>
                   )}
                 </tr>
@@ -3727,7 +3732,7 @@ function PersonalPerformance() {
                     <td className={`px-4 py-3 text-right font-semibold ${getCompletionColor(parseFloat(detail.completionRate))}`}>
                       {detail.targetQuantity > 0 ? `${detail.completionRate}%` : '—'}
                     </td>
-                    {userRole === 'admin' && (
+                    {mayDeleteWorkDetails && (
                       <td className="px-4 py-3 text-right">
                         {detail.deletePayload ? (
                           <button
