@@ -139,7 +139,7 @@ function LeaveApplication() {
       fetchProfiles.then((profiles) => {
         if (!cancelled && Array.isArray(profiles)) {
           const list = profiles
-            .filter((p) => !p?.is_admin)
+            .filter((p) => !p?.is_admin && !p?.is_resigned)
             .map((p) => ({
               account: p.account,
               name: p.display_name || p.account,
@@ -149,7 +149,7 @@ function LeaveApplication() {
         }
       }).catch(() => { if (!cancelled) setQuotaUsers([]) })
     } else {
-      const users = (getUsers() || []).filter((u) => u?.role !== 'admin')
+      const users = (getUsers() || []).filter((u) => u?.role !== 'admin' && u?.role !== 'resigned')
       setQuotaUsers(users.map((u) => ({ account: u.account, name: u.name || u.account, role: 'user' })))
     }
     return () => { cancelled = true }
