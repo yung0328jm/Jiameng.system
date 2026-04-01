@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
-import { getSchedules } from '../utils/scheduleStorage'
+import { getSchedules, removeWorkDetailLineFromSchedule } from '../utils/scheduleStorage'
 import { getProjects } from '../utils/projectStorage'
 import { getProjectRecords } from '../utils/projectRecordStorage'
 import { getUserLateRecords, getUserPerformanceRecords, savePerformanceRecord, deletePerformanceRecord, getPerformanceRecords, saveLateRecord, saveAttendanceRecord, getUserAttendanceRecords } from '../utils/performanceStorage'
@@ -247,74 +247,113 @@ function PersonalPerformance() {
     let totalCompletionRateAdjustment = 0 // 每天每條工項依完成率各算加減分，再加總（不用整月平均）
 
     // 依據行事曆排程中的工作項目（目標數、實際數量）計算 平均完成率、完成項目、部分完成；每條工項依完成率查表加減分後加總；只算到當日為止
-    schedules.forEach(schedule => {
+    // 與施工照片扣分邏輯一致：支援頂層 workItems 或 segments 各案場 workItems
+    schedules.forEach((schedule) => {
       if (startDate && schedule.date && schedule.date < startDate) return
       if (schedule.date && schedule.date > effectiveEndDate) return
 
-      if (!schedule.workItems || schedule.workItems.length === 0) return
+      const useSegs = Array.isArray(schedule.segments) && schedule.segments.length > 0
+      const chunks = useSegs
+        ? schedule.segments.map((seg, segmentIndex) => ({
+            segmentIndex,
+            raw: seg.workItems || [],
+            siteName: String(seg?.siteName || '').trim() || schedule.siteName || ''
+          }))
+        : [{ segmentIndex: null, raw: schedule.workItems || [], siteName: schedule.siteName || '' }]
 
-      const logicalItems = expandWorkItemsToLogical(schedule.workItems)
-      logicalItems.forEach(item => {
-        // 有異動申請待審：暫不列入績效評分
-        if (String(item?.changeRequest?.status || '') === 'pending') return
-        const it = normalizeWorkItem(item)
-        const collabs = it.isCollaborative
-          ? getWorkItemCollaborators(it)
-          : [{
-            name: String(it.responsiblePerson || '').trim(),
-            actualQuantity: it.actualQuantity ?? ''
-          }].filter((c) => !!c.name)
+      chunks.forEach(({ segmentIndex, raw, siteName }) => {
+        if (!raw.length) return
 
-        collabs.forEach((c) => {
-          const resp = String(c?.name || '').trim()
-          const isResponsible = resp && displayNames.includes(resp)
-          if (!isResponsible) return
+        const logicalItems = expandWorkItemsToLogical(raw)
+        logicalItems.forEach((item) => {
+          // 有異動申請待審：暫不列入績效評分
+          if (String(item?.changeRequest?.status || '') === 'pending') return
+          const it = normalizeWorkItem(item)
+          const collabs = it.isCollaborative
+            ? getWorkItemCollaborators(it)
+            : [{
+              name: String(it.responsiblePerson || '').trim(),
+              actualQuantity: it.actualQuantity ?? ''
+            }].filter((c) => !!c.name)
 
-          const target = getWorkItemTargetForNameForPerformance(it, resp)
-          const actual = getWorkItemActualForNameForPerformance(it, resp)
-          const completionRate = target > 0 ? (actual / target * 100) : 0
-
-          workDays.add(schedule.date)
-          totalItems++
-          totalCompletionRate += completionRate
-          itemsWithRate++
-          totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
-
-          if (completionRate >= 100) {
-            completedItems++
-          } else if (completionRate > 0) {
-            partialItems++
-          } else {
-            uncompletedItems++
+          const baseWorkItemId = String((item._parentItem && item._parentItem.id) || item.id || '').trim()
+          const rowId = String(item._logicalContentRowId || '').trim()
+          const collabCount = getWorkItemCollaborators(it).length
+          let deleteMode = 'wholeItem'
+          if (it.isCollaborative && collabCount > 1) {
+            deleteMode = 'collaborator'
+          } else if (rowId) {
+            deleteMode = 'contentRow'
           }
 
-          const workType = it.workContent || '未分類'
-          if (!workItemStats[workType]) {
-            workItemStats[workType] = {
-              count: 0,
-              completed: 0,
-              partial: 0,
-              uncompleted: 0,
-              totalCompletionRate: 0
+          collabs.forEach((c) => {
+            const resp = String(c?.name || '').trim()
+            const isResponsible = resp && displayNames.includes(resp)
+            if (!isResponsible) return
+
+            const target = getWorkItemTargetForNameForPerformance(it, resp)
+            const actual = getWorkItemActualForNameForPerformance(it, resp)
+            const completionRate = target > 0 ? (actual / target * 100) : 0
+
+            workDays.add(schedule.date)
+            totalItems++
+            totalCompletionRate += completionRate
+            itemsWithRate++
+            totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
+
+            if (completionRate >= 100) {
+              completedItems++
+            } else if (completionRate > 0) {
+              partialItems++
+            } else {
+              uncompletedItems++
             }
-          }
-          workItemStats[workType].count++
-          workItemStats[workType].totalCompletionRate += completionRate
-          if (completionRate >= 100) {
-            workItemStats[workType].completed++
-          } else if (completionRate > 0) {
-            workItemStats[workType].partial++
-          } else {
-            workItemStats[workType].uncompleted++
-          }
 
-          workDetails.push({
-            date: schedule.date,
-            siteName: schedule.siteName,
-            workContent: it.workContent || '未填寫',
-            targetQuantity: target,
-            actualQuantity: actual,
-            completionRate: completionRate.toFixed(1)
+            const workType = it.workContent || '未分類'
+            if (!workItemStats[workType]) {
+              workItemStats[workType] = {
+                count: 0,
+                completed: 0,
+                partial: 0,
+                uncompleted: 0,
+                totalCompletionRate: 0
+              }
+            }
+            workItemStats[workType].count++
+            workItemStats[workType].totalCompletionRate += completionRate
+            if (completionRate >= 100) {
+              workItemStats[workType].completed++
+            } else if (completionRate > 0) {
+              workItemStats[workType].partial++
+            } else {
+              workItemStats[workType].uncompleted++
+            }
+
+            const detailKey = baseWorkItemId
+              ? [schedule.id, segmentIndex ?? 't', baseWorkItemId, rowId || '-', resp, deleteMode].join('|')
+              : `orphan|${schedule.id}|${schedule.date}|${workDetails.length}|${resp}`
+
+            workDetails.push({
+              date: schedule.date,
+              siteName,
+              workContent: it.workContent || '未填寫',
+              targetQuantity: target,
+              actualQuantity: actual,
+              completionRate: completionRate.toFixed(1),
+              detailKey,
+              ...(baseWorkItemId
+                ? {
+                    deletePayload: {
+                      scheduleId: schedule.id,
+                      segmentIndex,
+                      workItemId: baseWorkItemId,
+                      contentRowId: rowId,
+                      collaboratorName: resp,
+                      deleteMode
+                    }
+                  }
+                : {})
+            })
           })
         })
       })
@@ -366,6 +405,7 @@ function PersonalPerformance() {
       startDate,
       effectiveEndDate
     ).get(userName) || new Set()
+    const nationalHolidayDateSet = buildNationalHolidayDateSet(schedules, startDate, effectiveEndDate)
 
     // 統計遲到次數
     const lateRecords = getUserLateRecords(userName, startDate, endDate)
@@ -465,7 +505,12 @@ function PersonalPerformance() {
         const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
         
         // 只統計非週末的未打卡記錄（但這裡只統計當前月份的）
-        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !businessTripDateSet.has(normalizeYMD(record?.date))) {
+        if (
+          dayOfWeek !== 0 &&
+          dayOfWeek !== 6 &&
+          !businessTripDateSet.has(normalizeYMD(record?.date)) &&
+          !nationalHolidayDateSet.has(normalizeYMD(record?.date))
+        ) {
           noClockInCountFromRecords++
         }
       } else if (record.isLate && record.clockInTime) {
@@ -500,7 +545,8 @@ function PersonalPerformance() {
       const recordDate = new Date(`${normalizeYMD(record?.date)}T00:00:00`)
       const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
       if (dayOfWeek === 0 || dayOfWeek === 6) return false
-      return !businessTripDateSet.has(normalizeYMD(record?.date))
+      if (businessTripDateSet.has(normalizeYMD(record?.date))) return false
+      return !nationalHolidayDateSet.has(normalizeYMD(record?.date))
     })
 
     // 統計績效評分（初始100分 + 該時間範圍內的所有加減分）
@@ -769,6 +815,7 @@ function PersonalPerformance() {
       startDate,
       endDate
     ).get(targetUser.account) || new Set()
+    const nationalHolidayDateSet = buildNationalHolidayDateSet(schedules, startDate, endDate)
 
     // 生成該月的所有日期
     const start = new Date(startDate)
@@ -803,9 +850,13 @@ function PersonalPerformance() {
       // 統計當日工作項目（含獨立負責的 contentRows 展開）
       schedules.forEach(schedule => {
         if (schedule.date !== dateStr) return
-        if (!schedule.workItems || schedule.workItems.length === 0) return
-        
-        const logicalItems = expandWorkItemsToLogical(schedule.workItems)
+        const useSegs = Array.isArray(schedule.segments) && schedule.segments.length > 0
+        const raws = useSegs
+          ? schedule.segments.flatMap((s) => s.workItems || [])
+          : (schedule.workItems || [])
+        if (!raws.length) return
+
+        const logicalItems = expandWorkItemsToLogical(raws)
         logicalItems.forEach(item => {
           // 有異動申請待審：暫不列入績效評分
           if (String(item?.changeRequest?.status || '') === 'pending') return
@@ -878,7 +929,8 @@ function PersonalPerformance() {
         return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
       })
       const isBusinessTripDay = businessTripDateSet.has(dateStr)
-      const dailyNoClockInRecords = (hasLeaveThatDay || isBusinessTripDay) ? [] : (dailyAttendance || []).filter(record => {
+      const isNationalHolidayDay = nationalHolidayDateSet.has(dateStr)
+      const dailyNoClockInRecords = (hasLeaveThatDay || isBusinessTripDay || isNationalHolidayDay) ? [] : (dailyAttendance || []).filter(record => {
         const isNoClockIn = !record.clockInTime || 
                            record.details === '缺少打卡時間' || 
                            record.details === '匯入檔案後無記錄' ||
@@ -1049,6 +1101,19 @@ function PersonalPerformance() {
     const day = d.getDay()
     return day === 0 || day === 6
   }
+  const getWeekdayZh = (ymd) => {
+    const d = parseLocalYMD(ymd)
+    if (!d || Number.isNaN(d.getTime())) return ''
+    const day = d.getDay()
+    const map = ['日', '一', '二', '三', '四', '五', '六']
+    return map[day] || ''
+  }
+  const formatYmdWithWeekday = (ymd) => {
+    const s = String(ymd || '').slice(0, 10)
+    if (!s) return '—'
+    const w = getWeekdayZh(s)
+    return w ? `${s} (${w})` : s
+  }
 
   const buildLeaveDateSetByUser = (applications, userDirectory = []) => {
     const map = new Map() // account -> Set<YYYY-MM-DD>
@@ -1086,6 +1151,11 @@ function PersonalPerformance() {
     const tag = String(schedule?.tag || '').trim().toLowerCase()
     const siteName = String(schedule?.siteName || '').trim()
     return tag === 'yellow' || /^出差(\s|[-—])/u.test(siteName) || siteName === '出差'
+  }
+
+  const isNationalHolidaySchedule = (schedule) => {
+    const siteName = String(schedule?.siteName || '').trim()
+    return /(國定假日|節假日|國定|連假|春節|端午|中秋)/u.test(siteName)
   }
 
   const scheduleIncludesUser = (schedule, account) => {
@@ -1136,6 +1206,20 @@ function PersonalPerformance() {
       })
     })
     return map
+  }
+
+  const buildNationalHolidayDateSet = (schedules, startDate = '', endDate = '') => {
+    const set = new Set()
+    const list = Array.isArray(schedules) ? schedules : []
+    list.forEach((schedule) => {
+      const dateStr = String(schedule?.date || '').slice(0, 10)
+      if (!dateStr) return
+      if (startDate && dateStr < startDate) return
+      if (endDate && dateStr > endDate) return
+      if (!isNationalHolidaySchedule(schedule)) return
+      set.add(dateStr)
+    })
+    return set
   }
   
   const findUserByAccountOrName = (identifier, directory = null) => {
@@ -1399,6 +1483,7 @@ function PersonalPerformance() {
 
     // 處理SOYA格式：日期和時間分開，且用戶名可能只在第一行
     let currentUserName = null
+    let lastResolvedDateYmd = null
     
     const leaveKeywords = ['請假', '特休', '補休', '公假', '病假', '事假', '喪假', '婚假', '產假', '育嬰', '出差']
     const isLeaveMark = (s) => {
@@ -1443,6 +1528,7 @@ function PersonalPerformance() {
           const inferredDate = (month && day)
             ? `${selectedYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             : null
+          if (inferredDate) lastResolvedDateYmd = inferredDate
           return {
             index: index + 1,
             raw: row,
@@ -1470,6 +1556,14 @@ function PersonalPerformance() {
               inferredDate = `${selectedYear}-${String(finalMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             }
           }
+          if (!inferredDate && lastResolvedDateYmd) {
+            const d = parseLocalYMD(lastResolvedDateYmd)
+            if (d && !Number.isNaN(d.getTime())) {
+              d.setDate(d.getDate() + 1)
+              inferredDate = formatLocalYMD(d)
+            }
+          }
+          if (inferredDate) lastResolvedDateYmd = inferredDate
           
           // 查找用戶（用於顯示用戶名稱）
           const user = findUserByAccountOrName(userIdentifier, userDirectory)
@@ -1503,6 +1597,28 @@ function PersonalPerformance() {
               time: '出差',
               leave: true,
               trip: true,
+              late: false,
+              userName: userAcc,
+              userDisplayName: user ? (user.name || user.account) : userIdentifier,
+              dateTimeField: dateTimeField || (dateField && timeField ? `${dateField}+${timeField}` : null),
+              userField
+            }
+          }
+
+          // 若行事曆該日為國定假日：顯示為國定假日，不算未打卡
+          const isHolidayDay = !!(inferredDate && buildNationalHolidayDateSet(
+            schedulesForPreview,
+            inferredDate,
+            inferredDate
+          ).has(inferredDate))
+          if (isHolidayDay) {
+            return {
+              index: index + 1,
+              raw: row,
+              date: inferredDate,
+              time: '國定假日',
+              leave: true,
+              holiday: true,
               late: false,
               userName: userAcc,
               userDisplayName: user ? (user.name || user.account) : userIdentifier,
@@ -1575,6 +1691,7 @@ function PersonalPerformance() {
       
       // 使用本地日期（避免 toISOString 造成跨日/週末判斷錯位）
       const dateStr = formatLocalYMD(dateTime)
+      lastResolvedDateYmd = dateStr
       // 直接使用原始時間字符串，確保顯示正確
       // 如果rawTimeStr存在，直接使用；否則從dateTime提取
       let timeStr = rawTimeStr
@@ -1743,6 +1860,7 @@ function PersonalPerformance() {
       (importPreview || []).map((p) => String(p?.userName || '').trim()).filter(Boolean)
     ))
     const businessTripSetByUser = buildBusinessTripDateSetByUser(getSchedules(), previewAccounts)
+    const nationalHolidayDates = buildNationalHolidayDateSet(getSchedules())
 
     // 處理未打卡記錄：將"缺少打卡時間"視為未打卡，並檢查沒有記錄的日期（排除週末）
     let noClockInSuccessCount = 0
@@ -1755,6 +1873,7 @@ function PersonalPerformance() {
         // 請假/出差：不算未打卡
         if (leaveSetByUser.get(item.userName)?.has(item.date)) return
         if (businessTripSetByUser.get(item.userName)?.has(item.date)) return
+        if (nationalHolidayDates.has(item.date)) return
         const recordDate = parseLocalYMD(item.date)
         const dayOfWeek = recordDate ? recordDate.getDay() : -1 // 0 = 週日, 6 = 週六
         
@@ -1850,6 +1969,10 @@ function PersonalPerformance() {
                 continue
               }
               if (businessTripSetByUser.get(userName)?.has(dateStr)) {
+                currentDate.setDate(currentDate.getDate() + 1)
+                continue
+              }
+              if (nationalHolidayDates.has(dateStr)) {
                 currentDate.setDate(currentDate.getDate() + 1)
                 continue
               }
@@ -2230,6 +2353,7 @@ function PersonalPerformance() {
     getSchedules(),
     [viewUserForAttendance]
   ).get(viewUserForAttendance) || new Set()
+  const nationalHolidayDatesForViewUser = buildNationalHolidayDateSet(getSchedules())
 
   return (
     <div ref={performancePdfRef} className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen">
@@ -2404,8 +2528,8 @@ function PersonalPerformance() {
         
         {/* 出勤記錄詳情 */}
         {showLateRecords && (() => {
-          // 從導入預覽中計算未打卡記錄（排除週末與出差日）
-          // 邏輯：1. 將"缺少打卡紀錄"視為未打卡 2. 匯入檔案後，沒有記錄的日期一律視為未打卡 3. 但要排除週六、週日與出差
+          // 從導入預覽中計算未打卡記錄（排除週末、出差與國定假日）
+          // 邏輯：1. 將"缺少打卡紀錄"視為未打卡 2. 匯入檔案後，沒有記錄的日期一律視為未打卡 3. 但要排除週六、週日、出差與國定假日
           const noClockInRecordsFromPreview = []
           let calculatedNoClockInCount = performanceData.noClockInCount || 0
           
@@ -2414,8 +2538,9 @@ function PersonalPerformance() {
             const userName = currentUser?.account || ''
             
             const tripDates = buildBusinessTripDateSetByUser(getSchedules(), [userName]).get(userName) || new Set()
+            const holidayDates = buildNationalHolidayDateSet(getSchedules())
 
-            // 1. 處理"缺少打卡時間"的記錄（視為未打卡，但排除週末與出差）
+            // 1. 處理"缺少打卡時間"的記錄（視為未打卡，但排除週末、出差與國定假日）
             importPreview.forEach(item => {
               if (item.error === '缺少打卡時間' && item.date && item.userName === userName) {
                 // 判斷日期是否為週六或週日
@@ -2423,7 +2548,12 @@ function PersonalPerformance() {
                 const dayOfWeek = recordDate.getDay() // 0 = 週日, 6 = 週六
                 
                 // 只統計非週末的未打卡記錄
-                if (dayOfWeek !== 0 && dayOfWeek !== 6 && !tripDates.has(String(item.date).slice(0, 10))) {
+                if (
+                  dayOfWeek !== 0 &&
+                  dayOfWeek !== 6 &&
+                  !tripDates.has(String(item.date).slice(0, 10)) &&
+                  !holidayDates.has(String(item.date).slice(0, 10))
+                ) {
                   const dateStr = item.date.split('T')[0] || item.date
                   noClockInRecordsFromPreview.push({
                     id: `no-clockin-missing-${item.index}`,
@@ -2463,7 +2593,7 @@ function PersonalPerformance() {
               const minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
               const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
               
-              // 4. 遍歷該日期範圍內的每一天（排除週末與出差）
+              // 4. 遍歷該日期範圍內的每一天（排除週末、出差與國定假日）
               const currentDate = new Date(minDate)
               while (currentDate <= maxDate) {
                 const dayOfWeek = currentDate.getDay() // 0 = 週日, 6 = 週六
@@ -2472,6 +2602,10 @@ function PersonalPerformance() {
                 if (dayOfWeek !== 0 && dayOfWeek !== 6) {
                   const dateStr = currentDate.toISOString().split('T')[0]
                   if (tripDates.has(dateStr)) {
+                    currentDate.setDate(currentDate.getDate() + 1)
+                    continue
+                  }
+                  if (holidayDates.has(dateStr)) {
                     currentDate.setDate(currentDate.getDate() + 1)
                     continue
                   }
@@ -2594,6 +2728,7 @@ function PersonalPerformance() {
                                           record.details === '匯入檔案後無紀錄'
                         const recordDate = String(record?.date || '').slice(0, 10)
                         const isBusinessTrip = !!recordDate && businessTripDatesForViewUser.has(recordDate)
+                        const isNationalHoliday = !!recordDate && nationalHolidayDatesForViewUser.has(recordDate)
                         const isLeave = (() => {
                           const s = String(record?.details || '').trim()
                           return s === '請假' || s === '特休' || s.includes('請假') || s.includes('特休')
@@ -2613,7 +2748,9 @@ function PersonalPerformance() {
                             {record.clockInTime || '—'}
                           </td>
                           <td className="px-2 py-1.5 text-center">
-                            {isBusinessTrip ? (
+                            {isNationalHoliday ? (
+                              <span className="text-purple-400 font-semibold text-[10px] sm:text-xs">國定假日</span>
+                            ) : isBusinessTrip ? (
                               <span className="text-blue-400 font-semibold text-[10px] sm:text-xs">出差</span>
                             ) : isLeave ? (
                               <span className="text-green-400 font-semibold text-[10px] sm:text-xs">請假</span>
@@ -3183,11 +3320,13 @@ function PersonalPerformance() {
                         {importPreview.map((item, idx) => (
                           <tr key={idx} className="border-b border-gray-700">
                             <td className="px-3 py-2 text-white">{item.index}</td>
-                            <td className="px-3 py-2 text-white">{item.date || '—'}</td>
+                            <td className="px-3 py-2 text-white">{formatYmdWithWeekday(item.date)}</td>
                             <td className="px-3 py-2 text-white">{item.time || '—'}</td>
                             <td className="px-3 py-2 text-white">{item.userDisplayName || '—'}</td>
                             <td className="px-3 py-2 text-center">
-                              {item.trip ? (
+                              {item.holiday ? (
+                                <span className="text-purple-400 font-semibold">國定假日</span>
+                              ) : item.trip ? (
                                 <span className="text-blue-400 font-semibold">出差</span>
                               ) : item.error ? (
                                 <span className="text-red-400 text-xs">{item.error}</span>
@@ -3205,7 +3344,8 @@ function PersonalPerformance() {
                   <div className="mt-3 flex items-center justify-between">
                     <div className="text-sm text-gray-400">
                       共 {importPreview.length} 筆記錄，
-                      正常: <span className="text-green-400">{importPreview.filter(p => !p.error && !p.late && !p.trip).length}</span> 筆，
+                      正常: <span className="text-green-400">{importPreview.filter(p => !p.error && !p.late && !p.trip && !p.holiday).length}</span> 筆，
+                      國定假日: <span className="text-purple-400">{importPreview.filter(p => p.holiday).length}</span> 筆，
                       出差: <span className="text-blue-400">{importPreview.filter(p => p.trip).length}</span> 筆，
                       遲到: <span className="text-red-400">{importPreview.filter(p => !p.error && p.late).length}</span> 筆，
                       錯誤: <span className="text-yellow-400">{importPreview.filter(p => p.error).length}</span> 筆
@@ -3571,11 +3711,14 @@ function PersonalPerformance() {
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">預計數量</th>
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">實際完成</th>
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">完成率</th>
+                  {userRole === 'admin' && (
+                    <th className="px-4 py-3 text-right text-yellow-400 font-semibold w-24">操作</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {performanceData.workDetails.map((detail, index) => (
-                  <tr key={index} className="border-b border-gray-700 hover:bg-gray-900">
+                  <tr key={detail.detailKey || index} className="border-b border-gray-700 hover:bg-gray-900">
                     <td className="px-4 py-3 text-white">{formatDate(detail.date)}</td>
                     <td className="px-4 py-3 text-white">{detail.siteName}</td>
                     <td className="px-4 py-3 text-white">{detail.workContent}</td>
@@ -3584,6 +3727,34 @@ function PersonalPerformance() {
                     <td className={`px-4 py-3 text-right font-semibold ${getCompletionColor(parseFloat(detail.completionRate))}`}>
                       {detail.targetQuantity > 0 ? `${detail.completionRate}%` : '—'}
                     </td>
+                    {userRole === 'admin' && (
+                      <td className="px-4 py-3 text-right">
+                        {detail.deletePayload ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!window.confirm(`確定從行事曆刪除此筆工作明細？\n${detail.siteName}｜${detail.workContent}`)) return
+                              const p = detail.deletePayload
+                              const result = removeWorkDetailLineFromSchedule(p.scheduleId, {
+                                workItemId: p.workItemId,
+                                deleteMode: p.deleteMode,
+                                segmentIndex: p.segmentIndex,
+                                contentRowId: p.contentRowId,
+                                collaboratorName: p.collaboratorName
+                              })
+                              if (!result.success) {
+                                alert(result.message || '刪除失敗')
+                                return
+                              }
+                              setDataRevision((r) => r + 1)
+                            }}
+                            className="text-red-400 hover:text-red-300 text-sm"
+                          >
+                            刪除
+                          </button>
+                        ) : null}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
