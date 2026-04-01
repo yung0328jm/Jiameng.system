@@ -1499,12 +1499,13 @@ function Calendar() {
     })
   }
 
-  const saveDetailParticipantWork = () => {
+  const saveDetailParticipantWork = (draftOverride) => {
     const sid = String(selectedDetailItem?.id || '').trim()
-    if (!sid || !Array.isArray(detailPweDraft)) return
+    const draft = draftOverride ?? detailPweDraft
+    if (!sid || !Array.isArray(draft)) return
     const fresh = getSchedules().find((s) => String(s?.id) === sid)
     if (!fresh) return
-    const participantWorkEntries = mergeParticipantWorkEntries(String(fresh.participants || ''), detailPweDraft)
+    const participantWorkEntries = mergeParticipantWorkEntries(String(fresh.participants || ''), draft, { scheduleId: sid })
     updateSchedule(sid, { ...getScheduleEditorInfo(), participantWorkEntries })
     setSchedules(getSchedules())
     const updated = getSchedules().find((s) => String(s?.id) === sid)
@@ -3687,7 +3688,7 @@ function Calendar() {
                           <div className="mt-4 p-3 bg-blue-950/50 border border-blue-500/40 rounded-lg">
                             <div className="text-yellow-300 font-semibold text-sm mb-1">各參與人員當日工作內容</div>
                             <p className="text-blue-200/90 text-xs mb-3 leading-relaxed">
-                              由<strong className="text-blue-100">本人</strong>填寫；儲存後寫入排程。未填寫者績效僅扣該員。
+                              由<strong className="text-blue-100">本人</strong>填寫。<strong className="text-amber-200/95">個人績效只認「已寫入排程」的內容</strong>：離開輸入框會自動儲存，亦可手動按下方按鈕。未填寫者績效僅扣該員。
                             </p>
                             {!Array.isArray(detailPweDraft) || detailPweDraft.length === 0 ? (
                               <p className="text-gray-400 text-sm">
@@ -3715,6 +3716,12 @@ function Calendar() {
                                           <textarea
                                             value={entry.workContent ?? ''}
                                             onChange={(e) => patchDetailPweDraft(entry.id, 'workContent', e.target.value)}
+                                            onBlur={(e) => {
+                                              const nextDraft = (detailPweDraft || []).map((row) =>
+                                                String(row.id) === String(entry.id) ? { ...row, workContent: e.target.value } : row
+                                              )
+                                              saveDetailParticipantWork(nextDraft)
+                                            }}
                                             rows={3}
                                             placeholder="請填寫今日實際工作內容…"
                                             className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-yellow-400"
@@ -5489,6 +5496,7 @@ function Calendar() {
                     <h4 className="text-blue-300 font-semibold text-sm">各參與人員當日工作內容</h4>
                     <p className="text-gray-400 text-xs leading-relaxed">
                       名單中<strong className="text-gray-300">每一位</strong>需自行填寫；績效僅對<strong className="text-gray-300">未填寫的本人</strong>扣分，不影響同案其他人員。
+                      <span className="block mt-1 text-amber-200/90">須按下表單底部「新增」或儲存按鈕後才會寫入排程；僅打字未送出時個人績效仍視為未填。</span>
                     </p>
                     {(scheduleFormData.participantWorkEntries || []).length === 0 ? (
                       <p className="text-gray-500 text-sm">
