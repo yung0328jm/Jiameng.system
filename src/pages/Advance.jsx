@@ -497,7 +497,10 @@ function Advance() {
               </div>
               {repayAccount && repayYearMonth && (() => {
                 const stats = getAdvanceRepaymentStats(repayAccount, repayYearMonth)
-                const previewRemaining = Math.max(0, (Number(repayLastMonth) || 0) - (Number(repayAmount) || 0))
+                const previewOpening = Number(repayLastMonth) || stats.lastMonthUnpaid || 0
+                const previewAdded = Number(stats.monthAdded) || 0
+                const previewPaid = Math.max(0, Number(repayAmount) || 0)
+                const previewRemaining = Math.max(0, previewOpening + previewAdded - previewPaid)
                 return (
                   <div className="space-y-4">
                     <div className="rounded-xl border border-gray-600 bg-gray-900/80 p-4 sm:p-5">
@@ -532,7 +535,9 @@ function Advance() {
                           <dd className="text-amber-300 font-bold text-lg tabular-nums">{previewRemaining.toLocaleString()} 元</dd>
                         </div>
                       </dl>
-                      <p className="text-gray-500 text-xs mt-3">預覽 = 下方「本月初尚欠」−「本月實際還款」；儲存後會寫入紀錄。</p>
+                      <p className="text-gray-500 text-xs mt-3">
+                        預覽 = 本月初尚欠（進階欄位有填則以該值為準）+ 本月新借支（已匯款）− 本月實際還款；儲存後會寫入紀錄。
+                      </p>
                     </div>
 
                     <div className="rounded-lg border border-gray-600 bg-gray-800/90 p-4 space-y-4">
