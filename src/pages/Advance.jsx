@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDropdownOptionsByCategory } from '../utils/dropdownStorage'
@@ -14,7 +14,12 @@ import {
   getTotalTransferredByAccount,
   getMonthlyTransferredByAccount,
   getAdvanceRepaymentStats,
-  setAdvanceRepayment
+  setAdvanceRepayment,
+  getAdvanceApplicationPreview,
+  ADVANCE_DEBT_CAP,
+  ADVANCE_CAP_EXCEEDED_MESSAGE,
+  ADVANCE_MIN_EXTRA_WHEN_CARRIED,
+  ADVANCE_MIN_PAY_NO_NEW_BORROW
 } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
@@ -90,6 +95,11 @@ function Advance() {
   const [repayMin, setRepayMin] = useState('')
   const [repayLastMonth, setRepayLastMonth] = useState('')
   const [repayMessage, setRepayMessage] = useState(null)
+
+  const advanceApplyPreview = useMemo(() => {
+    if (!currentUser) return null
+    return getAdvanceApplicationPreview(currentUser, amount)
+  }, [currentUser, amount])
 
   const loadData = () => {
     if (currentUser) {
@@ -260,7 +270,31 @@ function Advance() {
                 className="w-full max-w-xs bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
                 placeholder="請輸入金額"
               />
+              <p className="text-gray-500 text-xs mt-1">借資總額上限 {ADVANCE_DEBT_CAP.toLocaleString()} 元（含本月初尚欠、本月已撥、審核中與本次金額）。</p>
             </div>
+            {advanceApplyPreview && (
+              <div className="rounded-lg border border-gray-600 bg-gray-800/90 p-3 sm:p-4 text-sm space-y-2 max-w-lg">
+                <div className="text-gray-400 text-xs leading-relaxed">
+                  試算：若本次申請核准並計入{formatYmZh(advanceApplyPreview.yearMonth)}，下列供評估（實際還款以管理員登記為準）。
+                </div>
+                <div className="flex justify-between gap-2 text-white">
+                  <span className="text-gray-300 shrink-0">預估總欠款</span>
+                  <span className={`font-semibold tabular-nums text-right ${advanceApplyPreview.overCap ? 'text-red-400' : 'text-yellow-300'}`}>
+                    {advanceApplyPreview.projectedDebtTotal.toLocaleString()} ／ {advanceApplyPreview.cap.toLocaleString()} 元
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-white">
+                  <span className="text-gray-300 shrink-0">本月最低還款（預估）</span>
+                  <span className="text-amber-200 font-semibold tabular-nums text-right">{advanceApplyPreview.previewMinRepayment.toLocaleString()} 元</span>
+                </div>
+                <p className="text-gray-500 text-xs leading-relaxed">
+                  規則：無累積欠款時「借多少至少還多少」；有累積時「本月新借＋{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}」；有累積但本月未再借時，每月至少還 {ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()} 元（不超過實際欠款）。
+                </p>
+                {advanceApplyPreview.overCap && Number(amount) > 0 && (
+                  <p className="text-red-400 font-medium text-sm">{ADVANCE_CAP_EXCEEDED_MESSAGE}</p>
+                )}
+              </div>
+            )}
             <div>
               <label className="block text-gray-300 text-sm mb-1">事由</label>
               <textarea
@@ -277,7 +311,8 @@ function Advance() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="submit"
-                className="px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-medium"
+                disabled={!!(advanceApplyPreview?.overCap && Number(amount) > 0)}
+                className="px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 送出申請
               </button>
@@ -324,6 +359,9 @@ function Advance() {
                 <li className="flex justify-between gap-2">
                   <span className="text-gray-300 shrink-0">本月至少應還</span>
                   <span className="text-amber-200 font-medium text-right">{Number(stats.minRepayment).toLocaleString()} 元</span>
+                </li>
+                <li className="text-gray-500 text-[11px] leading-relaxed -mt-1">
+                  無結轉則至少還本月新借；有結轉且本月有新借＝新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}；有結轉但本月未再借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）。
                 </li>
                 <li className="flex justify-between gap-2">
                   <span className="text-gray-300 shrink-0">本月已還款（登記）</span>
@@ -497,6 +535,9 @@ function Advance() {
                           <dt className="text-gray-400">本月至少應還</dt>
                           <dd className="text-amber-200 font-medium tabular-nums">{Number(stats.minRepayment).toLocaleString()} 元</dd>
                         </div>
+                        <p className="text-gray-500 text-xs -mt-1 pb-2 border-b border-gray-700/80 leading-relaxed">
+                          預設規則：無結轉欠款＝本月新借；有結轉＋本月新借＝新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}；有結轉但本月無新借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）。下方「最低還款」可覆寫。
+                        </p>
                         <div className="flex justify-between gap-3 pt-1">
                           <dt className="text-white font-medium">預覽 · 本月結算後尚欠</dt>
                           <dd className="text-amber-300 font-bold text-lg tabular-nums">{previewRemaining.toLocaleString()} 元</dd>
