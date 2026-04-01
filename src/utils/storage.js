@@ -193,9 +193,7 @@ export function getPendingAdvances() {
   return getAdvanceList().filter((r) => (r.status || 'pending') === 'pending')
 }
 
-/** 借資（欠款）上限：本月初尚欠（扣本月已還）＋本月已撥付＋審核中＋新增，合計不得超過 */
-export const ADVANCE_DEBT_CAP = 30000
-/** 有累積欠款時，本月若有新借支，最低還款 = 本月新增 + 此金額 */
+/** 有累積欠款時，本月若有新借支，最低還款含「本月新增 + 此金額」（並與「至少 1 萬」取較高，見 computeDefaultMinRepayment） */
 export const ADVANCE_MIN_EXTRA_WHEN_CARRIED = 3000
 /** 有累積欠款但本月無新借支時，每月至少還款（不超過實際欠款） */
 export const ADVANCE_MIN_PAY_NO_NEW_BORROW = 10000
@@ -215,7 +213,7 @@ export function getPendingAdvanceAmountByAccount(account, excludeId = '') {
 }
 
 /**
- * 預估目前欠款總額（用於上限）：本月初尚欠扣本月已還 ＋ 本月已撥付 ＋ 審核中（可排除一筆）＋ extraTransferred
+ * 預估目前欠款總額：本月初尚欠扣本月已還 ＋ 本月已撥付 ＋ 審核中（可排除一筆）＋ extraTransferred
  */
 export function getAdvanceProjectedDebtTotal(account, yearMonth, opts = {}) {
   const extra = Math.max(0, Number(opts.extraTransferred) || 0)
@@ -227,22 +225,23 @@ export function getAdvanceProjectedDebtTotal(account, yearMonth, opts = {}) {
   return carriedRemain + stats.monthAdded + pending + extra
 }
 
-export const ADVANCE_CAP_EXCEEDED_MESSAGE = '超過借資總額，無法借資或洽管理員'
-
-/** 本月最低還款預設：無累積→至少還本月新增；有累積且有新增→新增+3000；有累積無新增→至少1萬（不超過欠款） */
+/** 本月最低還款預設：無累積→至少還本月新增；有累積無新增→至少1萬（不超過尚欠）；有累積且有新增→「新增+3000」與「至少1萬（不超過尚欠）」取較高 */
 export function computeDefaultMinRepayment(lastMonthUnpaid, monthAdded) {
   const carried = Math.max(0, Number(lastMonthUnpaid) || 0)
   const added = Math.max(0, Number(monthAdded) || 0)
-  if (carried > 0 && added === 0) {
+  if (carried <= 0) {
+    return added
+  }
+  if (added === 0) {
     return Math.min(ADVANCE_MIN_PAY_NO_NEW_BORROW, carried)
   }
-  if (carried > 0 && added > 0) {
-    return added + ADVANCE_MIN_EXTRA_WHEN_CARRIED
-  }
-  return added
+  const fromNewBorrowRule = added + ADVANCE_MIN_EXTRA_WHEN_CARRIED
+  const owedApprox = carried + added
+  const fromMonthlyFloor = Math.min(ADVANCE_MIN_PAY_NO_NEW_BORROW, owedApprox)
+  return Math.max(fromNewBorrowRule, fromMonthlyFloor)
 }
 
-/** 申請表單預覽：試算總欠款、是否超過上限、若核准後本月最低還款 */
+/** 申請表單預覽：試算核准後總欠款、若核准後本月最低還款 */
 export function getAdvanceApplicationPreview(account, proposedAmount) {
   const acc = String(account || '').trim()
   const prop = Math.max(0, Number(proposedAmount) || 0)
@@ -257,8 +256,6 @@ export function getAdvanceApplicationPreview(account, proposedAmount) {
     lastMonthUnpaid: stats.lastMonthUnpaid,
     monthAddedNow: stats.monthAdded,
     projectedDebtTotal,
-    overCap: projectedDebtTotal > ADVANCE_DEBT_CAP,
-    cap: ADVANCE_DEBT_CAP,
     previewMinRepayment,
     carriedRemain: Math.max(0, stats.lastMonthUnpaid - stats.actualRepayment)
   }
@@ -270,10 +267,6 @@ export function addAdvance({ account, amount, reason }) {
     const amt = Math.max(0, Number(amount) || 0)
     if (!acc) return { success: false, message: '帳號無效' }
     if (amt <= 0) return { success: false, message: '請輸入有效金額' }
-    const ym = advanceCurrentYearMonth()
-    if (getAdvanceProjectedDebtTotal(acc, ym, {}) + amt > ADVANCE_DEBT_CAP) {
-      return { success: false, message: ADVANCE_CAP_EXCEEDED_MESSAGE }
-    }
     const list = getAdvanceList()
     const id = `adv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
     const rec = {
@@ -300,10 +293,6 @@ export function addManualAdvance({ account, amount, reason, paymentMethod }) {
   try {
     const acc = String(account || '').trim()
     const amt = Math.max(0, Number(amount) || 0)
-    const ym = advanceCurrentYearMonth()
-    if (acc && amt > 0 && getAdvanceProjectedDebtTotal(acc, ym, {}) + amt > ADVANCE_DEBT_CAP) {
-      return { success: false, message: ADVANCE_CAP_EXCEEDED_MESSAGE }
-    }
     const list = getAdvanceList()
     const id = `adv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
     const now = new Date().toISOString()
@@ -344,13 +333,6 @@ export function markTransferred(id, reviewedBy = '') {
     const list = getAdvanceList()
     const idx = list.findIndex((r) => r.id === id)
     if (idx === -1) return { success: false, message: '找不到該申請' }
-    const rec = list[idx]
-    const acc = String(rec?.account || '').trim()
-    const amt = Math.max(0, Number(rec?.amount) || 0)
-    const ym = advanceCurrentYearMonth()
-    if (acc && getAdvanceProjectedDebtTotal(acc, ym, { extraTransferred: amt, excludePendingId: String(id) }) > ADVANCE_DEBT_CAP) {
-      return { success: false, message: ADVANCE_CAP_EXCEEDED_MESSAGE }
-    }
     const now = new Date().toISOString()
     list[idx] = { ...list[idx], status: 'transferred', reviewedBy: String(reviewedBy || '').trim(), reviewedAt: list[idx].reviewedAt || now, transferredAt: now }
     saveAdvanceList(list)
