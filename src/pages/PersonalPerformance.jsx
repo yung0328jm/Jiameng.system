@@ -223,11 +223,12 @@ function PersonalPerformance() {
   const calculatePerformance = (userName) => {
     const { startDate, endDate } = getDateRange()
     const currentRole = getCurrentUserRole()
-    // 只計算至當日：不把未來日期的排程算進績效
+    // 工作明細：列出當月內所有排程（含未來日）；加減分與平均完成率等僅計「排程日 ≤ 今天」
     const todayStr = new Date().toISOString().slice(0, 10)
     const effectiveEndDate = endDate > todayStr ? todayStr : endDate
     const rangeStartYmd = normalizeScheduleYmd(startDate)
-    const rangeEndEffYmd = normalizeScheduleYmd(effectiveEndDate)
+    const rangeEndMonthYmd = normalizeScheduleYmd(endDate)
+    const todayYmd = normalizeScheduleYmd(todayStr)
 
     // 帳號對應的顯示名稱（含綁定）：行事曆存的是參與人員/負責人的顯示名稱
     const displayNames = getDisplayNamesForAccount(userName || '')
@@ -246,13 +247,13 @@ function PersonalPerformance() {
     let itemsWithRate = 0
     let totalCompletionRateAdjustment = 0 // 每天每條工項依完成率各算加減分，再加總（不用整月平均）
 
-    // 依據行事曆排程中的工作項目（目標數、實際數量）計算 平均完成率、完成項目、部分完成；每條工項依完成率查表加減分後加總；只算到當日為止
+    // 依據行事曆排程：工作明細含當月未來日；計分僅 schedYmd <= today
     // 與施工照片扣分邏輯一致：支援頂層 workItems 或 segments 各案場 workItems
     schedules.forEach((schedule) => {
       const schedYmd = normalizeScheduleYmd(schedule.date)
       if (rangeStartYmd && schedYmd && schedYmd < rangeStartYmd) return
-      // 不含「今天」以後的排程（與績效「只算到當日」一致；故未來日不會出現在工作明細）
-      if (schedYmd && rangeEndEffYmd && schedYmd > rangeEndEffYmd) return
+      if (schedYmd && rangeEndMonthYmd && schedYmd > rangeEndMonthYmd) return
+      const scoreThisSchedule = !!(schedYmd && todayYmd && schedYmd <= todayYmd)
 
       const schedTag = String(schedule.tag || 'blue').trim()
       const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
@@ -273,38 +274,40 @@ function PersonalPerformance() {
           const completionRate = contentFilled ? 100 : 0
           const entryId = String(entry?.id || '').trim()
 
-          workDays.add(schedule.date)
-          totalItems++
-          totalCompletionRate += completionRate
-          itemsWithRate++
-          totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
+          if (scoreThisSchedule) {
+            workDays.add(schedule.date)
+            totalItems++
+            totalCompletionRate += completionRate
+            itemsWithRate++
+            totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
 
-          if (completionRate >= 100) {
-            completedItems++
-          } else if (completionRate > 0) {
-            partialItems++
-          } else {
-            uncompletedItems++
-          }
-
-          const workType = contentFilled ? String(entry.workContent).trim().slice(0, 80) : '未填寫'
-          if (!workItemStats[workType]) {
-            workItemStats[workType] = {
-              count: 0,
-              completed: 0,
-              partial: 0,
-              uncompleted: 0,
-              totalCompletionRate: 0
+            if (completionRate >= 100) {
+              completedItems++
+            } else if (completionRate > 0) {
+              partialItems++
+            } else {
+              uncompletedItems++
             }
-          }
-          workItemStats[workType].count++
-          workItemStats[workType].totalCompletionRate += completionRate
-          if (completionRate >= 100) {
-            workItemStats[workType].completed++
-          } else if (completionRate > 0) {
-            workItemStats[workType].partial++
-          } else {
-            workItemStats[workType].uncompleted++
+
+            const workType = contentFilled ? String(entry.workContent).trim().slice(0, 80) : '未填寫'
+            if (!workItemStats[workType]) {
+              workItemStats[workType] = {
+                count: 0,
+                completed: 0,
+                partial: 0,
+                uncompleted: 0,
+                totalCompletionRate: 0
+              }
+            }
+            workItemStats[workType].count++
+            workItemStats[workType].totalCompletionRate += completionRate
+            if (completionRate >= 100) {
+              workItemStats[workType].completed++
+            } else if (completionRate > 0) {
+              workItemStats[workType].partial++
+            } else {
+              workItemStats[workType].uncompleted++
+            }
           }
 
           const detailKey = entryId
@@ -318,7 +321,8 @@ function PersonalPerformance() {
             quantityOmitted: true,
             targetQuantity: 0,
             actualQuantity: 0,
-            completionRate: completionRate.toFixed(1),
+            scoringPending: !scoreThisSchedule,
+            completionRate: scoreThisSchedule ? completionRate.toFixed(1) : '待計分',
             detailKey,
             ...(entryId && persistedPweIds.has(entryId)
               ? {
@@ -377,38 +381,40 @@ function PersonalPerformance() {
             const actual = getWorkItemActualForNameForPerformance(it, resp)
             const completionRate = target > 0 ? (actual / target * 100) : 0
 
-            workDays.add(schedule.date)
-            totalItems++
-            totalCompletionRate += completionRate
-            itemsWithRate++
-            totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
+            if (scoreThisSchedule) {
+              workDays.add(schedule.date)
+              totalItems++
+              totalCompletionRate += completionRate
+              itemsWithRate++
+              totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
 
-            if (completionRate >= 100) {
-              completedItems++
-            } else if (completionRate > 0) {
-              partialItems++
-            } else {
-              uncompletedItems++
-            }
-
-            const workType = it.workContent || '未分類'
-            if (!workItemStats[workType]) {
-              workItemStats[workType] = {
-                count: 0,
-                completed: 0,
-                partial: 0,
-                uncompleted: 0,
-                totalCompletionRate: 0
+              if (completionRate >= 100) {
+                completedItems++
+              } else if (completionRate > 0) {
+                partialItems++
+              } else {
+                uncompletedItems++
               }
-            }
-            workItemStats[workType].count++
-            workItemStats[workType].totalCompletionRate += completionRate
-            if (completionRate >= 100) {
-              workItemStats[workType].completed++
-            } else if (completionRate > 0) {
-              workItemStats[workType].partial++
-            } else {
-              workItemStats[workType].uncompleted++
+
+              const workType = it.workContent || '未分類'
+              if (!workItemStats[workType]) {
+                workItemStats[workType] = {
+                  count: 0,
+                  completed: 0,
+                  partial: 0,
+                  uncompleted: 0,
+                  totalCompletionRate: 0
+                }
+              }
+              workItemStats[workType].count++
+              workItemStats[workType].totalCompletionRate += completionRate
+              if (completionRate >= 100) {
+                workItemStats[workType].completed++
+              } else if (completionRate > 0) {
+                workItemStats[workType].partial++
+              } else {
+                workItemStats[workType].uncompleted++
+              }
             }
 
             const detailKey = baseWorkItemId
@@ -421,7 +427,8 @@ function PersonalPerformance() {
               workContent: it.workContent || '未填寫',
               targetQuantity: target,
               actualQuantity: actual,
-              completionRate: completionRate.toFixed(1),
+              scoringPending: !scoreThisSchedule,
+              completionRate: scoreThisSchedule ? completionRate.toFixed(1) : '待計分',
               detailKey,
               ...(baseWorkItemId
                 ? {
@@ -451,7 +458,7 @@ function PersonalPerformance() {
     schedules.forEach((schedule) => {
       const schedYmdDoc = normalizeScheduleYmd(schedule.date)
       if (rangeStartYmd && schedYmdDoc && schedYmdDoc < rangeStartYmd) return
-      if (schedYmdDoc && rangeEndEffYmd && schedYmdDoc > rangeEndEffYmd) return
+      if (schedYmdDoc && rangeEndMonthYmd && schedYmdDoc > rangeEndMonthYmd) return
       if (isLeaveSchedule(schedule)) return // 請假不套用、不扣分
       if (schedule.constructionPhotos === true) return
       // 工作項目來源：支援頂層 workItems 或 segments 內 workItems（與主迴圈一致）
@@ -464,7 +471,7 @@ function PersonalPerformance() {
         if (!participantsStr) return
         const participantNames = participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean)
         const userInParticipants = participantNames.some((p) => displayNames.includes(p))
-        if (userInParticipants && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
+        if (userInParticipants && schedYmdDoc && todayYmd && schedYmdDoc <= todayYmd) scheduleDaysWithDocPenalty.add(schedYmdDoc)
         return
       }
       const logicalItems = expandWorkItemsToLogical(rawWorkItems)
@@ -479,7 +486,7 @@ function PersonalPerformance() {
           : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
         if (collabs.some((c) => displayNames.includes(String(c?.name || '').trim()))) userInGroup = true
       })
-      if (userInGroup && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
+      if (userInGroup && schedYmdDoc && todayYmd && schedYmdDoc <= todayYmd) scheduleDaysWithDocPenalty.add(schedYmdDoc)
     })
     const scheduleDocAdjustment = -1 * scheduleDaysWithDocPenalty.size
     const businessTripDateSet = buildBusinessTripDateSetByUser(
@@ -864,6 +871,7 @@ function PersonalPerformance() {
     const viewUserDisplayNames = getDisplayNamesForAccount(targetUser.account)
     const dailyRangeStartYmd = normalizeScheduleYmd(startDate)
     const dailyRangeEndYmd = normalizeScheduleYmd(endDate)
+    const dailyTodayYmd = normalizeScheduleYmd(new Date().toISOString().slice(0, 10))
     schedules.forEach((schedule) => {
       const schedYmdDoc = normalizeScheduleYmd(schedule.date)
       if (schedYmdDoc && dailyRangeStartYmd && schedYmdDoc < dailyRangeStartYmd) return
@@ -877,7 +885,7 @@ function PersonalPerformance() {
         const participantsStr = String(schedule.participants || '').trim()
         if (!participantsStr) return
         const participantNames = participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean)
-        if (participantNames.some((p) => viewUserDisplayNames.includes(p)) && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
+        if (participantNames.some((p) => viewUserDisplayNames.includes(p)) && schedYmdDoc && dailyTodayYmd && schedYmdDoc <= dailyTodayYmd) scheduleDaysWithDocPenalty.add(schedYmdDoc)
         return
       }
       const logicalItems = expandWorkItemsToLogical(rawWorkItems)
@@ -892,7 +900,7 @@ function PersonalPerformance() {
           : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
         if (collabs.some((c) => viewUserDisplayNames.includes(String(c?.name || '').trim()))) userInGroup = true
       })
-      if (userInGroup && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
+      if (userInGroup && schedYmdDoc && dailyTodayYmd && schedYmdDoc <= dailyTodayYmd) scheduleDaysWithDocPenalty.add(schedYmdDoc)
     })
 
     const businessTripDateSet = buildBusinessTripDateSetByUser(
@@ -1004,10 +1012,12 @@ function PersonalPerformance() {
         })
       })
       
-      // 累積達成率統計
-      cumulativeTotalCompletion += dailyTotalCompletion
-      cumulativeItemsWithRate += dailyItemsWithRate
-      cumulativeCompletionRateAdjustmentSum += dailyTotalCompletionRateAdjustment
+      // 累積達成率統計（未來日不納入加總，與月結績效「待計分」一致）
+      if (dateStr <= dailyTodayYmd) {
+        cumulativeTotalCompletion += dailyTotalCompletion
+        cumulativeItemsWithRate += dailyItemsWithRate
+        cumulativeCompletionRateAdjustmentSum += dailyTotalCompletionRateAdjustment
+      }
       
       // 當天的達成率調整：當日每條工項依完成率查表加減分後加總（不用當日平均完成率）
       const dailyCompletionRateAdjustment = dailyTotalCompletionRateAdjustment
@@ -3821,7 +3831,7 @@ function PersonalPerformance() {
           <h3 className="text-lg font-bold text-yellow-400">工作明細</h3>
           <p className="text-gray-500 text-xs mt-1">
             藍標「每人工作內容」列：有填寫為 100%、未填為 0%；其餘工項仍依目標／實際數量。皆再依規則查表加減分後加總（與平均完成率無關）。
-            <span className="block mt-1 text-amber-200/85">僅列出排程日期「不晚於今天」者：未到當天的排程（例如今天是 4/1 時的 4/2）暫不列入，待該日到了才會出現並計分。</span>
+            <span className="block mt-1 text-amber-200/85">當月內已排程即會列出；排程日晚於「今天」者完成率顯示「待計分」，該日到達後才會納入加減分與平均完成率統計。</span>
           </p>
         </div>
         {performanceData.workDetails.length === 0 ? (
@@ -3852,8 +3862,12 @@ function PersonalPerformance() {
                     <td className="px-4 py-3 text-white">{detail.workContent}</td>
                     <td className="px-4 py-3 text-right text-white">{detail.quantityOmitted ? '—' : (detail.targetQuantity > 0 ? detail.targetQuantity.toFixed(1) : '—')}</td>
                     <td className="px-4 py-3 text-right text-white">{detail.quantityOmitted ? '—' : (detail.actualQuantity > 0 ? detail.actualQuantity.toFixed(1) : '—')}</td>
-                    <td className={`px-4 py-3 text-right font-semibold ${getCompletionColor(parseFloat(detail.completionRate))}`}>
-                      {detail.quantityOmitted || detail.targetQuantity > 0 ? `${detail.completionRate}%` : '—'}
+                    <td className={`px-4 py-3 text-right font-semibold ${detail.scoringPending ? 'text-gray-400' : getCompletionColor(parseFloat(detail.completionRate))}`}>
+                      {detail.scoringPending ? (
+                        '待計分'
+                      ) : (
+                        detail.quantityOmitted || detail.targetQuantity > 0 ? `${detail.completionRate}%` : '—'
+                      )}
                     </td>
                     {userRole === 'admin' && (
                       <td className="px-4 py-3 text-right">
