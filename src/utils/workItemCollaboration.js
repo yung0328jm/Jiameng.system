@@ -269,7 +269,8 @@ export const expandWorkItemsToLogical = (workItems) => {
           targetQuantity: row.targetQuantity ?? item.targetQuantity,
           actualQuantity: row.actualQuantity ?? item.actualQuantity,
           contentRows: undefined,
-          _parentItem: item
+          _parentItem: item,
+          _logicalContentRowId: row.id ? String(row.id) : ''
         })
       })
     } else if (isCollab && collabMode === 'shared' && Array.isArray(rows) && rows.length > 0) {
@@ -282,7 +283,8 @@ export const expandWorkItemsToLogical = (workItems) => {
           sharedActualQuantity: row.actualQuantity ?? row.sharedActualQuantity ?? item.sharedActualQuantity ?? item.actualQuantity,
           actualQuantity: row.actualQuantity ?? item.actualQuantity,
           contentRows: undefined,
-          _parentItem: item
+          _parentItem: item,
+          _logicalContentRowId: row.id ? String(row.id) : ''
         })
       })
     } else if (isCollab && collabMode === 'separate' && Array.isArray(rows) && rows.length > 0) {
@@ -299,4 +301,3 @@ export const expandWorkItemsToLogical = (workItems) => {
   })
   return out
 }
-
