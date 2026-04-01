@@ -410,7 +410,7 @@ export function getAdvanceRepaymentBalanceEnd(account, yearMonth) {
   return Number(e.balanceEnd)
 }
 
-/** 取得某帳號某年月的最低還款覆寫值（無則回傳 null，表示用本月新增） */
+/** 取得某帳號某年月的最低還款覆寫值（無則回傳 null；0 在 getAdvanceRepaymentStats 中視同未覆寫） */
 export function getAdvanceRepaymentMin(account, yearMonth) {
   const e = getRepaymentEntry(account, yearMonth)
   if (e == null || e.min == null || e.min === '') return null
@@ -485,7 +485,9 @@ export function getAdvanceRepaymentStats(account, yearMonth) {
 
   const monthAdded = getAdded(ym)
   const minStored = getStoredMin(ym)
-  const minRepayment = minStored != null ? minStored : computeDefaultMinRepayment(lastMonthUnpaid, monthAdded)
+  // 存檔的 min 為 0 時視同未覆寫（舊資料／誤存），仍用規則試算，與申請表單預覽一致
+  const minRepayment =
+    minStored != null && minStored > 0 ? minStored : computeDefaultMinRepayment(lastMonthUnpaid, monthAdded)
   const actualRepayment = getRepay(ym)
   const monthRemaining = Math.max(0, lastMonthUnpaid - actualRepayment)
   const prevMonthRepayment = prevYm ? getRepay(prevYm) : 0
