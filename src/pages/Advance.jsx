@@ -15,7 +15,6 @@ import {
   getMonthlyTransferredByAccount,
   getAdvanceRepaymentStats,
   setAdvanceRepayment,
-  seedAdvanceOpeningBalance,
   getAdvanceApplicationPreview,
   ADVANCE_DEBT_CAP,
   ADVANCE_CAP_EXCEEDED_MESSAGE,
@@ -96,13 +95,6 @@ function Advance() {
   const [repayMin, setRepayMin] = useState('')
   const [repayLastMonth, setRepayLastMonth] = useState('')
   const [repayMessage, setRepayMessage] = useState(null)
-  const [seedAccount, setSeedAccount] = useState('')
-  const [seedYearMonth, setSeedYearMonth] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  })
-  const [seedBalance, setSeedBalance] = useState('')
-  const [seedMessage, setSeedMessage] = useState(null)
 
   const advanceApplyPreview = useMemo(() => {
     if (!currentUser) return null
@@ -209,31 +201,6 @@ function Advance() {
       loadData()
     } else {
       setRepayMessage({ type: 'error', text: result.message || '儲存失敗' })
-    }
-  }
-
-  const handleSeedOpeningSubmit = (e) => {
-    e.preventDefault()
-    setSeedMessage(null)
-    const account = String(seedAccount || '').trim()
-    if (!account) {
-      setSeedMessage({ type: 'error', text: '請選擇成員' })
-      return
-    }
-    const ym = String(seedYearMonth || '').trim()
-    const bal = Math.max(0, Number(seedBalance) || 0)
-    if (!window.confirm(
-      `確定寫入期初尚欠？\n成員：${getMemberDisplayName(account)}\n月份：${formatYmZh(ym)}\n該月初尚欠：${bal.toLocaleString()} 元\n\n之後請在「設定還款與未清償」依實際還款維護。`
-    )) return
-    const result = seedAdvanceOpeningBalance(account, ym, bal)
-    if (result.success) {
-      setSeedMessage({ type: 'success', text: '已寫入期初尚欠，可至下方「設定還款與未清償」確認「本月初尚欠」是否正確。' })
-      if (repayAccount === account && repayYearMonth === ym) {
-        const st = getAdvanceRepaymentStats(account, ym)
-        setRepayLastMonth(String(st.lastMonthUnpaid))
-      }
-    } else {
-      setSeedMessage({ type: 'error', text: result.message || '寫入失敗' })
     }
   }
 
@@ -506,61 +473,6 @@ function Advance() {
                 })}
               </ul>
             )}
-          </section>
-          <section className="mb-8 rounded-xl border border-amber-700/50 bg-amber-950/20 p-4 sm:p-5">
-            <h3 className="text-lg font-semibold text-amber-300 mb-2">期初欠款匯入（舊借支／上線前紀錄）</h3>
-            <p className="text-gray-400 text-sm mb-4 max-w-2xl leading-relaxed">
-              若員工在預支功能上線前已有欠款，請在此<strong className="text-gray-300">選擇「從哪一個月起納入系統」</strong>，並填寫<strong className="text-gray-300">該月一號當下尚欠總額</strong>。
-              寫入後，該月在「設定還款與未清償」裡的<strong className="text-gray-300">本月初尚欠（上月結轉）</strong>會等於此金額，之後請照常登記還款與新借支即可。
-            </p>
-            <form onSubmit={handleSeedOpeningSubmit} className="space-y-4 max-w-lg">
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <div className="flex-1 min-w-0">
-                  <label className="block text-gray-300 text-sm mb-1">成員</label>
-                  <select
-                    value={seedAccount}
-                    onChange={(e) => setSeedAccount(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                  >
-                    <option value="">請選擇成員</option>
-                    {getAllMembers().map((m) => (
-                      <option key={m.account} value={m.account}>
-                        {m.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="sm:w-44 shrink-0">
-                  <label className="block text-gray-300 text-sm mb-1">納入月份</label>
-                  <input
-                    type="month"
-                    value={seedYearMonth}
-                    onChange={(e) => setSeedYearMonth(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-gray-300 text-sm mb-1">該月初尚欠（元）</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={seedBalance}
-                  onChange={(e) => setSeedBalance(e.target.value)}
-                  className="w-full max-w-xs bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                  placeholder="例如：15000"
-                />
-              </div>
-              {seedMessage && (
-                <p className={seedMessage.type === 'success' ? 'text-green-400 text-sm' : 'text-red-400 text-sm'}>{seedMessage.text}</p>
-              )}
-              <button
-                type="submit"
-                className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500 text-gray-900 font-medium"
-              >
-                寫入期初尚欠
-              </button>
-            </form>
           </section>
           <section className="mb-8">
             <h3 className="text-lg font-semibold text-white mb-2">設定還款與未清償</h3>
