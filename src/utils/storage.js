@@ -416,12 +416,19 @@ export function getAdvanceRepaymentStats(account, yearMonth) {
   const minRepayment = minStored != null ? minStored : monthAdded
   const actualRepayment = getRepay(ym)
   const monthRemaining = Math.max(0, lastMonthUnpaid - actualRepayment)
+  const prevMonthRepayment = prevYm ? getRepay(prevYm) : 0
 
   return {
     lastMonthUnpaid,
     monthAdded,
     minRepayment,
     actualRepayment,
-    monthRemaining
+    monthRemaining,
+    /** 上個曆月實際還款金額（方便對帳） */
+    prevMonthRepayment,
+    /** 目前檢視的年月（YYYY-MM） */
+    yearMonth: ym,
+    /** 上一曆月（YYYY-MM） */
+    prevYearMonth: prevYm || ''
   }
 }
