@@ -23,6 +23,15 @@ function normalizeScheduleYmd(d) {
   return String(d || '').trim().replace(/\//g, '-').slice(0, 10)
 }
 
+/** 本機日曆的「今天」YYYY-MM-DD（勿用 toISOString，避免 UTC 與台灣等地時差讓 4/2 排程拖到 4/3 才計分） */
+function getLocalTodayYmd() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
   const [userRole, setUserRole] = useState(null)
@@ -224,7 +233,7 @@ function PersonalPerformance() {
     const { startDate, endDate } = getDateRange()
     const currentRole = getCurrentUserRole()
     // 工作明細：列出當月內所有排程（含未來日）；加減分與平均完成率等僅計「排程日 ≤ 今天」
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = getLocalTodayYmd()
     const effectiveEndDate = endDate > todayStr ? todayStr : endDate
     const rangeStartYmd = normalizeScheduleYmd(startDate)
     const rangeEndMonthYmd = normalizeScheduleYmd(endDate)
@@ -871,7 +880,7 @@ function PersonalPerformance() {
     const viewUserDisplayNames = getDisplayNamesForAccount(targetUser.account)
     const dailyRangeStartYmd = normalizeScheduleYmd(startDate)
     const dailyRangeEndYmd = normalizeScheduleYmd(endDate)
-    const dailyTodayYmd = normalizeScheduleYmd(new Date().toISOString().slice(0, 10))
+    const dailyTodayYmd = normalizeScheduleYmd(getLocalTodayYmd())
     schedules.forEach((schedule) => {
       const schedYmdDoc = normalizeScheduleYmd(schedule.date)
       if (schedYmdDoc && dailyRangeStartYmd && schedYmdDoc < dailyRangeStartYmd) return
