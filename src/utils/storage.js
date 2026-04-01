@@ -469,6 +469,19 @@ export function setAdvanceRepayment(account, yearMonth, payload) {
   }
 }
 
+/**
+ * 匯入舊借支：將「所選年月」的【本月初尚欠】設為 openingBalance（寫入上一曆月的 balanceEnd），
+ * 之後月份會依還款紀錄自動結轉。不會清空該月已登記的實際還款／最低還款覆寫。
+ */
+export function seedAdvanceOpeningBalance(account, yearMonth, openingBalance) {
+  const acc = String(account || '').trim()
+  const ym = String(yearMonth || '').trim()
+  const v = Math.max(0, Number(openingBalance) || 0)
+  if (!acc || !ym) return { success: false, message: '帳號與年月必填' }
+  if (ym.length < 7) return { success: false, message: '年月格式須為 YYYY-MM' }
+  return setAdvanceRepayment(acc, ym, { lastMonthUnpaid: String(v) })
+}
+
 function prevYearMonth(ymKey) {
   if (!ymKey || ymKey.length < 7) return ''
   const y = ymKey.slice(0, 4)
