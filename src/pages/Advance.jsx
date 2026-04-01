@@ -58,6 +58,14 @@ function getMemberDisplayName(account) {
   return getDisplayNameForAccount(s) || s
 }
 
+function formatYmZh(ym) {
+  if (!ym || ym.length < 7) return ym || ''
+  const y = ym.slice(0, 4)
+  const m = parseInt(ym.slice(5, 7), 10)
+  if (Number.isNaN(m)) return ym
+  return `${y}年${m}月`
+}
+
 function Advance() {
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
@@ -297,13 +305,34 @@ function Advance() {
               </div>
             </div>
             <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4">
-              <div className="text-gray-400 text-sm mb-3">還款與未清償（{currentYm}）</div>
-              <ul className="space-y-2 text-white">
-                <li className="flex justify-between"><span className="text-gray-300">上月剩餘</span><span className="text-yellow-400 font-medium">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</span></li>
-                <li className="flex justify-between"><span className="text-gray-300">本月新增</span><span className="text-yellow-400 font-medium">{Number(stats.monthAdded).toLocaleString()} 元</span></li>
-                <li className="flex justify-between"><span className="text-gray-300">本月最低還款</span><span className="text-yellow-400 font-medium">{Number(stats.minRepayment).toLocaleString()} 元</span></li>
-                <li className="flex justify-between"><span className="text-gray-300">本月實際還款</span><span className="text-green-400 font-medium">{Number(stats.actualRepayment).toLocaleString()} 元</span></li>
-                <li className="flex justify-between border-t border-gray-600 pt-2 mt-2"><span className="text-white font-medium">本月剩餘</span><span className="text-amber-300 font-bold">{Number(stats.monthRemaining).toLocaleString()} 元</span></li>
+              <div className="text-gray-400 text-sm mb-3">還款總覽（{formatYmZh(currentYm)}）</div>
+              <ul className="space-y-2.5 text-white text-sm sm:text-base">
+                {stats.prevYearMonth ? (
+                  <li className="flex justify-between gap-2">
+                    <span className="text-gray-300 shrink-0">{formatYmZh(stats.prevYearMonth)} 已還款</span>
+                    <span className="text-green-400 font-medium text-right">{Number(stats.prevMonthRepayment || 0).toLocaleString()} 元</span>
+                  </li>
+                ) : null}
+                <li className="flex justify-between gap-2">
+                  <span className="text-gray-300 shrink-0">本月初尚欠</span>
+                  <span className="text-yellow-400 font-medium text-right">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</span>
+                </li>
+                <li className="flex justify-between gap-2">
+                  <span className="text-gray-300 shrink-0">本月新借支</span>
+                  <span className="text-yellow-400 font-medium text-right">{Number(stats.monthAdded).toLocaleString()} 元</span>
+                </li>
+                <li className="flex justify-between gap-2">
+                  <span className="text-gray-300 shrink-0">本月至少應還</span>
+                  <span className="text-amber-200 font-medium text-right">{Number(stats.minRepayment).toLocaleString()} 元</span>
+                </li>
+                <li className="flex justify-between gap-2">
+                  <span className="text-gray-300 shrink-0">本月已還款（登記）</span>
+                  <span className="text-green-400 font-medium text-right">{Number(stats.actualRepayment).toLocaleString()} 元</span>
+                </li>
+                <li className="flex justify-between gap-2 border-t border-gray-600 pt-2 mt-1">
+                  <span className="text-white font-medium shrink-0">本月結算後尚欠</span>
+                  <span className="text-amber-300 font-bold text-right">{Number(stats.monthRemaining).toLocaleString()} 元</span>
+                </li>
               </ul>
             </div>
             {monthlyEntries.length > 0 && (
@@ -408,75 +437,107 @@ function Advance() {
             )}
           </section>
           <section className="mb-8">
-            <h3 className="text-lg font-semibold text-white mb-3">設定還款與未清償</h3>
-            <p className="text-gray-400 text-sm mb-3">點選成員與年月後可檢視並編輯。本月剩餘 = 上月剩餘 - 本月實際還款，隔月後本月剩餘會顯示為上月剩餘。</p>
-            <form onSubmit={handleRepaymentSubmit} className="space-y-4 max-w-md">
-              <div>
-                <label className="block text-gray-300 text-sm mb-1">選擇成員</label>
-                <select
-                  value={repayAccount}
-                  onChange={(e) => setRepayAccount(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                >
-                  <option value="">請選擇成員</option>
-                  {getAllMembers().map((m) => (
-                    <option key={m.account} value={m.account}>
-                      {m.displayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-gray-300 text-sm mb-1">年月</label>
-                <input
-                  type="month"
-                  value={repayYearMonth}
-                  onChange={(e) => setRepayYearMonth(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                />
+            <h3 className="text-lg font-semibold text-white mb-2">設定還款與未清償</h3>
+            <p className="text-gray-400 text-sm mb-4 max-w-xl">
+              先選成員與月份，上方為<strong className="text-gray-300">只讀總覽</strong>（對帳用）；下方僅填寫本月還款與必要時調整「本月初尚欠」。
+            </p>
+            <form onSubmit={handleRepaymentSubmit} className="space-y-4 max-w-lg">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-gray-300 text-sm mb-1">選擇成員</label>
+                  <select
+                    value={repayAccount}
+                    onChange={(e) => setRepayAccount(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                  >
+                    <option value="">請選擇成員</option>
+                    {getAllMembers().map((m) => (
+                      <option key={m.account} value={m.account}>
+                        {m.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:w-44 shrink-0">
+                  <label className="block text-gray-300 text-sm mb-1">年月</label>
+                  <input
+                    type="month"
+                    value={repayYearMonth}
+                    onChange={(e) => setRepayYearMonth(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                  />
+                </div>
               </div>
               {repayAccount && repayYearMonth && (() => {
                 const stats = getAdvanceRepaymentStats(repayAccount, repayYearMonth)
+                const previewRemaining = Math.max(0, (Number(repayLastMonth) || 0) - (Number(repayAmount) || 0))
                 return (
-                  <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-3">
-                    <div className="text-yellow-400 font-medium mb-2">{getMemberDisplayName(repayAccount)} · {repayYearMonth}</div>
-                    <div>
-                      <label className="block text-gray-400 text-sm mb-1">上月剩餘（可編輯）</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={repayLastMonth}
-                        onChange={(e) => setRepayLastMonth(e.target.value)}
-                        className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                      />
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-gray-600 bg-gray-900/80 p-4 sm:p-5">
+                      <div className="text-yellow-400 font-semibold mb-3 text-base">
+                        {getMemberDisplayName(repayAccount)} · {formatYmZh(repayYearMonth)}
+                      </div>
+                      <p className="text-gray-500 text-xs mb-3">以下數字由系統依預支與還款紀錄計算，無需逐欄猜測。</p>
+                      <dl className="space-y-3 text-sm sm:text-base">
+                        {stats.prevYearMonth ? (
+                          <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
+                            <dt className="text-gray-400">{formatYmZh(stats.prevYearMonth)} 實際還款</dt>
+                            <dd className="text-green-400 font-semibold tabular-nums">{Number(stats.prevMonthRepayment || 0).toLocaleString()} 元</dd>
+                          </div>
+                        ) : null}
+                        <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
+                          <dt className="text-gray-400">本月初尚欠（上月結轉）</dt>
+                          <dd className="text-yellow-300 font-semibold tabular-nums">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</dd>
+                        </div>
+                        <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
+                          <dt className="text-gray-400">本月新借支（已匯款）</dt>
+                          <dd className="text-white font-medium tabular-nums">{Number(stats.monthAdded).toLocaleString()} 元</dd>
+                        </div>
+                        <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
+                          <dt className="text-gray-400">本月至少應還</dt>
+                          <dd className="text-amber-200 font-medium tabular-nums">{Number(stats.minRepayment).toLocaleString()} 元</dd>
+                        </div>
+                        <div className="flex justify-between gap-3 pt-1">
+                          <dt className="text-white font-medium">預覽 · 本月結算後尚欠</dt>
+                          <dd className="text-amber-300 font-bold text-lg tabular-nums">{previewRemaining.toLocaleString()} 元</dd>
+                        </div>
+                      </dl>
+                      <p className="text-gray-500 text-xs mt-3">預覽 = 下方「本月初尚欠」−「本月實際還款」；儲存後會寫入紀錄。</p>
                     </div>
-                    <div className="flex justify-between text-white">
-                      <span className="text-gray-400">本月新增</span>
-                      <span className="font-medium">{Number(stats.monthAdded).toLocaleString()} 元</span>
-                    </div>
-                    <div>
-                      <label className="block text-gray-400 text-sm mb-1">本月最低還款（可編輯）</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={repayMin}
-                        onChange={(e) => setRepayMin(e.target.value)}
-                        className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-400 text-sm mb-1">本月實際還款（可編輯）</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={repayAmount}
-                        onChange={(e) => setRepayAmount(e.target.value)}
-                        className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                      />
-                    </div>
-                    <div className="flex justify-between text-white border-t border-gray-600 pt-2 mt-2">
-                      <span className="font-medium">本月剩餘</span>
-                      <span className="text-amber-300 font-bold">{Math.max(0, (Number(repayLastMonth) || 0) - (Number(repayAmount) || 0)).toLocaleString()} 元</span>
+
+                    <div className="rounded-lg border border-gray-600 bg-gray-800/90 p-4 space-y-4">
+                      <div className="text-gray-300 text-sm font-medium">管理者填寫</div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">本月實際還款（由薪資／匯款登記）</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={repayAmount}
+                          onChange={(e) => setRepayAmount(e.target.value)}
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-sm mb-1">本月最低還款（可覆寫；留空則用「本月新借支」）</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={repayMin}
+                          onChange={(e) => setRepayMin(e.target.value)}
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                        />
+                      </div>
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-gray-500 hover:text-gray-400 select-none">進階：校正「本月初尚欠」</summary>
+                        <p className="text-gray-500 text-xs mt-2 mb-2">僅在與實際帳務不符時調整；一般請依系統帶入。</p>
+                        <input
+                          type="number"
+                          min={0}
+                          value={repayLastMonth}
+                          onChange={(e) => setRepayLastMonth(e.target.value)}
+                          className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
+                        />
+                      </details>
                     </div>
                   </div>
                 )
