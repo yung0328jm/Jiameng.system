@@ -914,9 +914,36 @@ function PersonalPerformance() {
       let dailyItemsWithRate = 0
       let dailyTotalCompletionRateAdjustment = 0 // 當日每條工項依完成率查表加減分後加總
       
-      // 統計當日工作項目（含獨立負責的 contentRows 展開）
+      // 統計當日工作項目（含獨立負責的 contentRows 展開；藍標＋每人工作列與月結邏輯一致）
       schedules.forEach(schedule => {
         if (schedule.date !== dateStr) return
+        const pweList = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
+        const schedTag = String(schedule.tag || 'blue').trim()
+        if (pweList.length > 0 && schedTag === 'blue') {
+          pweList.forEach((entry) => {
+            const pname = String(entry?.participantName || '').trim()
+            if (!pname || !displayNames.includes(pname)) return
+            const contentFilled = String(entry?.workContent || '').trim().length > 0
+            const target = Math.max(0, parseFloat(entry.targetQuantity)) || 1
+            const actual = contentFilled
+              ? (Math.max(0, parseFloat(entry.actualQuantity)) > 0 ? Math.max(0, parseFloat(entry.actualQuantity)) : target)
+              : 0
+            const completionRate = target > 0 ? (actual / target * 100) : 0
+
+            dailyWorkItems++
+            dailyTotalCompletion += completionRate
+            dailyItemsWithRate++
+            dailyTotalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
+
+            if (completionRate >= 100) {
+              dailyCompleted++
+            } else if (completionRate > 0) {
+              dailyPartial++
+            }
+          })
+          return
+        }
+
         const useSegs = Array.isArray(schedule.segments) && schedule.segments.length > 0
         const raws = useSegs
           ? schedule.segments.flatMap((s) => s.workItems || [])

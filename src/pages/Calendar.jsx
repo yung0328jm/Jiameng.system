@@ -43,6 +43,7 @@ function Calendar() {
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const [exportingPdf, setExportingPdf] = useState(false) // 匯出 PDF 中，避免重複點擊與無反應
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
+  const detailPweSyncKeyRef = useRef('') // 避免詳情內無關欄位更新時清空每人工作草稿
   const [selectedDetailSegmentIndex, setSelectedDetailSegmentIndex] = useState(0) // 排程詳情內切換案場（多處行程）的索引
   const [editingFormSegmentIndex, setEditingFormSegmentIndex] = useState(0) // 表單內編輯多處行程時，目前編輯的案場索引
   const [editingScheduleId, setEditingScheduleId] = useState(null) // 正在编辑的排程ID
@@ -73,6 +74,7 @@ function Calendar() {
     reason: ''
   })
   const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
+  const [detailPweDraft, setDetailPweDraft] = useState(null) // 排程詳情內：藍標每人工作內容編輯草稿
   const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪已送出的申請列表
   const [overtimePendingBannerOpen, setOvertimePendingBannerOpen] = useState(true) // 管理員：待審加班清單是否展開
   const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
@@ -1306,6 +1308,39 @@ function Calendar() {
     return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
   }
 
+  // 藍標排程詳情：依參與人員產生／同步每人工作列草稿（含舊資料尚未寫入 participantWorkEntries 者）
+  useEffect(() => {
+    if (!showDetailModal) {
+      setDetailPweDraft(null)
+      detailPweSyncKeyRef.current = ''
+      return
+    }
+    if (selectedDetailType !== 'schedule' || !selectedDetailItem) {
+      setDetailPweDraft(null)
+      detailPweSyncKeyRef.current = ''
+      return
+    }
+    if (isLeaveScheduleItem(selectedDetailItem)) {
+      setDetailPweDraft(null)
+      detailPweSyncKeyRef.current = ''
+      return
+    }
+    if (String(selectedDetailItem?.tag || 'blue').trim() !== 'blue') {
+      setDetailPweDraft(null)
+      detailPweSyncKeyRef.current = ''
+      return
+    }
+    const pweSerialized = JSON.stringify(selectedDetailItem.participantWorkEntries || [])
+    const syncKey = `${String(selectedDetailItem.id || '')}|${String(selectedDetailItem.participants || '')}|${pweSerialized}`
+    if (detailPweSyncKeyRef.current === syncKey) return
+    detailPweSyncKeyRef.current = syncKey
+    const merged = mergeParticipantWorkEntries(
+      selectedDetailItem.participants,
+      Array.isArray(selectedDetailItem.participantWorkEntries) ? selectedDetailItem.participantWorkEntries : []
+    )
+    setDetailPweDraft(merged.length ? merged.map((e) => ({ ...e })) : [])
+  }, [showDetailModal, selectedDetailType, selectedDetailItem])
+
   /** 月曆上該排程列：凡有此排程之加班申請（同一 scheduleId）即顯示，不依賴申請單「申請日期」是否等於排程日（避免預設成今天導致不顯示） */
   const getOvertimeStatusLabelForCell = (schedule, cellDateStr) => {
     if (!schedule || isLeaveScheduleItem(schedule)) return ''
@@ -1456,6 +1491,25 @@ function Calendar() {
 
   /** 每次更新排程時帶入，供「最後編輯者」顯示 */
   const getScheduleEditorInfo = () => ({ lastEditedBy: getCurrentUser(), lastEditedAt: new Date().toISOString() })
+
+  const patchDetailPweDraft = (id, field, value) => {
+    setDetailPweDraft((prev) => {
+      if (!Array.isArray(prev)) return prev
+      return prev.map((e) => (String(e.id) === String(id) ? { ...e, [field]: value } : e))
+    })
+  }
+
+  const saveDetailParticipantWork = () => {
+    const sid = String(selectedDetailItem?.id || '').trim()
+    if (!sid || !Array.isArray(detailPweDraft)) return
+    const fresh = getSchedules().find((s) => String(s?.id) === sid)
+    if (!fresh) return
+    const participantWorkEntries = mergeParticipantWorkEntries(String(fresh.participants || ''), detailPweDraft)
+    updateSchedule(sid, { ...getScheduleEditorInfo(), participantWorkEntries })
+    setSchedules(getSchedules())
+    const updated = getSchedules().find((s) => String(s?.id) === sid)
+    if (updated) setSelectedDetailItem(updated)
+  }
 
   /** 比較欄位新舊值是否相同 */
   const fieldEq = (a, b) => {
@@ -1742,6 +1796,23 @@ function Calendar() {
     body += `<p style="margin:4px 0;"><strong>日期:</strong> ${escapeHtml(dateStr)} ${timeStr}</p>`
     body += `<p style="margin:4px 0;"><strong>建立者:</strong> ${escapeHtml(displayCreator(item.createdBy))}</p>`
     if (item.participants) body += `<p style="margin:4px 0;"><strong>參與人員:</strong> ${escapeHtml(item.participants)}</p>`
+    const detailTagForPrint = String(item?.tag || 'blue').trim()
+    const pweForPrint = Array.isArray(item.participantWorkEntries) ? item.participantWorkEntries : []
+    if (pweForPrint.length > 0 && detailTagForPrint === 'blue' && !continuation) {
+      body += '<h3 style="margin:16px 0 8px 0;font-size:1rem;">各參與人員當日工作內容</h3>'
+      pweForPrint.forEach((entry) => {
+        const nm = String(entry?.participantName || '').trim() || '—'
+        const wcRaw = String(entry?.workContent || '').trim()
+        const wc = wcRaw || '未填寫'
+        const tq = entry.targetQuantity != null && String(entry.targetQuantity).trim() !== '' ? String(entry.targetQuantity) : '1'
+        const aq = entry.actualQuantity != null && String(entry.actualQuantity).trim() !== '' ? String(entry.actualQuantity) : '—'
+        body += `<div style="${workItemCardStyle}">`
+        body += `<p style="${cardTitleStyle}">${escapeHtml(nm)}</p>`
+        body += `<p style="${cardLineStyle}">${escapeHtml(wc)}</p>`
+        body += `<p style="${cardLineStyle}">目標 ${escapeHtml(tq)} / 實際 ${escapeHtml(aq)}</p>`
+        body += '</div>'
+      })
+    }
     if (seg) {
       const entries = Array.isArray(seg.vehicleEntries) ? seg.vehicleEntries : []
       const vehicleLabel = entries.length > 0 ? entries.map((e) => e.vehicle).filter(Boolean).join(', ') : item.vehicle
@@ -3385,6 +3456,22 @@ function Calendar() {
                                   <span className="text-blue-300">回程駕駛:</span> {schedule.returnDriver}
                                 </div>
                               )}
+                              {Array.isArray(schedule.participantWorkEntries) && schedule.participantWorkEntries.length > 0 && String(schedule.tag || 'blue').trim() === 'blue' && (
+                                <div className="text-blue-200 text-sm">
+                                  <span className="text-blue-300">各參與人員當日工作內容:</span>
+                                  <div className="mt-1 space-y-1 pl-4">
+                                    {schedule.participantWorkEntries.map((entry) => {
+                                      const nm = String(entry?.participantName || '').trim() || '—'
+                                      const filled = String(entry?.workContent || '').trim().length > 0
+                                      return (
+                                        <div key={entry.id || nm} className="text-blue-100">
+                                          • {nm}：{filled ? String(entry.workContent).trim() : '未填寫'}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                               {schedule.workItems && schedule.workItems.length > 0 && (
                                 <div className="text-blue-200 text-sm">
                                   <span className="text-blue-300">預排工作項目:</span>
@@ -3595,6 +3682,98 @@ function Calendar() {
                           <div>
                             <span className="text-blue-300">參與人員:</span>
                             <span className="ml-2">{selectedDetailItem.participants}</span>
+                          </div>
+                        )}
+
+                        {/* 工作／項目：各人於此填寫當日工作內容（舊排程也會依參與人員自動產生欄位） */}
+                        {String(selectedDetailItem?.tag || 'blue').trim() === 'blue' && !isLeaveScheduleItem(selectedDetailItem) && (
+                          <div className="mt-4 p-3 bg-blue-950/50 border border-blue-500/40 rounded-lg">
+                            <div className="text-yellow-300 font-semibold text-sm mb-1">各參與人員當日工作內容</div>
+                            <p className="text-blue-200/90 text-xs mb-3 leading-relaxed">
+                              由<strong className="text-blue-100">本人</strong>填寫；儲存後寫入排程。未填寫者績效僅扣該員。
+                            </p>
+                            {!Array.isArray(detailPweDraft) || detailPweDraft.length === 0 ? (
+                              <p className="text-gray-400 text-sm">
+                                {String(selectedDetailItem.participants || '').trim()
+                                  ? '名單載入中…若仍無欄位請關閉後重開此卡片。'
+                                  : '尚無參與人員，請點下方「編輯」於排程中新增參與人員後再回到此處填寫。'}
+                              </p>
+                            ) : (
+                              <>
+                                <div className="space-y-3 max-h-[min(50vh,22rem)] overflow-y-auto pr-1">
+                                  {detailPweDraft.map((entry) => {
+                                    const nm = String(entry?.participantName || '').trim() || '—'
+                                    const editable = canEditForName(nm)
+                                    const filled = String(entry?.workContent || '').trim().length > 0
+                                    return (
+                                      <div key={entry.id || nm} className="bg-blue-900/60 border border-blue-700/50 rounded-lg p-3 space-y-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <span className="text-yellow-200 font-medium text-sm">{nm}</span>
+                                          {!editable && (
+                                            <span className="text-[11px] text-gray-500">僅本人或管理員可編輯</span>
+                                          )}
+                                        </div>
+                                        <label className="block text-blue-300/90 text-xs">當日工作內容</label>
+                                        {editable ? (
+                                          <textarea
+                                            value={entry.workContent ?? ''}
+                                            onChange={(e) => patchDetailPweDraft(entry.id, 'workContent', e.target.value)}
+                                            rows={3}
+                                            placeholder="請填寫今日實際工作內容…"
+                                            className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-yellow-400"
+                                          />
+                                        ) : (
+                                          <div className={`text-sm whitespace-pre-wrap rounded px-3 py-2 border ${filled ? 'text-blue-100 border-transparent bg-blue-950/30' : 'text-amber-200/90 border-amber-500/30 bg-amber-950/20'}`}>
+                                            {filled ? String(entry.workContent).trim() : '尚未填寫'}
+                                          </div>
+                                        )}
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-blue-300/70 text-[11px] mb-0.5">預計數量</label>
+                                            {editable ? (
+                                              <input
+                                                type="number"
+                                                value={entry.targetQuantity ?? ''}
+                                                onChange={(e) => patchDetailPweDraft(entry.id, 'targetQuantity', e.target.value)}
+                                                className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-yellow-400"
+                                                min="0"
+                                                step="0.1"
+                                              />
+                                            ) : (
+                                              <div className="text-blue-200 text-sm">{entry.targetQuantity != null && String(entry.targetQuantity).trim() !== '' ? entry.targetQuantity : '1'}</div>
+                                            )}
+                                          </div>
+                                          <div>
+                                            <label className="block text-blue-300/70 text-[11px] mb-0.5">實際完成</label>
+                                            {editable ? (
+                                              <input
+                                                type="number"
+                                                value={entry.actualQuantity ?? ''}
+                                                onChange={(e) => patchDetailPweDraft(entry.id, 'actualQuantity', e.target.value)}
+                                                className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-yellow-400"
+                                                min="0"
+                                                step="0.1"
+                                              />
+                                            ) : (
+                                              <div className="text-blue-200 text-sm">{entry.actualQuantity != null && String(entry.actualQuantity).trim() !== '' ? entry.actualQuantity : '—'}</div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                {(currentRole === 'admin' || detailPweDraft.some((e) => canEditForName(String(e?.participantName || '').trim()))) && (
+                                  <button
+                                    type="button"
+                                    onClick={saveDetailParticipantWork}
+                                    className="mt-3 w-full py-2.5 rounded-lg bg-yellow-500 hover:bg-yellow-400 text-black font-semibold text-sm transition-colors"
+                                  >
+                                    儲存當日工作內容
+                                  </button>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
 
@@ -3855,7 +4034,7 @@ function Calendar() {
                     </div>
                   )}
 
-                  {/* 工作項目：依目前選擇的案場顯示該案場的卡片 */}
+                  {/* 預排工作項目（藍標各人工作內容已改在參與人員下方編輯） */}
                   {(() => {
                     const seg = getScheduleSegments(selectedDetailItem)[selectedDetailSegmentIndex] || getScheduleSegments(selectedDetailItem)[0]
                     const workItems = Array.isArray(seg?.workItems) ? seg.workItems : []
@@ -4398,6 +4577,24 @@ function Calendar() {
                               )}
                             </>
                           )}
+
+                      {/* 各參與人員當日工作內容（藍標） */}
+                      {Array.isArray(schedule.participantWorkEntries) && schedule.participantWorkEntries.length > 0 && String(schedule.tag || 'blue').trim() === 'blue' && (
+                        <div className="text-white text-sm">
+                          <span className="text-blue-300">各參與人員當日工作內容:</span>
+                          <div className="mt-2 pl-4 space-y-1">
+                            {schedule.participantWorkEntries.map((entry) => {
+                              const nm = String(entry?.participantName || '').trim() || '—'
+                              const filled = String(entry?.workContent || '').trim().length > 0
+                              return (
+                                <div key={entry.id || nm} className="text-blue-100">
+                                  • {nm}：{filled ? String(entry.workContent).trim() : '未填寫'}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* 工作項目 */}
                       {schedule.workItems && schedule.workItems.length > 0 && (
@@ -5121,7 +5318,16 @@ function Calendar() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setScheduleFormData(prev => ({ ...prev, tag: 'blue' }))}
+                      onClick={() =>
+                        setScheduleFormData((prev) => {
+                          const next = { ...prev, tag: 'blue' }
+                          next.participantWorkEntries = mergeParticipantWorkEntries(
+                            next.participants,
+                            prev.participantWorkEntries
+                          )
+                          return next
+                        })
+                      }
                       className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
                         scheduleFormData.tag === 'blue'
                           ? 'bg-blue-500 text-white ring-2 ring-blue-300'
@@ -5206,6 +5412,7 @@ function Calendar() {
                       name="participants"
                       value={scheduleFormData.participants}
                       onChange={handleParticipantInput}
+                      onBlur={syncParticipantWorkFromParticipantsBlur}
                       onFocus={() => {
                         // 點到參與人員時，自動捲到此區塊（你希望跳到照片那邊的位置）
                         setShowParticipantDropdown(true)
@@ -5311,6 +5518,71 @@ function Calendar() {
                     </button>
                   )}
                 </div>
+
+                {scheduleFormData.tag === 'blue' && (
+                  <div className="mt-4 p-4 bg-gray-800/60 border border-blue-500/35 rounded-lg space-y-3">
+                    <h4 className="text-blue-300 font-semibold text-sm">各參與人員當日工作內容</h4>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      名單中<strong className="text-gray-300">每一位</strong>需自行填寫；績效僅對<strong className="text-gray-300">未填寫的本人</strong>扣分，不影響同案其他人員。
+                    </p>
+                    {(scheduleFormData.participantWorkEntries || []).length === 0 ? (
+                      <p className="text-gray-500 text-sm">
+                        請先設定參與人員（勾選或手動輸入後點選他處／移開欄位），系統會依名單產生每人專屬欄位。
+                      </p>
+                    ) : (
+                      <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                        {(scheduleFormData.participantWorkEntries || []).map((entry) => {
+                          const editable = canEditForName(entry.participantName)
+                          return (
+                            <div key={entry.id} className="p-3 bg-gray-700/80 rounded-lg border border-gray-600">
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                <span className="text-yellow-400 font-medium">{entry.participantName}</span>
+                                {!editable && (
+                                  <span className="text-[11px] text-gray-500">僅本人或管理員可編輯</span>
+                                )}
+                              </div>
+                              <label className="block text-gray-400 text-xs mb-1">當日工作內容</label>
+                              <textarea
+                                value={entry.workContent}
+                                onChange={(e) => updateParticipantWorkEntry(entry.id, 'workContent', e.target.value)}
+                                disabled={!editable}
+                                rows={3}
+                                placeholder="請說明今日實際工作內容…"
+                                className={`w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-400 ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
+                              />
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                                <div>
+                                  <label className="block text-gray-500 text-[11px] mb-0.5">預計數量（績效用，預設 1）</label>
+                                  <input
+                                    type="number"
+                                    value={entry.targetQuantity}
+                                    onChange={(e) => updateParticipantWorkEntry(entry.id, 'targetQuantity', e.target.value)}
+                                    disabled={!editable}
+                                    className={`w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    step="0.1"
+                                    min="0"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-gray-500 text-[11px] mb-0.5">實際完成（選填；有填工作內容時可空白視為達成）</label>
+                                  <input
+                                    type="number"
+                                    value={entry.actualQuantity}
+                                    onChange={(e) => updateParticipantWorkEntry(entry.id, 'actualQuantity', e.target.value)}
+                                    disabled={!editable}
+                                    className={`w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    step="0.1"
+                                    min="0"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 車輛（可勾選多台，例如案場兩台車） */}
                 <div className="relative" ref={vehicleDropdownRef}>
@@ -5498,7 +5770,8 @@ function Calendar() {
                 )}
               </div>
 
-              {/* 工作項目列表 */}
+              {/* 預排工作項目：非「工作/項目」標籤時使用；藍標改由上方「各參與人員當日工作內容」 */}
+              {scheduleFormData.tag !== 'blue' && (
               <div className="mt-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-gray-300 text-sm font-semibold">
@@ -6011,6 +6284,7 @@ function Calendar() {
                   </button>
                 </div>
               </div>
+              )}
 
               {/* 按钮 */}
               <div className="flex space-x-3 pt-4">
