@@ -288,7 +288,7 @@ function Advance() {
                   <span className="text-amber-200 font-semibold tabular-nums text-right">{advanceApplyPreview.previewMinRepayment.toLocaleString()} 元</span>
                 </div>
                 <p className="text-gray-500 text-xs leading-relaxed">
-                  規則：無累積欠款時「借多少至少還多少」；有累積但本月無新借時，每月至少還 {ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()} 元（不超過實際欠款）；有累積且有新借時，為「本月新借＋{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}」與上句「至少 {ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()} 元（不超過尚欠）」兩者取較高。
+                  規則：無上月舊帳時「借多少至少還多少」。有上月舊帳時，每月至少還 {ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()} 元（不超過實際欠款）；若同月又有新借，則為「本月新借＋{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}」。
                 </p>
               </div>
             )}
@@ -357,7 +357,7 @@ function Advance() {
                   <span className="text-amber-200 font-medium text-right">{Number(stats.minRepayment).toLocaleString()} 元</span>
                 </li>
                 <li className="text-gray-500 text-[11px] leading-relaxed -mt-1">
-                  無結轉則至少還本月新借；有結轉但本月未再借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）；有結轉且有新借＝「新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}」與「至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）」取較高。
+                  無結轉則至少還本月新借；有結轉但本月未再借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）；有結轉且有新借＝新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}。
                 </li>
                 <li className="flex justify-between gap-2">
                   <span className="text-gray-300 shrink-0">本月已還款（登記）</span>
@@ -532,7 +532,7 @@ function Advance() {
                           <dd className="text-amber-200 font-medium tabular-nums">{Number(stats.minRepayment).toLocaleString()} 元</dd>
                         </div>
                         <p className="text-gray-500 text-xs -mt-1 pb-2 border-b border-gray-700/80 leading-relaxed">
-                          預設規則：無結轉欠款＝本月新借；有結轉但本月無新借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）；有結轉＋本月新借＝「新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}」與「至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）」取較高。下方「最低還款」可覆寫。
+                          預設規則：無結轉欠款＝本月新借；有結轉但本月無新借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）；有結轉＋本月新借＝新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}。下方「最低還款」可覆寫。
                         </p>
                         <div className="flex justify-between gap-3 pt-1">
                           <dt className="text-white font-medium">預覽 · 本月結算後尚欠</dt>
