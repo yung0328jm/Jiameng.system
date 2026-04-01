@@ -136,10 +136,7 @@ function PersonalPerformance() {
       setCompletionRateRules(getCompletionRateRules())
       const lateConfig = getLatePerformanceConfig()
       setLatePerformanceConfig(lateConfig)
-      setPenaltyConfig({
-        latePenalty: (lateConfig.latePenaltyPerTime ?? -2).toString(),
-        noClockInPenalty: (lateConfig.noClockInPenaltyPerTime ?? -2).toString()
-      })
+      // 勿在此重設 penaltyConfig（字串表單），否則即時同步／dataRevision 會打斷使用者輸入
     }
     setDataRevision(r => r + 1)
   }
@@ -180,32 +177,26 @@ function PersonalPerformance() {
     if (canPickUsers) {
       loadUsersForAdmin()
     }
-    // 如果是管理者，載入達成率規則與遲到配置
-    if (role === 'admin') {
-      // 載入達成率調整規則
-      const rules = getCompletionRateRules()
-      setCompletionRateRules(rules)
-      
-      // 載入遲到績效評分配置
-      const lateConfig = getLatePerformanceConfig()
-      setLatePerformanceConfig(lateConfig)
-      setPenaltyConfig({
-        latePenalty: (lateConfig.latePenaltyPerTime || -2).toString(),
-        noClockInPenalty: (lateConfig.noClockInPenaltyPerTime || -2).toString()
-      })
-      setPenaltyConfig({
-        latePenalty: (lateConfig.latePenaltyPerTime || -2).toString(),
-        noClockInPenalty: (lateConfig.noClockInPenaltyPerTime || -2).toString()
-      })
-    }
-    
+    // 達成率規則／遲到扣分表單勿在此依 dataRevision 重載，否則輸入框會被覆寫（見 userRole 專用 effect）
+
     if (user) {
       // 如果有選擇查看的用戶，使用選擇的用戶；否則使用當前登錄用戶
       const viewUser = selectedViewUser || user
       calculatePerformance(viewUser)
     }
   }, [selectedYear, selectedMonth, selectedViewUser, dataRevision, loadUsersForAdmin])
-  
+
+  // 僅在成為管理者時載入規則與扣分表單初值，避免與 dataRevision／即時同步衝突導致輸入閃爍
+  useEffect(() => {
+    if (userRole !== 'admin') return
+    setCompletionRateRules(getCompletionRateRules())
+    const lateConfig = getLatePerformanceConfig()
+    setLatePerformanceConfig(lateConfig)
+    setPenaltyConfig({
+      latePenalty: (lateConfig.latePenaltyPerTime ?? -2).toString(),
+      noClockInPenalty: (lateConfig.noClockInPenaltyPerTime ?? -2).toString()
+    })
+  }, [userRole])
 
   // 取得當前查看的用戶（管理者可以選擇查看其他用戶）
   const getViewUser = () => {
@@ -3556,7 +3547,18 @@ function PersonalPerformance() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-yellow-400">出勤績效評分配置</h3>
             <button
-              onClick={() => setShowLatePerformanceConfig(!showLatePerformanceConfig)}
+              onClick={() => {
+                const next = !showLatePerformanceConfig
+                if (next && userRole === 'admin') {
+                  const lateConfig = getLatePerformanceConfig()
+                  setLatePerformanceConfig(lateConfig)
+                  setPenaltyConfig({
+                    latePenalty: (lateConfig.latePenaltyPerTime ?? -2).toString(),
+                    noClockInPenalty: (lateConfig.noClockInPenaltyPerTime ?? -2).toString()
+                  })
+                }
+                setShowLatePerformanceConfig(next)
+              }}
               className="bg-yellow-400 text-gray-900 px-4 py-2 rounded hover:bg-yellow-500 transition-colors font-semibold"
             >
               {showLatePerformanceConfig ? '收起' : '設定規則'}
@@ -3596,7 +3598,7 @@ function PersonalPerformance() {
                     <input
                       type="number"
                       value={penaltyConfig.latePenalty}
-                      onChange={(e) => setPenaltyConfig({ ...penaltyConfig, latePenalty: e.target.value })}
+                      onChange={(e) => setPenaltyConfig((prev) => ({ ...prev, latePenalty: e.target.value }))}
                       placeholder="例如：-2"
                       step="0.1"
                       className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
@@ -3609,7 +3611,7 @@ function PersonalPerformance() {
                     <input
                       type="number"
                       value={penaltyConfig.noClockInPenalty}
-                      onChange={(e) => setPenaltyConfig({ ...penaltyConfig, noClockInPenalty: e.target.value })}
+                      onChange={(e) => setPenaltyConfig((prev) => ({ ...prev, noClockInPenalty: e.target.value }))}
                       placeholder="例如：-2"
                       step="0.1"
                       className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
