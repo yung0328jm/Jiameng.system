@@ -26,6 +26,7 @@ import {
   toCollaboratorsCsv,
   expandWorkItemsToLogical
 } from '../utils/workItemCollaboration'
+import { mergeParticipantWorkEntries, prepareBlueTagScheduleForSave } from '../utils/participantWorkEntries'
 
 function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -154,6 +155,7 @@ function Calendar() {
     fuelCost: '',
     invoiceReturned: false,
     workItems: [],
+    participantWorkEntries: [], // 藍標：各參與人員各自填寫之當日工作內容
     tag: 'blue', // 标签：red(重要/節假日), green(活動), blue(工作/項目), yellow(出差)
     progressSheet: false,  // 工進單（新增活動卡預設不勾；未勾選時該組所有人績效扣1分、活動框紅色閃爍）
     constructionPhotos: false // 施工照片（同上）
@@ -810,6 +812,10 @@ function Calendar() {
       fuelCost: schedule.fuelCost || '',
       invoiceReturned: schedule.invoiceReturned || false,
       workItems: first.workItems || schedule.workItems || [],
+      participantWorkEntries: mergeParticipantWorkEntries(
+        schedule.participants || '',
+        Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
+      ),
       segments: segs.length > 0 ? segs : undefined,
       createdBy: schedule.createdBy || '',
       createdAt: schedule.createdAt || '',
@@ -916,7 +922,13 @@ function Calendar() {
       const values = splitCsv(prev.participants)
       const exists = values.includes(n)
       const next = exists ? values.filter((x) => x !== n) : [...values, n]
-      return { ...prev, participants: next.join(', ') }
+      const joined = next.join(', ')
+      if (prev.tag !== 'blue') return { ...prev, participants: joined }
+      return {
+        ...prev,
+        participants: joined,
+        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries)
+      }
     })
   }
 
@@ -929,19 +941,34 @@ function Calendar() {
         .filter(Boolean)
         .filter((n) => !(leaveSet && leaveSet.has(n)))
       const unique = Array.from(new Set([...extras, ...all]))
-      return { ...prev, participants: unique.join(', ') }
+      const joined = unique.join(', ')
+      if (prev.tag !== 'blue') return { ...prev, participants: joined }
+      return {
+        ...prev,
+        participants: joined,
+        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries)
+      }
     })
   }
 
   const clearParticipants = () => {
-    setScheduleFormData((prev) => ({ ...prev, participants: '' }))
+    setScheduleFormData((prev) => {
+      if (prev.tag !== 'blue') return { ...prev, participants: '', participantWorkEntries: [] }
+      return { ...prev, participants: '', participantWorkEntries: [] }
+    })
   }
 
   const removeLeaveParticipants = (leaveSet) => {
     if (!leaveSet || leaveSet.size === 0) return
     setScheduleFormData((prev) => {
       const filtered = splitCsv(prev.participants).filter((n) => !leaveSet.has(n))
-      return { ...prev, participants: filtered.join(', ') }
+      const joined = filtered.join(', ')
+      if (prev.tag !== 'blue') return { ...prev, participants: joined }
+      return {
+        ...prev,
+        participants: joined,
+        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries)
+      }
     })
   }
 
@@ -977,6 +1004,25 @@ function Calendar() {
   const handleParticipantInput = (e) => {
     const value = e.target.value
     setScheduleFormData(prev => ({ ...prev, participants: value }))
+  }
+
+  const syncParticipantWorkFromParticipantsBlur = () => {
+    setScheduleFormData((prev) => {
+      if (prev.tag !== 'blue') return prev
+      return {
+        ...prev,
+        participantWorkEntries: mergeParticipantWorkEntries(prev.participants, prev.participantWorkEntries)
+      }
+    })
+  }
+
+  const updateParticipantWorkEntry = (id, field, value) => {
+    setScheduleFormData((prev) => ({
+      ...prev,
+      participantWorkEntries: (prev.participantWorkEntries || []).map((e) =>
+        String(e.id) === String(id) ? { ...e, [field]: value } : e
+      )
+    }))
   }
 
   // 處理「新增車輛到選單」的輸入（不直接寫入排程 vehicle）
@@ -1125,6 +1171,7 @@ function Calendar() {
         fuelCost: '',
         invoiceReturned: false,
         workItems: [],
+        participantWorkEntries: [],
         tag: 'blue'
       })
       setNewVehicleInput('')
@@ -1153,7 +1200,8 @@ function Calendar() {
         needRefuel: false,
         fuelCost: '',
         invoiceReturned: false,
-        workItems: []
+        workItems: [],
+        participantWorkEntries: []
       })
       setNewVehicleInput('')
     }
@@ -1950,6 +1998,7 @@ function Calendar() {
         fuelCost: '',
         invoiceReturned: false,
         workItems: [],
+        participantWorkEntries: [],
         tag: 'blue'
       })
       setNewVehicleInput('')
@@ -2077,6 +2126,10 @@ function Calendar() {
   }
 
   const handleAddWorkItem = () => {
+    if (scheduleFormData.tag === 'blue') {
+      alert('「工作／項目」排程請於下方「各參與人員當日工作內容」由每人自行填寫，無需新增預排工作項目。')
+      return
+    }
     const now = new Date().toISOString()
     setScheduleFormData(prev => ({
       ...prev,
@@ -2121,6 +2174,11 @@ function Calendar() {
       return
     }
 
+    const mergedPweForLb =
+      scheduleFormData.tag === 'blue'
+        ? mergeParticipantWorkEntries(scheduleFormData.participants, scheduleFormData.participantWorkEntries)
+        : []
+
     // 處理工作項目累積到排行榜的邏輯
     const leaderboardItems = getLeaderboardItems()
     const scheduleDate = scheduleFormData.date ? new Date(scheduleFormData.date) : new Date()
@@ -2143,7 +2201,11 @@ function Calendar() {
       // 注意：這裡不能直接 return，因為還需要保存排程，只是不累加到排行榜
     } else {
       // 今天當天的排程（在24:00前）或之後的排程，都會執行累加邏輯
-      // 遍歷所有工作項目（含多處行程各案場、contentRows 展開）
+      // 藍標且已改為「參與人各自填寫」時，排行榜累計改走 participantWorkEntries（下版可擴充）；目前略過預排工項累加避免重複
+      const skipWorkItemLeaderboard = scheduleFormData.tag === 'blue' && mergedPweForLb.length > 0
+      if (skipWorkItemLeaderboard) {
+        /* 保留：之後可依 workContent 關鍵字寫入排行榜 */
+      } else {
       const allWorkItemsForLb = (Array.isArray(scheduleFormData.segments) && scheduleFormData.segments.length > 1)
         ? scheduleFormData.segments.flatMap((s) => s.workItems || [])
         : (scheduleFormData.workItems || [])
@@ -2244,7 +2306,13 @@ function Calendar() {
           }
         }
       })
+      }
     }
+
+    const saveData =
+      scheduleFormData.tag === 'blue'
+        ? prepareBlueTagScheduleForSave(scheduleFormData)
+        : { ...scheduleFormData, participantWorkEntries: [] }
 
     // 多處行程（或單一案場）：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments；車輛每欄僅對「有變更」的欄位寫入編輯者
     const prevSchedule = editingScheduleId ? schedules.find((s) => String(s?.id) === String(editingScheduleId)) : null
@@ -2256,10 +2324,10 @@ function Calendar() {
       const prevEntry = prevEntries[i] ?? prevEntries.find((e) => String(e?.vehicle || '').trim() === String(entry?.vehicle || '').trim())
       return addVehicleEntryEditorInfo(entry, prevEntry)
     })
-    let segmentsToSave = scheduleFormData.segments
+    let segmentsToSave = saveData.segments
     if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
       segmentsToSave = segmentsToSave.map((s, i) => (i === editingFormSegmentIndex
-        ? { ...s, workItems: scheduleFormData.workItems || [], vehicleEntries: enrichedVehicleEntries }
+        ? { ...s, workItems: saveData.workItems || [], vehicleEntries: enrichedVehicleEntries }
         : s))
     }
 
@@ -2268,13 +2336,13 @@ function Calendar() {
       const prev = schedules.find((s) => String(s?.id) === String(editingScheduleId))
       const entriesEdit = enrichedVehicleEntries
       const payloadEdit = {
-        ...scheduleFormData,
+        ...saveData,
         vehicleEntries: entriesEdit,
         id: editingScheduleId,
-        createdBy: scheduleFormData?.createdBy || prev?.createdBy || '',
-        createdAt: scheduleFormData?.createdAt || prev?.createdAt || '',
-        progressSheet: scheduleFormData.progressSheet === true,
-        constructionPhotos: scheduleFormData.constructionPhotos === true
+        createdBy: saveData?.createdBy || prev?.createdBy || '',
+        createdAt: saveData?.createdAt || prev?.createdAt || '',
+        progressSheet: saveData.progressSheet === true,
+        constructionPhotos: saveData.constructionPhotos === true
       }
       if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadEdit.segments = segmentsToSave
@@ -2296,11 +2364,11 @@ function Calendar() {
     } else {
       const entriesNew = (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map(addVehicleEntryEditorInfo)
       const payloadNew = {
-        ...scheduleFormData,
-        createdBy: scheduleFormData?.createdBy || currentUser || '',
+        ...saveData,
+        createdBy: saveData?.createdBy || currentUser || '',
         vehicleEntries: entriesNew,
-        progressSheet: scheduleFormData.progressSheet === true,
-        constructionPhotos: scheduleFormData.constructionPhotos === true
+        progressSheet: saveData.progressSheet === true,
+        constructionPhotos: saveData.constructionPhotos === true
       }
       if (Array.isArray(segmentsToSave) && segmentsToSave.length >= 1) {
         payloadNew.segments = segmentsToSave
@@ -2340,6 +2408,7 @@ function Calendar() {
         fuelCost: '',
         invoiceReturned: false,
         workItems: [],
+        participantWorkEntries: [],
         segments: undefined,
         tag: 'blue',
         progressSheet: false,
@@ -2373,6 +2442,7 @@ function Calendar() {
       fuelCost: '',
       invoiceReturned: false,
       workItems: [],
+      participantWorkEntries: [],
       segments: undefined,
       tag: 'blue',
       progressSheet: false,
@@ -2562,6 +2632,7 @@ function Calendar() {
         fuelCost: '',
         invoiceReturned: false,
         workItems: [],
+        participantWorkEntries: [],
         tag: 'blue'
       })
       setNewVehicleInput('')
@@ -5116,7 +5187,11 @@ function Calendar() {
                         </button>
                       ))}
                     </div>
-                    <p className="text-gray-500 text-xs mt-1">下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。</p>
+                    <p className="text-gray-500 text-xs mt-1">
+                      {scheduleFormData.tag === 'blue'
+                        ? '下方「車輛」屬於目前選擇的案場；工作內容改由「參與人員」名單每人各自填寫（與案場切換無關）。'
+                        : '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'}
+                    </p>
                   </div>
                 )}
 

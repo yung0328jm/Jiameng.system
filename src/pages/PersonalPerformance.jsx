@@ -244,6 +244,81 @@ function PersonalPerformance() {
       if (startDate && schedule.date && schedule.date < startDate) return
       if (schedule.date && schedule.date > effectiveEndDate) return
 
+      const pweList = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
+      const schedTag = String(schedule.tag || 'blue').trim()
+      const useParticipantWorkRows = pweList.length > 0 && schedTag === 'blue'
+
+      if (useParticipantWorkRows) {
+        const siteName = String(schedule.siteName || '').trim() || '—'
+        pweList.forEach((entry) => {
+          const pname = String(entry?.participantName || '').trim()
+          if (!pname || !displayNames.includes(pname)) return
+          const contentFilled = String(entry?.workContent || '').trim().length > 0
+          const target = Math.max(0, parseFloat(entry.targetQuantity)) || 1
+          const actual = contentFilled
+            ? (Math.max(0, parseFloat(entry.actualQuantity)) > 0 ? Math.max(0, parseFloat(entry.actualQuantity)) : target)
+            : 0
+          const completionRate = target > 0 ? (actual / target) * 100 : 0
+          const entryId = String(entry?.id || '').trim()
+
+          workDays.add(schedule.date)
+          totalItems++
+          totalCompletionRate += completionRate
+          itemsWithRate++
+          totalCompletionRateAdjustment += calculateCompletionRateAdjustment(completionRate)
+
+          if (completionRate >= 100) {
+            completedItems++
+          } else if (completionRate > 0) {
+            partialItems++
+          } else {
+            uncompletedItems++
+          }
+
+          const workType = contentFilled ? String(entry.workContent).trim().slice(0, 80) : '未填寫'
+          if (!workItemStats[workType]) {
+            workItemStats[workType] = {
+              count: 0,
+              completed: 0,
+              partial: 0,
+              uncompleted: 0,
+              totalCompletionRate: 0
+            }
+          }
+          workItemStats[workType].count++
+          workItemStats[workType].totalCompletionRate += completionRate
+          if (completionRate >= 100) {
+            workItemStats[workType].completed++
+          } else if (completionRate > 0) {
+            workItemStats[workType].partial++
+          } else {
+            workItemStats[workType].uncompleted++
+          }
+
+          const detailKey = entryId
+            ? [schedule.id, 'pwe', entryId, pname].join('|')
+            : `pwe-orphan|${schedule.id}|${schedule.date}|${pname}`
+
+          workDetails.push({
+            date: schedule.date,
+            siteName,
+            workContent: contentFilled ? String(entry.workContent).trim() : '未填寫',
+            targetQuantity: target,
+            actualQuantity: actual,
+            completionRate: completionRate.toFixed(1),
+            detailKey,
+            ...(entryId && {
+              deletePayload: {
+                scheduleId: schedule.id,
+                deleteMode: 'participantEntry',
+                participantEntryId: entryId
+              }
+            })
+          })
+        })
+        return
+      }
+
       const useSegs = Array.isArray(schedule.segments) && schedule.segments.length > 0
       const chunks = useSegs
         ? schedule.segments.map((seg, segmentIndex) => ({
@@ -3738,13 +3813,17 @@ function PersonalPerformance() {
                             onClick={() => {
                               if (!window.confirm(`確定從行事曆刪除此筆工作明細？\n${detail.siteName}｜${detail.workContent}`)) return
                               const p = detail.deletePayload
-                              const result = removeWorkDetailLineFromSchedule(p.scheduleId, {
-                                workItemId: p.workItemId,
-                                deleteMode: p.deleteMode,
-                                segmentIndex: p.segmentIndex,
-                                contentRowId: p.contentRowId,
-                                collaboratorName: p.collaboratorName
-                              })
+                              const spec =
+                                p.deleteMode === 'participantEntry'
+                                  ? { deleteMode: 'participantEntry', participantEntryId: p.participantEntryId }
+                                  : {
+                                      workItemId: p.workItemId,
+                                      deleteMode: p.deleteMode,
+                                      segmentIndex: p.segmentIndex,
+                                      contentRowId: p.contentRowId,
+                                      collaboratorName: p.collaboratorName
+                                    }
+                              const result = removeWorkDetailLineFromSchedule(p.scheduleId, spec)
                               if (!result.success) {
                                 alert(result.message || '刪除失敗')
                                 return
