@@ -15,12 +15,7 @@ export function mergeParticipantWorkEntries(participantsCsv, existing) {
     return {
       id: prev?.id || `pwe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
       participantName: name,
-      workContent: prev?.workContent != null ? String(prev.workContent) : '',
-      targetQuantity:
-        prev?.targetQuantity != null && String(prev.targetQuantity).trim() !== ''
-          ? String(prev.targetQuantity)
-          : '1',
-      actualQuantity: prev?.actualQuantity != null ? String(prev.actualQuantity) : ''
+      workContent: prev?.workContent != null ? String(prev.workContent) : ''
     }
   })
 }
