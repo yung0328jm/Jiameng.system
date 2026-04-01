@@ -18,6 +18,11 @@ import { canViewAllPersonalPerformance } from '../utils/performanceViewerStorage
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 import { mergeParticipantWorkEntries } from '../utils/participantWorkEntries'
 
+/** 行事曆排程 date 可能為 YYYY-MM-DD 或 YYYY/MM/DD，績效篩選與逐日比對時需一致 */
+function normalizeScheduleYmd(d) {
+  return String(d || '').trim().replace(/\//g, '-').slice(0, 10)
+}
+
 function PersonalPerformance() {
   const [currentUser, setCurrentUser] = useState('')
   const [userRole, setUserRole] = useState(null)
@@ -221,6 +226,8 @@ function PersonalPerformance() {
     // 只計算至當日：不把未來日期的排程算進績效
     const todayStr = new Date().toISOString().slice(0, 10)
     const effectiveEndDate = endDate > todayStr ? todayStr : endDate
+    const rangeStartYmd = normalizeScheduleYmd(startDate)
+    const rangeEndEffYmd = normalizeScheduleYmd(effectiveEndDate)
 
     // 帳號對應的顯示名稱（含綁定）：行事曆存的是參與人員/負責人的顯示名稱
     const displayNames = getDisplayNamesForAccount(userName || '')
@@ -242,8 +249,10 @@ function PersonalPerformance() {
     // 依據行事曆排程中的工作項目（目標數、實際數量）計算 平均完成率、完成項目、部分完成；每條工項依完成率查表加減分後加總；只算到當日為止
     // 與施工照片扣分邏輯一致：支援頂層 workItems 或 segments 各案場 workItems
     schedules.forEach((schedule) => {
-      if (startDate && schedule.date && schedule.date < startDate) return
-      if (schedule.date && schedule.date > effectiveEndDate) return
+      const schedYmd = normalizeScheduleYmd(schedule.date)
+      if (rangeStartYmd && schedYmd && schedYmd < rangeStartYmd) return
+      // 不含「今天」以後的排程（與績效「只算到當日」一致；故未來日不會出現在工作明細）
+      if (schedYmd && rangeEndEffYmd && schedYmd > rangeEndEffYmd) return
 
       const schedTag = String(schedule.tag || 'blue').trim()
       const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
@@ -440,8 +449,9 @@ function PersonalPerformance() {
     }
     const scheduleDaysWithDocPenalty = new Set()
     schedules.forEach((schedule) => {
-      if (startDate && schedule.date && schedule.date < startDate) return
-      if (schedule.date && schedule.date > effectiveEndDate) return
+      const schedYmdDoc = normalizeScheduleYmd(schedule.date)
+      if (rangeStartYmd && schedYmdDoc && schedYmdDoc < rangeStartYmd) return
+      if (schedYmdDoc && rangeEndEffYmd && schedYmdDoc > rangeEndEffYmd) return
       if (isLeaveSchedule(schedule)) return // 請假不套用、不扣分
       if (schedule.constructionPhotos === true) return
       // 工作項目來源：支援頂層 workItems 或 segments 內 workItems（與主迴圈一致）
@@ -454,7 +464,7 @@ function PersonalPerformance() {
         if (!participantsStr) return
         const participantNames = participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean)
         const userInParticipants = participantNames.some((p) => displayNames.includes(p))
-        if (userInParticipants) scheduleDaysWithDocPenalty.add(schedule.date)
+        if (userInParticipants && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
         return
       }
       const logicalItems = expandWorkItemsToLogical(rawWorkItems)
@@ -469,7 +479,7 @@ function PersonalPerformance() {
           : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
         if (collabs.some((c) => displayNames.includes(String(c?.name || '').trim()))) userInGroup = true
       })
-      if (userInGroup) scheduleDaysWithDocPenalty.add(schedule.date)
+      if (userInGroup && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
     })
     const scheduleDocAdjustment = -1 * scheduleDaysWithDocPenalty.size
     const businessTripDateSet = buildBusinessTripDateSetByUser(
@@ -852,9 +862,12 @@ function PersonalPerformance() {
     }
     const scheduleDaysWithDocPenalty = new Set()
     const viewUserDisplayNames = getDisplayNamesForAccount(targetUser.account)
+    const dailyRangeStartYmd = normalizeScheduleYmd(startDate)
+    const dailyRangeEndYmd = normalizeScheduleYmd(endDate)
     schedules.forEach((schedule) => {
-      if (schedule.date && schedule.date < startDate) return
-      if (schedule.date && schedule.date > endDate) return
+      const schedYmdDoc = normalizeScheduleYmd(schedule.date)
+      if (schedYmdDoc && dailyRangeStartYmd && schedYmdDoc < dailyRangeStartYmd) return
+      if (schedYmdDoc && dailyRangeEndYmd && schedYmdDoc > dailyRangeEndYmd) return
       if (isLeaveSchedule(schedule)) return
       if (schedule.constructionPhotos === true) return
       const rawWorkItems = (Array.isArray(schedule.segments) && schedule.segments.length > 0)
@@ -864,7 +877,7 @@ function PersonalPerformance() {
         const participantsStr = String(schedule.participants || '').trim()
         if (!participantsStr) return
         const participantNames = participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean)
-        if (participantNames.some((p) => viewUserDisplayNames.includes(p))) scheduleDaysWithDocPenalty.add(schedule.date)
+        if (participantNames.some((p) => viewUserDisplayNames.includes(p)) && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
         return
       }
       const logicalItems = expandWorkItemsToLogical(rawWorkItems)
@@ -879,7 +892,7 @@ function PersonalPerformance() {
           : [{ name: String(it.responsiblePerson || '').trim() }].filter((c) => !!c.name)
         if (collabs.some((c) => viewUserDisplayNames.includes(String(c?.name || '').trim()))) userInGroup = true
       })
-      if (userInGroup) scheduleDaysWithDocPenalty.add(schedule.date)
+      if (userInGroup && schedYmdDoc) scheduleDaysWithDocPenalty.add(schedYmdDoc)
     })
 
     const businessTripDateSet = buildBusinessTripDateSetByUser(
@@ -922,7 +935,7 @@ function PersonalPerformance() {
       
       // 統計當日工作項目（含獨立負責的 contentRows 展開；藍標＋每人工作列與月結邏輯一致）
       schedules.forEach(schedule => {
-        if (schedule.date !== dateStr) return
+        if (normalizeScheduleYmd(schedule.date) !== dateStr) return
         const schedTag = String(schedule.tag || 'blue').trim()
         const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
         const participantsCsv = String(schedule.participants || '').trim()
@@ -3806,7 +3819,10 @@ function PersonalPerformance() {
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
         <div className="mb-4">
           <h3 className="text-lg font-bold text-yellow-400">工作明細</h3>
-          <p className="text-gray-500 text-xs mt-1">每條依目標數與實際數量算完成率，再依規則查表加減分後加總計入績效評分（與平均完成率無關）</p>
+          <p className="text-gray-500 text-xs mt-1">
+            藍標「每人工作內容」列：有填寫為 100%、未填為 0%；其餘工項仍依目標／實際數量。皆再依規則查表加減分後加總（與平均完成率無關）。
+            <span className="block mt-1 text-amber-200/85">僅列出排程日期「不晚於今天」者：未到當天的排程（例如今天是 4/1 時的 4/2）暫不列入，待該日到了才會出現並計分。</span>
+          </p>
         </div>
         {performanceData.workDetails.length === 0 ? (
           <div className="text-gray-400 text-center py-8">
