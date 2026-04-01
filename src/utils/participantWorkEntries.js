@@ -3,7 +3,8 @@
  * 績效僅對「該員」未填寫者扣分，與他人無關。
  */
 
-export function mergeParticipantWorkEntries(participantsCsv, existing) {
+export function mergeParticipantWorkEntries(participantsCsv, existing, options) {
+  const scheduleId = String(options?.scheduleId ?? '').trim()
   const names = String(participantsCsv || '')
     .split(',')
     .map((v) => String(v || '').trim())
@@ -12,8 +13,12 @@ export function mergeParticipantWorkEntries(participantsCsv, existing) {
   const byName = new Map(existingList.map((e) => [String(e.participantName || '').trim(), e]))
   return names.map((name) => {
     const prev = byName.get(name)
+    const stableSynthetic =
+      scheduleId && !prev?.id
+        ? `pwe-${scheduleId}-${encodeURIComponent(name)}`
+        : null
     return {
-      id: prev?.id || `pwe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+      id: prev?.id || stableSynthetic || `pwe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
       participantName: name,
       workContent: prev?.workContent != null ? String(prev.workContent) : ''
     }
