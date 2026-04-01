@@ -1804,12 +1804,9 @@ function Calendar() {
         const nm = String(entry?.participantName || '').trim() || '—'
         const wcRaw = String(entry?.workContent || '').trim()
         const wc = wcRaw || '未填寫'
-        const tq = entry.targetQuantity != null && String(entry.targetQuantity).trim() !== '' ? String(entry.targetQuantity) : '1'
-        const aq = entry.actualQuantity != null && String(entry.actualQuantity).trim() !== '' ? String(entry.actualQuantity) : '—'
         body += `<div style="${workItemCardStyle}">`
         body += `<p style="${cardTitleStyle}">${escapeHtml(nm)}</p>`
         body += `<p style="${cardLineStyle}">${escapeHtml(wc)}</p>`
-        body += `<p style="${cardLineStyle}">目標 ${escapeHtml(tq)} / 實際 ${escapeHtml(aq)}</p>`
         body += '</div>'
       })
     }
@@ -3727,38 +3724,6 @@ function Calendar() {
                                             {filled ? String(entry.workContent).trim() : '尚未填寫'}
                                           </div>
                                         )}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <div>
-                                            <label className="block text-blue-300/70 text-[11px] mb-0.5">預計數量</label>
-                                            {editable ? (
-                                              <input
-                                                type="number"
-                                                value={entry.targetQuantity ?? ''}
-                                                onChange={(e) => patchDetailPweDraft(entry.id, 'targetQuantity', e.target.value)}
-                                                className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-yellow-400"
-                                                min="0"
-                                                step="0.1"
-                                              />
-                                            ) : (
-                                              <div className="text-blue-200 text-sm">{entry.targetQuantity != null && String(entry.targetQuantity).trim() !== '' ? entry.targetQuantity : '1'}</div>
-                                            )}
-                                          </div>
-                                          <div>
-                                            <label className="block text-blue-300/70 text-[11px] mb-0.5">實際完成</label>
-                                            {editable ? (
-                                              <input
-                                                type="number"
-                                                value={entry.actualQuantity ?? ''}
-                                                onChange={(e) => patchDetailPweDraft(entry.id, 'actualQuantity', e.target.value)}
-                                                className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-yellow-400"
-                                                min="0"
-                                                step="0.1"
-                                              />
-                                            ) : (
-                                              <div className="text-blue-200 text-sm">{entry.actualQuantity != null && String(entry.actualQuantity).trim() !== '' ? entry.actualQuantity : '—'}</div>
-                                            )}
-                                          </div>
-                                        </div>
                                       </div>
                                     )
                                   })}
@@ -5550,32 +5515,6 @@ function Calendar() {
                                 placeholder="請說明今日實際工作內容…"
                                 className={`w-full bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white text-sm placeholder-gray-400 focus:outline-none focus:border-yellow-400 ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
                               />
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                                <div>
-                                  <label className="block text-gray-500 text-[11px] mb-0.5">預計數量（績效用，預設 1）</label>
-                                  <input
-                                    type="number"
-                                    value={entry.targetQuantity}
-                                    onChange={(e) => updateParticipantWorkEntry(entry.id, 'targetQuantity', e.target.value)}
-                                    disabled={!editable}
-                                    className={`w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                    step="0.1"
-                                    min="0"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-gray-500 text-[11px] mb-0.5">實際完成（選填；有填工作內容時可空白視為達成）</label>
-                                  <input
-                                    type="number"
-                                    value={entry.actualQuantity}
-                                    onChange={(e) => updateParticipantWorkEntry(entry.id, 'actualQuantity', e.target.value)}
-                                    disabled={!editable}
-                                    className={`w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                    step="0.1"
-                                    min="0"
-                                  />
-                                </div>
-                              </div>
                             </div>
                           )
                         })}

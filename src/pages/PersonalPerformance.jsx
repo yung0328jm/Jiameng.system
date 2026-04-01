@@ -254,11 +254,7 @@ function PersonalPerformance() {
           const pname = String(entry?.participantName || '').trim()
           if (!pname || !displayNames.includes(pname)) return
           const contentFilled = String(entry?.workContent || '').trim().length > 0
-          const target = Math.max(0, parseFloat(entry.targetQuantity)) || 1
-          const actual = contentFilled
-            ? (Math.max(0, parseFloat(entry.actualQuantity)) > 0 ? Math.max(0, parseFloat(entry.actualQuantity)) : target)
-            : 0
-          const completionRate = target > 0 ? (actual / target) * 100 : 0
+          const completionRate = contentFilled ? 100 : 0
           const entryId = String(entry?.id || '').trim()
 
           workDays.add(schedule.date)
@@ -303,8 +299,9 @@ function PersonalPerformance() {
             date: schedule.date,
             siteName,
             workContent: contentFilled ? String(entry.workContent).trim() : '未填寫',
-            targetQuantity: target,
-            actualQuantity: actual,
+            quantityOmitted: true,
+            targetQuantity: 0,
+            actualQuantity: 0,
             completionRate: completionRate.toFixed(1),
             detailKey,
             ...(entryId && {
@@ -924,11 +921,7 @@ function PersonalPerformance() {
             const pname = String(entry?.participantName || '').trim()
             if (!pname || !displayNames.includes(pname)) return
             const contentFilled = String(entry?.workContent || '').trim().length > 0
-            const target = Math.max(0, parseFloat(entry.targetQuantity)) || 1
-            const actual = contentFilled
-              ? (Math.max(0, parseFloat(entry.actualQuantity)) > 0 ? Math.max(0, parseFloat(entry.actualQuantity)) : target)
-              : 0
-            const completionRate = target > 0 ? (actual / target * 100) : 0
+            const completionRate = contentFilled ? 100 : 0
 
             dailyWorkItems++
             dailyTotalCompletion += completionRate
@@ -3827,10 +3820,10 @@ function PersonalPerformance() {
                     <td className="px-4 py-3 text-white">{formatDate(detail.date)}</td>
                     <td className="px-4 py-3 text-white">{detail.siteName}</td>
                     <td className="px-4 py-3 text-white">{detail.workContent}</td>
-                    <td className="px-4 py-3 text-right text-white">{detail.targetQuantity > 0 ? detail.targetQuantity.toFixed(1) : '—'}</td>
-                    <td className="px-4 py-3 text-right text-white">{detail.actualQuantity > 0 ? detail.actualQuantity.toFixed(1) : '—'}</td>
+                    <td className="px-4 py-3 text-right text-white">{detail.quantityOmitted ? '—' : (detail.targetQuantity > 0 ? detail.targetQuantity.toFixed(1) : '—')}</td>
+                    <td className="px-4 py-3 text-right text-white">{detail.quantityOmitted ? '—' : (detail.actualQuantity > 0 ? detail.actualQuantity.toFixed(1) : '—')}</td>
                     <td className={`px-4 py-3 text-right font-semibold ${getCompletionColor(parseFloat(detail.completionRate))}`}>
-                      {detail.targetQuantity > 0 ? `${detail.completionRate}%` : '—'}
+                      {detail.quantityOmitted || detail.targetQuantity > 0 ? `${detail.completionRate}%` : '—'}
                     </td>
                     {userRole === 'admin' && (
                       <td className="px-4 py-3 text-right">
