@@ -313,7 +313,7 @@ function Advance() {
                 送出申請
               </button>
               <span className="text-amber-300 text-base sm:text-lg font-medium animate-advance-notice-blink">
-                還款金額需大於該月預支總額，並於領薪日扣除。
+                謹慎理財 小心投資
               </span>
             </div>
           </form>
