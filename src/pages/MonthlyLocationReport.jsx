@@ -75,19 +75,28 @@ function buildScheduleMap(year, month) {
 
     segments.forEach((seg) => {
       const siteName = String(seg.siteName || '').trim() || '（未填案場）'
-      parseParticipants(schedule.participants).forEach((name) => addSiteWeight(name, dateStr, siteName, segWeight))
+      // 參與人員與工項負責人／協作合併去重：同一人同 segment 只計一次（否則藍標常見重複加倍）
+      const namesForSeg = new Set()
+      parseParticipants(schedule.participants).forEach((name) => {
+        const n = String(name || '').trim()
+        if (n) namesForSeg.add(n)
+      })
       const items = Array.isArray(seg.workItems) ? seg.workItems : []
       expandWorkItemsToLogical(items).forEach((raw) => {
         const it = normalizeWorkItem(raw)
         if (String(it?.changeRequest?.status || '') === 'pending') return
         const collabs = getWorkItemCollaborators(it)
         if (collabs.length > 0) {
-          collabs.forEach((c) => addSiteWeight(c?.name, dateStr, siteName, segWeight))
+          collabs.forEach((c) => {
+            const n = String(c?.name || '').trim()
+            if (n) namesForSeg.add(n)
+          })
         } else {
           const rp = String(it?.responsiblePerson || '').trim()
-          if (rp) addSiteWeight(rp, dateStr, siteName, segWeight)
+          if (rp) namesForSeg.add(rp)
         }
       })
+      namesForSeg.forEach((n) => addSiteWeight(n, dateStr, siteName, segWeight))
     })
   })
 
@@ -604,6 +613,7 @@ export default function MonthlyLocationReport() {
             <h3 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">個人案場天數統計</h3>
             <p className="text-[10px] sm:text-xs text-gray-500 mb-3 leading-relaxed">
               與行事曆一致：單日單卡多案場各計 1÷n 天；手動覆寫格多案場亦同。「行政」標籤排程不計入。
+              同一張卡上「參與人員」與工項負責人為同一人時<strong className="text-gray-400">只計一次</strong>（已修正先前重複加倍）。
               <strong className="text-gray-300">出工日數</strong>＝當月有案場（非假別）的<strong>日曆天數</strong>。
               <strong className="text-gray-300"> 下表加總</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：27+6+4+…＝45）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>加總幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。
             </p>
