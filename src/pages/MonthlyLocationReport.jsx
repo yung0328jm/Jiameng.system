@@ -248,12 +248,13 @@ function overrideTextToSiteWeightMap(str) {
   return mergeOverrideToSiteWeights(str)
 }
 
-/** 該格用於統計的案場→加權天數（覆寫優先，否則行事曆加權） */
-function getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap) {
+/** 該格用於統計的案場→加權天數（覆寫優先；已核准請假則不計行事曆案場） */
+function getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap, leaveCellTextMap) {
   const ck = cellKey(name, dateStr)
   if (overrides[ck] != null && String(overrides[ck]).trim() !== '') {
     return overrideTextToSiteWeightMap(String(overrides[ck]).trim())
   }
+  if (leaveCellTextMap?.get(ck)) return new Map()
   const bySite = scheduleMap.get(name)?.get(dateStr)
   if (!bySite || bySite.size === 0) return new Map()
   return new Map(bySite)
@@ -283,6 +284,9 @@ function getCellRenderState(name, dateStr, overrides, scheduleMap, leaveCellText
     }
   }
 
+  const lv = leaveCellTextMap.get(ck)
+  if (lv) return { kind: 'leave', text: lv, ck }
+
   const bySite = scheduleMap.get(name)?.get(dateStr)
   if (bySite && bySite.size > 0) {
     const sites = [...bySite.entries()]
@@ -291,8 +295,6 @@ function getCellRenderState(name, dateStr, overrides, scheduleMap, leaveCellText
     return { kind: 'auto', sites, ck }
   }
 
-  const lv = leaveCellTextMap.get(ck)
-  if (lv) return { kind: 'leave', text: lv, ck }
   return { kind: 'empty', ck }
 }
 
@@ -322,6 +324,8 @@ function getCellEditorInitialValue(name, dateStr, overrides, scheduleMap, leaveC
     if (w) return w.sites.map((s) => `${s.name} ${formatSiteStatNumber(s.weight)}`).join('\n')
     return os
   }
+  const lv = leaveCellTextMap.get(ck)
+  if (lv) return lv
   const bySite = scheduleMap.get(name)?.get(dateStr)
   if (bySite && bySite.size > 0) {
     return [...bySite.entries()]
@@ -329,8 +333,7 @@ function getCellEditorInitialValue(name, dateStr, overrides, scheduleMap, leaveC
       .map(([sn, wt]) => `${sn} ${formatSiteStatNumber(wt)}`)
       .join('\n')
   }
-  const lv = leaveCellTextMap.get(ck)
-  return lv || ''
+  return ''
 }
 
 function parseCellEditorValue(text) {
@@ -363,14 +366,14 @@ function weekdayChar(year, month, day) {
 /**
  * 單一使用者該月：各案場加權天數、加權合計、有出工日曆天數（與全表加權規則一致）
  */
-function buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap) {
+function buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap) {
   return userNames.map((name) => {
     const siteDays = new Map()
     let sumSiteDays = 0
     let calendarDaysWithWork = 0
     days.forEach((d) => {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-      const wmap = getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap)
+      const wmap = getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap, leaveCellTextMap)
       let daySum = 0
       wmap.forEach((wt) => {
         daySum += wt
@@ -517,7 +520,7 @@ export default function MonthlyLocationReport() {
     userNames.forEach((name) => {
       days.forEach((d) => {
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-        const wmap = getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap)
+        const wmap = getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap, leaveCellTextMap)
         wmap.forEach((wt, site) => {
           siteWorkCount.set(site, (siteWorkCount.get(site) || 0) + wt)
         })
@@ -526,7 +529,7 @@ export default function MonthlyLocationReport() {
     return [...siteWorkCount.entries()].sort(
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant')
     )
-  }, [userNames, days, year, month, overrides, scheduleMap])
+  }, [userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap])
 
   /** 案場 → 各人該月於此案場加權天數（與上方卡片同源） */
   const siteBreakdownBySite = useMemo(() => {
@@ -534,7 +537,7 @@ export default function MonthlyLocationReport() {
     userNames.forEach((personName) => {
       days.forEach((d) => {
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-        const wmap = getCellSiteWeightsForCell(personName, dateStr, overrides, scheduleMap)
+        const wmap = getCellSiteWeightsForCell(personName, dateStr, overrides, scheduleMap, leaveCellTextMap)
         wmap.forEach((wt, site) => {
           if (!siteToUser.has(site)) siteToUser.set(site, new Map())
           const byUser = siteToUser.get(site)
@@ -550,7 +553,7 @@ export default function MonthlyLocationReport() {
       out.set(site, rows)
     })
     return out
-  }, [userNames, days, year, month, overrides, scheduleMap])
+  }, [userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap])
 
   /** 全表加權人天：各案場數字加總＝各人「總工（加權）」加總 */
   const grandTotalWeightedDays = useMemo(
@@ -559,8 +562,8 @@ export default function MonthlyLocationReport() {
   )
 
   const perUserSiteDayStats = useMemo(
-    () => buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap),
-    [userNames, days, year, month, overrides, scheduleMap]
+    () => buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap),
+    [userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap]
   )
 
   const perUserSiteDayStatsWithData = useMemo(
@@ -637,7 +640,8 @@ export default function MonthlyLocationReport() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
-              已核准請假且當日無排程時，會顯示請假單<strong>事由（假別）</strong>，例如特休、病假；未填事由則顯示「請假」。
+              已核准請假之日期：顯示請假單<strong>事由（假別）</strong>，且<strong className="text-gray-300">不計入</strong>當日行事曆案場加權（避免與藍標排程重複）；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
+              僅在無請假紀錄時才帶入行事曆案場。未填事由則顯示「請假」。
               行事曆排程標籤為<strong className="text-gray-300">「行政」</strong>者不列入本表與下方統計。
               {isAdmin ? ' 管理員可點格編輯；有案場時可點案場名稱調整加權天數（0.5／1 等）。' : ''}
             </p>
