@@ -604,8 +604,8 @@ export default function MonthlyLocationReport() {
             <h3 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">個人案場天數統計</h3>
             <p className="text-[10px] sm:text-xs text-gray-500 mb-3 leading-relaxed">
               與行事曆一致：單日單卡多案場各計 1÷n 天；手動覆寫格多案場亦同。「行政」標籤排程不計入。
-              <strong className="text-gray-400"> 合計</strong>為加權天數加總；
-              <strong className="text-gray-400"> 出工日數</strong>為當月加權合計 &gt; 0 之日曆天數。
+              <strong className="text-gray-300">出工日數</strong>＝當月有案場（非假別）的<strong>日曆天數</strong>。
+              <strong className="text-gray-300"> 下表加總</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：27+6+4+…＝45）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>加總幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。
             </p>
             <div className="space-y-3 sm:space-y-4">
               {perUserSiteDayStatsWithData.map(({ name, sitesSorted, sumSiteDays, calendarDaysWithWork }) => (
@@ -615,10 +615,14 @@ export default function MonthlyLocationReport() {
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2 gap-y-1 mb-2">
                     <span className="text-white font-semibold text-sm sm:text-base">{name}</span>
-                    <span className="text-[11px] sm:text-sm text-gray-400 tabular-nums">
-                      合計 <span className="text-amber-300 font-semibold">{formatSiteStatNumber(sumSiteDays)}</span> 天
-                      <span className="mx-1.5 text-gray-600">·</span>
-                      出工日數 <span className="text-cyan-300/90 font-medium">{calendarDaysWithWork}</span> 日
+                    <span className="text-[11px] sm:text-sm text-gray-400 tabular-nums text-right max-w-[min(100%,20rem)] leading-snug">
+                      <span className="block sm:inline" title="當月日曆上，表格裡至少有一格案場（非假別）的天數">
+                        出工日數 <span className="text-cyan-300/90 font-semibold">{calendarDaysWithWork}</span> 日
+                      </span>
+                      <span className="hidden sm:inline text-gray-600 mx-1.5">｜</span>
+                      <span className="block sm:inline mt-0.5 sm:mt-0" title="下列各案場天數相加；同日多案場會拆成分數，故常大於出工日數">
+                        下表加總 <span className="text-amber-300 font-semibold">{formatSiteStatNumber(sumSiteDays)}</span> 天
+                      </span>
                     </span>
                   </div>
                   <ul className="text-[11px] sm:text-sm text-gray-200 space-y-1 pl-0 list-none">
