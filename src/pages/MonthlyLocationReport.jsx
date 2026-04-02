@@ -124,11 +124,18 @@ function isLeaveLabel(s) {
   return false
 }
 
+/** 儲存格內多案場：支援「、」與半形／全形逗號 */
+function splitCellIntoSiteParts(text) {
+  const t = String(text || '').trim()
+  if (!t || t === '—') return []
+  return t.split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
+}
+
 /** 整格皆為假別／請假文字時，用紅字顯示 */
 function isLeaveOnlyCell(text) {
   const t = String(text || '').trim()
   if (!t || t === '—') return false
-  const parts = t.split(/、/).map((p) => p.trim()).filter(Boolean)
+  const parts = splitCellIntoSiteParts(t)
   if (parts.length === 0) return false
   return parts.every((p) => isLeaveLabel(p))
 }
@@ -148,12 +155,39 @@ function countSitesFromDisplayTexts(texts) {
     const t = String(text || '').trim()
     if (!t || t === '—') return
     if (isLeaveLabel(t)) return
-    t.split(/、/).forEach((part) => {
-      const s = part.trim()
+    splitCellIntoSiteParts(t).forEach((s) => {
       if (s && !isLeaveLabel(s)) siteWorkCount.set(s, (siteWorkCount.get(s) || 0) + 1)
     })
   })
   return siteWorkCount
+}
+
+/**
+ * 單一使用者該月：各案場天數（同日多案場則各案場各 +1）、合計、有出工日曆天數
+ */
+function buildPerUserSiteDayStats(userNames, days, year, month, getCellText) {
+  return userNames.map((name) => {
+    const siteDays = new Map()
+    let sumSiteDays = 0
+    let calendarDaysWithWork = 0
+    days.forEach((d) => {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const text = getCellText(name, dateStr)
+      if (isLeaveOnlyCell(text)) return
+      const parts = splitCellIntoSiteParts(text)
+      const workSites = parts.filter((p) => !isLeaveLabel(p))
+      if (workSites.length === 0) return
+      calendarDaysWithWork += 1
+      workSites.forEach((site) => {
+        siteDays.set(site, (siteDays.get(site) || 0) + 1)
+        sumSiteDays += 1
+      })
+    })
+    const sitesSorted = [...siteDays.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant')
+    )
+    return { name, sitesSorted, sumSiteDays, calendarDaysWithWork }
+  })
 }
 
 /**
@@ -300,6 +334,16 @@ export default function MonthlyLocationReport() {
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant')
     )
   }, [userNames, days, year, month, getCellText])
+
+  const perUserSiteDayStats = useMemo(
+    () => buildPerUserSiteDayStats(userNames, days, year, month, getCellText),
+    [userNames, days, year, month, getCellText]
+  )
+
+  const perUserSiteDayStatsWithData = useMemo(
+    () => perUserSiteDayStats.filter((r) => r.sitesSorted.length > 0),
+    [perUserSiteDayStats]
+  )
 
   const openEdit = (name, dateStr) => {
     if (!isAdmin) return
@@ -509,6 +553,43 @@ export default function MonthlyLocationReport() {
             </tbody>
           </table>
         </div>
+
+        {perUserSiteDayStatsWithData.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-600">
+            <h3 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">個人案場天數統計</h3>
+            <p className="text-[10px] sm:text-xs text-gray-500 mb-3 leading-relaxed">
+              依上表逐日儲存格：同日多案場（以「、」或逗號分隔）者，各案場各計 1 天；僅假別之列不計。
+              <strong className="text-gray-400"> 合計</strong>為各案場天數加總（人次概念）；
+              <strong className="text-gray-400"> 出工日數</strong>為當月至少有一處案場的日曆天數。
+            </p>
+            <div className="space-y-3 sm:space-y-4">
+              {perUserSiteDayStatsWithData.map(({ name, sitesSorted, sumSiteDays, calendarDaysWithWork }) => (
+                <div
+                  key={name}
+                  className="rounded-lg border border-gray-600 bg-gray-900/40 px-3 py-2.5 sm:px-4 sm:py-3"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 gap-y-1 mb-2">
+                    <span className="text-white font-semibold text-sm sm:text-base">{name}</span>
+                    <span className="text-[11px] sm:text-sm text-gray-400 tabular-nums">
+                      合計 <span className="text-amber-300 font-semibold">{sumSiteDays}</span> 天
+                      <span className="mx-1.5 text-gray-600">·</span>
+                      出工日數 <span className="text-cyan-300/90 font-medium">{calendarDaysWithWork}</span> 日
+                    </span>
+                  </div>
+                  <ul className="text-[11px] sm:text-sm text-gray-200 space-y-1 pl-0 list-none">
+                    {sitesSorted.map(([site, dayCount]) => (
+                      <li key={site} className="flex justify-between gap-2 border-b border-gray-700/50 last:border-0 pb-1 last:pb-0">
+                        <span className="truncate" title={site}>{site}</span>
+                        <span className="shrink-0 tabular-nums text-yellow-400/90">{dayCount} 天</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {userNames.length === 0 && (
           <p className="text-gray-500 text-sm">此月份尚無資料。</p>
         )}
