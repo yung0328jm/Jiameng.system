@@ -403,6 +403,12 @@ export default function MonthlyLocationReport() {
     )
   }, [userNames, days, year, month, overrides, scheduleMap])
 
+  /** 全表加權人天：各案場數字加總＝各人「總工（加權）」加總 */
+  const grandTotalWeightedDays = useMemo(
+    () => siteStatsSorted.reduce((s, [, c]) => s + (Number(c) || 0), 0),
+    [siteStatsSorted]
+  )
+
   const perUserSiteDayStats = useMemo(
     () => buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap),
     [userNames, days, year, month, overrides, scheduleMap]
@@ -536,6 +542,12 @@ export default function MonthlyLocationReport() {
                 </div>
               ))}
             </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-yellow-500/35 bg-yellow-950/25 px-3 py-2">
+              <span className="text-xs sm:text-sm font-medium text-gray-200">全部總工（加權天數）</span>
+              <span className="shrink-0 font-mono text-base sm:text-lg font-semibold text-yellow-400 tabular-nums">
+                {formatSiteStatNumber(grandTotalWeightedDays)}
+              </span>
+            </div>
           </div>
         )}
 
@@ -551,6 +563,9 @@ export default function MonthlyLocationReport() {
           <div className="mb-3 text-xs sm:text-sm text-gray-200 leading-snug">
             <strong>各案場出工（加權天數）：</strong>
             {siteStatsSorted.map(([s, c]) => `${s} ${formatSiteStatNumber(c)}`).join(' ｜ ')}
+            <span className="block sm:inline sm:ml-1 mt-1 sm:mt-0 text-amber-200/90">
+              ｜ <strong>全部總工</strong> {formatSiteStatNumber(grandTotalWeightedDays)} 天
+            </span>
           </div>
         )}
         <div className="overflow-x-auto w-full">
@@ -633,8 +648,14 @@ export default function MonthlyLocationReport() {
               與行事曆一致：同一人在同一天所有排程案場合併後每筆 1÷K 天；手動覆寫格多案場亦各 1÷n。「行政」標籤排程不計入。
               同一張卡上「參與人員」與工項負責人為同一人時<strong className="text-gray-400">只計一次</strong>（已修正先前重複加倍）。
               <strong className="text-gray-300">出工日數</strong>＝當月有案場（非假別）的<strong>日曆天數</strong>。
-              <strong className="text-gray-300"> 下表加總</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：27+6+4+…＝45）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>加總幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。
+              <strong className="text-gray-300">總工（加權）</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：2.7+0.4+…）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>總工幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。上方「各案場」卡片數字加總＝本區全員總工。
             </p>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-cyan-600/35 bg-cyan-950/20 px-3 py-2">
+              <span className="text-xs sm:text-sm font-medium text-gray-200">全員總工（加權天數）</span>
+              <span className="shrink-0 font-mono text-base font-semibold text-cyan-300/90 tabular-nums">
+                {formatSiteStatNumber(grandTotalWeightedDays)}
+              </span>
+            </div>
             <div className="space-y-3 sm:space-y-4">
               {perUserSiteDayStatsWithData.map(({ name, sitesSorted, sumSiteDays, calendarDaysWithWork }) => (
                 <div
@@ -648,8 +669,11 @@ export default function MonthlyLocationReport() {
                         出工日數 <span className="text-cyan-300/90 font-semibold">{calendarDaysWithWork}</span> 日
                       </span>
                       <span className="hidden sm:inline text-gray-600 mx-1.5">｜</span>
-                      <span className="block sm:inline mt-0.5 sm:mt-0" title="下列各案場天數相加；同日多案場會拆成分數，故常大於出工日數">
-                        下表加總 <span className="text-amber-300 font-semibold">{formatSiteStatNumber(sumSiteDays)}</span> 天
+                      <span
+                        className="block sm:inline mt-0.5 sm:mt-0"
+                        title="各案場加權天數合計；同日多案場會拆成分數，故常大於出工日數"
+                      >
+                        總工（加權） <span className="text-amber-300 font-semibold">{formatSiteStatNumber(sumSiteDays)}</span> 天
                       </span>
                     </span>
                   </div>
