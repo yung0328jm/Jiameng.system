@@ -13,6 +13,7 @@ import {
   MONTHLY_LOCATION_OVERRIDES_KEY
 } from '../utils/monthlyLocationReportStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { useSyncRevision } from '../contexts/SyncContext'
 
 function getScheduleSegments(schedule) {
   if (!schedule) return []
@@ -36,7 +37,13 @@ function parseParticipants(str) {
     .filter(Boolean)
 }
 
-/** 行事曆自動：name -> dateStr -> Set(siteName)，不含手動覆寫 */
+/** 不列入工時／案場報表統計的排程標籤（與行事曆表單一致） */
+const SCHEDULE_TAG_EXCLUDE_FROM_LOCATION_REPORT = '行政'
+
+/**
+ * 行事曆自動：name -> dateStr -> Map(siteName -> 加權天數)。
+ * 單卡多案場：各案場權重 1/n；標籤「行政」整卡略過。不含手動覆寫。
+ */
 function buildScheduleMap(year, month) {
   const schedules = getSchedules()
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`
@@ -44,33 +51,41 @@ function buildScheduleMap(year, month) {
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   const map = new Map()
 
-  const addSite = (name, dateStr, siteName) => {
-    const s = String(siteName || '').trim()
-    if (!s || !name) return
-    const n = String(name).trim()
+  const addSiteWeight = (name, dateStr, siteName, weight) => {
+    const n = String(name || '').trim()
+    if (!n || !dateStr) return
+    const w = Number(weight)
+    if (!w || w <= 0) return
+    const s = String(siteName || '').trim() || '（未填案場）'
     if (!map.has(n)) map.set(n, new Map())
     const byDate = map.get(n)
-    if (!byDate.has(dateStr)) byDate.set(dateStr, new Set())
-    byDate.get(dateStr).add(s)
+    if (!byDate.has(dateStr)) byDate.set(dateStr, new Map())
+    const bySite = byDate.get(dateStr)
+    bySite.set(s, (bySite.get(s) || 0) + w)
   }
 
   schedules.forEach((schedule) => {
     const dateStr = String(schedule?.date || '').slice(0, 10)
     if (!dateStr || dateStr < startDate || dateStr > endDate) return
+    if (String(schedule?.tag || '').trim() === SCHEDULE_TAG_EXCLUDE_FROM_LOCATION_REPORT) return
 
     const segments = getScheduleSegments(schedule)
+    const nSeg = Math.max(1, segments.length)
+    const segWeight = 1 / nSeg
+
     segments.forEach((seg) => {
-      const siteName = seg.siteName || '（未填案場）'
-      parseParticipants(schedule.participants).forEach((name) => addSite(name, dateStr, siteName))
+      const siteName = String(seg.siteName || '').trim() || '（未填案場）'
+      parseParticipants(schedule.participants).forEach((name) => addSiteWeight(name, dateStr, siteName, segWeight))
       const items = Array.isArray(seg.workItems) ? seg.workItems : []
       expandWorkItemsToLogical(items).forEach((raw) => {
         const it = normalizeWorkItem(raw)
         if (String(it?.changeRequest?.status || '') === 'pending') return
         const collabs = getWorkItemCollaborators(it)
-        if (collabs.length > 0) collabs.forEach((c) => addSite(c?.name, dateStr, siteName))
-        else {
+        if (collabs.length > 0) {
+          collabs.forEach((c) => addSiteWeight(c?.name, dateStr, siteName, segWeight))
+        } else {
           const rp = String(it?.responsiblePerson || '').trim()
-          if (rp) addSite(rp, dateStr, siteName)
+          if (rp) addSiteWeight(rp, dateStr, siteName, segWeight)
         }
       })
     })
@@ -140,6 +155,37 @@ function isLeaveOnlyCell(text) {
   return parts.every((p) => isLeaveLabel(p))
 }
 
+/** 報表數字：整數顯示整數，否則最多兩位小數 */
+function formatSiteStatNumber(n) {
+  const x = Number(n) || 0
+  if (!Number.isFinite(x)) return '0'
+  const r = Math.round(x * 1000) / 1000
+  if (Math.abs(r - Math.round(r)) < 1e-9) return String(Math.round(r))
+  return String(Math.round(r * 100) / 100).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+}
+
+/** 手動覆寫格：多案場各分 1/n，與行事曆單卡多案場規則一致 */
+function mergeOverrideToSiteWeights(overrideText) {
+  const parts = splitCellIntoSiteParts(String(overrideText || '').trim())
+  const workSites = parts.filter((p) => !isLeaveLabel(p))
+  if (workSites.length === 0) return new Map()
+  const w = 1 / workSites.length
+  const m = new Map()
+  workSites.forEach((s) => m.set(s, (m.get(s) || 0) + w))
+  return m
+}
+
+/** 該格用於統計的案場→加權天數（覆寫優先，否則行事曆加權） */
+function getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap) {
+  const ck = cellKey(name, dateStr)
+  if (overrides[ck] != null && String(overrides[ck]).trim() !== '') {
+    return mergeOverrideToSiteWeights(overrides[ck])
+  }
+  const bySite = scheduleMap.get(name)?.get(dateStr)
+  if (!bySite || bySite.size === 0) return new Map()
+  return new Map(bySite)
+}
+
 /** 週幾（與 getDay 對應：0日 1一 … 6六）— 僅表頭顯示，不增加欄寬 */
 function weekdayChar(year, month, day) {
   const d = new Date(year, month - 1, day)
@@ -148,39 +194,26 @@ function weekdayChar(year, month, day) {
   return chars[d.getDay()] || ''
 }
 
-/** 由顯示文字統計案場人次；假別不計入案場 */
-function countSitesFromDisplayTexts(texts) {
-  const siteWorkCount = new Map()
-  texts.forEach((text) => {
-    const t = String(text || '').trim()
-    if (!t || t === '—') return
-    if (isLeaveLabel(t)) return
-    splitCellIntoSiteParts(t).forEach((s) => {
-      if (s && !isLeaveLabel(s)) siteWorkCount.set(s, (siteWorkCount.get(s) || 0) + 1)
-    })
-  })
-  return siteWorkCount
-}
-
 /**
- * 單一使用者該月：各案場天數（同日多案場則各案場各 +1）、合計、有出工日曆天數
+ * 單一使用者該月：各案場加權天數、加權合計、有出工日曆天數（與全表加權規則一致）
  */
-function buildPerUserSiteDayStats(userNames, days, year, month, getCellText) {
+function buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap) {
   return userNames.map((name) => {
     const siteDays = new Map()
     let sumSiteDays = 0
     let calendarDaysWithWork = 0
     days.forEach((d) => {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-      const text = getCellText(name, dateStr)
-      if (isLeaveOnlyCell(text)) return
-      const parts = splitCellIntoSiteParts(text)
-      const workSites = parts.filter((p) => !isLeaveLabel(p))
-      if (workSites.length === 0) return
+      const wmap = getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap)
+      let daySum = 0
+      wmap.forEach((wt) => {
+        daySum += wt
+      })
+      if (daySum <= 0) return
       calendarDaysWithWork += 1
-      workSites.forEach((site) => {
-        siteDays.set(site, (siteDays.get(site) || 0) + 1)
-        sumSiteDays += 1
+      wmap.forEach((wt, site) => {
+        siteDays.set(site, (siteDays.get(site) || 0) + wt)
+        sumSiteDays += wt
       })
     })
     const sitesSorted = [...siteDays.entries()].sort(
@@ -268,6 +301,7 @@ async function exportPdf(el, filename) {
 }
 
 export default function MonthlyLocationReport() {
+  const syncRevision = useSyncRevision()
   const role = getCurrentUserRole()
   const isAdmin = role === 'admin'
   const today = new Date()
@@ -280,7 +314,11 @@ export default function MonthlyLocationReport() {
 
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key === MONTHLY_LOCATION_OVERRIDES_KEY || e.key === 'jiameng_leave_applications') {
+      if (
+        e.key === MONTHLY_LOCATION_OVERRIDES_KEY ||
+        e.key === 'jiameng_leave_applications' ||
+        e.key === 'jiameng_engineering_schedules'
+      ) {
         setRefreshKey((k) => k + 1)
       }
     }
@@ -290,7 +328,7 @@ export default function MonthlyLocationReport() {
 
   const { map: scheduleMap, lastDay } = useMemo(
     () => buildScheduleMap(year, month),
-    [year, month, refreshKey]
+    [year, month, refreshKey, syncRevision]
   )
 
   const overrides = useMemo(() => getMonthlyOverrides(year, month), [year, month, refreshKey])
@@ -310,8 +348,10 @@ export default function MonthlyLocationReport() {
     (name, dateStr) => {
       const ck = cellKey(name, dateStr)
       if (overrides[ck] != null && String(overrides[ck]).trim() !== '') return String(overrides[ck]).trim()
-      const sites = scheduleMap.get(name)?.get(dateStr)
-      if (sites && sites.size > 0) return [...sites].join('、')
+      const bySite = scheduleMap.get(name)?.get(dateStr)
+      if (bySite && bySite.size > 0) {
+        return [...bySite.keys()].sort((a, b) => a.localeCompare(b, 'zh-Hant')).join('、')
+      }
       // 無排程時帶入已核准請假（假別 = 事由 reason；無則「請假」）
       const leaveText = leaveCellTextMap.get(ck)
       if (leaveText) return leaveText
@@ -321,23 +361,24 @@ export default function MonthlyLocationReport() {
   )
 
   const siteStatsSorted = useMemo(() => {
-    const allTexts = []
+    const siteWorkCount = new Map()
     userNames.forEach((name) => {
       days.forEach((d) => {
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-        const text = getCellText(name, dateStr)
-        if (text) allTexts.push(text)
+        const wmap = getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap)
+        wmap.forEach((wt, site) => {
+          siteWorkCount.set(site, (siteWorkCount.get(site) || 0) + wt)
+        })
       })
     })
-    const siteWorkCount = countSitesFromDisplayTexts(allTexts)
     return [...siteWorkCount.entries()].sort(
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant')
     )
-  }, [userNames, days, year, month, getCellText])
+  }, [userNames, days, year, month, overrides, scheduleMap])
 
   const perUserSiteDayStats = useMemo(
-    () => buildPerUserSiteDayStats(userNames, days, year, month, getCellText),
-    [userNames, days, year, month, getCellText]
+    () => buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap),
+    [userNames, days, year, month, overrides, scheduleMap]
   )
 
   const perUserSiteDayStatsWithData = useMemo(
@@ -387,7 +428,9 @@ export default function MonthlyLocationReport() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
-              已核准請假且當日無排程時，會顯示請假單<strong>事由（假別）</strong>，例如特休、病假；未填事由則顯示「請假」。{isAdmin ? ' 管理員可點格編輯。' : ''}
+              已核准請假且當日無排程時，會顯示請假單<strong>事由（假別）</strong>，例如特休、病假；未填事由則顯示「請假」。
+              行事曆排程標籤為<strong className="text-gray-300">「行政」</strong>者不列入本表與下方統計。
+              {isAdmin ? ' 管理員可點格編輯。' : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -454,13 +497,15 @@ export default function MonthlyLocationReport() {
 
         {siteStatsSorted.length > 0 && (
           <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800/50 p-3 sm:p-4">
-            <h2 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">各案場出工統計（人次）</h2>
-            <p className="text-[10px] text-gray-500 mb-2">僅統計案場／工作地點；假別（事假、病假、特休等）不計入此處。</p>
+            <h2 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">各案場出工統計（加權天數）</h2>
+            <p className="text-[10px] text-gray-500 mb-2">
+              單卡多案場各計 1÷n 天；標籤「行政」之排程不列入。僅統計案場／工作地點；假別不計入。
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => (
                 <div key={site} className="flex justify-between gap-2 rounded border border-gray-600 bg-gray-900/50 px-2 py-1.5">
                   <span className="text-gray-200 truncate" title={site}>{site}</span>
-                  <span className="shrink-0 font-mono text-yellow-400">{count}</span>
+                  <span className="shrink-0 font-mono text-yellow-400">{formatSiteStatNumber(count)}</span>
                 </div>
               ))}
             </div>
@@ -477,8 +522,8 @@ export default function MonthlyLocationReport() {
         </h2>
         {siteStatsSorted.length > 0 && (
           <div className="mb-3 text-xs sm:text-sm text-gray-200 leading-snug">
-            <strong>各案場出工人次：</strong>
-            {siteStatsSorted.map(([s, c]) => `${s}${c}`).join(' ｜ ')}
+            <strong>各案場出工（加權天數）：</strong>
+            {siteStatsSorted.map(([s, c]) => `${s} ${formatSiteStatNumber(c)}`).join(' ｜ ')}
           </div>
         )}
         <div className="overflow-x-auto w-full">
@@ -558,9 +603,9 @@ export default function MonthlyLocationReport() {
           <div className="mt-4 pt-4 border-t border-gray-600">
             <h3 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">個人案場天數統計</h3>
             <p className="text-[10px] sm:text-xs text-gray-500 mb-3 leading-relaxed">
-              依上表逐日儲存格：同日多案場（以「、」或逗號分隔）者，各案場各計 1 天；僅假別之列不計。
-              <strong className="text-gray-400"> 合計</strong>為各案場天數加總（人次概念）；
-              <strong className="text-gray-400"> 出工日數</strong>為當月至少有一處案場的日曆天數。
+              與行事曆一致：單日單卡多案場各計 1÷n 天；手動覆寫格多案場亦同。「行政」標籤排程不計入。
+              <strong className="text-gray-400"> 合計</strong>為加權天數加總；
+              <strong className="text-gray-400"> 出工日數</strong>為當月加權合計 &gt; 0 之日曆天數。
             </p>
             <div className="space-y-3 sm:space-y-4">
               {perUserSiteDayStatsWithData.map(({ name, sitesSorted, sumSiteDays, calendarDaysWithWork }) => (
@@ -571,7 +616,7 @@ export default function MonthlyLocationReport() {
                   <div className="flex flex-wrap items-baseline justify-between gap-2 gap-y-1 mb-2">
                     <span className="text-white font-semibold text-sm sm:text-base">{name}</span>
                     <span className="text-[11px] sm:text-sm text-gray-400 tabular-nums">
-                      合計 <span className="text-amber-300 font-semibold">{sumSiteDays}</span> 天
+                      合計 <span className="text-amber-300 font-semibold">{formatSiteStatNumber(sumSiteDays)}</span> 天
                       <span className="mx-1.5 text-gray-600">·</span>
                       出工日數 <span className="text-cyan-300/90 font-medium">{calendarDaysWithWork}</span> 日
                     </span>
@@ -580,7 +625,7 @@ export default function MonthlyLocationReport() {
                     {sitesSorted.map(([site, dayCount]) => (
                       <li key={site} className="flex justify-between gap-2 border-b border-gray-700/50 last:border-0 pb-1 last:pb-0">
                         <span className="truncate" title={site}>{site}</span>
-                        <span className="shrink-0 tabular-nums text-yellow-400/90">{dayCount} 天</span>
+                        <span className="shrink-0 tabular-nums text-yellow-400/90">{formatSiteStatNumber(dayCount)} 天</span>
                       </li>
                     ))}
                   </ul>
