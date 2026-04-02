@@ -162,7 +162,7 @@ function Calendar() {
     invoiceReturned: false,
     workItems: [],
     participantWorkEntries: [], // 藍標：各參與人員各自填寫之當日工作內容
-    tag: 'blue', // 标签：red(重要/節假日), green(活動), blue(工作/項目), yellow(出差)
+    tag: 'blue', // red(重要/節假日), green(活動), blue(工作/項目), yellow(出差), 行政(不列入案場工時報表)
     progressSheet: false,  // 工進單（新增活動卡預設不勾；未勾選時該組所有人績效扣1分、活動框紅色閃爍）
     constructionPhotos: false // 施工照片（同上）
   })
@@ -675,6 +675,7 @@ function Calendar() {
     blue: 'bg-blue-500',
     purple: 'bg-purple-500',
     yellow: 'bg-yellow-400',
+    行政: 'bg-slate-600',
     leave: 'bg-teal-500' // 請假（由請假申請自動帶入）
   }
 
@@ -684,6 +685,7 @@ function Calendar() {
     blue: 'text-white',
     purple: 'text-white',
     yellow: 'text-black',
+    行政: 'text-white',
     leave: 'text-white'
   }
 
@@ -694,6 +696,7 @@ function Calendar() {
     blue: 'text-blue-400',
     purple: 'text-purple-400',
     yellow: 'text-yellow-300',
+    行政: 'text-slate-300',
     leave: 'text-teal-400'
   }
 
@@ -5282,12 +5285,15 @@ function Calendar() {
                   </div>
                 </div>
 
-                {/* 標籤 */}
-                <div>
+                {/* 標籤：獨佔整列，避免擠在右欄時「行政」被擠出視線 */}
+                <div className="md:col-span-2">
                   <label className="block text-gray-300 text-sm mb-2">
                     標籤
                   </label>
-                  <div className="grid grid-cols-5 gap-2">
+                  <p className="text-gray-500 text-[11px] mb-2">
+                    「行政」不列入每月份工時匯總報表之案場統計。
+                  </p>
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setScheduleFormData(prev => ({ ...prev, tag: 'red' }))}
@@ -5340,6 +5346,18 @@ function Calendar() {
                       }`}
                     >
                       出差
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleFormData(prev => ({ ...prev, tag: '行政' }))}
+                      className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                        scheduleFormData.tag === '行政'
+                          ? 'bg-slate-600 text-white ring-2 ring-slate-400'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                      title="不列入「每月份工時匯總報表」案場統計"
+                    >
+                      行政
                     </button>
                   </div>
                 </div>
