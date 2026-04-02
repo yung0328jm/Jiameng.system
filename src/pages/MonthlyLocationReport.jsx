@@ -16,6 +16,12 @@ import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { useSyncRevision } from '../contexts/SyncContext'
+import {
+  getDayNature,
+  getAllDayNatureStorage,
+  setMonthlyDayNatureOverride,
+  MONTHLY_DAY_NATURE_KEY
+} from '../utils/monthlyDayNatureStorage'
 
 const OVERTIME_APPLICATIONS_STORAGE_KEY = 'jiameng_overtime_applications'
 
@@ -232,6 +238,49 @@ function buildOvertimeHoursMap(year, month) {
   })
 
   return acc
+}
+
+/**
+ * 標為「假日」且非週日：當日有出工加權時每人另計 8 小時（多案場平分），再與核准加班加總。
+ * 週日不論標為平日或假日均不套用 +8。預設週六、週日為假日，其餘平日（可於日期欄覆寫）。
+ */
+const HOLIDAY_WORK_BONUS_HOURS = 8
+
+function dayQualifiesForHolidayWorkBonus(year, month, day, dayNatureAll) {
+  const dow = new Date(year, month - 1, day).getDay()
+  if (dow === 0) return false
+  return getDayNature(year, month, day, dayNatureAll) === 'holiday'
+}
+
+function applyHolidayAttendanceBonus(
+  baseMap,
+  year,
+  month,
+  userNames,
+  days,
+  overrides,
+  scheduleMap,
+  leaveCellTextMap,
+  dayNatureAll
+) {
+  const out = new Map(baseMap)
+  userNames.forEach((personName) => {
+    days.forEach((d) => {
+      if (!dayQualifiesForHolidayWorkBonus(year, month, d, dayNatureAll)) return
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const wmap = getCellSiteWeightsForCell(personName, dateStr, overrides, scheduleMap, leaveCellTextMap)
+      const sites = [...wmap.entries()]
+        .filter(([, w]) => (Number(w) || 0) > 0)
+        .map(([s]) => s)
+      if (sites.length === 0) return
+      const per = HOLIDAY_WORK_BONUS_HOURS / sites.length
+      sites.forEach((site) => {
+        const k = overtimeHoursKey(personName, dateStr, site)
+        out.set(k, (out.get(k) || 0) + per)
+      })
+    })
+  })
+  return out
 }
 
 function getOvertimeHoursForPersonDateSite(otMap, personName, dateStr, siteName) {
@@ -632,6 +681,7 @@ export default function MonthlyLocationReport() {
   const [editCell, setEditCell] = useState(null) // { name, dateStr, value }
   const [siteWeightModal, setSiteWeightModal] = useState(null) // { personName, dateStr, siteName, weightInput }
   const [siteBreakdownModal, setSiteBreakdownModal] = useState(null) // 案場名稱
+  const [dayNatureModal, setDayNatureModal] = useState(null) // { day, dateStr }
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -639,7 +689,8 @@ export default function MonthlyLocationReport() {
         e.key === MONTHLY_LOCATION_OVERRIDES_KEY ||
         e.key === 'jiameng_leave_applications' ||
         e.key === 'jiameng_engineering_schedules' ||
-        e.key === OVERTIME_APPLICATIONS_STORAGE_KEY
+        e.key === OVERTIME_APPLICATIONS_STORAGE_KEY ||
+        e.key === MONTHLY_DAY_NATURE_KEY
       ) {
         setRefreshKey((k) => k + 1)
       }
@@ -668,10 +719,7 @@ export default function MonthlyLocationReport() {
 
   const leaveCellTextMap = useMemo(() => buildLeaveCellTextMap(year, month), [year, month, refreshKey])
 
-  const overtimeHoursMap = useMemo(
-    () => buildOvertimeHoursMap(year, month),
-    [year, month, refreshKey, syncRevision]
-  )
+  const dayNatureAll = useMemo(() => getAllDayNatureStorage(), [year, month, refreshKey, syncRevision])
 
   const days = useMemo(() => Array.from({ length: lastDay }, (_, i) => i + 1), [lastDay])
 
@@ -681,6 +729,32 @@ export default function MonthlyLocationReport() {
     const set = new Set([...fromSchedule, ...fromOverrides])
     return sortNamesByPreferredOrder([...set])
   }, [scheduleMap, year, month, refreshKey])
+
+  const overtimeHoursMap = useMemo(() => {
+    const base = buildOvertimeHoursMap(year, month)
+    return applyHolidayAttendanceBonus(
+      base,
+      year,
+      month,
+      userNames,
+      days,
+      overrides,
+      scheduleMap,
+      leaveCellTextMap,
+      dayNatureAll
+    )
+  }, [
+    year,
+    month,
+    refreshKey,
+    syncRevision,
+    userNames,
+    days,
+    overrides,
+    scheduleMap,
+    leaveCellTextMap,
+    dayNatureAll
+  ])
 
   const siteStatsSorted = useMemo(() => {
     const siteWorkCount = new Map()
@@ -839,7 +913,9 @@ export default function MonthlyLocationReport() {
               已核准請假之日期：顯示請假單<strong>事由（假別）</strong>，且<strong className="text-gray-300">不計入</strong>當日行事曆案場加權（避免與藍標排程重複）；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
               僅在無請假紀錄時才帶入行事曆案場。未填事由則顯示「請假」。
               行事曆排程標籤為<strong className="text-gray-300">「行政」</strong>者不列入本表與下方統計。
-              {isAdmin ? ' 管理員可點格編輯；有案場時可點案場名稱調整加權天數（0.5／1 等）。' : ''}
+              {isAdmin
+                ? ' 管理員可點格編輯、點左欄日期設定平日／假日，有案場時可點案場名稱調整加權（0.5／1）。'
+                : ' 左欄日期下方顯示平日／假日（預設週六、週日為假日）。'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -885,6 +961,7 @@ export default function MonthlyLocationReport() {
             <p>
               編輯：點格開啟整格編輯；<strong className="text-amber-100">點案場名稱</strong>
               可單獨改該案場加權天數（半天 0.5、全天 1）。多案場整格編輯可用「、」分隔，或每行「案場名 0.5」存成加權覆寫。清除覆寫恢復行事曆自動。
+              <strong className="text-amber-100"> 點左欄日期</strong>可設定該日<strong>平日／假日</strong>（預設週六、週日為假日），影響假日出工 +8 小時（週日不加）。
             </p>
             <button
               type="button"
@@ -913,7 +990,7 @@ export default function MonthlyLocationReport() {
             <p className="text-[10px] text-gray-500 mb-2">
               同一人在同一天，所有排程的案場合計 K 筆時每筆計 1÷K 天（含單卡多案場或多張卡上／下午）；標籤「行政」之排程不列入。僅統計案場／工作地點；假別不計入。
               <span className="text-gray-400"> 點案場卡片可查看各人出工加權明細。</span>
-              已核准<strong className="text-gray-400">加班申請</strong>（綁定排程）併入紅字「+小時」與下方總加班。
+              已核准<strong className="text-gray-400">加班申請</strong>併入紅字「+小時」。左欄標<strong className="text-gray-400">假日</strong>且<strong className="text-gray-400">非週日</strong>、當日有出工加權者另計<strong className="text-gray-400"> 8 小時</strong>（多案場平分），再與加班單加總；<strong className="text-gray-400">週日不加 8</strong>。預設週六、週日為假日。
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => {
@@ -986,7 +1063,7 @@ export default function MonthlyLocationReport() {
           {/* 日期在左欄、姓名在表頭（直向閱讀為一天一列） */}
           <table className="w-full table-fixed border-collapse text-sm sm:text-base min-w-[560px]">
             <colgroup>
-              <col className="w-[3.25rem] sm:w-16" />
+              <col className="w-[3.5rem] sm:w-[4.5rem]" />
               {userNames.map((name) => (
                 <col key={name} />
               ))}
@@ -1013,15 +1090,48 @@ export default function MonthlyLocationReport() {
             <tbody>
               {days.map((d) => {
                 const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+                const nature = getDayNature(year, month, d, dayNatureAll)
+                const mkNat = `${year}-${String(month).padStart(2, '0')}`
+                const natureOverrideRaw = dayNatureAll[mkNat]?.[dateStr]
+                const hasNatureOverride =
+                  natureOverrideRaw === 'weekday' || natureOverrideRaw === 'holiday'
                 return (
                   <tr key={d} className="border-b border-gray-700">
                     <td
-                      className="sticky left-0 z-[1] bg-gray-800 px-1.5 py-1.5 text-white font-medium border border-gray-600 align-top whitespace-nowrap"
-                      title={dateStr}
+                      className={`sticky left-0 z-[1] bg-gray-800 px-1 py-1.5 sm:px-1.5 border border-gray-600 align-top ${
+                        isAdmin ? 'cursor-pointer hover:bg-gray-700/55' : ''
+                      }`}
+                      title={
+                        isAdmin
+                          ? `${dateStr} — 點擊設定此日為平日或假日（影響假日出工 +8 小時規則，週日不加）`
+                          : dateStr
+                      }
+                      onClick={isAdmin ? () => setDayNatureModal({ day: d, dateStr }) : undefined}
+                      onKeyDown={
+                        isAdmin
+                          ? (e) => e.key === 'Enter' && setDayNatureModal({ day: d, dateStr })
+                          : undefined
+                      }
+                      role={isAdmin ? 'button' : undefined}
+                      tabIndex={isAdmin ? 0 : undefined}
                     >
-                      <span className="block text-sm sm:text-base font-semibold">{d}</span>
-                      <span className="block text-xs sm:text-sm text-gray-400 font-normal">
+                      <span className="block text-sm sm:text-base font-semibold text-white leading-tight">
+                        {d}
+                      </span>
+                      <span className="block text-[10px] sm:text-xs text-gray-400 font-normal leading-tight">
                         {weekdayChar(year, month, d)}
+                      </span>
+                      <span
+                        className={`block text-[9px] sm:text-[10px] font-medium leading-tight mt-0.5 ${
+                          nature === 'holiday' ? 'text-amber-400/95' : 'text-slate-400'
+                        }`}
+                      >
+                        {nature === 'holiday' ? '假日' : '平日'}
+                        {hasNatureOverride ? (
+                          <span className="text-gray-500 font-normal" title="已手動覆寫預設">
+                            *
+                          </span>
+                        ) : null}
                       </span>
                     </td>
                     {userNames.map((name) => {
@@ -1137,7 +1247,7 @@ export default function MonthlyLocationReport() {
               同一張卡上「參與人員」與工項負責人為同一人時<strong className="text-gray-400">只計一次</strong>（已修正先前重複加倍）。
               <strong className="text-gray-300">出工日數</strong>＝當月有案場（非假別）的<strong>日曆天數</strong>。
               <strong className="text-gray-300">總工（加權）</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：2.7+0.4+…）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>總工幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。上方「各案場」卡片數字加總＝本區全員總工。
-              紅字<strong className="text-red-400">+小時</strong>為當月已核准加班（與行事曆加班申請一致）；多案場排程時數會依案場數平分。
+              紅字<strong className="text-red-400">+小時</strong>＝已核准加班＋<strong className="text-gray-400">「假日」且非週日</strong>出工另計 8 小時（該日多案場平分）；<strong className="text-gray-400">週日不加 8</strong>。日期欄可改平日／假日（預設週六日為假日）。
             </p>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-cyan-600/35 bg-cyan-950/20 px-3 py-2">
               <span className="text-xs sm:text-sm font-medium text-gray-200">全員總工（加權天數）</span>
@@ -1221,6 +1331,88 @@ export default function MonthlyLocationReport() {
         )}
         </div>
       </div>
+
+      {dayNatureModal && (
+        <div
+          className="fixed inset-0 z-[128] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setDayNatureModal(null)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border border-gray-600 bg-gray-900 p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="day-nature-title"
+          >
+            <h3 id="day-nature-title" className="text-yellow-400 font-semibold text-base mb-1">
+              日期性質（平日／假日）
+            </h3>
+            <p className="text-gray-300 text-sm mb-1 tabular-nums">{dayNatureModal.dateStr}</p>
+            <p className="text-gray-500 text-xs mb-2">
+              星期{weekdayChar(year, month, dayNatureModal.day)}
+            </p>
+            {(() => {
+              const mk = `${year}-${String(month).padStart(2, '0')}`
+              const ov = dayNatureAll[mk]?.[dayNatureModal.dateStr]
+              const hasOv = ov === 'weekday' || ov === 'holiday'
+              const eff = getDayNature(year, month, dayNatureModal.day, dayNatureAll)
+              return (
+                <p className="text-gray-400 text-sm mb-2">
+                  目前為<strong className="text-gray-200">
+                    {eff === 'holiday' ? '假日' : '平日'}
+                  </strong>
+                  {hasOv ? '（手動覆寫）' : '（週曆預設：週六、週日為假日）'}
+                </p>
+              )
+            })()}
+            <p className="text-gray-500 text-[11px] mb-3 leading-relaxed">
+              標為「假日」且非週日、當日有出工加權時，加班欄另計 8 小時（與核准加班加總）。<strong className="text-gray-400">週日不論設定皆不加 8 小時。</strong>
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className="rounded bg-slate-600 hover:bg-slate-500 px-3 py-2 text-sm text-white text-left"
+                onClick={() => {
+                  setMonthlyDayNatureOverride(year, month, dayNatureModal.dateStr, 'weekday')
+                  setDayNatureModal(null)
+                  setRefreshKey((k) => k + 1)
+                }}
+              >
+                設為平日（國定假補班等）
+              </button>
+              <button
+                type="button"
+                className="rounded bg-amber-700/80 hover:bg-amber-600 px-3 py-2 text-sm text-white text-left"
+                onClick={() => {
+                  setMonthlyDayNatureOverride(year, month, dayNatureModal.dateStr, 'holiday')
+                  setDayNatureModal(null)
+                  setRefreshKey((k) => k + 1)
+                }}
+              >
+                設為假日（國定假等）
+              </button>
+              <button
+                type="button"
+                className="rounded border border-gray-500 px-3 py-2 text-sm text-gray-300 text-left"
+                onClick={() => {
+                  setMonthlyDayNatureOverride(year, month, dayNatureModal.dateStr, '')
+                  setDayNatureModal(null)
+                  setRefreshKey((k) => k + 1)
+                }}
+              >
+                恢復週曆預設
+              </button>
+              <button
+                type="button"
+                className="rounded border border-gray-600 px-3 py-2 text-sm text-gray-400"
+                onClick={() => setDayNatureModal(null)}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 編輯 Modal */}
       {editCell && (
