@@ -191,7 +191,41 @@ function formatSiteStatNumber(n) {
   return String(Math.round(r * 100) / 100).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
 }
 
-/** 手動覆寫格：多案場各分 1/n，與行事曆單卡多案場規則一致 */
+const WEIGHTED_CELL_MARK = '_jmlw'
+
+/** 每格可存 JSON：自訂各案場加權天數（半天 0.5、全天 1 等） */
+function parseWeightedCellOverride(str) {
+  const t = String(str ?? '').trim()
+  if (!t.startsWith('{')) return null
+  try {
+    const o = JSON.parse(t)
+    if (!o || o[WEIGHTED_CELL_MARK] !== 1 || !Array.isArray(o.sites)) return null
+    const sites = o.sites
+      .map((x) => {
+        const n = String(x?.n ?? x?.name ?? '').trim()
+        const w = Number(x?.w ?? x?.weight)
+        if (!n || !Number.isFinite(w) || w <= 0) return null
+        return { name: n, weight: w }
+      })
+      .filter(Boolean)
+    if (sites.length === 0) return null
+    return { sites }
+  } catch {
+    return null
+  }
+}
+
+function serializeWeightedCellOverride(siteRows) {
+  return JSON.stringify({
+    [WEIGHTED_CELL_MARK]: 1,
+    sites: siteRows.map(({ name, weight }) => ({
+      n: String(name || '').trim(),
+      w: Number(weight) || 0
+    }))
+  })
+}
+
+/** 手動覆寫格：多案場各分 1/n（純文字、非 JSON） */
 function mergeOverrideToSiteWeights(overrideText) {
   const parts = splitCellIntoSiteParts(String(overrideText || '').trim())
   const workSites = parts.filter((p) => !isLeaveLabel(p))
@@ -202,15 +236,120 @@ function mergeOverrideToSiteWeights(overrideText) {
   return m
 }
 
+function overrideTextToSiteWeightMap(str) {
+  const parsed = parseWeightedCellOverride(String(str).trim())
+  if (parsed) {
+    const m = new Map()
+    parsed.sites.forEach(({ name, weight }) => {
+      m.set(name, (m.get(name) || 0) + weight)
+    })
+    return m
+  }
+  return mergeOverrideToSiteWeights(str)
+}
+
 /** 該格用於統計的案場→加權天數（覆寫優先，否則行事曆加權） */
 function getCellSiteWeightsForCell(name, dateStr, overrides, scheduleMap) {
   const ck = cellKey(name, dateStr)
   if (overrides[ck] != null && String(overrides[ck]).trim() !== '') {
-    return mergeOverrideToSiteWeights(overrides[ck])
+    return overrideTextToSiteWeightMap(String(overrides[ck]).trim())
   }
   const bySite = scheduleMap.get(name)?.get(dateStr)
   if (!bySite || bySite.size === 0) return new Map()
   return new Map(bySite)
+}
+
+/**
+ * 儲存格呈現與點選案場編輯用：weighted | plain_work | auto 可逐案場點加權；
+ * plain_mixed（案場＋假別混寫）僅整格編輯。
+ */
+function getCellRenderState(name, dateStr, overrides, scheduleMap, leaveCellTextMap) {
+  const ck = cellKey(name, dateStr)
+  const oStr = overrides[ck] != null ? String(overrides[ck]).trim() : ''
+
+  if (oStr) {
+    const w = parseWeightedCellOverride(oStr)
+    if (w) return { kind: 'weighted', sites: w.sites, ck }
+    const parts = splitCellIntoSiteParts(oStr)
+    if (parts.length === 0) return { kind: 'empty', ck }
+    if (parts.every((p) => isLeaveLabel(p))) return { kind: 'leave', text: oStr, ck }
+    if (parts.some((p) => isLeaveLabel(p)))
+      return { kind: 'plain_mixed', text: oStr, parts, ck }
+    const wt = 1 / parts.length
+    return {
+      kind: 'plain_work',
+      sites: parts.map((n) => ({ name: n, weight: wt })),
+      ck
+    }
+  }
+
+  const bySite = scheduleMap.get(name)?.get(dateStr)
+  if (bySite && bySite.size > 0) {
+    const sites = [...bySite.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant'))
+      .map(([sn, weight]) => ({ name: sn, weight }))
+    return { kind: 'auto', sites, ck }
+  }
+
+  const lv = leaveCellTextMap.get(ck)
+  if (lv) return { kind: 'leave', text: lv, ck }
+  return { kind: 'empty', ck }
+}
+
+function cellStateToDisplayString(state) {
+  switch (state.kind) {
+    case 'weighted':
+    case 'plain_work':
+    case 'auto':
+      return state.sites
+        .map((s) => `${s.name}(${formatSiteStatNumber(s.weight)})`)
+        .join('、')
+    case 'leave':
+    case 'plain_mixed':
+      return state.text || ''
+    default:
+      return ''
+  }
+}
+
+/** 整格編輯框初值：加權覆寫為「案場 數字」每行一行；行事曆自動則帶入目前加權 */
+function getCellEditorInitialValue(name, dateStr, overrides, scheduleMap, leaveCellTextMap) {
+  const ck = cellKey(name, dateStr)
+  const o = overrides[ck]
+  if (o != null && String(o).trim() !== '') {
+    const os = String(o).trim()
+    const w = parseWeightedCellOverride(os)
+    if (w) return w.sites.map((s) => `${s.name} ${formatSiteStatNumber(s.weight)}`).join('\n')
+    return os
+  }
+  const bySite = scheduleMap.get(name)?.get(dateStr)
+  if (bySite && bySite.size > 0) {
+    return [...bySite.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant'))
+      .map(([sn, wt]) => `${sn} ${formatSiteStatNumber(wt)}`)
+      .join('\n')
+  }
+  const lv = leaveCellTextMap.get(ck)
+  return lv || ''
+}
+
+function parseCellEditorValue(text) {
+  const t = String(text ?? '').trim()
+  if (!t) return { kind: 'clear' }
+  const lines = t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  if (lines.length === 0) return { kind: 'clear' }
+  const parsed = []
+  for (const line of lines) {
+    const m = line.match(/^(.*)\s+(\d+(?:\.\d+)?)\s*$/)
+    if (!m) return { kind: 'plain', text: t }
+    const nm = m[1].trim()
+    if (!nm) return { kind: 'plain', text: t }
+    const w = parseFloat(m[2])
+    if (!Number.isFinite(w) || w <= 0) return { kind: 'plain', text: t }
+    parsed.push({ name: nm, weight: w })
+  }
+  if (parsed.length === lines.length && parsed.length > 0) return { kind: 'weighted', sites: parsed }
+  return { kind: 'plain', text: t }
 }
 
 /** 週幾（與 getDay 對應：0日 1一 … 6六）— 僅表頭顯示，不增加欄寬 */
@@ -338,6 +477,8 @@ export default function MonthlyLocationReport() {
   const [pdfBusy, setPdfBusy] = useState(false)
   const pdfRef = useRef(null)
   const [editCell, setEditCell] = useState(null) // { name, dateStr, value }
+  const [siteWeightModal, setSiteWeightModal] = useState(null) // { personName, dateStr, siteName, weightInput }
+  const [siteBreakdownModal, setSiteBreakdownModal] = useState(null) // 案場名稱
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -371,22 +512,6 @@ export default function MonthlyLocationReport() {
     return sortNamesByPreferredOrder([...set])
   }, [scheduleMap, year, month, refreshKey])
 
-  const getCellText = useCallback(
-    (name, dateStr) => {
-      const ck = cellKey(name, dateStr)
-      if (overrides[ck] != null && String(overrides[ck]).trim() !== '') return String(overrides[ck]).trim()
-      const bySite = scheduleMap.get(name)?.get(dateStr)
-      if (bySite && bySite.size > 0) {
-        return [...bySite.keys()].sort((a, b) => a.localeCompare(b, 'zh-Hant')).join('、')
-      }
-      // 無排程時帶入已核准請假（假別 = 事由 reason；無則「請假」）
-      const leaveText = leaveCellTextMap.get(ck)
-      if (leaveText) return leaveText
-      return ''
-    },
-    [overrides, scheduleMap, leaveCellTextMap]
-  )
-
   const siteStatsSorted = useMemo(() => {
     const siteWorkCount = new Map()
     userNames.forEach((name) => {
@@ -401,6 +526,30 @@ export default function MonthlyLocationReport() {
     return [...siteWorkCount.entries()].sort(
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant')
     )
+  }, [userNames, days, year, month, overrides, scheduleMap])
+
+  /** 案場 → 各人該月於此案場加權天數（與上方卡片同源） */
+  const siteBreakdownBySite = useMemo(() => {
+    const siteToUser = new Map()
+    userNames.forEach((personName) => {
+      days.forEach((d) => {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        const wmap = getCellSiteWeightsForCell(personName, dateStr, overrides, scheduleMap)
+        wmap.forEach((wt, site) => {
+          if (!siteToUser.has(site)) siteToUser.set(site, new Map())
+          const byUser = siteToUser.get(site)
+          byUser.set(personName, (byUser.get(personName) || 0) + wt)
+        })
+      })
+    })
+    const out = new Map()
+    siteToUser.forEach((byUser, site) => {
+      const rows = [...byUser.entries()]
+        .filter(([, t]) => (Number(t) || 0) > 0)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant'))
+      out.set(site, rows)
+    })
+    return out
   }, [userNames, days, year, month, overrides, scheduleMap])
 
   /** 全表加權人天：各案場數字加總＝各人「總工（加權）」加總 */
@@ -421,18 +570,45 @@ export default function MonthlyLocationReport() {
 
   const openEdit = (name, dateStr) => {
     if (!isAdmin) return
-    const current = getCellText(name, dateStr)
-    const ck = cellKey(name, dateStr)
-    // 若目前為自動帶入，編輯框顯示自動內容，存檔後變成覆寫
-    setEditCell({ name, dateStr, value: overrides[ck] != null ? overrides[ck] : current })
+    setEditCell({
+      name,
+      dateStr,
+      value: getCellEditorInitialValue(name, dateStr, overrides, scheduleMap, leaveCellTextMap)
+    })
   }
 
   const saveEdit = () => {
     if (!editCell) return
-    setMonthlyCellOverride(year, month, editCell.name, editCell.dateStr, editCell.value)
+    const parsed = parseCellEditorValue(editCell.value)
+    let stored = ''
+    if (parsed.kind === 'clear') stored = ''
+    else if (parsed.kind === 'weighted') stored = serializeWeightedCellOverride(parsed.sites)
+    else stored = parsed.text
+    setMonthlyCellOverride(year, month, editCell.name, editCell.dateStr, stored)
     setEditCell(null)
     setRefreshKey((k) => k + 1)
   }
+
+  const saveSiteWeight = useCallback(() => {
+    if (!siteWeightModal) return
+    const w = parseFloat(String(siteWeightModal.weightInput).replace(',', '.'))
+    if (!Number.isFinite(w) || w <= 0 || w > 10) {
+      alert('請輸入大於 0、至多 10 的數字（常用 0.5 或 1）')
+      return
+    }
+    const { personName, dateStr, siteName } = siteWeightModal
+    const st = getCellRenderState(personName, dateStr, overrides, scheduleMap, leaveCellTextMap)
+    if (!st.sites || st.sites.length === 0) {
+      setSiteWeightModal(null)
+      return
+    }
+    const next = st.sites.map((s) =>
+      s.name === siteName ? { name: s.name, weight: w } : { name: s.name, weight: s.weight }
+    )
+    setMonthlyCellOverride(year, month, personName, dateStr, serializeWeightedCellOverride(next))
+    setSiteWeightModal(null)
+    setRefreshKey((k) => k + 1)
+  }, [siteWeightModal, overrides, scheduleMap, leaveCellTextMap, year, month])
 
   const clearEdit = () => {
     if (!editCell) return
@@ -463,7 +639,7 @@ export default function MonthlyLocationReport() {
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
               已核准請假且當日無排程時，會顯示請假單<strong>事由（假別）</strong>，例如特休、病假；未填事由則顯示「請假」。
               行事曆排程標籤為<strong className="text-gray-300">「行政」</strong>者不列入本表與下方統計。
-              {isAdmin ? ' 管理員可點格編輯。' : ''}
+              {isAdmin ? ' 管理員可點格編輯；有案場時可點案場名稱調整加權天數（0.5／1 等）。' : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -506,7 +682,10 @@ export default function MonthlyLocationReport() {
 
         {isAdmin && (
           <div className="mb-3 flex flex-col gap-2 rounded border border-amber-600/50 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200/90">
-            <p>編輯：點表格內任一格（含「—」）可修改該日顯示；多案場請用「、」分隔。清除覆寫可恢復行事曆自動。</p>
+            <p>
+              編輯：點格開啟整格編輯；<strong className="text-amber-100">點案場名稱</strong>
+              可單獨改該案場加權天數（半天 0.5、全天 1）。多案場整格編輯可用「、」分隔，或每行「案場名 0.5」存成加權覆寫。清除覆寫恢復行事曆自動。
+            </p>
             <button
               type="button"
               className="self-start rounded bg-amber-600/30 px-2 py-1 text-amber-100 hover:bg-amber-600/50"
@@ -533,13 +712,20 @@ export default function MonthlyLocationReport() {
             <h2 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">各案場出工統計（加權天數）</h2>
             <p className="text-[10px] text-gray-500 mb-2">
               同一人在同一天，所有排程的案場合計 K 筆時每筆計 1÷K 天（含單卡多案場或多張卡上／下午）；標籤「行政」之排程不列入。僅統計案場／工作地點；假別不計入。
+              <span className="text-gray-400"> 點案場卡片可查看各人出工加權明細。</span>
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => (
-                <div key={site} className="flex justify-between gap-2 rounded border border-gray-600 bg-gray-900/50 px-2 py-1.5">
-                  <span className="text-gray-200 truncate" title={site}>{site}</span>
+                <button
+                  key={site}
+                  type="button"
+                  onClick={() => setSiteBreakdownModal(site)}
+                  className="flex justify-between gap-2 rounded border border-gray-600 bg-gray-900/50 px-2 py-1.5 text-left w-full cursor-pointer hover:bg-gray-800/80 hover:border-yellow-500/40 transition-colors"
+                  title="查看此案場人員明細"
+                >
+                  <span className="text-gray-200 truncate min-w-0">{site}</span>
                   <span className="shrink-0 font-mono text-yellow-400">{formatSiteStatNumber(count)}</span>
-                </div>
+                </button>
               ))}
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-yellow-500/35 bg-yellow-950/25 px-3 py-2">
@@ -611,21 +797,67 @@ export default function MonthlyLocationReport() {
                       </span>
                     </td>
                     {userNames.map((name) => {
-                      const text = getCellText(name, dateStr)
                       const ck = cellKey(name, dateStr)
+                      const st = getCellRenderState(name, dateStr, overrides, scheduleMap, leaveCellTextMap)
+                      const text = cellStateToDisplayString(st)
                       const isOverride = overrides[ck] != null && String(overrides[ck]).trim() !== ''
+                      const chipKinds = new Set(['weighted', 'plain_work', 'auto'])
+                      const showSiteChips = Boolean(st.sites?.length && chipKinds.has(st.kind))
                       return (
                         <td
                           key={name}
                           className={`px-1 py-1.5 align-top border border-gray-700 text-sm sm:text-base leading-snug break-words ${isAdmin ? 'cursor-pointer hover:bg-gray-700/40' : ''} ${isOverride ? 'bg-amber-900/20' : 'text-gray-200'}`}
-                          title={isAdmin ? (isOverride ? '手動覆寫（點擊編輯）' : '點擊可手動編輯') : text || '—'}
+                          title={
+                            isAdmin
+                              ? isOverride
+                                ? '手動覆寫（點空白處編輯整格；點案場名改加權）'
+                                : '點空白處編輯；點案場名改加權'
+                              : text || '—'
+                          }
                           onClick={() => isAdmin && openEdit(name, dateStr)}
                           onKeyDown={(e) => isAdmin && e.key === 'Enter' && openEdit(name, dateStr)}
                           role={isAdmin ? 'button' : undefined}
                           tabIndex={isAdmin ? 0 : undefined}
                         >
-                          {text ? (
-                            <span className={isLeaveOnlyCell(text) ? 'text-red-400 font-medium leave-red-print' : ''}>
+                          {showSiteChips ? (
+                            <span className="text-gray-200">
+                              {st.sites.map((s, i) => (
+                                <span key={`${s.name}-${i}`}>
+                                  {i > 0 ? <span className="text-gray-500">、</span> : null}
+                                  {isAdmin ? (
+                                    <button
+                                      type="button"
+                                      className="text-sky-300 hover:text-sky-200 underline decoration-dotted underline-offset-2 text-left align-baseline max-w-full break-words"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSiteWeightModal({
+                                          personName: name,
+                                          dateStr,
+                                          siteName: s.name,
+                                          weightInput: formatSiteStatNumber(s.weight)
+                                        })
+                                      }}
+                                    >
+                                      {s.name}
+                                      <span className="text-[10px] sm:text-xs opacity-80 ml-0.5 tabular-nums">
+                                        ({formatSiteStatNumber(s.weight)})
+                                      </span>
+                                    </button>
+                                  ) : (
+                                    <span>
+                                      {s.name}
+                                      <span className="text-[10px] sm:text-xs opacity-80 ml-0.5 tabular-nums">
+                                        ({formatSiteStatNumber(s.weight)})
+                                      </span>
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </span>
+                          ) : text ? (
+                            <span
+                              className={isLeaveOnlyCell(text) ? 'text-red-400 font-medium leave-red-print' : ''}
+                            >
                               {text}
                             </span>
                           ) : (
@@ -704,15 +936,132 @@ export default function MonthlyLocationReport() {
             <h3 className="text-yellow-400 font-semibold mb-2">編輯格子</h3>
             <p className="text-gray-400 text-xs mb-2">{editCell.name}　{editCell.dateStr}</p>
             <textarea
-              className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm min-h-[80px]"
+              className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm min-h-[100px]"
               value={editCell.value}
               onChange={(e) => setEditCell((prev) => ({ ...prev, value: e.target.value }))}
-              placeholder="例：中壢日月光、斗南小東（多案場用、分隔）；清空儲存可恢復行事曆自動"
+              placeholder={
+                '多案場：中壢日月光、斗南小東（用、分隔，各 1÷n）\n' +
+                '或每行「案場名 數字」例如：\n中壢日月光 0.5\n斗南小東 1\n' +
+                '清空儲存＝恢復行事曆自動'
+              }
             />
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" onClick={saveEdit} className="rounded bg-yellow-500 px-3 py-1.5 text-sm font-medium text-gray-900">儲存</button>
               <button type="button" onClick={clearEdit} className="rounded bg-gray-600 px-3 py-1.5 text-sm text-white">清除覆寫（恢復自動）</button>
               <button type="button" onClick={() => setEditCell(null)} className="rounded border border-gray-500 px-3 py-1.5 text-sm text-gray-300">取消</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {siteWeightModal && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setSiteWeightModal(null)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border border-gray-600 bg-gray-900 p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="site-weight-title"
+          >
+            <h3 id="site-weight-title" className="text-yellow-400 font-semibold mb-1">
+              案場加權天數
+            </h3>
+            <p className="text-gray-300 text-sm mb-1 break-words">{siteWeightModal.siteName}</p>
+            <p className="text-gray-500 text-[11px] mb-3">
+              {siteWeightModal.personName}　{siteWeightModal.dateStr}
+            </p>
+            <label className="block text-gray-400 text-xs mb-1">加權天數（人天）</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm font-mono mb-3"
+              value={siteWeightModal.weightInput}
+              onChange={(e) =>
+                setSiteWeightModal((prev) => (prev ? { ...prev, weightInput: e.target.value } : prev))
+              }
+              placeholder="0.5 或 1"
+            />
+            <p className="text-gray-500 text-[11px] mb-3">例：請假半天下午到場填 0.5；全天填 1。存檔後此格改為加權覆寫。</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={saveSiteWeight}
+                className="rounded bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-sm font-medium text-white"
+              >
+                確定
+              </button>
+              <button
+                type="button"
+                onClick={() => setSiteWeightModal(null)}
+                className="rounded border border-gray-500 px-3 py-1.5 text-sm text-gray-300"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {siteBreakdownModal && (
+        <div
+          className="fixed inset-0 z-[125] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setSiteBreakdownModal(null)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md max-h-[min(85vh,32rem)] flex flex-col rounded-lg border border-gray-600 bg-gray-900 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="site-breakdown-title"
+          >
+            <div className="border-b border-gray-700 px-4 py-3 shrink-0">
+              <h3 id="site-breakdown-title" className="text-yellow-400 font-semibold text-base break-words">
+                {siteBreakdownModal}
+              </h3>
+              <p className="text-gray-500 text-xs mt-1">
+                {year} 年 {month} 月　加權出工明細（與上方卡片數字同源）
+              </p>
+              <p className="text-amber-200/90 text-sm mt-2 font-mono tabular-nums">
+                本案場合計{' '}
+                <span className="font-semibold text-yellow-400">
+                  {formatSiteStatNumber(
+                    (siteBreakdownBySite.get(siteBreakdownModal) || []).reduce(
+                      (s, [, w]) => s + (Number(w) || 0),
+                      0
+                    )
+                  )}
+                </span>{' '}
+                天
+              </p>
+            </div>
+            <ul className="overflow-y-auto px-4 py-2 text-sm space-y-0 list-none m-0 flex-1 min-h-0">
+              {(siteBreakdownBySite.get(siteBreakdownModal) || []).length === 0 ? (
+                <li className="text-gray-500 py-4 text-center">無人員資料</li>
+              ) : (
+                (siteBreakdownBySite.get(siteBreakdownModal) || []).map(([personName, wt]) => (
+                  <li
+                    key={personName}
+                    className="flex justify-between gap-3 py-2 border-b border-gray-700/60 last:border-0"
+                  >
+                    <span className="text-gray-200 break-words min-w-0">{personName}</span>
+                    <span className="shrink-0 font-mono text-yellow-400/95 tabular-nums">
+                      {formatSiteStatNumber(wt)} 天
+                    </span>
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="border-t border-gray-700 px-4 py-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSiteBreakdownModal(null)}
+                className="w-full rounded bg-gray-700 hover:bg-gray-600 px-3 py-2 text-sm text-white"
+              >
+                關閉
+              </button>
             </div>
           </div>
         </div>
