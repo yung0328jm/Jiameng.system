@@ -13,7 +13,11 @@ import {
   MONTHLY_LOCATION_OVERRIDES_KEY
 } from '../utils/monthlyLocationReportStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
+import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { useSyncRevision } from '../contexts/SyncContext'
+
+const OVERTIME_APPLICATIONS_STORAGE_KEY = 'jiameng_overtime_applications'
 
 function getScheduleSegments(schedule) {
   if (!schedule) return []
@@ -119,6 +123,151 @@ function buildScheduleMap(year, month) {
   })
 
   return { map, lastDay }
+}
+
+/** 與 buildScheduleMap 同規則：該 segment 內參與者＋工項人員 */
+function namesForScheduleSegment(schedule, seg) {
+  const namesForSeg = new Set()
+  parseParticipants(schedule.participants).forEach((n) => {
+    const x = String(n || '').trim()
+    if (x) namesForSeg.add(x)
+  })
+  const items = Array.isArray(seg.workItems) ? seg.workItems : []
+  expandWorkItemsToLogical(items).forEach((raw) => {
+    const it = normalizeWorkItem(raw)
+    if (String(it?.changeRequest?.status || '') === 'pending') return
+    const collabs = getWorkItemCollaborators(it)
+    if (collabs.length > 0) {
+      collabs.forEach((c) => {
+        const x = String(c?.name || '').trim()
+        if (x) namesForSeg.add(x)
+      })
+    } else {
+      const rp = String(it?.responsiblePerson || '').trim()
+      if (rp) namesForSeg.add(rp)
+    }
+  })
+  return namesForSeg
+}
+
+function computeOvertimeRecordHours(oa) {
+  if (oa?.hours != null && oa.hours !== '') {
+    const h = Number(oa.hours)
+    if (Number.isFinite(h) && h > 0) return h
+  }
+  const start = String(oa?.startTime || '').trim()
+  const end = String(oa?.endTime || '').trim()
+  if (!start || !end) return null
+  const st = start.split(':').map(Number)
+  const en = end.split(':').map(Number)
+  if (st.length < 2 || en.length < 2) return null
+  let minStart = st[0] * 60 + st[1]
+  let minEnd = en[0] * 60 + en[1]
+  if (minEnd <= minStart) minEnd += 24 * 60
+  const hrs = (minEnd - minStart) / 60
+  return Number.isFinite(hrs) && hrs > 0 ? Math.round(hrs * 10) / 10 : null
+}
+
+function overtimeHoursKey(personName, dateStr, siteName) {
+  return `${String(personName || '').trim()}\0${String(dateStr || '').slice(0, 10)}\0${String(siteName || '').trim()}`
+}
+
+/**
+ * 已核准加班 → Map「姓名\0日期\0案場」→ 小時；同人同排程多 segment 時數平分至有列入的案場。
+ * 與績效頁一致：排程已刪則不計；行政標籤排程不計。
+ */
+function buildOvertimeHoursMap(year, month) {
+  const lastDay = new Date(year, month, 0).getDate()
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  const schedules = getSchedules()
+  const acc = new Map()
+
+  const add = (person, dateStr, site, hrs) => {
+    const p = String(person || '').trim()
+    const s = String(site || '').trim() || '（未填案場）'
+    if (!p || !dateStr || !hrs || hrs <= 0) return
+    const k = overtimeHoursKey(p, dateStr, s)
+    acc.set(k, (acc.get(k) || 0) + hrs)
+  }
+
+  getOvertimeApplications().forEach((oa) => {
+    if (String(oa?.status || '') !== 'approved') return
+    const dateStr = String(oa.date || '').trim().replace(/\//g, '-').slice(0, 10)
+    if (!dateStr || dateStr < startDate || dateStr > endDate) return
+    const hours = computeOvertimeRecordHours(oa)
+    if (hours == null || hours <= 0) return
+    const schedule = schedules.find((s) => String(s?.id || '') === String(oa?.scheduleId || ''))
+    if (!schedule) return
+    if (String(schedule?.tag || '').trim() === SCHEDULE_TAG_EXCLUDE_FROM_LOCATION_REPORT) return
+
+    const personnel = (Array.isArray(oa.overtimePersonnel) ? oa.overtimePersonnel : [])
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+    const list =
+      personnel.length > 0
+        ? personnel
+        : [String(oa.applicant || '').trim()].filter(Boolean)
+    if (list.length === 0) return
+
+    const segments = getScheduleSegments(schedule)
+    list.forEach((personName) => {
+      const sites = new Set()
+      segments.forEach((seg) => {
+        const set = namesForScheduleSegment(schedule, seg)
+        if (set.has(personName)) {
+          const sn = String(seg.siteName || '').trim() || '（未填案場）'
+          sites.add(sn)
+        }
+      })
+      if (sites.size === 0) {
+        const fb =
+          String(segments[0]?.siteName || schedule.siteName || '').trim() || '（未填案場）'
+        add(personName, dateStr, fb, hours)
+        return
+      }
+      const per = hours / sites.size
+      sites.forEach((site) => add(personName, dateStr, site, per))
+    })
+  })
+
+  return acc
+}
+
+function getOvertimeHoursForPersonDateSite(otMap, personName, dateStr, siteName) {
+  const k = overtimeHoursKey(personName, dateStr, siteName)
+  const v = otMap.get(k)
+  return v != null && Number(v) > 0 ? Number(v) : 0
+}
+
+function sumOvertimeForPersonMonth(personName, otMap) {
+  const pref = `${String(personName || '').trim()}\0`
+  let t = 0
+  otMap.forEach((hrs, key) => {
+    if (String(key).startsWith(pref)) t += Number(hrs) || 0
+  })
+  return t
+}
+
+function sumOvertimeForPersonAtSiteMonth(personName, siteName, otMap) {
+  const p = String(personName || '').trim()
+  const s = String(siteName || '').trim()
+  let t = 0
+  otMap.forEach((hrs, key) => {
+    const parts = String(key).split('\0')
+    if (parts.length === 3 && parts[0] === p && parts[2] === s) t += Number(hrs) || 0
+  })
+  return t
+}
+
+/** 顯示用：+3 或 +3.5 */
+function formatOvertimePlusHours(n) {
+  const x = Number(n) || 0
+  if (!Number.isFinite(x) || x <= 0) return ''
+  const r = Math.round(x * 10) / 10
+  if (Math.abs(r - Math.round(r)) < 1e-6) return `+${Math.round(r)}`
+  const s = String(r)
+  return s.endsWith('.0') ? `+${Math.round(r)}` : `+${s}`
 }
 
 function cellKey(name, dateStr) {
@@ -366,7 +515,7 @@ function weekdayChar(year, month, day) {
 /**
  * 單一使用者該月：各案場加權天數、加權合計、有出工日曆天數（與全表加權規則一致）
  */
-function buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap) {
+function buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap, otMap) {
   return userNames.map((name) => {
     const siteDays = new Map()
     let sumSiteDays = 0
@@ -388,7 +537,8 @@ function buildPerUserSiteDayStats(userNames, days, year, month, overrides, sched
     const sitesSorted = [...siteDays.entries()].sort(
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant')
     )
-    return { name, sitesSorted, sumSiteDays, calendarDaysWithWork }
+    const totalOvertimeHours = sumOvertimeForPersonMonth(name, otMap)
+    return { name, sitesSorted, sumSiteDays, calendarDaysWithWork, totalOvertimeHours }
   })
 }
 
@@ -488,13 +638,25 @@ export default function MonthlyLocationReport() {
       if (
         e.key === MONTHLY_LOCATION_OVERRIDES_KEY ||
         e.key === 'jiameng_leave_applications' ||
-        e.key === 'jiameng_engineering_schedules'
+        e.key === 'jiameng_engineering_schedules' ||
+        e.key === OVERTIME_APPLICATIONS_STORAGE_KEY
       ) {
         setRefreshKey((k) => k + 1)
       }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  useEffect(() => {
+    const onRt = (e) => {
+      const k = e?.detail?.key
+      if (k === OVERTIME_APPLICATIONS_STORAGE_KEY || k === 'jiameng_engineering_schedules') {
+        setRefreshKey((r) => r + 1)
+      }
+    }
+    window.addEventListener(REALTIME_UPDATE_EVENT, onRt)
+    return () => window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
   }, [])
 
   const { map: scheduleMap, lastDay } = useMemo(
@@ -505,6 +667,11 @@ export default function MonthlyLocationReport() {
   const overrides = useMemo(() => getMonthlyOverrides(year, month), [year, month, refreshKey])
 
   const leaveCellTextMap = useMemo(() => buildLeaveCellTextMap(year, month), [year, month, refreshKey])
+
+  const overtimeHoursMap = useMemo(
+    () => buildOvertimeHoursMap(year, month),
+    [year, month, refreshKey, syncRevision]
+  )
 
   const days = useMemo(() => Array.from({ length: lastDay }, (_, i) => i + 1), [lastDay])
 
@@ -561,9 +728,38 @@ export default function MonthlyLocationReport() {
     [siteStatsSorted]
   )
 
+  const siteOvertimeTotals = useMemo(() => {
+    const m = new Map()
+    overtimeHoursMap.forEach((hrs, key) => {
+      const parts = String(key).split('\0')
+      if (parts.length !== 3) return
+      const site = parts[2]
+      m.set(site, (m.get(site) || 0) + (Number(hrs) || 0))
+    })
+    return m
+  }, [overtimeHoursMap])
+
+  const grandTotalOvertimeHours = useMemo(() => {
+    let s = 0
+    overtimeHoursMap.forEach((h) => {
+      s += Number(h) || 0
+    })
+    return s
+  }, [overtimeHoursMap])
+
   const perUserSiteDayStats = useMemo(
-    () => buildPerUserSiteDayStats(userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap),
-    [userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap]
+    () =>
+      buildPerUserSiteDayStats(
+        userNames,
+        days,
+        year,
+        month,
+        overrides,
+        scheduleMap,
+        leaveCellTextMap,
+        overtimeHoursMap
+      ),
+    [userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap, overtimeHoursMap]
   )
 
   const perUserSiteDayStatsWithData = useMemo(
@@ -717,20 +913,31 @@ export default function MonthlyLocationReport() {
             <p className="text-[10px] text-gray-500 mb-2">
               同一人在同一天，所有排程的案場合計 K 筆時每筆計 1÷K 天（含單卡多案場或多張卡上／下午）；標籤「行政」之排程不列入。僅統計案場／工作地點；假別不計入。
               <span className="text-gray-400"> 點案場卡片可查看各人出工加權明細。</span>
+              已核准<strong className="text-gray-400">加班申請</strong>（綁定排程）併入紅字「+小時」與下方總加班。
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
-              {siteStatsSorted.map(([site, count]) => (
-                <button
-                  key={site}
-                  type="button"
-                  onClick={() => setSiteBreakdownModal(site)}
-                  className="flex justify-between gap-2 rounded border border-gray-600 bg-gray-900/50 px-2 py-1.5 text-left w-full cursor-pointer hover:bg-gray-800/80 hover:border-yellow-500/40 transition-colors"
-                  title="查看此案場人員明細"
-                >
-                  <span className="text-gray-200 truncate min-w-0">{site}</span>
-                  <span className="shrink-0 font-mono text-yellow-400">{formatSiteStatNumber(count)}</span>
-                </button>
-              ))}
+              {siteStatsSorted.map(([site, count]) => {
+                const otH = siteOvertimeTotals.get(site) || 0
+                return (
+                  <button
+                    key={site}
+                    type="button"
+                    onClick={() => setSiteBreakdownModal(site)}
+                    className="flex justify-between gap-2 rounded border border-gray-600 bg-gray-900/50 px-2 py-1.5 text-left w-full cursor-pointer hover:bg-gray-800/80 hover:border-yellow-500/40 transition-colors"
+                    title="查看此案場人員明細"
+                  >
+                    <span className="text-gray-200 truncate min-w-0">{site}</span>
+                    <span className="shrink-0 flex flex-col items-end font-mono tabular-nums leading-tight">
+                      <span className="text-yellow-400">{formatSiteStatNumber(count)}</span>
+                      {otH > 0 && (
+                        <span className="text-red-400 text-[10px] font-medium">
+                          {formatOvertimePlusHours(otH)}h
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-yellow-500/35 bg-yellow-950/25 px-3 py-2">
               <span className="text-xs sm:text-sm font-medium text-gray-200">全部總工（加權天數）</span>
@@ -738,6 +945,14 @@ export default function MonthlyLocationReport() {
                 {formatSiteStatNumber(grandTotalWeightedDays)}
               </span>
             </div>
+            {grandTotalOvertimeHours > 0 && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded border border-red-900/40 bg-red-950/20 px-3 py-2">
+                <span className="text-xs sm:text-sm font-medium text-gray-200">全部總加班（小時）</span>
+                <span className="shrink-0 font-mono text-base font-semibold text-red-400 tabular-nums">
+                  {formatSiteStatNumber(grandTotalOvertimeHours)} 小時
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -752,10 +967,19 @@ export default function MonthlyLocationReport() {
         {siteStatsSorted.length > 0 && (
           <div className="mb-3 text-xs sm:text-sm text-gray-200 leading-snug">
             <strong>各案場出工（加權天數）：</strong>
-            {siteStatsSorted.map(([s, c]) => `${s} ${formatSiteStatNumber(c)}`).join(' ｜ ')}
+            {siteStatsSorted.map(([s, c]) => {
+              const oh = siteOvertimeTotals.get(s) || 0
+              const otPart = oh > 0 ? ` 加班${formatOvertimePlusHours(oh)}h` : ''
+              return `${s} ${formatSiteStatNumber(c)}${otPart}`
+            }).join(' ｜ ')}
             <span className="block sm:inline sm:ml-1 mt-1 sm:mt-0 text-amber-200/90">
               ｜ <strong>全部總工</strong> {formatSiteStatNumber(grandTotalWeightedDays)} 天
             </span>
+            {grandTotalOvertimeHours > 0 && (
+              <span className="block text-red-300/90 mt-1">
+                <strong>全部總加班</strong> {formatSiteStatNumber(grandTotalOvertimeHours)} 小時
+              </span>
+            )}
           </div>
         )}
         <div className="overflow-x-auto w-full">
@@ -846,6 +1070,20 @@ export default function MonthlyLocationReport() {
                                       <span className="text-[10px] sm:text-xs opacity-80 ml-0.5 tabular-nums">
                                         ({formatSiteStatNumber(s.weight)})
                                       </span>
+                                      {(() => {
+                                        const oh = getOvertimeHoursForPersonDateSite(
+                                          overtimeHoursMap,
+                                          name,
+                                          dateStr,
+                                          s.name
+                                        )
+                                        if (!oh) return null
+                                        return (
+                                          <span className="text-red-400 font-semibold ml-0.5 text-[10px] sm:text-xs tabular-nums overtime-red-print">
+                                            {formatOvertimePlusHours(oh)}
+                                          </span>
+                                        )
+                                      })()}
                                     </button>
                                   ) : (
                                     <span>
@@ -853,6 +1091,20 @@ export default function MonthlyLocationReport() {
                                       <span className="text-[10px] sm:text-xs opacity-80 ml-0.5 tabular-nums">
                                         ({formatSiteStatNumber(s.weight)})
                                       </span>
+                                      {(() => {
+                                        const oh = getOvertimeHoursForPersonDateSite(
+                                          overtimeHoursMap,
+                                          name,
+                                          dateStr,
+                                          s.name
+                                        )
+                                        if (!oh) return null
+                                        return (
+                                          <span className="text-red-400 font-semibold ml-0.5 text-[10px] sm:text-xs tabular-nums overtime-red-print">
+                                            {formatOvertimePlusHours(oh)}
+                                          </span>
+                                        )
+                                      })()}
                                     </span>
                                   )}
                                 </span>
@@ -885,6 +1137,7 @@ export default function MonthlyLocationReport() {
               同一張卡上「參與人員」與工項負責人為同一人時<strong className="text-gray-400">只計一次</strong>（已修正先前重複加倍）。
               <strong className="text-gray-300">出工日數</strong>＝當月有案場（非假別）的<strong>日曆天數</strong>。
               <strong className="text-gray-300">總工（加權）</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：2.7+0.4+…）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>總工幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。上方「各案場」卡片數字加總＝本區全員總工。
+              紅字<strong className="text-red-400">+小時</strong>為當月已核准加班（與行事曆加班申請一致）；多案場排程時數會依案場數平分。
             </p>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-cyan-600/35 bg-cyan-950/20 px-3 py-2">
               <span className="text-xs sm:text-sm font-medium text-gray-200">全員總工（加權天數）</span>
@@ -892,8 +1145,17 @@ export default function MonthlyLocationReport() {
                 {formatSiteStatNumber(grandTotalWeightedDays)}
               </span>
             </div>
+            {grandTotalOvertimeHours > 0 && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-red-900/35 bg-red-950/15 px-3 py-2">
+                <span className="text-xs sm:text-sm font-medium text-gray-200">全員總加班（小時）</span>
+                <span className="shrink-0 font-mono text-base font-semibold text-red-400 tabular-nums">
+                  {formatSiteStatNumber(grandTotalOvertimeHours)} 小時
+                </span>
+              </div>
+            )}
             <div className="space-y-3 sm:space-y-4">
-              {perUserSiteDayStatsWithData.map(({ name, sitesSorted, sumSiteDays, calendarDaysWithWork }) => (
+              {perUserSiteDayStatsWithData.map(
+                ({ name, sitesSorted, sumSiteDays, calendarDaysWithWork, totalOvertimeHours }) => (
                 <div
                   key={name}
                   className="rounded-lg border border-gray-600 bg-gray-900/40 px-3 py-2.5 sm:px-4 sm:py-3"
@@ -911,18 +1173,45 @@ export default function MonthlyLocationReport() {
                       >
                         總工（加權） <span className="text-amber-300 font-semibold">{formatSiteStatNumber(sumSiteDays)}</span> 天
                       </span>
+                      {(totalOvertimeHours || 0) > 0 && (
+                        <>
+                          <span className="hidden sm:inline text-gray-600 mx-1.5">｜</span>
+                          <span className="block sm:inline mt-0.5 sm:mt-0" title="當月已核准加班小時合計">
+                            總加班{' '}
+                            <span className="text-red-400 font-semibold">
+                              {formatSiteStatNumber(totalOvertimeHours)} 小時
+                            </span>
+                          </span>
+                        </>
+                      )}
                     </span>
                   </div>
                   <ul className="text-[11px] sm:text-sm text-gray-200 space-y-1 pl-0 list-none">
-                    {sitesSorted.map(([site, dayCount]) => (
-                      <li key={site} className="flex justify-between gap-2 border-b border-gray-700/50 last:border-0 pb-1 last:pb-0">
-                        <span className="truncate" title={site}>{site}</span>
-                        <span className="shrink-0 tabular-nums text-yellow-400/90">{formatSiteStatNumber(dayCount)} 天</span>
-                      </li>
-                    ))}
+                    {sitesSorted.map(([site, dayCount]) => {
+                      const siteOt = sumOvertimeForPersonAtSiteMonth(name, site, overtimeHoursMap)
+                      return (
+                        <li
+                          key={site}
+                          className="flex justify-between gap-2 border-b border-gray-700/50 last:border-0 pb-1 last:pb-0"
+                        >
+                          <span className="truncate" title={site}>
+                            {site}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-right">
+                            <span className="text-yellow-400/90">{formatSiteStatNumber(dayCount)} 天</span>
+                            {siteOt > 0 && (
+                              <span className="text-red-400 font-medium ml-1.5">
+                                {formatOvertimePlusHours(siteOt)}h
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </div>
-              ))}
+              )
+              )}
             </div>
           </div>
         )}
@@ -1040,22 +1329,42 @@ export default function MonthlyLocationReport() {
                 </span>{' '}
                 天
               </p>
+              {(siteOvertimeTotals.get(siteBreakdownModal) || 0) > 0 && (
+                <p className="text-red-300/90 text-sm mt-1.5 font-mono tabular-nums">
+                  本案場加班合計{' '}
+                  <span className="font-semibold text-red-400">
+                    {formatSiteStatNumber(siteOvertimeTotals.get(siteBreakdownModal) || 0)} 小時
+                  </span>
+                </p>
+              )}
             </div>
             <ul className="overflow-y-auto px-4 py-2 text-sm space-y-0 list-none m-0 flex-1 min-h-0">
               {(siteBreakdownBySite.get(siteBreakdownModal) || []).length === 0 ? (
                 <li className="text-gray-500 py-4 text-center">無人員資料</li>
               ) : (
-                (siteBreakdownBySite.get(siteBreakdownModal) || []).map(([personName, wt]) => (
-                  <li
-                    key={personName}
-                    className="flex justify-between gap-3 py-2 border-b border-gray-700/60 last:border-0"
-                  >
-                    <span className="text-gray-200 break-words min-w-0">{personName}</span>
-                    <span className="shrink-0 font-mono text-yellow-400/95 tabular-nums">
-                      {formatSiteStatNumber(wt)} 天
-                    </span>
-                  </li>
-                ))
+                (siteBreakdownBySite.get(siteBreakdownModal) || []).map(([personName, wt]) => {
+                  const pOt = sumOvertimeForPersonAtSiteMonth(
+                    personName,
+                    siteBreakdownModal,
+                    overtimeHoursMap
+                  )
+                  return (
+                    <li
+                      key={personName}
+                      className="flex justify-between gap-3 py-2 border-b border-gray-700/60 last:border-0"
+                    >
+                      <span className="text-gray-200 break-words min-w-0">{personName}</span>
+                      <span className="shrink-0 font-mono text-right tabular-nums">
+                        <span className="text-yellow-400/95 block">{formatSiteStatNumber(wt)} 天</span>
+                        {pOt > 0 && (
+                          <span className="text-red-400 text-xs font-medium block">
+                            {formatOvertimePlusHours(pOt)}h
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  )
+                })
               )}
             </ul>
             <div className="border-t border-gray-700 px-4 py-3 shrink-0">
