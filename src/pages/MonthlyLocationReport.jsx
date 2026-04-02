@@ -40,15 +40,9 @@ function parseParticipants(str) {
 /** 不列入工時／案場報表統計的排程標籤（與行事曆表單一致） */
 const SCHEDULE_TAG_EXCLUDE_FROM_LOCATION_REPORT = '行政'
 
-/** 與行事曆一致：未勾「全天」＝半天 0.5；勾全天或舊資料預設＝ 1 */
-function getScheduleDayPortion(schedule) {
-  if (schedule?.isAllDay === false) return 0.5
-  return 1
-}
-
 /**
  * 行事曆自動：name -> dateStr -> Map(siteName -> 加權天數)。
- * 每張排程卡：全天計 1、非全天計 0.5，再除以該卡 segment 數分給各案場；多張卡同日則加總（例：兩張半天各一案場＝0.5+0.5）。
+ * 同一人在同一天：所有排程的每個案場 segment 各算一「筆」，合計 K 筆則每筆權重 1/K（單卡多案場、或多張卡上午／下午皆同）。
  * 參與者與工項人員同 segment 去重；標籤「行政」整卡略過。不含手動覆寫。
  */
 function buildScheduleMap(year, month) {
@@ -71,16 +65,15 @@ function buildScheduleMap(year, month) {
     bySite.set(s, (bySite.get(s) || 0) + w)
   }
 
+  const personDayGroupKey = (name, dateStr) => `${String(name || '').trim()}\0${dateStr}`
+  const contributions = []
+
   schedules.forEach((schedule) => {
     const dateStr = String(schedule?.date || '').slice(0, 10)
     if (!dateStr || dateStr < startDate || dateStr > endDate) return
     if (String(schedule?.tag || '').trim() === SCHEDULE_TAG_EXCLUDE_FROM_LOCATION_REPORT) return
 
     const segments = getScheduleSegments(schedule)
-    const nSeg = Math.max(1, segments.length)
-    const portion = getScheduleDayPortion(schedule)
-    const weightPerSeg = portion / nSeg
-
     segments.forEach((seg) => {
       const siteName = String(seg.siteName || '').trim() || '（未填案場）'
       const namesForSeg = new Set()
@@ -103,8 +96,26 @@ function buildScheduleMap(year, month) {
           if (rp) namesForSeg.add(rp)
         }
       })
-      namesForSeg.forEach((n) => addSiteWeight(n, dateStr, siteName, weightPerSeg))
+      namesForSeg.forEach((n) => contributions.push({ name: n, dateStr, siteName }))
     })
+  })
+
+  const byPersonDay = new Map()
+  contributions.forEach((c) => {
+    const k = personDayGroupKey(c.name, c.dateStr)
+    if (!byPersonDay.has(k)) byPersonDay.set(k, [])
+    byPersonDay.get(k).push(c.siteName)
+  })
+
+  byPersonDay.forEach((siteNames, k) => {
+    const sep = k.indexOf('\0')
+    if (sep < 0) return
+    const name = k.slice(0, sep)
+    const dateStr = k.slice(sep + 1)
+    const K = siteNames.length
+    if (K === 0) return
+    const w = 1 / K
+    siteNames.forEach((site) => addSiteWeight(name, dateStr, site, w))
   })
 
   return { map, lastDay }
@@ -180,7 +191,7 @@ function formatSiteStatNumber(n) {
   return String(Math.round(r * 100) / 100).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
 }
 
-/** 手動覆寫格：多案場各分 1/n（無法區分半天／全天，預設滿格 1 天平分） */
+/** 手動覆寫格：多案場各分 1/n，與行事曆單卡多案場規則一致 */
 function mergeOverrideToSiteWeights(overrideText) {
   const parts = splitCellIntoSiteParts(String(overrideText || '').trim())
   const workSites = parts.filter((p) => !isLeaveLabel(p))
@@ -515,7 +526,7 @@ export default function MonthlyLocationReport() {
           <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800/50 p-3 sm:p-4">
             <h2 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">各案場出工統計（加權天數）</h2>
             <p className="text-[10px] text-gray-500 mb-2">
-              每張排程：勾「全天」該卡計 1 天、未勾計 0.5 天，再依該卡案場段數平分；同日多張卡會加總。標籤「行政」不列入。僅統計案場／工作地點；假別不計入。
+              同一人在同一天，所有排程的案場合計 K 筆時每筆計 1÷K 天（含單卡多案場或多張卡上／下午）；標籤「行政」之排程不列入。僅統計案場／工作地點；假別不計入。
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => (
@@ -619,7 +630,7 @@ export default function MonthlyLocationReport() {
           <div className="mt-4 pt-4 border-t border-gray-600">
             <h3 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">個人案場天數統計</h3>
             <p className="text-[10px] sm:text-xs text-gray-500 mb-3 leading-relaxed">
-              與行事曆一致：每卡全天 1／半天 0.5，再除以該卡案場段數；手動覆寫格多案場各 1÷n。「行政」標籤排程不計入。
+              與行事曆一致：同一人在同一天所有排程案場合併後每筆 1÷K 天；手動覆寫格多案場亦各 1÷n。「行政」標籤排程不計入。
               同一張卡上「參與人員」與工項負責人為同一人時<strong className="text-gray-400">只計一次</strong>（已修正先前重複加倍）。
               <strong className="text-gray-300">出工日數</strong>＝當月有案場（非假別）的<strong>日曆天數</strong>。
               <strong className="text-gray-300"> 下表加總</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：27+6+4+…＝45）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>加總幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。
