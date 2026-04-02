@@ -173,7 +173,9 @@ export const APP_DATA_KEYS = [
   'jiameng_card_back_owned',
   'jiameng_card_back_equipped',
   'jiameng_vehicle_settings',
-  'jiameng_vehicle_settings_editors'
+  'jiameng_vehicle_settings_editors',
+  // 每月份工時報表：日期欄平日／假日覆寫（影響假日出工 +8）
+  'jiameng_monthly_day_nature'
 ]
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
