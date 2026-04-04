@@ -23,6 +23,9 @@ import { clearAllInventories } from '../utils/inventoryStorage'
 import { clearAllEquippedEffects } from '../utils/effectStorage'
 import { getWorkItemCollaborators, getWorkItemActualForNameForPerformance, getWorkItemTargetForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 
+/** 首頁僅顯示公佈欄時為 false：不渲染排行榜、不訂閱排行榜重算（行事曆等仍會寫入排行榜資料）。 */
+const SHOW_HOME_LEADERBOARD = false
+
 function Home() {
   const [leaderboardItems, setLeaderboardItems] = useState([]) // 可編輯的排行榜項目
   const [rankings, setRankings] = useState({}) // 動態排行榜數據
@@ -106,6 +109,7 @@ function Home() {
     setUserRole(role)
     setCurrentUser(user || '')
     loadAnnouncements()
+    if (!SHOW_HOME_LEADERBOARD) return
     loadLeaderboardItems()
     // 不預設任何排行榜，由使用者自行新增
     // 載入可用道具列表
@@ -173,6 +177,7 @@ function Home() {
   }
 
   useEffect(() => {
+    if (!SHOW_HOME_LEADERBOARD) return
     if (leaderboardItems.length > 0) {
       loadManualRankings()
       calculateAllRankings()
@@ -185,6 +190,7 @@ function Home() {
   
   // 定期更新團體目標進度（確保手動排名數據被計入）
   useEffect(() => {
+    if (!SHOW_HOME_LEADERBOARD) return
     const interval = setInterval(() => {
       // 檢查是否有團體目標模式的排行榜
       const currentItems = getLeaderboardItems()
@@ -300,16 +306,23 @@ function Home() {
   }, [])
   // 排行榜／手動排名變更時重讀（debounce 避免多人同時在首頁時 Realtime 連發導致 calculateAllRankings 瘋狂執行、卡住公佈欄刪除/保存）
   const leaderboardRefetchTimerRef = useRef(null)
-  useRealtimeKeys(['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1'], () => {
-    if (leaderboardRefetchTimerRef.current) clearTimeout(leaderboardRefetchTimerRef.current)
-    leaderboardRefetchTimerRef.current = setTimeout(() => {
-      leaderboardRefetchTimerRef.current = null
-      loadLeaderboardItems()
-      loadManualRankings()
-      setAvailableItems(getItems())
-      calculateAllRankings()
-    }, 500)
-  })
+  useRealtimeKeys(
+    SHOW_HOME_LEADERBOARD
+      ? ['jiameng_leaderboard_items', 'jiameng_leaderboard_ui', 'jiameng_manual_rankings', 'jiameng_users', 'jiameng_items', 'jiameng_danmus', 'jiameng_engineering_schedules', 'jiameng_deleted_leaderboards', 'jiameng_leaderboard_award_claims_v1']
+      : [],
+    SHOW_HOME_LEADERBOARD
+      ? () => {
+          if (leaderboardRefetchTimerRef.current) clearTimeout(leaderboardRefetchTimerRef.current)
+          leaderboardRefetchTimerRef.current = setTimeout(() => {
+            leaderboardRefetchTimerRef.current = null
+            loadLeaderboardItems()
+            loadManualRankings()
+            setAvailableItems(getItems())
+            calculateAllRankings()
+          }, 500)
+        }
+      : () => {}
+  )
 
   // 排行榜獎勵發放去重（避免因為重算/多裝置同步造成重複發放）
   const LB_AWARD_CLAIMS_KEY = 'jiameng_leaderboard_award_claims_v1'
@@ -1943,53 +1956,16 @@ function Home() {
           }
         }
       `}</style>
-      <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen border border-gray-700">
-      {/* 首頁標題與管理員操作 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
+      <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-[calc(100vh-7rem)] sm:min-h-[calc(100vh-6rem)] flex flex-col border border-gray-700">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-3 sm:mb-4 shrink-0">
         <div className="flex-shrink-0 min-w-0">
-          <h2 className="text-xl sm:text-2xl font-bold text-yellow-400 mb-1 truncate">首頁</h2>
-          <p className="text-gray-400 text-sm truncate">歡迎使用佳盟事業群企業管理系統</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-yellow-400 mb-1 truncate">首頁 · 公佈欄</h2>
+          <p className="text-gray-400 text-sm truncate">公司公告與重要訊息</p>
         </div>
-        {userRole === 'admin' && (
-          <div className="flex flex-wrap gap-2 sm:gap-2 justify-start sm:justify-end min-w-0 items-center">
-            <button
-              onClick={handleAddItem}
-              className="bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-2.5 sm:px-4 sm:py-2 rounded transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="truncate">新增排行榜面板</span>
-            </button>
-            <button
-              onClick={() => {
-                setEffectDisplayForm(getEffectDisplayConfig())
-                setEffectConfigTab('name')
-                setShowEffectConfigModal(true)
-              }}
-              className="bg-indigo-500 text-white px-3 py-2.5 sm:px-4 sm:py-2 rounded hover:bg-indigo-600 transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
-            >
-              <span className="shrink-0">✨</span>
-              <span className="truncate">特效設定</span>
-            </button>
-            <button
-              onClick={() => {
-                setShowTypeModal(true)
-                setEditingType(null)
-                setTypeForm({ name: '', titleFirstPlace: '', titleSecondPlace: '', titleThirdPlace: '', nameEffectPresetId: '', messageEffectPresetId: '', titleBadgePresetId: '', ...emptyRankEffects() })
-                setLeaderboardTypes(getLeaderboardTypes())
-              }}
-              className="bg-amber-600 text-white px-3 py-2.5 sm:px-4 sm:py-2 rounded hover:bg-amber-500 transition-colors font-semibold text-sm flex items-center gap-1.5 min-h-[44px] shrink-0"
-            >
-              <span className="shrink-0">📋</span>
-              <span className="truncate">排行榜類型</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* 交流區公布欄 */}
-      <div className="bg-gray-800/95 rounded-lg p-3 sm:p-5 border border-gray-600 mb-4">
+      <div className="bg-gray-800/95 rounded-lg p-3 sm:p-5 border border-gray-600 flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between mb-3 sm:mb-4">
           <h3 className="text-sm sm:text-base font-bold text-yellow-400">
             公佈欄
@@ -2068,7 +2044,7 @@ function Home() {
           </div>
         )}
 
-        <div className="space-y-4 max-h-96 overflow-y-auto">
+        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto">
           {announcements.length === 0 ? (
             <div className="text-amber-200/70 text-center py-8">
               <p className="text-sm">尚無公告 · 歡迎發布新春訊息 🏮</p>
@@ -2172,6 +2148,8 @@ function Home() {
         </div>
       </div>
 
+      {SHOW_HOME_LEADERBOARD && (
+      <>
       {/* 排行榜 - 海報風格樣式；寬度跟首頁主體一致（不做置中變窄） */}
       <div className="relative rounded-lg overflow-hidden shadow-2xl min-h-[320px] sm:min-h-[500px] lg:min-h-[800px] w-full" style={{
         background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)',
@@ -4134,6 +4112,9 @@ function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      </>
       )}
 
       </div>
