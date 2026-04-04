@@ -1,9 +1,9 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react'
-import { isSupabaseEnabled, flushSyncOutbox } from '../utils/supabaseSync'
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
+import { isSupabaseEnabled, flushSyncOutbox, pullLatestFromCloud } from '../utils/supabaseSync'
 import { subscribeRealtime, REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { getSupabaseClient } from '../utils/supabaseClient'
 
-const SyncContext = createContext({ revision: 0 })
+const SyncContext = createContext({ revision: 0, refreshFromCloud: async () => ({ ok: false }) })
 
 export function SyncProvider({ children, syncReady = false }) {
   const [revision, setRevision] = useState(0)
@@ -85,8 +85,14 @@ export function SyncProvider({ children, syncReady = false }) {
     }
   }, [syncReady])
 
+  const refreshFromCloud = useCallback(async () => {
+    const result = await pullLatestFromCloud()
+    setRevision((r) => r + 1)
+    return result
+  }, [])
+
   return (
-    <SyncContext.Provider value={{ revision }}>
+    <SyncContext.Provider value={{ revision, refreshFromCloud }}>
       {children}
     </SyncContext.Provider>
   )
@@ -94,6 +100,14 @@ export function SyncProvider({ children, syncReady = false }) {
 
 export function useSyncRevision() {
   return useContext(SyncContext).revision ?? 0
+}
+
+export function useSync() {
+  const ctx = useContext(SyncContext)
+  return {
+    revision: ctx.revision ?? 0,
+    refreshFromCloud: ctx.refreshFromCloud ?? (async () => ({ ok: false }))
+  }
 }
 
 /** 當指定的 localStorage key 被即時更新時，執行 refetch（例如交流區、待辦、使用者列表） */
@@ -106,7 +120,7 @@ export function useRealtimeKeys(keys, refetch) {
     const fn = (e) => {
       const k = e.detail?.key
       const wants = Array.isArray(keysRef.current) ? keysRef.current : []
-      const hit = !!k && wants.some((want) => {
+      const hit = k === '__ALL__' || (!!k && wants.some((want) => {
         if (!want) return false
         if (want === k) return true
         if (typeof want !== 'string') return false
@@ -114,7 +128,7 @@ export function useRealtimeKeys(keys, refetch) {
         if (want.endsWith('*')) return String(k).startsWith(want.slice(0, -1))
         if (want.endsWith(':')) return String(k).startsWith(want)
         return false
-      })
+      }))
       if (hit && typeof refetchRef.current === 'function') {
         refetchRef.current()
       }
