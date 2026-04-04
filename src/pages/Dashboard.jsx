@@ -25,7 +25,7 @@ const ProjectDeficiencyTracking = lazy(() => import('./ProjectDeficiencyTracking
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
 import { getUsers, getPendingAdvances, getAdvancesByAccount } from '../utils/storage'
-import { useRealtimeKeys } from '../contexts/SyncContext'
+import { useRealtimeKeys, useSync } from '../contexts/SyncContext'
 import { getUserInventory, addItemToInventory } from '../utils/inventoryStorage'
 import { getPendingExchangeRequests, approveExchangeRequest, rejectExchangeRequest, deleteExchangeRequest } from '../utils/exchangeRequestStorage'
 import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
@@ -182,6 +182,8 @@ function PersonalServiceIcon() {
 }
 
 function Dashboard({ onLogout, activeTab: initialTab }) {
+  const { refreshFromCloud } = useSync()
+  const [cloudSyncing, setCloudSyncing] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState(initialTab || getTabFromPath(location.pathname))
@@ -487,6 +489,22 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     ],
     refetchDashboard
   )
+
+  const handleCloudSync = async () => {
+    if (cloudSyncing) return
+    setCloudSyncing(true)
+    try {
+      const r = await refreshFromCloud()
+      if (!r?.ok) {
+        window.alert('從雲端同步失敗，請稍後再試或檢查網路。')
+        return
+      }
+      // 先寫入 localStorage 再整頁重新載入，等同 F5，確保所有元件與記憶體狀態皆重建
+      window.location.reload()
+    } finally {
+      setCloudSyncing(false)
+    }
+  }
 
   // 初始計算一次徽章（避免等到 realtime 才出現）
   useEffect(() => {
@@ -990,6 +1008,19 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               </button>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={handleCloudSync}
+            disabled={cloudSyncing}
+            title="先從雲端同步，再完整重新載入頁面（等同按 F5），確保所有資料與畫面皆為最新"
+            className="bg-sky-600 hover:bg-sky-500 active:bg-sky-500 disabled:opacity-50 disabled:pointer-events-none text-white font-semibold px-2.5 py-2 sm:px-3 sm:py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 min-h-[40px] min-w-[40px] sm:min-h-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm flex-shrink-0"
+          >
+            <svg className={`w-4 h-4 shrink-0 ${cloudSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="hidden sm:inline">{cloudSyncing ? '同步中…' : '同步並重整'}</span>
+          </button>
 
           <button
             onClick={onLogout}
