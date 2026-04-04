@@ -502,6 +502,9 @@ export async function syncFromSupabase() {
     localStorage.setItem(SCHEDULE_KEY, JSON.stringify(schedules))
     localStorage.setItem(LEAVE_KEY, JSON.stringify(leaveList))
     localStorage.setItem(QUOTA_KEY, JSON.stringify(quotaMap))
+    ;[SCHEDULE_KEY, LEAVE_KEY, QUOTA_KEY].forEach((key) => {
+      try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
+    })
 
     ;(appRes.data || []).forEach((r) => {
       try {
@@ -769,6 +772,27 @@ export async function refreshMemosFromSupabase() {
       window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: MEMOS_KEY } }))
     } catch (_) {}
   } catch (_) {}
+}
+
+/**
+ * 手動從雲端拉一輪：先送出本機佇列，再全量 sync，並合併交流區 memos（登入時若本機已有 memos 會跳過覆寫，此處補齊）。
+ * 完成後觸發 __ALL__，讓各頁 useRealtimeKeys / 頂欄徽章重新讀 localStorage。
+ */
+export async function pullLatestFromCloud() {
+  if (!isSupabaseEnabled()) {
+    try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: '__ALL__' } })) } catch (_) {}
+    return { ok: true, localOnly: true }
+  }
+  try {
+    await flushSyncOutbox()
+    await syncFromSupabase()
+    try { await refreshMemosFromSupabase() } catch (_) {}
+    try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: '__ALL__' } })) } catch (_) {}
+    return { ok: true }
+  } catch (e) {
+    if (typeof console !== 'undefined' && console.warn) console.warn('[Sync] pullLatestFromCloud 失敗', e)
+    return { ok: false, error: e }
+  }
 }
 
 export { isSupabaseEnabled, fetchAnnouncementsFromSupabase }
