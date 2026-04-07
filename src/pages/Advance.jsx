@@ -527,6 +527,10 @@ function Advance() {
                           <dt className="text-gray-400">本月最低還款(預估)</dt>
                           <dd className="text-amber-200 font-medium tabular-nums">{Number(stats.minRepayment).toLocaleString()} 元</dd>
                         </div>
+                        <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
+                          <dt className="text-gray-400">本月實際還款（登記）</dt>
+                          <dd className="text-green-400 font-semibold tabular-nums">{previewPaid.toLocaleString()} 元</dd>
+                        </div>
                         <p className="text-gray-500 text-xs -mt-1 pb-2 border-b border-gray-700/80 leading-relaxed">
                           預設規則：無結轉欠款＝本月新借；有結轉但本月無新借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）；有結轉＋本月新借＝新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}。下方「最低還款」可覆寫。
                         </p>
