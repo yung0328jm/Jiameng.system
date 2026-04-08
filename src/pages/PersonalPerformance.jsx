@@ -267,11 +267,11 @@ function PersonalPerformance() {
       const schedTag = String(schedule.tag || 'blue').trim()
       const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
       const participantsCsv = String(schedule.participants || '').trim()
-      // 藍標：參與人員依人計分；2026/3 止仍走預排 workItems，避免與舊預排雙計分
+      // 藍標（4/1 起每人填寫）與黃標出差：參與人員依人計分；藍標 2026/3 止仍走預排 workItems，避免與舊預排雙計分
       const useParticipantWorkRows =
-        schedTag === 'blue' &&
         participantsCsv.length > 0 &&
-        !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)
+        ((schedTag === 'blue' && !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)) ||
+          schedTag === 'yellow')
       const pweList = useParticipantWorkRows
         ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
         : []
@@ -960,9 +960,9 @@ function PersonalPerformance() {
         const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
         const participantsCsv = String(schedule.participants || '').trim()
         const useDailyPwe =
-          schedTag === 'blue' &&
           participantsCsv.length > 0 &&
-          !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)
+          ((schedTag === 'blue' && !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)) ||
+            schedTag === 'yellow')
         const pweList = useDailyPwe
           ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
           : []

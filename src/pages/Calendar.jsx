@@ -32,6 +32,12 @@ import {
   isBlueTagLegacyWorkScheduleByDate
 } from '../utils/participantWorkEntries'
 
+/** 藍標（工作/項目）與黃標（出差）皆可使用 participantWorkEntries 由每人填寫當日工作 */
+function tagUsesParticipantWorkEntries(tag) {
+  const t = String(tag || '').trim()
+  return t === 'blue' || t === 'yellow'
+}
+
 function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
@@ -78,7 +84,7 @@ function Calendar() {
     reason: ''
   })
   const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
-  const [detailPweDraft, setDetailPweDraft] = useState(null) // 排程詳情內：藍標每人工作內容編輯草稿
+  const [detailPweDraft, setDetailPweDraft] = useState(null) // 排程詳情內：藍/黃標每人工作內容編輯草稿
   const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪已送出的申請列表
   const [overtimePendingBannerOpen, setOvertimePendingBannerOpen] = useState(true) // 管理員：待審加班清單是否展開
   const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
@@ -161,7 +167,7 @@ function Calendar() {
     fuelCost: '',
     invoiceReturned: false,
     workItems: [],
-    participantWorkEntries: [], // 藍標：各參與人員各自填寫之當日工作內容
+    participantWorkEntries: [], // 藍標／黃標（出差）：各參與人員各自填寫之當日工作內容
     tag: 'blue', // red(重要/節假日), green(活動), blue(工作/項目), yellow(出差), 行政(不列入案場工時報表)
     progressSheet: false,  // 工進單（新增活動卡預設不勾；未勾選時該組所有人績效扣1分、活動框紅色閃爍）
     constructionPhotos: false // 施工照片（同上）
@@ -932,7 +938,7 @@ function Calendar() {
       const exists = values.includes(n)
       const next = exists ? values.filter((x) => x !== n) : [...values, n]
       const joined = next.join(', ')
-      if (prev.tag !== 'blue') return { ...prev, participants: joined }
+      if (!tagUsesParticipantWorkEntries(prev.tag)) return { ...prev, participants: joined }
       return {
         ...prev,
         participants: joined,
@@ -951,7 +957,7 @@ function Calendar() {
         .filter((n) => !(leaveSet && leaveSet.has(n)))
       const unique = Array.from(new Set([...extras, ...all]))
       const joined = unique.join(', ')
-      if (prev.tag !== 'blue') return { ...prev, participants: joined }
+      if (!tagUsesParticipantWorkEntries(prev.tag)) return { ...prev, participants: joined }
       return {
         ...prev,
         participants: joined,
@@ -962,7 +968,7 @@ function Calendar() {
 
   const clearParticipants = () => {
     setScheduleFormData((prev) => {
-      if (prev.tag !== 'blue') return { ...prev, participants: '', participantWorkEntries: [] }
+      if (!tagUsesParticipantWorkEntries(prev.tag)) return { ...prev, participants: '', participantWorkEntries: [] }
       return { ...prev, participants: '', participantWorkEntries: [] }
     })
   }
@@ -972,7 +978,7 @@ function Calendar() {
     setScheduleFormData((prev) => {
       const filtered = splitCsv(prev.participants).filter((n) => !leaveSet.has(n))
       const joined = filtered.join(', ')
-      if (prev.tag !== 'blue') return { ...prev, participants: joined }
+      if (!tagUsesParticipantWorkEntries(prev.tag)) return { ...prev, participants: joined }
       return {
         ...prev,
         participants: joined,
@@ -1017,7 +1023,7 @@ function Calendar() {
 
   const syncParticipantWorkFromParticipantsBlur = () => {
     setScheduleFormData((prev) => {
-      if (prev.tag !== 'blue') return prev
+      if (!tagUsesParticipantWorkEntries(prev.tag)) return prev
       return {
         ...prev,
         participantWorkEntries: mergeParticipantWorkEntries(prev.participants, prev.participantWorkEntries)
@@ -1315,7 +1321,7 @@ function Calendar() {
     return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
   }
 
-  // 藍標排程詳情：依參與人員產生／同步每人工作列草稿（含舊資料尚未寫入 participantWorkEntries 者）
+  // 藍／黃標排程詳情：依參與人員產生／同步每人工作列草稿（含舊資料尚未寫入 participantWorkEntries 者）
   useEffect(() => {
     if (!showDetailModal) {
       setDetailPweDraft(null)
@@ -1332,7 +1338,8 @@ function Calendar() {
       detailPweSyncKeyRef.current = ''
       return
     }
-    if (String(selectedDetailItem?.tag || 'blue').trim() !== 'blue') {
+    const detailTag = String(selectedDetailItem?.tag || 'blue').trim()
+    if (!tagUsesParticipantWorkEntries(detailTag)) {
       setDetailPweDraft(null)
       detailPweSyncKeyRef.current = ''
       return
@@ -2259,7 +2266,7 @@ function Calendar() {
     }
 
     const mergedPweForLb =
-      scheduleFormData.tag === 'blue'
+      scheduleFormData.tag === 'blue' || scheduleFormData.tag === 'yellow'
         ? mergeParticipantWorkEntries(scheduleFormData.participants, scheduleFormData.participantWorkEntries)
         : []
     const formBlueLegacyWorkItems = isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)
@@ -2288,7 +2295,8 @@ function Calendar() {
       // 今天當天的排程（在24:00前）或之後的排程，都會執行累加邏輯
       // 藍標且已改為「參與人各自填寫」時，排行榜累計改走 participantWorkEntries（下版可擴充）；目前略過預排工項累加避免重複
       const skipWorkItemLeaderboard =
-        scheduleFormData.tag === 'blue' && mergedPweForLb.length > 0 && !formBlueLegacyWorkItems
+        (scheduleFormData.tag === 'blue' && mergedPweForLb.length > 0 && !formBlueLegacyWorkItems) ||
+        (scheduleFormData.tag === 'yellow' && mergedPweForLb.length > 0)
       if (skipWorkItemLeaderboard) {
         /* 保留：之後可依 workContent 關鍵字寫入排行榜 */
       } else {
@@ -2398,7 +2406,16 @@ function Calendar() {
     const saveData =
       scheduleFormData.tag === 'blue'
         ? prepareBlueTagScheduleForSave(scheduleFormData)
-        : { ...scheduleFormData, participantWorkEntries: [] }
+        : scheduleFormData.tag === 'yellow'
+          ? {
+              ...scheduleFormData,
+              participantWorkEntries: mergeParticipantWorkEntries(
+                scheduleFormData.participants,
+                scheduleFormData.participantWorkEntries,
+                { scheduleId: String(editingScheduleId || scheduleFormData.id || '').trim() }
+              )
+            }
+          : { ...scheduleFormData, participantWorkEntries: [] }
 
     // 多處行程（或單一案場）：將目前編輯中的案場的 workItems/vehicleEntries 同步回 segments；車輛每欄僅對「有變更」的欄位寫入編輯者
     const prevSchedule = editingScheduleId ? schedules.find((s) => String(s?.id) === String(editingScheduleId)) : null
@@ -3703,14 +3720,18 @@ function Calendar() {
                           </div>
                         )}
 
-                        {/* 工作／項目：各人於此填寫當日工作內容（舊排程也會依參與人員自動產生欄位） */}
-                        {String(selectedDetailItem?.tag || 'blue').trim() === 'blue' &&
-                          !isBlueTagLegacyWorkScheduleByDate(selectedDetailItem?.date, selectedDetailItem?.tag) &&
-                          !isLeaveScheduleItem(selectedDetailItem) && (
+                        {/* 工作／項目（藍）與出差（黃）：各人於此填寫當日工作內容 */}
+                        {!isLeaveScheduleItem(selectedDetailItem) &&
+                          ((String(selectedDetailItem?.tag || '').trim() === 'yellow') ||
+                            (String(selectedDetailItem?.tag || 'blue').trim() === 'blue' &&
+                              !isBlueTagLegacyWorkScheduleByDate(selectedDetailItem?.date, selectedDetailItem?.tag))) && (
                           <div className="mt-4 p-3 bg-blue-950/50 border border-blue-500/40 rounded-lg">
                             <div className="text-yellow-300 font-semibold text-sm mb-1">各參與人員當日工作內容</div>
                             <p className="text-blue-200/90 text-xs mb-3 leading-relaxed">
                               由<strong className="text-blue-100">本人</strong>填寫。<strong className="text-amber-200/95">個人績效只認「已寫入排程」的內容</strong>：離開輸入框會自動儲存，亦可手動按下方按鈕。未填寫者績效僅扣該員。
+                              {String(selectedDetailItem?.tag || '').trim() === 'yellow' && (
+                                <span className="block mt-1 text-amber-100/90">出差排程與工作/項目相同，請於此登記當日實際工作內容。</span>
+                              )}
                             </p>
                             {!Array.isArray(detailPweDraft) || detailPweDraft.length === 0 ? (
                               <p className="text-gray-400 text-sm">
@@ -5338,7 +5359,16 @@ function Calendar() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setScheduleFormData(prev => ({ ...prev, tag: 'yellow' }))}
+                      onClick={() =>
+                        setScheduleFormData((prev) => {
+                          const next = { ...prev, tag: 'yellow' }
+                          next.participantWorkEntries = mergeParticipantWorkEntries(
+                            next.participants,
+                            prev.participantWorkEntries
+                          )
+                          return next
+                        })
+                      }
                       className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
                         scheduleFormData.tag === 'yellow'
                           ? 'bg-yellow-400 text-black ring-2 ring-yellow-300'
@@ -5410,7 +5440,9 @@ function Calendar() {
                         ? isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)
                           ? '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'
                           : '下方「車輛」屬於目前選擇的案場；工作內容改由「參與人員」名單每人各自填寫（與案場切換無關）。'
-                        : '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'}
+                        : scheduleFormData.tag === 'yellow'
+                          ? '下方「車輛」屬於目前選擇的案場；出差之每人當日工作請於「各參與人員當日工作內容」填寫（與案場切換無關）。「預排工作項目」可選填。'
+                          : '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'}
                     </p>
                   </div>
                 )}
@@ -5533,13 +5565,17 @@ function Calendar() {
                   )}
                 </div>
 
-                {scheduleFormData.tag === 'blue' &&
-                  !isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag) && (
+                {((scheduleFormData.tag === 'blue' &&
+                  !isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)) ||
+                  scheduleFormData.tag === 'yellow') && (
                   <div className="mt-4 p-4 bg-gray-800/60 border border-blue-500/35 rounded-lg space-y-3">
                     <h4 className="text-blue-300 font-semibold text-sm">各參與人員當日工作內容</h4>
                     <p className="text-gray-400 text-xs leading-relaxed">
                       名單中<strong className="text-gray-300">每一位</strong>需自行填寫；績效僅對<strong className="text-gray-300">未填寫的本人</strong>扣分，不影響同案其他人員。
                       <span className="block mt-1 text-amber-200/90">須按下表單底部「新增」或儲存按鈕後才會寫入排程；僅打字未送出時個人績效仍視為未填。</span>
+                      {scheduleFormData.tag === 'yellow' && (
+                        <span className="block mt-1 text-amber-100/90">出差排程請於此登記當日實際工作（與工作/項目排程相同規則）。</span>
+                      )}
                     </p>
                     {(scheduleFormData.participantWorkEntries || []).length === 0 ? (
                       <p className="text-gray-500 text-sm">
