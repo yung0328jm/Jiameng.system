@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import dragonAsset from '../assets/flying-dragon.png'
 
-const DRAGON_SRC = `${import.meta.env.BASE_URL}images/flying-dragon.png`
+const DRAGON_PUBLIC = `${import.meta.env.BASE_URL}images/flying-dragon.png`
 const HEAD_SIZE = 220
 const SEGMENT_COUNT = 14
 const SEGMENT_STEP = 7
@@ -31,6 +32,9 @@ export default function FlyngDragonEffect() {
     glow: 0.5,
     segments: []
   })
+  const [broken, setBroken] = useState(false)
+
+  const dragonSrc = broken ? DRAGON_PUBLIC : dragonAsset
 
   useEffect(() => {
     let mounted = true
@@ -133,7 +137,7 @@ export default function FlyngDragonEffect() {
             height: `${Math.max(14, 56 * seg.scale)}px`,
             borderRadius: '999px',
             transform: `translate(-50%, -50%) rotate(${seg.angle}deg)`,
-            backgroundImage: `url('${DRAGON_SRC}')`,
+            backgroundImage: `url('${dragonSrc}')`,
             backgroundSize: '240% 240%',
             backgroundPosition: '58% 58%',
             opacity: seg.opacity,
@@ -153,8 +157,62 @@ export default function FlyngDragonEffect() {
           filter: `drop-shadow(0 10px 24px rgba(15,12,10,0.72)) drop-shadow(0 0 34px rgba(180,220,255,${renderState.glow}))`
         }}
       >
-        <img src={DRAGON_SRC} alt="" draggable={false} style={{ width: '100%', height: 'auto', userSelect: 'none' }} />
+        {!broken ? (
+          <img
+            src={dragonSrc}
+            alt=""
+            draggable={false}
+            onError={() => setBroken(true)}
+            style={{ width: '100%', height: 'auto', userSelect: 'none' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '120px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '82px',
+              lineHeight: 1
+            }}
+          >
+            🐉
+          </div>
+        )}
       </div>
+
+      {/* 固定角落保證可見（即使巡航跑到別處也看得到） */}
+      <div
+        style={{
+          position: 'fixed',
+          right: 18,
+          bottom: 18,
+          width: 88,
+          opacity: 0.9,
+          filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.55))',
+          animation: 'dragon-corner-float 2.2s ease-in-out infinite'
+        }}
+      >
+        {!broken ? (
+          <img
+            src={dragonSrc}
+            alt=""
+            draggable={false}
+            onError={() => setBroken(true)}
+            style={{ width: '100%', height: 'auto', userSelect: 'none' }}
+          />
+        ) : (
+          <div style={{ fontSize: 44, textAlign: 'center' }}>🐉</div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes dragon-corner-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+      `}</style>
     </div>,
     document.body
   )
