@@ -108,8 +108,8 @@ function App() {
   }, [isAuthenticated])
 
   const syncLoading = (
-    <div className="min-h-screen flex items-center justify-center bg-charcoal">
-      <p className="text-white">正在同步…</p>
+    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center bg-gradient-to-b from-cn-ink to-cn-lacquer">
+      <p className="text-cn-gold font-serif tracking-wide">正在同步…</p>
     </div>
   )
   const withSync = (el) => (syncReady ? el : syncLoading)
