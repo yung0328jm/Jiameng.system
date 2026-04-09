@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import dragonAsset from '../assets/flying-dragon.png'
 
 const DRAGON_PUBLIC = `${import.meta.env.BASE_URL}images/flying-dragon.png`
 const HEAD_SIZE = 220
@@ -33,8 +32,7 @@ export default function FlyngDragonEffect() {
     segments: []
   })
   const [broken, setBroken] = useState(false)
-
-  const dragonSrc = broken ? DRAGON_PUBLIC : dragonAsset
+  const dragonSrc = DRAGON_PUBLIC
 
   useEffect(() => {
     let mounted = true
