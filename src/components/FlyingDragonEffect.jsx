@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-const DRAGON_SIZE = 160
+const DRAGON_SIZE = 300
 const MAX_SPEED = 1.8
 const MIN_SPEED = 0.8
 
@@ -13,8 +13,8 @@ export default function FlyingDragonEffect() {
   const frameRef = useRef(null)
   const lastTimeRef = useRef(0)
   const stateRef = useRef({
-    x: 120,
-    y: 120,
+    x: 0,
+    y: 0,
     vx: 1.1,
     vy: 0.8,
     tilt: 0,
@@ -22,8 +22,8 @@ export default function FlyingDragonEffect() {
     boostTimer: 0
   })
   const [renderState, setRenderState] = useState({
-    x: 120,
-    y: 120,
+    x: 0,
+    y: 0,
     rotation: 0,
     bob: 0,
     flip: false,
@@ -36,6 +36,10 @@ export default function FlyingDragonEffect() {
       const s = stateRef.current
       const maxX = Math.max(0, window.innerWidth - DRAGON_SIZE)
       const maxY = Math.max(0, window.innerHeight - DRAGON_SIZE)
+      if (s.x === 0 && s.y === 0) {
+        s.x = Math.max(0, window.innerWidth * 0.5 - DRAGON_SIZE * 0.5)
+        s.y = Math.max(0, window.innerHeight * 0.35 - DRAGON_SIZE * 0.5)
+      }
       s.x = clamp(s.x, 0, maxX)
       s.y = clamp(s.y, 0, maxY)
     }
@@ -101,7 +105,11 @@ export default function FlyingDragonEffect() {
   }, [])
 
   const dragon = (
-    <div className="fixed inset-0 pointer-events-none z-[60] overflow-hidden" aria-hidden>
+    <div
+      className="fixed inset-0 pointer-events-none overflow-hidden"
+      style={{ zIndex: 9997 }}
+      aria-hidden
+    >
       <div
         style={{
           position: 'absolute',
@@ -110,7 +118,8 @@ export default function FlyingDragonEffect() {
           width: `${DRAGON_SIZE}px`,
           transform: `${renderState.flip ? 'scaleX(-1) ' : ''}rotate(${renderState.rotation}deg)`,
           transition: 'filter 280ms ease-out',
-          filter: `drop-shadow(0 8px 16px rgba(15,12,10,0.55)) drop-shadow(0 0 20px rgba(180,220,255,${renderState.glow}))`
+          opacity: 0.96,
+          filter: `drop-shadow(0 10px 20px rgba(15,12,10,0.65)) drop-shadow(0 0 28px rgba(180,220,255,${renderState.glow + 0.12}))`
         }}
       >
         <img
