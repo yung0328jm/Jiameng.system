@@ -1959,11 +1959,11 @@ function Home() {
           }
         }
       `}</style>
-      <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-[calc(100vh-7rem)] sm:min-h-[calc(100vh-6rem)] flex flex-col border border-gray-700">
+      <div className="bg-gradient-to-b from-cn-panel/90 to-cn-lacquer/95 rounded-lg p-4 sm:p-6 min-h-[calc(100vh-7rem)] sm:min-h-[calc(100vh-6rem)] flex flex-col border border-cn-gold/35 shadow-inner">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-3 sm:mb-4 shrink-0">
         <div className="flex-shrink-0 min-w-0">
-          <h2 className="text-xl sm:text-2xl font-bold text-yellow-400 mb-1 truncate font-serif tracking-wide">首頁 · 公佈欄</h2>
-          <p className="text-gray-400 text-sm truncate">水墨意趣 · 公司公告與重要訊息</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-cn-gold mb-1 truncate font-serif tracking-wide">首頁 · 公佈欄</h2>
+          <p className="text-cn-mist text-sm truncate">水墨意趣 · 公司公告與重要訊息</p>
         </div>
       </div>
 

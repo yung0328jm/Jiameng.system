@@ -87,30 +87,30 @@ function Register({ onLogin }) {
 
   return (
     <div
-      className="min-h-screen bg-gray-800 flex items-center justify-center p-4 w-full"
+      className="min-h-screen min-h-[100dvh] flex items-center justify-center p-4 w-full bg-gradient-to-b from-cn-ink via-cn-lacquer to-cn-ink"
       style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))', paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))', paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))' }}
     >
       <div className="w-full max-w-md">
-        <div className="bg-charcoal rounded-xl border border-yellow-400/80 p-5 sm:p-8 shadow-2xl">
+        <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border-2 border-cn-gold/50 p-5 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,230,200,0.06)]">
           {/* 标题 */}
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold mb-2 font-serif tracking-widest">
               佳盟事業群
             </h1>
-            <p className="text-white text-sm">
-              企業管理系統
+            <p className="text-cn-parchment/90 text-sm font-serif">
+              企業管理系統 · 註冊
             </p>
-            <p className="text-gray-500 text-xs mt-1">
+            <p className="text-cn-mist/80 text-xs mt-1">
               目前註冊會寫入：{isSupabaseEnabled() ? 'Supabase（會出現在 Auth 用戶列表）' : '僅本地（不會出現在 Supabase）'}
             </p>
           </div>
 
           {/* 消息提示 */}
           {message && (
-            <div className={`mb-6 p-3 rounded-lg text-sm ${
-              message.includes('成功') 
-                ? 'bg-green-900/50 text-green-300 border border-green-500/50' 
-                : 'bg-red-900/50 text-red-300 border border-red-500/50'
+            <div className={`mb-6 p-3 rounded-md text-sm ${
+              message.includes('成功')
+                ? 'bg-emerald-950/50 text-emerald-200 border border-cn-jade/45'
+                : 'bg-red-950/45 text-red-200 border border-cn-vermilion/45'
             }`}>
               {message}
             </div>
@@ -122,7 +122,7 @@ function Register({ onLogin }) {
             <input type="text" name="fake_username" autoComplete="username" style={{ display: 'none' }} />
             <input type="password" name="fake_password" autoComplete="new-password" style={{ display: 'none' }} />
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">姓名 *</label>
+              <label className="block text-cn-mist text-sm mb-1.5 sm:mb-2">姓名 *</label>
               <input
                 type="text"
                 name="name"
@@ -130,13 +130,13 @@ function Register({ onLogin }) {
                 onChange={handleChange}
                 placeholder="請輸入姓名"
                 autoComplete="off"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-4 py-3 text-cn-parchment text-base placeholder-cn-mist/50 focus:outline-none focus:ring-2 focus:ring-cn-gold/40 transition-colors touch-manipulation"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">帳號 *</label>
+              <label className="block text-cn-mist text-sm mb-1.5 sm:mb-2">帳號 *</label>
               <input
                 type="text"
                 name="account"
@@ -147,12 +147,12 @@ function Register({ onLogin }) {
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-4 py-3 text-cn-parchment text-base placeholder-cn-mist/50 focus:outline-none focus:ring-2 focus:ring-cn-gold/40 transition-colors touch-manipulation"
                 required
               />
             </div>
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">註冊密碼</label>
+              <label className="block text-cn-mist text-sm mb-1.5 sm:mb-2">註冊密碼</label>
               <input
                 type="password"
                 name="registrationPassword"
@@ -160,11 +160,11 @@ function Register({ onLogin }) {
                 onChange={handleChange}
                 placeholder="由管理員提供，未設置則可留空"
                 autoComplete="off"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-4 py-3 text-cn-parchment text-base placeholder-cn-mist/50 focus:outline-none focus:ring-2 focus:ring-cn-gold/40 transition-colors touch-manipulation"
               />
             </div>
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">密碼 *</label>
+              <label className="block text-cn-mist text-sm mb-1.5 sm:mb-2">密碼 *</label>
               <input
                 type="password"
                 name="password"
@@ -172,13 +172,13 @@ function Register({ onLogin }) {
                 onChange={handleChange}
                 placeholder="請輸入密碼 (至少3個字符)"
                 autoComplete="new-password"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-4 py-3 text-cn-parchment text-base placeholder-cn-mist/50 focus:outline-none focus:ring-2 focus:ring-cn-gold/40 transition-colors touch-manipulation"
                 required
                 minLength={3}
               />
             </div>
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">確認密碼 *</label>
+              <label className="block text-cn-mist text-sm mb-1.5 sm:mb-2">確認密碼 *</label>
               <input
                 type="password"
                 name="confirmPassword"
@@ -186,22 +186,22 @@ function Register({ onLogin }) {
                 onChange={handleChange}
                 placeholder="請再次輸入密碼"
                 autoComplete="new-password"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-4 py-3 text-cn-parchment text-base placeholder-cn-mist/50 focus:outline-none focus:ring-2 focus:ring-cn-gold/40 transition-colors touch-manipulation"
                 required
               />
             </div>
             <button
               type="submit"
               disabled={submitting}
-              className="w-full min-h-[48px] bg-yellow-400 text-black font-semibold py-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full min-h-[48px] bg-gradient-to-b from-amber-200 to-amber-400 text-cn-ink font-semibold py-3 rounded-md hover:from-amber-100 hover:to-amber-300 active:brightness-95 transition-colors border border-amber-900/35 shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed font-serif"
             >
               {submitting ? '註冊中並同步…' : '立即註冊'}
             </button>
           </form>
 
           <div className="mt-5 sm:mt-6 text-center">
-            <span className="text-gray-400 text-sm">已有帳號? </span>
-            <Link to="/login" className="text-yellow-400 text-sm hover:text-yellow-500 transition-colors">
+            <span className="text-cn-mist text-sm">已有帳號? </span>
+            <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 transition-colors font-serif">
               返回登錄
             </Link>
           </div>

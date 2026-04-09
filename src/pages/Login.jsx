@@ -75,66 +75,66 @@ function Login({ onLogin }) {
 
   return (
     <div
-      className="min-h-screen bg-gray-800 flex items-center justify-center p-4 w-full"
+      className="min-h-screen min-h-[100dvh] flex items-center justify-center p-4 w-full bg-gradient-to-b from-cn-ink via-cn-lacquer to-cn-ink"
       style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))', paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))', paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))' }}
     >
       <div className="w-full max-w-md">
-        <div className="bg-charcoal rounded-xl border border-yellow-400/80 p-5 sm:p-8 shadow-2xl">
+        <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border-2 border-cn-gold/50 p-5 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,230,200,0.06)]">
           {/* 标题 */}
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold mb-2 font-serif tracking-widest">
               佳盟事業群
             </h1>
-            <p className="text-white text-sm">
-              企業管理系統
+            <p className="text-cn-parchment/90 text-sm font-serif">
+              企業管理系統 · 水墨朱墨
             </p>
           </div>
 
           {/* 登录表单 */}
           <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">帳號或 Email</label>
+              <label className="block text-cn-mist text-sm mb-1.5 sm:mb-2">帳號或 Email</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="請輸入帳號或 Email"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-4 py-3 text-cn-parchment text-base placeholder-cn-mist/50 focus:outline-none focus:ring-2 focus:ring-cn-gold/40 transition-colors touch-manipulation"
                 required
               />
             </div>
             <div>
-              <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">密碼</label>
+              <label className="block text-cn-mist text-sm mb-1.5 sm:mb-2">密碼</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="請輸入密碼"
-                className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-3 text-white text-base placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-colors touch-manipulation"
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-4 py-3 text-cn-parchment text-base placeholder-cn-mist/50 focus:outline-none focus:ring-2 focus:ring-cn-gold/40 transition-colors touch-manipulation"
                 required
               />
             </div>
-            <label className="flex items-center gap-2 text-gray-300 text-sm select-none cursor-pointer">
+            <label className="flex items-center gap-2 text-cn-mist text-sm select-none cursor-pointer">
               <input
                 type="checkbox"
                 checked={rememberAccount}
                 onChange={(e) => setRememberAccount(e.target.checked)}
-                className="w-4 h-4 accent-yellow-400"
+                className="w-4 h-4 accent-amber-500"
               />
               記住帳號
             </label>
             <button
               type="submit"
               disabled={submitting}
-              className="w-full min-h-[48px] bg-yellow-400 text-black font-semibold py-3 rounded-lg hover:bg-yellow-500 active:bg-yellow-500 transition-colors shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full min-h-[48px] bg-gradient-to-b from-amber-200 to-amber-400 text-cn-ink font-semibold py-3 rounded-md hover:from-amber-100 hover:to-amber-300 active:brightness-95 transition-colors border border-amber-900/35 shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed font-serif"
             >
               {submitting ? '登入中…' : '登錄'}
             </button>
           </form>
 
           <div className="mt-5 sm:mt-6 text-center">
-            <span className="text-gray-400 text-sm">還沒有帳號? </span>
-            <Link to="/register" className="text-yellow-400 text-sm hover:text-yellow-500 active:text-yellow-500 transition-colors touch-manipulation inline-block py-2">
+            <span className="text-cn-mist text-sm">還沒有帳號? </span>
+            <Link to="/register" className="text-cn-gold text-sm hover:text-amber-200 active:text-amber-200 transition-colors touch-manipulation inline-block py-2 font-serif">
               立即註冊
             </Link>
           </div>
