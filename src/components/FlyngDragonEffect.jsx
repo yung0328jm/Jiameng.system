@@ -33,9 +33,13 @@ export default function FlyngDragonEffect() {
     blur: 0,
     segments: []
   })
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageFailed, setImageFailed] = useState(false)
+  const [introMode, setIntroMode] = useState(true)
   const dragonSrc = DRAGON_PUBLIC
 
   useEffect(() => {
+    const introTimer = setTimeout(() => setIntroMode(false), 6000)
     let mounted = true
     const init = () => {
       const p = physics.current
@@ -123,6 +127,7 @@ export default function FlyngDragonEffect() {
 
     rafRef.current = requestAnimationFrame(tick)
     return () => {
+      clearTimeout(introTimer)
       mounted = false
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', init)
@@ -153,16 +158,59 @@ export default function FlyngDragonEffect() {
       <div
         style={{
           position: 'absolute',
-          left: `${renderState.x}px`,
-          top: `${renderState.y}px`,
+          left: `${introMode ? Math.max(0, window.innerWidth * 0.5 - (HEAD_SIZE * renderState.depthScale) * 0.5) : renderState.x}px`,
+          top: `${introMode ? Math.max(0, window.innerHeight * 0.45 - (HEAD_SIZE * renderState.depthScale) * 0.35) : renderState.y}px`,
           width: `${HEAD_SIZE * renderState.depthScale}px`,
-          transform: `${physics.current.vx < 0 ? 'scaleX(-1) ' : ''}rotate(${renderState.angle}deg)`,
+          transform: `${physics.current.vx < 0 ? 'scaleX(-1) ' : ''}rotate(${introMode ? 0 : renderState.angle}deg)`,
           transformOrigin: '52% 48%',
-          opacity: 0.98,
-          filter: `blur(${renderState.blur}px) drop-shadow(0 12px 26px rgba(15,12,10,0.72)) drop-shadow(0 0 36px rgba(180,220,255,${renderState.glow}))`
+          opacity: 0.99,
+          filter: `blur(${introMode ? 0 : renderState.blur}px) drop-shadow(0 12px 26px rgba(15,12,10,0.72)) drop-shadow(0 0 ${introMode ? 52 : 36}px rgba(180,220,255,${renderState.glow + (introMode ? 0.2 : 0)}))`
         }}
       >
-        <img src={dragonSrc} alt="" draggable={false} style={{ width: '100%', height: 'auto', userSelect: 'none' }} />
+        {!imageFailed ? (
+          <img
+            src={dragonSrc}
+            alt=""
+            draggable={false}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageFailed(true)}
+            style={{ width: '100%', height: 'auto', userSelect: 'none' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              minHeight: 120,
+              color: '#fff',
+              background: 'rgba(127, 29, 29, 0.8)',
+              border: '2px solid #fca5a5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              fontWeight: 700
+            }}
+          >
+            龍圖載入失敗
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          position: 'fixed',
+          left: 12,
+          top: 12,
+          padding: '6px 10px',
+          borderRadius: 8,
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#e5e7eb',
+          background: 'rgba(0,0,0,0.72)',
+          border: '1px solid rgba(251,191,36,0.45)'
+        }}
+      >
+        DRAGON {imageFailed ? 'ERROR' : imageLoaded ? 'ON' : 'LOADING'}
       </div>
     </div>,
     document.body
