@@ -86,7 +86,7 @@ function Login({ onLogin }) {
               佳盟事業群
             </h1>
             <p className="text-cn-parchment/90 text-sm font-serif">
-              企業管理系統 · 水墨朱墨
+              企業管理系統
             </p>
           </div>
 
