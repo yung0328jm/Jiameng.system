@@ -1,124 +1,107 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-const DRAGON_PUBLIC = `${import.meta.env.BASE_URL}images/flying-dragon.png`
-const HEAD_SIZE = 280
-const SEGMENT_COUNT = 18
-const SEGMENT_STEP = 6
-
+const SEGMENT_COUNT = 24
+const SEGMENT_STEP = 4
+const HEAD_RADIUS = 26
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
 
-function seedHistory(x, y) {
-  return Array.from({ length: SEGMENT_COUNT * SEGMENT_STEP + 4 }, () => ({ x, y }))
+function makeHistory(x, y) {
+  return Array.from({ length: SEGMENT_COUNT * SEGMENT_STEP + 8 }, () => ({ x, y }))
 }
 
 export default function FlyngDragonEffect() {
   const rafRef = useRef(null)
-  const tRef = useRef(0)
-  const physics = useRef({
+  const prevTimeRef = useRef(0)
+  const model = useRef({
     x: 0,
     y: 0,
-    vx: 1.35,
-    vy: 0.55,
+    vx: 1.15,
+    vy: 0.5,
     phase: 0,
-    turnTimer: 0,
-    history: seedHistory(0, 0)
+    steerTimer: 0,
+    history: makeHistory(0, 0)
   })
   const [renderState, setRenderState] = useState({
     x: 0,
     y: 0,
     angle: 0,
-    glow: 0.5,
-    depthScale: 1,
-    blur: 0,
-    segments: []
+    segments: [],
+    whiskerWave: 0
   })
-  const [imageLoaded, setImageLoaded] = useState(false)
-  const [imageFailed, setImageFailed] = useState(false)
-  const [introMode, setIntroMode] = useState(true)
-  const dragonSrc = DRAGON_PUBLIC
 
   useEffect(() => {
-    const introTimer = setTimeout(() => setIntroMode(false), 6000)
     let mounted = true
     const init = () => {
-      const p = physics.current
-      const maxX = Math.max(0, window.innerWidth - HEAD_SIZE)
-      const maxY = Math.max(0, window.innerHeight - HEAD_SIZE)
-      if (p.x === 0 && p.y === 0) {
-        p.x = Math.max(0, window.innerWidth * 0.45)
-        p.y = Math.max(0, window.innerHeight * 0.36)
-        p.history = seedHistory(p.x, p.y)
+      const s = model.current
+      const maxX = Math.max(0, window.innerWidth - 120)
+      const maxY = Math.max(0, window.innerHeight - 120)
+      if (s.x === 0 && s.y === 0) {
+        s.x = window.innerWidth * 0.5
+        s.y = window.innerHeight * 0.42
+        s.history = makeHistory(s.x, s.y)
       }
-      p.x = clamp(p.x, 0, maxX)
-      p.y = clamp(p.y, 0, maxY)
+      s.x = clamp(s.x, 40, maxX)
+      s.y = clamp(s.y, 40, maxY)
     }
+
     init()
     window.addEventListener('resize', init)
 
     const tick = (ts) => {
       if (!mounted) return
-      const prev = tRef.current || ts
-      const dt = Math.min(0.04, (ts - prev) / 1000)
-      tRef.current = ts
+      const prev = prevTimeRef.current || ts
+      const dt = Math.min(0.045, (ts - prev) / 1000)
+      prevTimeRef.current = ts
 
-      const p = physics.current
-      const maxX = Math.max(0, window.innerWidth - HEAD_SIZE)
-      const maxY = Math.max(0, window.innerHeight - HEAD_SIZE)
+      const s = model.current
+      const maxX = Math.max(80, window.innerWidth - 80)
+      const maxY = Math.max(80, window.innerHeight - 80)
 
-      p.turnTimer -= dt
-      if (p.turnTimer <= 0) {
-        const speed = 0.82 + Math.random() * 0.95
-        const a = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * 0.38
-        p.vx = Math.cos(a) * speed
-        p.vy = Math.sin(a) * speed
-        p.turnTimer = 1.4 + Math.random() * 2.6
+      s.steerTimer -= dt
+      if (s.steerTimer <= 0) {
+        const speed = 0.8 + Math.random() * 0.65
+        const a = Math.atan2(s.vy, s.vx) + (Math.random() - 0.5) * 0.5
+        s.vx = Math.cos(a) * speed
+        s.vy = Math.sin(a) * speed
+        s.steerTimer = 1.8 + Math.random() * 2.8
       }
 
-      p.x += p.vx * 60 * dt
-      p.y += p.vy * 60 * dt
-      p.phase += dt * 2.35
-      const bob = Math.sin(p.phase) * 16 + Math.sin(p.phase * 0.47) * 12
+      s.x += s.vx * 68 * dt
+      s.y += s.vy * 68 * dt
+      s.phase += dt * 2.15
 
-      if (p.x <= 0 || p.x >= maxX) {
-        p.vx *= -1
-        p.x = clamp(p.x, 0, maxX)
-      }
-      if (p.y <= 0 || p.y >= maxY) {
-        p.vy *= -1
-        p.y = clamp(p.y, 0, maxY)
-      }
+      const lift = Math.sin(s.phase) * 14 + Math.sin(s.phase * 0.52) * 9
+      const hx = clamp(s.x, 40, maxX)
+      const hy = clamp(s.y + lift, 40, maxY)
 
-      const hx = p.x
-      const hy = p.y + bob
-      p.history.unshift({ x: hx, y: hy })
-      if (p.history.length > SEGMENT_COUNT * SEGMENT_STEP + 4) p.history.length = SEGMENT_COUNT * SEGMENT_STEP + 4
+      if (s.x <= 40 || s.x >= maxX) s.vx *= -1
+      if (s.y <= 40 || s.y >= maxY) s.vy *= -1
 
-      const screenRatio = hy / Math.max(1, window.innerHeight)
-      const depthScale = 0.86 + screenRatio * 0.38
-      const blur = Math.max(0, (0.52 - screenRatio) * 2.2)
+      s.history.unshift({ x: hx, y: hy })
+      const cap = SEGMENT_COUNT * SEGMENT_STEP + 8
+      if (s.history.length > cap) s.history.length = cap
 
       const segments = Array.from({ length: SEGMENT_COUNT }, (_, i) => {
-        const idx = Math.min(p.history.length - 1, 2 + i * SEGMENT_STEP)
-        const now = p.history[idx]
-        const next = p.history[Math.min(p.history.length - 1, idx + 1)] || now
+        const idx = Math.min(s.history.length - 1, i * SEGMENT_STEP + 2)
+        const p = s.history[idx]
+        const n = s.history[Math.min(s.history.length - 1, idx + 1)] || p
         const t = 1 - i / SEGMENT_COUNT
         return {
-          x: now.x,
-          y: now.y,
-          angle: Math.atan2(next.y - now.y, next.x - now.x) * (180 / Math.PI),
-          scale: (0.78 * t + 0.2) * depthScale,
-          opacity: 0.72 * t + 0.1
+          x: p.x,
+          y: p.y,
+          angle: Math.atan2(n.y - p.y, n.x - p.x) * (180 / Math.PI),
+          rx: 22 * t + 3,
+          ry: 12 * t + 2,
+          opacity: 0.86 * t + 0.06
         }
       })
 
       setRenderState({
         x: hx,
         y: hy,
-        angle: Math.atan2(p.vy, p.vx) * (180 / Math.PI) + Math.sin(p.phase * 1.25) * 4.5,
-        glow: 0.45 + (Math.sin(p.phase * 1.4) + 1) * 0.18,
-        depthScale,
-        blur,
+        angle: Math.atan2(s.vy, s.vx) * (180 / Math.PI) + Math.sin(s.phase * 1.15) * 3.8,
+        whiskerWave: Math.sin(s.phase * 2.4),
         segments
       })
 
@@ -127,7 +110,6 @@ export default function FlyngDragonEffect() {
 
     rafRef.current = requestAnimationFrame(tick)
     return () => {
-      clearTimeout(introTimer)
       mounted = false
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', init)
@@ -135,83 +117,78 @@ export default function FlyngDragonEffect() {
   }, [])
 
   return createPortal(
-    <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 2147483000 }} aria-hidden>
-      {renderState.segments.map((seg, idx) => (
-        <div
-          key={`dragon-seg-${idx}`}
-          style={{
-            position: 'absolute',
-            left: `${seg.x + HEAD_SIZE * 0.36}px`,
-            top: `${seg.y + HEAD_SIZE * 0.47}px`,
-            width: `${Math.max(18, 72 * seg.scale)}px`,
-            height: `${Math.max(14, 56 * seg.scale)}px`,
-            borderRadius: '999px',
-            transform: `translate(-50%, -50%) rotate(${seg.angle}deg)`,
-            backgroundImage: `url('${dragonSrc}')`,
-            backgroundSize: '240% 240%',
-            backgroundPosition: '58% 58%',
-            opacity: seg.opacity,
-            filter: `blur(${renderState.blur + (idx > 12 ? 0.8 : 0.2)}px) drop-shadow(0 0 10px rgba(180,220,255,${0.1 + renderState.glow * 0.12}))`
-          }}
-        />
-      ))}
-      <div
-        style={{
-          position: 'absolute',
-          left: `${introMode ? Math.max(0, window.innerWidth * 0.5 - (HEAD_SIZE * renderState.depthScale) * 0.5) : renderState.x}px`,
-          top: `${introMode ? Math.max(0, window.innerHeight * 0.45 - (HEAD_SIZE * renderState.depthScale) * 0.35) : renderState.y}px`,
-          width: `${HEAD_SIZE * renderState.depthScale}px`,
-          transform: `${physics.current.vx < 0 ? 'scaleX(-1) ' : ''}rotate(${introMode ? 0 : renderState.angle}deg)`,
-          transformOrigin: '52% 48%',
-          opacity: 0.99,
-          filter: `blur(${introMode ? 0 : renderState.blur}px) drop-shadow(0 12px 26px rgba(15,12,10,0.72)) drop-shadow(0 0 ${introMode ? 52 : 36}px rgba(180,220,255,${renderState.glow + (introMode ? 0.2 : 0)}))`
-        }}
-      >
-        {!imageFailed ? (
-          <img
-            src={dragonSrc}
-            alt=""
-            draggable={false}
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageFailed(true)}
-            style={{ width: '100%', height: 'auto', userSelect: 'none' }}
-          />
-        ) : (
-          <div
-            style={{
-              width: '100%',
-              minHeight: 120,
-              color: '#fff',
-              background: 'rgba(127, 29, 29, 0.8)',
-              border: '2px solid #fca5a5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 18,
-              fontWeight: 700
-            }}
-          >
-            龍圖載入失敗
-          </div>
-        )}
-      </div>
+    <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 120 }} aria-hidden>
+      <svg className="absolute inset-0 w-full h-full">
+        <defs>
+          <radialGradient id="dragonScale" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#d6efff" />
+            <stop offset="45%" stopColor="#8ac1e8" />
+            <stop offset="100%" stopColor="#2a5787" />
+          </radialGradient>
+          <linearGradient id="dragonBelly" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#d8c9a5" />
+            <stop offset="100%" stopColor="#9e8158" />
+          </linearGradient>
+          <filter id="dragonGlow">
+            <feGaussianBlur stdDeviation="2.6" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
 
-      <div
-        style={{
-          position: 'fixed',
-          left: 12,
-          top: 12,
-          padding: '6px 10px',
-          borderRadius: 8,
-          fontSize: 12,
-          fontWeight: 700,
-          color: '#e5e7eb',
-          background: 'rgba(0,0,0,0.72)',
-          border: '1px solid rgba(251,191,36,0.45)'
-        }}
-      >
-        DRAGON {imageFailed ? 'ERROR' : imageLoaded ? 'ON' : 'LOADING'}
-      </div>
+        {renderState.segments.map((seg, i) => (
+          <g key={`seg-${i}`} transform={`translate(${seg.x}, ${seg.y}) rotate(${seg.angle})`}>
+            <ellipse
+              cx="0"
+              cy="0"
+              rx={seg.rx}
+              ry={seg.ry}
+              fill="url(#dragonScale)"
+              opacity={seg.opacity}
+              filter="url(#dragonGlow)"
+            />
+            {i < SEGMENT_COUNT - 4 && (
+              <ellipse
+                cx="2"
+                cy="4"
+                rx={seg.rx * 0.58}
+                ry={seg.ry * 0.32}
+                fill="url(#dragonBelly)"
+                opacity={seg.opacity * 0.6}
+              />
+            )}
+          </g>
+        ))}
+
+        <g transform={`translate(${renderState.x}, ${renderState.y}) rotate(${renderState.angle})`}>
+          <ellipse cx="0" cy="0" rx={HEAD_RADIUS + 4} ry={HEAD_RADIUS} fill="url(#dragonScale)" filter="url(#dragonGlow)" />
+          <ellipse cx="8" cy="8" rx="16" ry="8" fill="url(#dragonBelly)" opacity="0.8" />
+          <ellipse cx="14" cy="-3" rx="4.2" ry="4.2" fill="#f8fafc" />
+          <circle cx="15" cy="-3" r="2" fill="#111827" />
+          <ellipse cx="22" cy="5" rx="4" ry="2.2" fill="#0f172a" opacity="0.85" />
+          <path d={`M-8,-26 L-1,-38 L7,-26`} fill="#c8d8ea" opacity="0.9" />
+          <path d={`M8,-26 L15,-38 L23,-25`} fill="#c8d8ea" opacity="0.9" />
+          <path
+            d={`M22,2 C38,${-4 + renderState.whiskerWave * 3} 52,${-10 + renderState.whiskerWave * 6} 66,${-18 + renderState.whiskerWave * 7}`}
+            fill="none"
+            stroke="#dff4ff"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            opacity="0.95"
+          />
+          <path
+            d={`M20,9 C34,${18 - renderState.whiskerWave * 4} 48,${24 - renderState.whiskerWave * 5} 63,${30 - renderState.whiskerWave * 6}`}
+            fill="none"
+            stroke="#dff4ff"
+            strokeWidth="2"
+            strokeLinecap="round"
+            opacity="0.92"
+          />
+          <path d="M23,10 L33,16 L23,19" fill="#fca5a5" opacity="0.75" />
+        </g>
+      </svg>
     </div>,
     document.body
   )
