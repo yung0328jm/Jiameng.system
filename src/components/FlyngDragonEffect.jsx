@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import dragonImage from './flying-dragon.png'
 
+const DRAGON_PUBLIC = `${import.meta.env.BASE_URL}images/flying-dragon.png`
 const HEAD_SIZE = 280
 const SEGMENT_COUNT = 18
 const SEGMENT_STEP = 6
@@ -36,7 +36,7 @@ export default function FlyngDragonEffect() {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageFailed, setImageFailed] = useState(false)
   const [introMode, setIntroMode] = useState(true)
-  const dragonSrc = dragonImage
+  const dragonSrc = DRAGON_PUBLIC
 
   useEffect(() => {
     const introTimer = setTimeout(() => setIntroMode(false), 6000)
