@@ -25,7 +25,7 @@ import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
 import ClickStarsEffect from './components/ClickStarsEffect'
-import FlyingDragonEffect from './components/FlyingDragonEffect'
+import FlyingDragonEffect from './components/FlyngDragonEffect'
 import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange, logout } from './utils/authSupabase'
 import { getSupabaseClient } from './utils/supabaseClient'
 
