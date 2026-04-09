@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 const DRAGON_PUBLIC = `${import.meta.env.BASE_URL}images/flying-dragon.png`
-const HEAD_SIZE = 220
-const SEGMENT_COUNT = 14
-const SEGMENT_STEP = 7
+const HEAD_SIZE = 280
+const SEGMENT_COUNT = 18
+const SEGMENT_STEP = 6
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
 
@@ -29,9 +29,10 @@ export default function FlyngDragonEffect() {
     y: 0,
     angle: 0,
     glow: 0.5,
+    depthScale: 1,
+    blur: 0,
     segments: []
   })
-  const [broken, setBroken] = useState(false)
   const dragonSrc = DRAGON_PUBLIC
 
   useEffect(() => {
@@ -63,17 +64,17 @@ export default function FlyngDragonEffect() {
 
       p.turnTimer -= dt
       if (p.turnTimer <= 0) {
-        const speed = 0.9 + Math.random() * 1.15
-        const a = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * 0.6
+        const speed = 0.82 + Math.random() * 0.95
+        const a = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * 0.38
         p.vx = Math.cos(a) * speed
         p.vy = Math.sin(a) * speed
-        p.turnTimer = 1 + Math.random() * 2.2
+        p.turnTimer = 1.4 + Math.random() * 2.6
       }
 
       p.x += p.vx * 60 * dt
       p.y += p.vy * 60 * dt
-      p.phase += dt * 3.3
-      const bob = Math.sin(p.phase) * 10
+      p.phase += dt * 2.35
+      const bob = Math.sin(p.phase) * 16 + Math.sin(p.phase * 0.47) * 12
 
       if (p.x <= 0 || p.x >= maxX) {
         p.vx *= -1
@@ -89,6 +90,10 @@ export default function FlyngDragonEffect() {
       p.history.unshift({ x: hx, y: hy })
       if (p.history.length > SEGMENT_COUNT * SEGMENT_STEP + 4) p.history.length = SEGMENT_COUNT * SEGMENT_STEP + 4
 
+      const screenRatio = hy / Math.max(1, window.innerHeight)
+      const depthScale = 0.86 + screenRatio * 0.38
+      const blur = Math.max(0, (0.52 - screenRatio) * 2.2)
+
       const segments = Array.from({ length: SEGMENT_COUNT }, (_, i) => {
         const idx = Math.min(p.history.length - 1, 2 + i * SEGMENT_STEP)
         const now = p.history[idx]
@@ -98,16 +103,18 @@ export default function FlyngDragonEffect() {
           x: now.x,
           y: now.y,
           angle: Math.atan2(next.y - now.y, next.x - now.x) * (180 / Math.PI),
-          scale: 0.8 * t + 0.18,
-          opacity: 0.8 * t + 0.08
+          scale: (0.78 * t + 0.2) * depthScale,
+          opacity: 0.72 * t + 0.1
         }
       })
 
       setRenderState({
         x: hx,
         y: hy,
-        angle: Math.atan2(p.vy, p.vx) * (180 / Math.PI),
+        angle: Math.atan2(p.vy, p.vx) * (180 / Math.PI) + Math.sin(p.phase * 1.25) * 4.5,
         glow: 0.45 + (Math.sin(p.phase * 1.4) + 1) * 0.18,
+        depthScale,
+        blur,
         segments
       })
 
@@ -139,7 +146,7 @@ export default function FlyngDragonEffect() {
             backgroundSize: '240% 240%',
             backgroundPosition: '58% 58%',
             opacity: seg.opacity,
-            filter: `blur(${idx > 11 ? 1 : 0.3}px) drop-shadow(0 0 10px rgba(180,220,255,${0.12 + renderState.glow * 0.14}))`
+            filter: `blur(${renderState.blur + (idx > 12 ? 0.8 : 0.2)}px) drop-shadow(0 0 10px rgba(180,220,255,${0.1 + renderState.glow * 0.12}))`
           }}
         />
       ))}
@@ -148,69 +155,15 @@ export default function FlyngDragonEffect() {
           position: 'absolute',
           left: `${renderState.x}px`,
           top: `${renderState.y}px`,
-          width: `${HEAD_SIZE}px`,
+          width: `${HEAD_SIZE * renderState.depthScale}px`,
           transform: `${physics.current.vx < 0 ? 'scaleX(-1) ' : ''}rotate(${renderState.angle}deg)`,
           transformOrigin: '52% 48%',
           opacity: 0.98,
-          filter: `drop-shadow(0 10px 24px rgba(15,12,10,0.72)) drop-shadow(0 0 34px rgba(180,220,255,${renderState.glow}))`
+          filter: `blur(${renderState.blur}px) drop-shadow(0 12px 26px rgba(15,12,10,0.72)) drop-shadow(0 0 36px rgba(180,220,255,${renderState.glow}))`
         }}
       >
-        {!broken ? (
-          <img
-            src={dragonSrc}
-            alt=""
-            draggable={false}
-            onError={() => setBroken(true)}
-            style={{ width: '100%', height: 'auto', userSelect: 'none' }}
-          />
-        ) : (
-          <div
-            style={{
-              width: '100%',
-              height: '120px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '82px',
-              lineHeight: 1
-            }}
-          >
-            🐉
-          </div>
-        )}
+        <img src={dragonSrc} alt="" draggable={false} style={{ width: '100%', height: 'auto', userSelect: 'none' }} />
       </div>
-
-      {/* 固定角落保證可見（即使巡航跑到別處也看得到） */}
-      <div
-        style={{
-          position: 'fixed',
-          right: 18,
-          bottom: 18,
-          width: 88,
-          opacity: 0.9,
-          filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.55))',
-          animation: 'dragon-corner-float 2.2s ease-in-out infinite'
-        }}
-      >
-        {!broken ? (
-          <img
-            src={dragonSrc}
-            alt=""
-            draggable={false}
-            onError={() => setBroken(true)}
-            style={{ width: '100%', height: 'auto', userSelect: 'none' }}
-          />
-        ) : (
-          <div style={{ fontSize: 44, textAlign: 'center' }}>🐉</div>
-        )}
-      </div>
-
-      <style>{`
-        @keyframes dragon-corner-float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
-        }
-      `}</style>
     </div>,
     document.body
   )
