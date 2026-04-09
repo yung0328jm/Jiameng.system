@@ -6,6 +6,7 @@ const SEGMENT_COUNT = 16
 const SEGMENT_STEP = 7
 const MIN_SPEED = 0.9
 const MAX_SPEED = 1.95
+const DRAGON_SRC = `${import.meta.env.BASE_URL}images/flying-dragon.png`
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v))
@@ -36,6 +37,7 @@ export default function FlyingDragonEffect() {
     glow: 0.5,
     segments: []
   })
+  const [imageOk, setImageOk] = useState(true)
 
   useEffect(() => {
     let mounted = true
@@ -136,7 +138,7 @@ export default function FlyingDragonEffect() {
   const dragon = (
     <div
       className="fixed inset-0 pointer-events-none overflow-hidden"
-      style={{ zIndex: 9997 }}
+      style={{ zIndex: 2147483000 }}
       aria-hidden
     >
       {renderState.segments.map((seg, idx) => (
@@ -150,7 +152,7 @@ export default function FlyingDragonEffect() {
             height: `${Math.max(16, 60 * seg.scale)}px`,
             borderRadius: '999px',
             transform: `translate(-50%, -50%) rotate(${seg.angle}deg)`,
-            backgroundImage: "url('/images/flying-dragon.png')",
+            backgroundImage: `url('${DRAGON_SRC}')`,
             backgroundSize: '240% 240%',
             backgroundPosition: '58% 58%',
             opacity: seg.opacity,
@@ -171,16 +173,29 @@ export default function FlyingDragonEffect() {
           filter: `drop-shadow(0 10px 24px rgba(15,12,10,0.72)) drop-shadow(0 0 36px rgba(180,220,255,${renderState.glow}))`
         }}
       >
-        <img
-          src="/images/flying-dragon.png"
-          alt=""
-          draggable={false}
-          style={{
-            width: '100%',
-            height: 'auto',
-            userSelect: 'none'
-          }}
-        />
+        {imageOk ? (
+          <img
+            src={DRAGON_SRC}
+            alt=""
+            draggable={false}
+            onError={() => setImageOk(false)}
+            style={{
+              width: '100%',
+              height: 'auto',
+              userSelect: 'none'
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '140px',
+              borderRadius: '999px',
+              border: '2px solid rgba(173,216,255,0.9)',
+              background: 'radial-gradient(circle at 30% 50%, rgba(180,220,255,0.9), rgba(120,170,220,0.45) 45%, rgba(70,110,160,0.3) 70%, transparent 100%)'
+            }}
+          />
+        )}
       </div>
     </div>
   )
