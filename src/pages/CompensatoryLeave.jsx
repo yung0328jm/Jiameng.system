@@ -12,6 +12,9 @@ import {
 } from '../utils/overtimeCompensationChoiceStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
+/** 每人每月「領加班費」合計時數上限（僅限本頁所選月份內、依人員加總） */
+const OVERTIME_PAY_MONTHLY_CAP_HOURS = 46
+
 /** 行事曆／加班單日期統一成 YYYY-MM-DD（僅供本頁讀取顯示，不寫回行事曆） */
 function normalizeYmd(d) {
   const raw = String(d || '').trim().replace(/\//g, '-')
@@ -51,6 +54,35 @@ function getPersonLabelsForOvertimeRecord(oa) {
   if (personnelList.length > 0) return Array.from(new Set(personnelList))
   const applicant = String(oa.applicant || '').trim()
   return applicant ? [applicant] : []
+}
+
+function rowPayHoursForCap(r) {
+  const h = r?.hours
+  if (h == null || h === '' || Number.isNaN(Number(h))) return 0
+  return Math.max(0, Number(h))
+}
+
+/** 同月、同人員、已勾「領加班費」的時數合計；可排除某一列（用於試算該列改勾加班費是否超限） */
+function sumPayHoursForPersonMonth(rows, personLabel, excludeKey) {
+  let sum = 0
+  for (const r of rows) {
+    if (String(r.personLabel || '') !== String(personLabel || '')) continue
+    const key = `${r.id}\u001f${r.personLabel}`
+    if (excludeKey && key === excludeKey) continue
+    if (getOvertimeCompensationMode(r.id, r.personLabel) === 'pay') {
+      sum += rowPayHoursForCap(r)
+    }
+  }
+  return sum
+}
+
+/** 是否允許將「領加班費」勾成 on：已為 pay 時一律 true（方便改勾補休或取消） */
+function canTurnPayOn(row, rows) {
+  const cur = getOvertimeCompensationMode(row.id, row.personLabel)
+  if (cur === 'pay') return true
+  const excludeKey = `${row.id}\u001f${row.personLabel}`
+  const others = sumPayHoursForPersonMonth(rows, row.personLabel, excludeKey)
+  return others + rowPayHoursForCap(row) <= OVERTIME_PAY_MONTHLY_CAP_HOURS + 1e-9
 }
 
 export default function CompensatoryLeave() {
@@ -121,6 +153,7 @@ export default function CompensatoryLeave() {
   const stats = useMemo(() => {
     void tick
     let compHours = 0
+    let payHours = 0
     let payCount = 0
     let unset = 0
     rows.forEach((r) => {
@@ -129,15 +162,19 @@ export default function CompensatoryLeave() {
         if (r.hours != null && !Number.isNaN(r.hours)) compHours += r.hours
       } else if (mode === 'pay') {
         payCount += 1
+        payHours += rowPayHoursForCap(r)
       } else {
         unset += 1
       }
     })
-    return { compHours, payCount, unset }
+    return { compHours, payHours, payCount, unset }
   }, [rows, tick])
 
   const onPick = (row, mode) => {
     const cur = getOvertimeCompensationMode(row.id, row.personLabel)
+    if (mode === 'pay' && cur !== 'pay' && !canTurnPayOn(row, rows)) {
+      return
+    }
     if (cur === mode) {
       clearOvertimeCompensationMode(row.id, row.personLabel)
     } else {
@@ -163,6 +200,9 @@ export default function CompensatoryLeave() {
             </>
           )}
         </p>
+        <p className="text-amber-200/85 text-sm mt-2 border-t border-cn-gold/20 pt-2 leading-relaxed">
+          規則：以<strong className="text-cn-parchment">人員</strong>為單位、在所選月份內，<strong className="text-cn-parchment">領加班費合計不得超過 {OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時</strong>；已達上限後，其餘加班僅能勾選補休（「領加班費」無法勾選）。管理員代勾選時亦適用同一上限。
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-4">
@@ -186,8 +226,11 @@ export default function CompensatoryLeave() {
           <div className="text-emerald-200 font-semibold tabular-nums">{stats.compHours.toFixed(1)} 小時</div>
         </div>
         <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 px-3 py-2">
-          <div className="text-cn-mist text-xs">已選領加班費（筆數）</div>
-          <div className="text-amber-200 font-semibold tabular-nums">{stats.payCount} 筆</div>
+          <div className="text-cn-mist text-xs">已選領加班費（合計時數／上限）</div>
+          <div className="text-amber-200 font-semibold tabular-nums">
+            {stats.payHours.toFixed(1)}／{OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時
+            <span className="text-cn-mist font-normal text-[11px] ml-1">（{stats.payCount} 筆）</span>
+          </div>
         </div>
         <div className="rounded-lg border border-cn-gold/25 bg-black/20 px-3 py-2">
           <div className="text-cn-mist text-xs">尚未選擇</div>
@@ -205,6 +248,8 @@ export default function CompensatoryLeave() {
         <ul className="space-y-3">
           {rows.map((r) => {
             const mode = getOvertimeCompensationMode(r.id, r.personLabel)
+            const payDisabled = mode !== 'pay' && !canTurnPayOn(r, rows)
+            const othersPayH = sumPayHoursForPersonMonth(rows, r.personLabel, `${r.id}\u001f${r.personLabel}`)
             const hText = r.hours != null && !Number.isNaN(r.hours) ? `${r.hours} 小時` : '—'
             return (
               <li
@@ -227,15 +272,24 @@ export default function CompensatoryLeave() {
                   <div>申請人：{r.applicant}</div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer touch-manipulation min-h-[44px]">
+                  <label
+                    className={`flex items-center gap-2 touch-manipulation min-h-[44px] ${payDisabled ? 'cursor-not-allowed opacity-55' : 'cursor-pointer'}`}
+                    title={payDisabled ? `該員本月已選領加班費 ${othersPayH.toFixed(1)} 小時，再勾此筆將超過 ${OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時上限` : undefined}
+                  >
                     <input
                       type="checkbox"
+                      disabled={payDisabled}
                       checked={mode === 'pay'}
                       onChange={() => onPick(r, 'pay')}
-                      className="w-5 h-5 rounded border-cn-gold/40 shrink-0"
+                      className="w-5 h-5 rounded border-cn-gold/40 shrink-0 disabled:cursor-not-allowed"
                     />
                     <span className="text-amber-100/95">領加班費</span>
                   </label>
+                  {payDisabled && (
+                    <p className="text-[11px] text-cn-mist sm:ml-0 w-full sm:w-auto self-center leading-snug">
+                      同一人本月「領加班費」已計 {othersPayH.toFixed(1)} 小時，本筆（{rowPayHoursForCap(r).toFixed(1)} 小時）若再選「領加班費」將超過 {OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時上限，請改勾補休。
+                    </p>
+                  )}
                   <label className="flex items-center gap-2 cursor-pointer touch-manipulation min-h-[44px]">
                     <input
                       type="checkbox"
