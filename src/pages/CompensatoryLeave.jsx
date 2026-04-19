@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react'
-import { getCurrentUser } from '../utils/authStorage'
+import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
@@ -12,17 +12,24 @@ import {
 } from '../utils/overtimeCompensationChoiceStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
+/** 行事曆／加班單日期統一成 YYYY-MM-DD（僅供本頁讀取顯示，不寫回行事曆） */
 function normalizeYmd(d) {
-  return String(d || '').trim().replace(/\//g, '-')
+  const raw = String(d || '').trim().replace(/\//g, '-')
+  const m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (!m) return raw
+  const y = m[1]
+  const mo = String(parseInt(m[2], 10)).padStart(2, '0')
+  const da = String(parseInt(m[3], 10)).padStart(2, '0')
+  return `${y}-${mo}-${da}`
 }
 
-function todayYmd() {
+function currentMonthYm() {
   const n = new Date()
   const p = (x) => String(x).padStart(2, '0')
-  return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`
+  return `${n.getFullYear()}-${p(n.getMonth() + 1)}`
 }
 
-/** 與個人績效「加班明細」一致：是否為該用戶相關之加班單，並回傳用於儲存選擇的 personLabel */
+/** 與個人績效「加班明細」一致：目前使用者是否落在該筆加班單上，並回傳儲存選擇用的 personLabel */
 function resolvePersonLabelForUser(oa, namesToMatch) {
   const personnelList = (Array.isArray(oa.overtimePersonnel) ? oa.overtimePersonnel : [])
     .map((p) => String(p || '').trim())
@@ -36,9 +43,20 @@ function resolvePersonLabelForUser(oa, namesToMatch) {
   return ''
 }
 
+/** 該筆已核准加班單應登記「補休／加班費」的人員清單（與行事曆上欄位一致，僅讀取） */
+function getPersonLabelsForOvertimeRecord(oa) {
+  const personnelList = (Array.isArray(oa.overtimePersonnel) ? oa.overtimePersonnel : [])
+    .map((p) => String(p || '').trim())
+    .filter(Boolean)
+  if (personnelList.length > 0) return Array.from(new Set(personnelList))
+  const applicant = String(oa.applicant || '').trim()
+  return applicant ? [applicant] : []
+}
+
 export default function CompensatoryLeave() {
-  const [onlyDay, setOnlyDay] = useState(true)
-  const [filterDay, setFilterDay] = useState(todayYmd)
+  const isAdmin = getCurrentUserRole() === 'admin'
+  const account = String(getCurrentUser() || '').trim()
+  const [filterMonth, setFilterMonth] = useState(currentMonthYm)
   const [tick, setTick] = useState(0)
 
   const bump = useCallback(() => setTick((t) => t + 1), [])
@@ -46,8 +64,6 @@ export default function CompensatoryLeave() {
 
   const rows = useMemo(() => {
     void tick
-    const account = String(getCurrentUser() || '').trim()
-    if (!account) return []
     const primary = getDisplayNameForAccount(account)
     const aliases = getDisplayNamesForAccount(account) || []
     const namesToMatch = Array.from(new Set([account, primary, ...aliases].map((s) => String(s || '').trim()).filter(Boolean)))
@@ -57,41 +73,50 @@ export default function CompensatoryLeave() {
 
     const list = (getOvertimeApplications() || []).filter((oa) => String(oa?.status || '').trim() === 'approved')
     const out = []
+    const ym = String(filterMonth || '').trim()
 
     list.forEach((oa) => {
-      const personLabel = resolvePersonLabelForUser(oa, namesToMatch)
-      if (!personLabel) return
       const dateStr = normalizeYmd(oa.date)
-      if (!dateStr) return
+      if (!dateStr || ym.length < 7) return
+      if (!dateStr.startsWith(ym)) return
       const sid = String(oa.scheduleId || '').trim()
       const schedule = byId.get(sid)
       if (!schedule) return
       const siteName = schedule?.siteName || schedule?.segments?.[0]?.siteName || '—'
       const hours = oa.hours != null && oa.hours !== '' ? Number(oa.hours) : null
-      out.push({
-        id: oa.id,
-        dateStr,
-        siteName,
-        startTime: String(oa.startTime || '').trim() || '—',
-        endTime: String(oa.endTime || '').trim() || '—',
-        hours,
-        applicant: String(oa.applicant || '').trim() || '—',
-        personLabel
+      const applicant = String(oa.applicant || '').trim() || '—'
+
+      const labels = getPersonLabelsForOvertimeRecord(oa)
+      if (labels.length === 0) return
+
+      labels.forEach((personLabel) => {
+        if (!isAdmin) {
+          const mine = resolvePersonLabelForUser(oa, namesToMatch)
+          if (personLabel !== mine || !mine) return
+        }
+        out.push({
+          id: oa.id,
+          dateStr,
+          siteName,
+          startTime: String(oa.startTime || '').trim() || '—',
+          endTime: String(oa.endTime || '').trim() || '—',
+          hours,
+          applicant,
+          personLabel
+        })
       })
     })
 
     out.sort((a, b) => {
       const c = (b.dateStr || '').localeCompare(a.dateStr || '')
       if (c !== 0) return c
+      const n = (a.personLabel || '').localeCompare(b.personLabel || '', 'zh-Hant')
+      if (n !== 0) return n
       return String(b.id).localeCompare(String(a.id))
     })
 
-    if (onlyDay) {
-      const f = normalizeYmd(filterDay)
-      return out.filter((r) => r.dateStr === f)
-    }
     return out
-  }, [tick, onlyDay, filterDay])
+  }, [tick, filterMonth, isAdmin, account])
 
   const stats = useMemo(() => {
     void tick
@@ -121,34 +146,38 @@ export default function CompensatoryLeave() {
     bump()
   }
 
+  const monthLabel = filterMonth.replace('-', ' 年 ') + ' 月'
+
   return (
-    <div className="max-w-3xl mx-auto text-cn-parchment">
+    <div className={`mx-auto text-cn-parchment ${isAdmin ? 'max-w-5xl' : 'max-w-3xl'}`}>
       <div className="rounded-xl border border-cn-gold/30 bg-black/25 p-4 sm:p-5 mb-4">
         <h2 className="text-lg font-bold text-cn-gold font-serif tracking-wide mb-1">補休／加班費登記</h2>
         <p className="text-cn-mist text-sm leading-relaxed">
-          此處列出與您相關且<strong className="text-cn-parchment/90">已核准</strong>的加班申請（與行事曆同步）。請逐筆選擇要<strong className="text-amber-200/95">領加班費</strong>或<strong className="text-emerald-200/95">轉為補休時數</strong>；再次點選可取消、改回未選。
+          {isAdmin ? (
+            <>
+              <strong className="text-cn-parchment/90">管理員檢視</strong>：以下僅<strong className="text-amber-200/90">讀取</strong>行事曆上<strong className="text-cn-parchment/90">已核准</strong>之加班申請與排程案名，不會修改或刪除行事曆資料。所選月份內<strong className="text-cn-parchment/90">全部人員</strong>之加班列於此，可代為或協助勾選<strong className="text-amber-200/95">領加班費</strong>／<strong className="text-emerald-200/95">紀錄補休時數</strong>（儲存於補休登記用資料，與加班單本體分開）。
+            </>
+          ) : (
+            <>
+              此處<strong className="text-amber-200/90">讀取</strong>行事曆上與您相關且<strong className="text-cn-parchment/90">已核准</strong>的加班申請，不會改動行事曆。請依<strong className="text-cn-parchment/90">月份</strong>檢視後，逐筆選擇<strong className="text-amber-200/95">領加班費</strong>或<strong className="text-emerald-200/95">轉為補休時數</strong>；再次點選可取消、改回未選。
+            </>
+          )}
         </p>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-4">
-        <label className="flex flex-col gap-1 text-sm text-cn-mist">
-          <span>日期</span>
+        <label className="flex flex-col gap-1 text-sm text-cn-mist min-w-[200px]">
+          <span>選擇月份</span>
           <input
-            type="date"
-            value={filterDay}
-            onChange={(e) => setFilterDay(e.target.value || todayYmd())}
+            type="month"
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value || currentMonthYm())}
             className="bg-black/35 border border-cn-gold/30 rounded-lg px-3 py-2 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-amber-700/50 min-h-[44px]"
           />
         </label>
-        <label className="flex items-center gap-2 text-sm text-cn-parchment cursor-pointer select-none min-h-[44px]">
-          <input
-            type="checkbox"
-            checked={onlyDay}
-            onChange={(e) => setOnlyDay(e.target.checked)}
-            className="w-4 h-4 rounded border-cn-gold/40"
-          />
-          僅顯示此日期
-        </label>
+        <p className="text-cn-mist text-sm pb-2 sm:pb-3">
+          目前：<span className="text-cn-parchment font-medium">{monthLabel}</span> 全月列表
+        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-5 text-sm">
@@ -168,7 +197,9 @@ export default function CompensatoryLeave() {
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-cn-gold/20 bg-black/20 px-4 py-10 text-center text-cn-mist">
-          {onlyDay ? '此日期沒有與您相關的已核准加班紀錄。' : '目前沒有與您相關的已核准加班紀錄（或對應排程已刪除）。'}
+          {isAdmin
+            ? '此月份尚無已核准的加班紀錄，或對應工程排程已從行事曆移除（本頁不會刪除任何行事曆資料）。'
+            : '此月份沒有與您相關的已核准加班紀錄，或對應排程已不存在。'}
         </div>
       ) : (
         <ul className="space-y-3">
@@ -183,6 +214,11 @@ export default function CompensatoryLeave() {
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-2">
                   <span className="text-cn-gold font-semibold font-mono tabular-nums">{r.dateStr}</span>
                   <span className="text-cn-parchment font-medium">{r.siteName}</span>
+                  {isAdmin && (
+                    <span className="text-sm text-emerald-200/90 border border-emerald-800/40 bg-emerald-950/30 px-2 py-0.5 rounded">
+                      人員：{r.personLabel}
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-cn-mist space-y-0.5 mb-3">
                   <div>
@@ -211,7 +247,9 @@ export default function CompensatoryLeave() {
                   </label>
                 </div>
                 {mode === 'comp_leave' && r.hours != null && !Number.isNaN(r.hours) && (
-                  <p className="mt-2 text-xs text-emerald-300/90">此筆將計入補休 <span className="font-semibold tabular-nums">{r.hours}</span> 小時（與加班單時數一致）。</p>
+                  <p className="mt-2 text-xs text-emerald-300/90">
+                    此筆（{r.personLabel}）將計入補休 <span className="font-semibold tabular-nums">{r.hours}</span> 小時（與加班單時數一致）。
+                  </p>
                 )}
               </li>
             )
