@@ -150,6 +150,8 @@ export const APP_DATA_KEYS = [
   'jiameng_daily_todo_manager_account',
   // 加班申請（待審核/已核准狀態對所有用戶可見）
   'jiameng_overtime_applications',
+  // 加班費／補休選擇（與已核准加班單對應）
+  'jiameng_overtime_compensation_choices',
   // 預支申請（借支金額、事由、審核／已匯款）＋ 管理者登記的還款／結轉（須一併同步，否則用戶端與管理端數字不一致）
   'jiameng_advances',
   'jiameng_advance_repayments',
