@@ -1,6 +1,12 @@
 import { useMemo, useState, useCallback, useEffect } from 'react'
-import { getCurrentUser } from '../utils/authStorage'
-import { canViewAllCompensatoryLeave } from '../utils/compensatoryLeaveManagerStorage'
+import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
+import {
+  canViewAllCompensatoryLeave,
+  getCompensatoryLeaveManagerAccount,
+  setCompensatoryLeaveManagerAccount
+} from '../utils/compensatoryLeaveManagerStorage'
+import { getUsers } from '../utils/storage'
+import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
@@ -88,7 +94,9 @@ function canTurnPayOn(row, rows) {
 
 export default function CompensatoryLeave() {
   const account = String(getCurrentUser() || '').trim()
-  const canViewAll = canViewAllCompensatoryLeave(account)
+  const isAdmin = getCurrentUserRole() === 'admin'
+  const canViewAll = canViewAllCompensatoryLeave(account, isAdmin)
+  const [operatorPickerUsers, setOperatorPickerUsers] = useState([])
   const [filterMonth, setFilterMonth] = useState(currentMonthYm)
   /** 管理員：''＝全部人員；非空＝只顯示該人員（與加班單上姓名一致） */
   const [personFilter, setPersonFilter] = useState('')
@@ -96,6 +104,33 @@ export default function CompensatoryLeave() {
 
   const bump = useCallback(() => setTick((t) => t + 1), [])
   useRealtimeKeys(['jiameng_overtime_applications', OVERTIME_COMPENSATION_CHOICE_KEY, 'jiameng_compensatory_leave_manager_account'], bump)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (isAuthSupabase()) {
+          const profiles = await getPublicProfiles()
+          if (cancelled) return
+          const list = (Array.isArray(profiles) ? profiles : [])
+            .filter((p) => !p?.is_resigned && String(p?.account || '').trim())
+            .map((p) => ({ account: String(p.account).trim(), name: String(p.display_name || p.account || '').trim() || p.account }))
+          list.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
+          if (!cancelled) setOperatorPickerUsers(list)
+        } else {
+          const u = getUsers() || []
+          const list = u
+            .filter((x) => x?.role !== 'resigned' && String(x?.account || '').trim())
+            .map((x) => ({ account: String(x.account).trim(), name: String(x.name || x.account || '').trim() }))
+          list.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
+          if (!cancelled) setOperatorPickerUsers(list)
+        }
+      } catch (_) {
+        if (!cancelled) setOperatorPickerUsers([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const allRows = useMemo(() => {
     void tick
@@ -289,20 +324,52 @@ export default function CompensatoryLeave() {
         <h2 className="text-lg font-bold text-cn-gold font-serif tracking-wide mb-1">補休／加班費登記</h2>
         <p className="text-cn-mist text-sm leading-relaxed">
           {canViewAll ? (
-            <>
-              <strong className="text-cn-parchment/90">全員檢視</strong>：您的帳號已由管理者指定為「補休系統全員檢視者」。以下僅<strong className="text-amber-200/90">讀取</strong>行事曆上<strong className="text-cn-parchment/90">已核准</strong>之加班申請與排程案名，不會修改或刪除行事曆資料。請先選<strong className="text-cn-parchment/90">月份</strong>，再選<strong className="text-cn-parchment/90">人員</strong>以檢視該員勾選與統計（選「全部人員」則列出該月所有人）。可代為勾選<strong className="text-amber-200/95">領加班費</strong>／<strong className="text-emerald-200/95">紀錄補休時數</strong>（儲存於補休登記用資料，與加班單本體分開）。
-            </>
+            isAdmin ? (
+              <>
+                <strong className="text-cn-parchment/90">管理員</strong>：可檢視<strong className="text-cn-parchment/90">全員</strong>加班列、以「選擇人員」切換任何人，並使用<strong className="text-cn-parchment/90">列印／存成 PDF</strong>。您可在下方<strong className="text-cn-parchment/90">指定位操作用戶</strong>，讓該帳號登入後擁有與您相同權限（仍僅能讀取行事曆已核准資料，不會改動行事曆本體）。
+              </>
+            ) : (
+              <>
+                <strong className="text-cn-parchment/90">操作用戶</strong>：您已被管理員指定為補休系統操作用戶，可檢視全員、篩選人員並列印。以下僅<strong className="text-amber-200/90">讀取</strong>行事曆上<strong className="text-cn-parchment/90">已核准</strong>之加班申請與排程案名。請選<strong className="text-cn-parchment/90">月份</strong>與<strong className="text-cn-parchment/90">人員</strong>後，可代為勾選<strong className="text-amber-200/95">領加班費</strong>／<strong className="text-emerald-200/95">紀錄補休時數</strong>（儲存於補休登記用資料，與加班單本體分開）。
+              </>
+            )
           ) : (
             <>
               此處<strong className="text-amber-200/90">讀取</strong>行事曆上與您相關且<strong className="text-cn-parchment/90">已核准</strong>的加班申請，不會改動行事曆。請依<strong className="text-cn-parchment/90">月份</strong>檢視後，逐筆選擇<strong className="text-amber-200/95">領加班費</strong>或<strong className="text-emerald-200/95">轉為補休時數</strong>；再次點選可取消、改回未選。
-              <span className="block mt-2 text-cn-mist/90">全員檢視、人員篩選與代勾選僅限管理者在「用戶管理」指定之單一帳號；一般使用者僅能維護與自己有關的加班列。</span>
+              <span className="block mt-2 text-cn-mist/90">一般帳號僅能查看與自己相關的加班列。全員檢視與指定操作用戶由管理員於本頁設定。</span>
             </>
           )}
         </p>
         <p className="text-amber-200/85 text-sm mt-2 border-t border-cn-gold/20 pt-2 leading-relaxed">
-          規則：以<strong className="text-cn-parchment">人員</strong>為單位、在所選月份內，<strong className="text-cn-parchment">領加班費合計不得超過 {OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時</strong>；已達上限後，其餘加班僅能勾選補休（「領加班費」無法勾選）。全員檢視者代勾選時亦適用同一上限。
+          規則：以<strong className="text-cn-parchment">人員</strong>為單位、在所選月份內，<strong className="text-cn-parchment">領加班費合計不得超過 {OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時</strong>；已達上限後，其餘加班僅能勾選補休（「領加班費」無法勾選）。管理員或操作用戶代勾選時亦適用同一上限。
         </p>
       </div>
+
+      {isAdmin && (
+        <div className="rounded-xl border border-cn-gold/30 bg-black/25 p-4 sm:p-5 mb-4 compensatory-no-print">
+          <label className="block text-cn-mist text-sm mb-1">指定位操作用戶（可檢視全員、篩選任何人、列印）</label>
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <select
+              value={getCompensatoryLeaveManagerAccount()}
+              onChange={(e) => {
+                setCompensatoryLeaveManagerAccount(e.target.value)
+                bump()
+              }}
+              className="w-full sm:max-w-md bg-black/35 border border-cn-gold/30 rounded-lg px-3 py-2 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-amber-700/50 min-h-[44px]"
+            >
+              <option value="">— 不指定（僅管理員可操作全員）—</option>
+              {operatorPickerUsers.map((u) => (
+                <option key={u.account} value={u.account}>
+                  {u.name}（{u.account}）
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-cn-mist text-xs mt-2 leading-relaxed">
+            指定後，該帳號登入補休系統時可選擇<strong className="text-cn-parchment/90">任何用戶</strong>的資料並<strong className="text-cn-parchment/90">列印</strong>；未列入此處的帳號僅能查看與自己相關的加班。
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-3 mb-4">
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 compensatory-no-print">
