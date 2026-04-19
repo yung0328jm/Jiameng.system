@@ -1275,7 +1275,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
-                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'compensatory-leave', 'advance', 'messages'].includes(activeTab)
+                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab)
                   ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/40 shadow-inner'
                   : 'text-cn-parchment border-transparent hover:bg-black/25 hover:border-cn-gold/25 active:bg-black/35'
                 }
@@ -1284,7 +1284,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               <PersonalServiceIcon />
               <span>個人服務</span>
               {(navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo) > 0 && (
-                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'compensatory-leave', 'advance', 'messages'].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
+                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
                   {navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo}
                 </span>
               )}
