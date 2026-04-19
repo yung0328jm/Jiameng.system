@@ -13,6 +13,7 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage'
+import { getOvertimeCompensationMode, OVERTIME_COMPENSATION_CHOICE_KEY } from '../utils/overtimeCompensationChoiceStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { canViewAllPersonalPerformance } from '../utils/performanceViewerStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
@@ -156,7 +157,7 @@ function PersonalPerformance() {
     setDataRevision(r => r + 1)
   }
   useRealtimeKeys(
-    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_overtime_applications', 'jiameng_leave_applications', 'jiameng_performance_viewer_account'],
+    ['jiameng_users', 'jiameng_dropdown_options', 'jiameng_engineering_schedules', 'jiameng_projects', 'jiameng_project_records:*', 'jiameng_project_records__*', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_overtime_applications', 'jiameng_leave_applications', 'jiameng_performance_viewer_account', OVERTIME_COMPENSATION_CHOICE_KEY],
     refetchPerformance
   )
 
@@ -171,7 +172,7 @@ function PersonalPerformance() {
 
   // 行事曆／其他分頁刪除排程或加班申請時，同步更新加班時數明細（一律移除已刪除項目）
   useEffect(() => {
-    const syncKeys = ['jiameng_engineering_schedules', 'jiameng_overtime_applications']
+    const syncKeys = ['jiameng_engineering_schedules', 'jiameng_overtime_applications', OVERTIME_COMPENSATION_CHOICE_KEY]
     const onStorage = (e) => {
       if (!e?.key) return
       if (syncKeys.includes(e.key)) setDataRevision((r) => r + 1)
@@ -791,6 +792,13 @@ function PersonalPerformance() {
       const siteName = schedule?.siteName || (schedule?.segments?.[0]?.siteName) || '—'
       const hours = oa.hours != null && oa.hours !== '' ? Number(oa.hours) : null
       if (hours != null) totalOvertimeHours += hours
+      let personLabel = ''
+      if (personnelList.length > 0) {
+        personLabel = personnelList.find((p) => namesToMatch.some((n) => p === n)) || ''
+      } else {
+        const ap = String(oa.applicant || '').trim()
+        if (namesToMatch.some((n) => n === ap)) personLabel = ap
+      }
       overtimeDetails.push({
         id: oa.id,
         date: oa.date,
@@ -798,7 +806,8 @@ function PersonalPerformance() {
         startTime: oa.startTime || '—',
         endTime: oa.endTime || '—',
         hours: hours != null ? hours : '—',
-        applicant: oa.applicant || '—'
+        applicant: oa.applicant || '—',
+        personLabel
       })
     })
     overtimeDetails.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
@@ -3928,7 +3937,7 @@ function PersonalPerformance() {
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mt-6">
         <div className="mb-4">
           <h3 className="text-lg font-bold text-yellow-400">加班時數明細</h3>
-          <p className="text-gray-500 text-xs mt-1">當月僅計入「加班人員」含您之筆數與時數；若該筆未勾選人員則以申請人計。總計 {performanceData.totalOvertimeHours != null ? Number(performanceData.totalOvertimeHours).toFixed(1) : '0'} 小時</p>
+          <p className="text-gray-500 text-xs mt-1">當月僅計入「加班人員」含您之筆數與時數；若該筆未勾選人員則以申請人計。總計 {performanceData.totalOvertimeHours != null ? Number(performanceData.totalOvertimeHours).toFixed(1) : '0'} 小時。「補休／加班費登記」與補休系統同步，請至補休系統變更勾選。</p>
         </div>
         {!performanceData.overtimeDetails || performanceData.overtimeDetails.length === 0 ? (
           <div className="text-gray-400 text-center py-6">
@@ -3944,17 +3953,23 @@ function PersonalPerformance() {
                   <th className="px-4 py-3 text-left text-yellow-400 font-semibold">開始～結束</th>
                   <th className="px-4 py-3 text-right text-yellow-400 font-semibold">時數</th>
                   <th className="px-4 py-3 text-left text-yellow-400 font-semibold">申請人</th>
+                  <th className="px-4 py-3 text-left text-yellow-400 font-semibold">補休／加班費登記</th>
                   {userRole === 'admin' && <th className="px-4 py-3 text-right text-yellow-400 font-semibold w-24">操作</th>}
                 </tr>
               </thead>
               <tbody>
-                {performanceData.overtimeDetails.map((row, index) => (
+                {performanceData.overtimeDetails.map((row, index) => {
+                  const compMode = row.id ? getOvertimeCompensationMode(row.id, row.personLabel || '') : null
+                  const compLabel = compMode === 'pay' ? '領加班費' : compMode === 'comp_leave' ? '紀錄補休時數' : '未選擇'
+                  const compCls = compMode === 'pay' ? 'text-amber-300' : compMode === 'comp_leave' ? 'text-emerald-300' : 'text-gray-400'
+                  return (
                   <tr key={row.id || index} className="border-b border-gray-700 hover:bg-gray-900">
                     <td className="px-4 py-3 text-white">{row.date ? new Date(row.date).toLocaleDateString('zh-TW') : '—'}</td>
                     <td className="px-4 py-3 text-white">{row.siteName}</td>
                     <td className="px-4 py-3 text-white">{row.startTime}～{row.endTime}</td>
                     <td className="px-4 py-3 text-right text-white">{row.hours !== '—' && row.hours != null ? Number(row.hours).toFixed(1) : '—'}</td>
                     <td className="px-4 py-3 text-white">{row.applicant}</td>
+                    <td className={`px-4 py-3 text-sm ${compCls}`}>{compLabel}</td>
                     {userRole === 'admin' && row.id && (
                       <td className="px-4 py-3 text-right">
                         <button
@@ -3971,7 +3986,8 @@ function PersonalPerformance() {
                       </td>
                     )}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
