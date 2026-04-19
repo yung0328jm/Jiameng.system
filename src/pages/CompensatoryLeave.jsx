@@ -205,8 +205,85 @@ export default function CompensatoryLeave() {
 
   const monthLabel = filterMonth.replace('-', ' 年 ') + ' 月'
 
+  const handlePrint = () => {
+    try {
+      window.print()
+    } catch (e) {
+      console.warn('print failed', e)
+    }
+  }
+
   return (
-    <div className={`mx-auto text-cn-parchment ${isAdmin ? 'max-w-5xl' : 'max-w-3xl'}`}>
+    <>
+      <style>{`
+        .compensatory-print-only { display: none; }
+        @media print {
+          @page { size: A4; margin: 12mm; }
+          html, body { background: white !important; }
+          body * { visibility: hidden; }
+          .compensatory-print-area,
+          .compensatory-print-area * { visibility: visible; }
+          .compensatory-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            max-width: none !important;
+            background: #fff !important;
+            color: #111 !important;
+          }
+          .compensatory-no-print { display: none !important; }
+          .compensatory-print-only {
+            display: block !important;
+            visibility: visible !important;
+            color: #000 !important;
+          }
+          .compensatory-print-area h2,
+          .compensatory-print-area p,
+          .compensatory-print-area span,
+          .compensatory-print-area div,
+          .compensatory-print-area li { color: #111 !important; }
+          .compensatory-print-area .rounded-xl,
+          .compensatory-print-area .rounded-lg,
+          .compensatory-print-area li {
+            background: #fafafa !important;
+            border-color: #333 !important;
+            box-shadow: none !important;
+          }
+          .compensatory-print-area input[type="checkbox"] {
+            accent-color: #333;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+      <div
+        id="jiameng-compensatory-print-root"
+        className={`compensatory-print-area mx-auto text-cn-parchment ${isAdmin ? 'max-w-5xl' : 'max-w-3xl'}`}
+      >
+      <div className="flex justify-end mb-3 compensatory-no-print">
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="inline-flex items-center gap-2 rounded-lg border border-cn-gold/40 bg-cn-panel px-4 py-2.5 text-sm font-semibold text-cn-gold hover:bg-black/30 active:bg-black/40 touch-manipulation min-h-[44px]"
+          title="開啟瀏覽器列印；目標選「另存 PDF」即可下載"
+        >
+          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" />
+          </svg>
+          列印／存成 PDF
+        </button>
+      </div>
+
+      <div className="compensatory-print-only mb-3 border-b border-black pb-2 text-sm leading-relaxed">
+        <div className="text-base font-bold">補休／加班費登記</div>
+        <div>月份：{monthLabel}</div>
+        {isAdmin && (
+          <div>人員：{personFilter ? personFilter : '全部人員'}</div>
+        )}
+        <div className="text-xs text-gray-700 mt-1">列印時間：{new Date().toLocaleString('zh-TW')}</div>
+      </div>
+
       <div className="rounded-xl border border-cn-gold/30 bg-black/25 p-4 sm:p-5 mb-4">
         <h2 className="text-lg font-bold text-cn-gold font-serif tracking-wide mb-1">補休／加班費登記</h2>
         <p className="text-cn-mist text-sm leading-relaxed">
@@ -226,34 +303,36 @@ export default function CompensatoryLeave() {
       </div>
 
       <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-3 mb-4">
-        <label className="flex flex-col gap-1 text-sm text-cn-mist min-w-[200px]">
-          <span>選擇月份</span>
-          <input
-            type="month"
-            value={filterMonth}
-            onChange={(e) => {
-              setFilterMonth(e.target.value || currentMonthYm())
-            }}
-            className="bg-black/35 border border-cn-gold/30 rounded-lg px-3 py-2 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-amber-700/50 min-h-[44px]"
-          />
-        </label>
-        {isAdmin && (
-          <label className="flex flex-col gap-1 text-sm text-cn-mist min-w-[200px] flex-1 max-w-md">
-            <span>選擇人員</span>
-            <select
-              value={personFilter}
-              onChange={(e) => setPersonFilter(e.target.value)}
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 compensatory-no-print">
+          <label className="flex flex-col gap-1 text-sm text-cn-mist min-w-[200px]">
+            <span>選擇月份</span>
+            <input
+              type="month"
+              value={filterMonth}
+              onChange={(e) => {
+                setFilterMonth(e.target.value || currentMonthYm())
+              }}
               className="bg-black/35 border border-cn-gold/30 rounded-lg px-3 py-2 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-amber-700/50 min-h-[44px]"
-            >
-              <option value="">全部人員（{personOptions.length} 人於此月有加班列）</option>
-              {personOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+            />
           </label>
-        )}
+          {isAdmin && (
+            <label className="flex flex-col gap-1 text-sm text-cn-mist min-w-[200px] flex-1 max-w-md">
+              <span>選擇人員</span>
+              <select
+                value={personFilter}
+                onChange={(e) => setPersonFilter(e.target.value)}
+                className="bg-black/35 border border-cn-gold/30 rounded-lg px-3 py-2 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-amber-700/50 min-h-[44px]"
+              >
+                <option value="">全部人員（{personOptions.length} 人於此月有加班列）</option>
+                {personOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
         <p className="text-cn-mist text-sm pb-2 lg:pb-3 lg:ml-auto">
           目前：
           <span className="text-cn-parchment font-medium">{monthLabel}</span>
@@ -320,7 +399,7 @@ export default function CompensatoryLeave() {
                   </div>
                   <div>申請人：{r.applicant}</div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <div className="compensatory-no-print flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <label
                     className={`flex items-center gap-2 touch-manipulation min-h-[44px] ${payDisabled ? 'cursor-not-allowed opacity-55' : 'cursor-pointer'}`}
                     title={payDisabled ? `該員本月已選領加班費 ${othersPayH.toFixed(1)} 小時，再勾此筆將超過 ${OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時上限` : undefined}
@@ -335,7 +414,7 @@ export default function CompensatoryLeave() {
                     <span className="text-amber-100/95">領加班費</span>
                   </label>
                   {payDisabled && (
-                    <p className="text-[11px] text-cn-mist sm:ml-0 w-full sm:w-auto self-center leading-snug">
+                    <p className="compensatory-no-print text-[11px] text-cn-mist sm:ml-0 w-full sm:w-auto self-center leading-snug">
                       同一人本月「領加班費」已計 {othersPayH.toFixed(1)} 小時，本筆（{rowPayHoursForCap(r).toFixed(1)} 小時）若再選「領加班費」將超過 {OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時上限，請改勾補休。
                     </p>
                   )}
@@ -349,6 +428,9 @@ export default function CompensatoryLeave() {
                     <span className="text-emerald-100/95">紀錄補休時數</span>
                   </label>
                 </div>
+                <div className="compensatory-print-only mt-2 border-t border-gray-300 pt-1 text-xs">
+                  登記選項：{mode === 'pay' ? '領加班費' : mode === 'comp_leave' ? '紀錄補休時數' : '尚未選擇'}
+                </div>
                 {mode === 'comp_leave' && r.hours != null && !Number.isNaN(r.hours) && (
                   <p className="mt-2 text-xs text-emerald-300/90">
                     此筆（{r.personLabel}）將計入補休 <span className="font-semibold tabular-nums">{r.hours}</span> 小時（與加班單時數一致）。
@@ -359,6 +441,7 @@ export default function CompensatoryLeave() {
           })}
         </ul>
       )}
-    </div>
+      </div>
+    </>
   )
 }
