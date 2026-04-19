@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react'
-import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
+import { getCurrentUser } from '../utils/authStorage'
+import { canViewAllCompensatoryLeave } from '../utils/compensatoryLeaveManagerStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
@@ -86,15 +87,15 @@ function canTurnPayOn(row, rows) {
 }
 
 export default function CompensatoryLeave() {
-  const isAdmin = getCurrentUserRole() === 'admin'
   const account = String(getCurrentUser() || '').trim()
+  const canViewAll = canViewAllCompensatoryLeave(account)
   const [filterMonth, setFilterMonth] = useState(currentMonthYm)
   /** 管理員：''＝全部人員；非空＝只顯示該人員（與加班單上姓名一致） */
   const [personFilter, setPersonFilter] = useState('')
   const [tick, setTick] = useState(0)
 
   const bump = useCallback(() => setTick((t) => t + 1), [])
-  useRealtimeKeys(['jiameng_overtime_applications', OVERTIME_COMPENSATION_CHOICE_KEY], bump)
+  useRealtimeKeys(['jiameng_overtime_applications', OVERTIME_COMPENSATION_CHOICE_KEY, 'jiameng_compensatory_leave_manager_account'], bump)
 
   const allRows = useMemo(() => {
     void tick
@@ -124,7 +125,7 @@ export default function CompensatoryLeave() {
       if (labels.length === 0) return
 
       labels.forEach((personLabel) => {
-        if (!isAdmin) {
+        if (!canViewAll) {
           const mine = resolvePersonLabelForUser(oa, namesToMatch)
           if (personLabel !== mine || !mine) return
         }
@@ -150,14 +151,14 @@ export default function CompensatoryLeave() {
     })
 
     return out
-  }, [tick, filterMonth, isAdmin, account])
+  }, [tick, filterMonth, canViewAll, account])
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!canViewAll) return
     if (!personFilter) return
     const ok = allRows.some((r) => String(r.personLabel) === String(personFilter))
     if (!ok) setPersonFilter('')
-  }, [isAdmin, personFilter, allRows])
+  }, [canViewAll, personFilter, allRows])
 
   const personOptions = useMemo(() => {
     const labels = new Set(allRows.map((r) => String(r.personLabel || '').trim()).filter(Boolean))
@@ -165,10 +166,10 @@ export default function CompensatoryLeave() {
   }, [allRows])
 
   const displayRows = useMemo(() => {
-    if (!isAdmin || !String(personFilter || '').trim()) return allRows
+    if (!canViewAll || !String(personFilter || '').trim()) return allRows
     const p = String(personFilter).trim()
     return allRows.filter((r) => String(r.personLabel) === p)
-  }, [allRows, personFilter, isAdmin])
+  }, [allRows, personFilter, canViewAll])
 
   const stats = useMemo(() => {
     void tick
@@ -259,7 +260,7 @@ export default function CompensatoryLeave() {
       `}</style>
       <div
         id="jiameng-compensatory-print-root"
-        className={`compensatory-print-area mx-auto text-cn-parchment ${isAdmin ? 'max-w-5xl' : 'max-w-3xl'}`}
+        className={`compensatory-print-area mx-auto text-cn-parchment ${canViewAll ? 'max-w-5xl' : 'max-w-3xl'}`}
       >
       <div className="flex justify-end mb-3 compensatory-no-print">
         <button
@@ -278,7 +279,7 @@ export default function CompensatoryLeave() {
       <div className="compensatory-print-only mb-3 border-b border-black pb-2 text-sm leading-relaxed">
         <div className="text-base font-bold">補休／加班費登記</div>
         <div>月份：{monthLabel}</div>
-        {isAdmin && (
+        {canViewAll && (
           <div>人員：{personFilter ? personFilter : '全部人員'}</div>
         )}
         <div className="text-xs text-gray-700 mt-1">列印時間：{new Date().toLocaleString('zh-TW')}</div>
@@ -287,18 +288,19 @@ export default function CompensatoryLeave() {
       <div className="rounded-xl border border-cn-gold/30 bg-black/25 p-4 sm:p-5 mb-4">
         <h2 className="text-lg font-bold text-cn-gold font-serif tracking-wide mb-1">補休／加班費登記</h2>
         <p className="text-cn-mist text-sm leading-relaxed">
-          {isAdmin ? (
+          {canViewAll ? (
             <>
-              <strong className="text-cn-parchment/90">管理員檢視</strong>：以下僅<strong className="text-amber-200/90">讀取</strong>行事曆上<strong className="text-cn-parchment/90">已核准</strong>之加班申請與排程案名，不會修改或刪除行事曆資料。請先選<strong className="text-cn-parchment/90">月份</strong>，再選<strong className="text-cn-parchment/90">人員</strong>以檢視該員勾選與統計（選「全部人員」則列出該月所有人）。可代為勾選<strong className="text-amber-200/95">領加班費</strong>／<strong className="text-emerald-200/95">紀錄補休時數</strong>（儲存於補休登記用資料，與加班單本體分開）。
+              <strong className="text-cn-parchment/90">全員檢視</strong>：您的帳號已由管理者指定為「補休系統全員檢視者」。以下僅<strong className="text-amber-200/90">讀取</strong>行事曆上<strong className="text-cn-parchment/90">已核准</strong>之加班申請與排程案名，不會修改或刪除行事曆資料。請先選<strong className="text-cn-parchment/90">月份</strong>，再選<strong className="text-cn-parchment/90">人員</strong>以檢視該員勾選與統計（選「全部人員」則列出該月所有人）。可代為勾選<strong className="text-amber-200/95">領加班費</strong>／<strong className="text-emerald-200/95">紀錄補休時數</strong>（儲存於補休登記用資料，與加班單本體分開）。
             </>
           ) : (
             <>
               此處<strong className="text-amber-200/90">讀取</strong>行事曆上與您相關且<strong className="text-cn-parchment/90">已核准</strong>的加班申請，不會改動行事曆。請依<strong className="text-cn-parchment/90">月份</strong>檢視後，逐筆選擇<strong className="text-amber-200/95">領加班費</strong>或<strong className="text-emerald-200/95">轉為補休時數</strong>；再次點選可取消、改回未選。
+              <span className="block mt-2 text-cn-mist/90">全員檢視、人員篩選與代勾選僅限管理者在「用戶管理」指定之單一帳號；一般使用者僅能維護與自己有關的加班列。</span>
             </>
           )}
         </p>
         <p className="text-amber-200/85 text-sm mt-2 border-t border-cn-gold/20 pt-2 leading-relaxed">
-          規則：以<strong className="text-cn-parchment">人員</strong>為單位、在所選月份內，<strong className="text-cn-parchment">領加班費合計不得超過 {OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時</strong>；已達上限後，其餘加班僅能勾選補休（「領加班費」無法勾選）。管理員代勾選時亦適用同一上限。
+          規則：以<strong className="text-cn-parchment">人員</strong>為單位、在所選月份內，<strong className="text-cn-parchment">領加班費合計不得超過 {OVERTIME_PAY_MONTHLY_CAP_HOURS} 小時</strong>；已達上限後，其餘加班僅能勾選補休（「領加班費」無法勾選）。全員檢視者代勾選時亦適用同一上限。
         </p>
       </div>
 
@@ -315,8 +317,8 @@ export default function CompensatoryLeave() {
               className="bg-black/35 border border-cn-gold/30 rounded-lg px-3 py-2 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-amber-700/50 min-h-[44px]"
             />
           </label>
-          {isAdmin && (
-            <label className="flex flex-col gap-1 text-sm text-cn-mist min-w-[200px] flex-1 max-w-md">
+        {canViewAll && (
+          <label className="flex flex-col gap-1 text-sm text-cn-mist min-w-[200px] flex-1 max-w-md">
               <span>選擇人員</span>
               <select
                 value={personFilter}
@@ -336,9 +338,9 @@ export default function CompensatoryLeave() {
         <p className="text-cn-mist text-sm pb-2 lg:pb-3 lg:ml-auto">
           目前：
           <span className="text-cn-parchment font-medium">{monthLabel}</span>
-          {isAdmin && personFilter ? (
+          {canViewAll && personFilter ? (
             <> · 人員「<span className="text-cn-gold font-medium">{personFilter}</span>」</>
-          ) : isAdmin ? (
+          ) : canViewAll ? (
             <> · <span className="text-cn-parchment">全部人員</span></>
           ) : null}
         </p>
@@ -364,7 +366,7 @@ export default function CompensatoryLeave() {
 
       {allRows.length === 0 ? (
         <div className="rounded-xl border border-cn-gold/20 bg-black/20 px-4 py-10 text-center text-cn-mist">
-          {isAdmin
+          {canViewAll
             ? '此月份尚無已核准的加班紀錄，或對應工程排程已從行事曆移除（本頁不會刪除任何行事曆資料）。'
             : '此月份沒有與您相關的已核准加班紀錄，或對應排程已不存在。'}
         </div>
@@ -387,7 +389,7 @@ export default function CompensatoryLeave() {
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-2">
                   <span className="text-cn-gold font-semibold font-mono tabular-nums">{r.dateStr}</span>
                   <span className="text-cn-parchment font-medium">{r.siteName}</span>
-                  {isAdmin && !personFilter && (
+                  {canViewAll && !personFilter && (
                     <span className="text-sm text-emerald-200/90 border border-emerald-800/40 bg-emerald-950/30 px-2 py-0.5 rounded">
                       人員：{r.personLabel}
                     </span>

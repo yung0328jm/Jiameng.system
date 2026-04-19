@@ -14,6 +14,7 @@ import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
 import { getPerformanceViewerAccount, setPerformanceViewerAccount } from '../utils/performanceViewerStorage'
+import { getCompensatoryLeaveManagerAccount, setCompensatoryLeaveManagerAccount } from '../utils/compensatoryLeaveManagerStorage'
 
 function UserAdvanceCell({ account }) {
   const pending = getPendingCountByAccount(account)
@@ -57,6 +58,7 @@ function UserManagement() {
   const [assetsRevision, setAssetsRevision] = useState(0)
   const [advanceRevision, setAdvanceRevision] = useState(0)
   const [viewerPickerSync, setViewerPickerSync] = useState(0)
+  const [compLeaveMgrSync, setCompLeaveMgrSync] = useState(0)
   const [showUserAssets, setShowUserAssets] = useState(false)
   const [selectedAssetsUser, setSelectedAssetsUser] = useState(null) // { account, name }
   const [selectedAssetsData, setSelectedAssetsData] = useState({ balance: 0, inventory: [] })
@@ -102,6 +104,7 @@ function UserManagement() {
   // 預支：審核/匯款後列表即時更新
   useRealtimeKeys(['jiameng_advances'], () => setAdvanceRevision((v) => v + 1))
   useRealtimeKeys(['jiameng_performance_viewer_account'], () => setViewerPickerSync((v) => v + 1))
+  useRealtimeKeys(['jiameng_compensatory_leave_manager_account'], () => setCompLeaveMgrSync((v) => v + 1))
 
   const buildUserAssetsData = (account) => {
     const balance = getWalletBalance(account || '')
@@ -418,6 +421,7 @@ function UserManagement() {
   }
 
   const perfViewerAccount = getPerformanceViewerAccount()
+  const compLeaveMgrAccount = getCompensatoryLeaveManagerAccount()
 
   const getPerformanceScoreColor = (score) => {
     if (score >= 120) return 'text-green-400'
@@ -489,29 +493,55 @@ function UserManagement() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-end gap-4 p-4 bg-gray-800/80 border border-gray-700 rounded-lg">
-        <div>
-          <label className="block text-gray-400 text-sm mb-1">全員績效檢視（僅看）</label>
-          <select
-            data-sync={viewerPickerSync}
-            value={perfViewerAccount}
-            onChange={(e) => {
-              setPerformanceViewerAccount(e.target.value)
-              setViewerPickerSync((v) => v + 1)
-            }}
-            className="bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-sm min-w-[220px] focus:outline-none focus:border-yellow-400"
-          >
-            <option value="">— 不指定 —</option>
-            {users.filter((u) => u.role !== 'admin' && u.role !== 'resigned').map((u) => (
-              <option key={u.account} value={u.account}>
-                {u.name || u.account}（{u.account}）
-              </option>
-            ))}
-          </select>
+      <div className="mb-4 flex flex-col gap-4 p-4 bg-gray-800/80 border border-gray-700 rounded-lg">
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">全員績效檢視（僅看）</label>
+            <select
+              data-sync={viewerPickerSync}
+              value={perfViewerAccount}
+              onChange={(e) => {
+                setPerformanceViewerAccount(e.target.value)
+                setViewerPickerSync((v) => v + 1)
+              }}
+              className="bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-sm min-w-[220px] focus:outline-none focus:border-yellow-400"
+            >
+              <option value="">— 不指定 —</option>
+              {users.filter((u) => u.role !== 'admin' && u.role !== 'resigned').map((u) => (
+                <option key={u.account} value={u.account}>
+                  {u.name || u.account}（{u.account}）
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-gray-500 text-xs max-w-xl pb-1">
+            指定一名員工後，該帳號在「個人績效」可切換查看其他人資料；無法評分或改設定。
+          </p>
         </div>
-        <p className="text-gray-500 text-xs max-w-xl pb-1">
-          指定一名員工後，該帳號在「個人績效」可切換查看其他人資料；無法評分或改設定。
-        </p>
+        <div className="flex flex-wrap items-end gap-4 border-t border-gray-600 pt-4">
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">補休系統全員檢視（指定一人）</label>
+            <select
+              data-sync={compLeaveMgrSync}
+              value={compLeaveMgrAccount}
+              onChange={(e) => {
+                setCompensatoryLeaveManagerAccount(e.target.value)
+                setCompLeaveMgrSync((v) => v + 1)
+              }}
+              className="bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-sm min-w-[220px] focus:outline-none focus:border-yellow-400"
+            >
+              <option value="">— 不指定（無人可看全員）—</option>
+              {users.filter((u) => u.role !== 'resigned').map((u) => (
+                <option key={`cl-${u.account}`} value={u.account}>
+                  {u.name || u.account}（{u.account}）{u.role === 'admin' ? '〔管理員〕' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-gray-500 text-xs max-w-xl pb-1">
+            指定一名員工後，該帳號在「補休系統」可篩選全員、代勾選補休／加班費並列印；其他帳號僅能看與自己有關的加班列。未指定時連管理者也無全員檢視（請指派一人，例如人資）。
+          </p>
+        </div>
       </div>
       
       {users.length === 0 ? (
