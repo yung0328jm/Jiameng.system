@@ -19,6 +19,7 @@ import LeaveApplication from './LeaveApplication'
 import Advance from './Advance'
 import Messages from './Messages'
 import MiniGames from './MiniGames'
+import CompensatoryLeave from './CompensatoryLeave'
 import ErrorBoundary from '../components/ErrorBoundary'
 import {
   HomeIcon,
@@ -37,7 +38,8 @@ import {
   LeaveIcon,
   AdvanceIcon,
   GameIcon,
-  PersonalServiceIcon
+  PersonalServiceIcon,
+  CompensatoryLeaveIcon
 } from '../components/ChineseIcons'
 
 const ProjectDeficiencyTracking = lazy(() => import('./ProjectDeficiencyTracking'))
@@ -620,6 +622,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('daily-todo')) return 'daily-todo'
     if (path.includes('leave-application')) return 'leave-application'
     if (path.includes('advance')) return 'advance'
+    if (path.includes('compensatory-leave')) return 'compensatory-leave'
     if (path.includes('messages')) return 'messages'
     if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
@@ -670,7 +673,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'leave-application': '請假申請',
       'advance': '預支',
       'user-management': '用戶管理',
-      'developing': '開發中'
+      'developing': '開發中',
+      'compensatory-leave': '補休系統'
     }
     return titles[tab] || '佳盟事業群'
   }
@@ -745,6 +749,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <LeaveApplication />
       case 'advance':
         return <Advance />
+      case 'compensatory-leave':
+        return <CompensatoryLeave />
       case 'developing':
         return <MiniGames />
       default:
@@ -1269,7 +1275,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
-                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab)
+                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'compensatory-leave', 'advance', 'messages'].includes(activeTab)
                   ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/40 shadow-inner'
                   : 'text-cn-parchment border-transparent hover:bg-black/25 hover:border-cn-gold/25 active:bg-black/35'
                 }
@@ -1278,7 +1284,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               <PersonalServiceIcon />
               <span>個人服務</span>
               {(navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo) > 0 && (
-                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
+                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'compensatory-leave', 'advance', 'messages'].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
                   {navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo}
                 </span>
               )}
@@ -1310,6 +1316,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                     <LeaveIcon /> 請假申請
                     {navBadges.leave > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.leave}</span>}
                   </button>
+                  <button type="button" onClick={() => { handleTabClick('compensatory-leave', '/compensatory-leave'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <CompensatoryLeaveIcon /> 補休系統
+                  </button>
                   <button type="button" onClick={() => { handleTabClick('advance', '/advance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <AdvanceIcon /> 預支
                     {navBadges.advance > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.advance}</span>}
@@ -1327,6 +1336,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               document.body
             )}
           </div>
+          <NavItem
+            icon={<CompensatoryLeaveIcon />}
+            label="補休系統"
+            isActive={activeTab === 'compensatory-leave'}
+            onClick={() => handleTabClick('compensatory-leave', '/compensatory-leave')}
+          />
           <NavItem
             icon={<CheckInIcon />}
             label="每日簽到"
