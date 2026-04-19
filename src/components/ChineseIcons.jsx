@@ -144,6 +144,17 @@ export function LeaveIcon() {
   )
 }
 
+/** 補休／加班費登記 */
+export function CompensatoryLeaveIcon() {
+  return (
+    <svg className={iconCls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="13" r="6.5" />
+      <path d="M12 9.5V13l2.5 1.5" opacity="0.9" />
+      <path d="M18 6l2-2M18 6l-2-2M6 18l-2 2M6 18l2 2" />
+    </svg>
+  )
+}
+
 export function AdvanceIcon() {
   return (
     <svg className={iconCls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
