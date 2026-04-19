@@ -191,6 +191,7 @@ function App() {
         <Route path="/messages" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="messages" />) : <Navigate to="/login" replace />} />
         <Route path="/leave-application" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="leave-application" />) : <Navigate to="/login" replace />} />
         <Route path="/advance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="advance" />) : <Navigate to="/login" replace />} />
+        <Route path="/compensatory-leave" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="compensatory-leave" />) : <Navigate to="/login" replace />} />
       </Routes>
       </SyncProvider>
     </Router>
