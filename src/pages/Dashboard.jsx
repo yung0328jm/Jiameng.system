@@ -1235,6 +1235,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
           />
           <NavItem
+            icon={<CompensatoryLeaveIcon />}
+            label="補休系統"
+            isActive={activeTab === 'compensatory-leave'}
+            onClick={() => handleTabClick('compensatory-leave', '/compensatory-leave')}
+          />
+          <NavItem
             icon={<PeopleIcon />}
             label="公司活動"
             isActive={activeTab === 'activities'}
@@ -1329,12 +1335,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               document.body
             )}
           </div>
-          <NavItem
-            icon={<CompensatoryLeaveIcon />}
-            label="補休系統"
-            isActive={activeTab === 'compensatory-leave'}
-            onClick={() => handleTabClick('compensatory-leave', '/compensatory-leave')}
-          />
           <NavItem
             icon={<CheckInIcon />}
             label="每日簽到"
