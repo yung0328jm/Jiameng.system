@@ -1,4 +1,4 @@
-// 管理者於「用戶管理」指定「一人」可在補休系統檢視全員資料並列印（與全員績效檢視模式相同）
+// 補休系統「操作用戶」：由管理員在補休頁面指定一名帳號，該帳號與管理員相同可檢視全員、篩選人員並列印
 import { syncKeyToSupabase } from './supabaseSync'
 
 const KEY = 'jiameng_compensatory_leave_manager_account'
@@ -14,7 +14,7 @@ function parseStoredValue(raw) {
   return s.replace(/^["']|["']$/g, '').trim()
 }
 
-/** 取得目前指定的帳號（空字串＝未指定，則無人具全員檢視權） */
+/** 取得管理員在補休頁面指定的操作用戶帳號（空＝未指定，僅管理員具全員權限） */
 export function getCompensatoryLeaveManagerAccount() {
   try {
     let raw = localStorage.getItem(KEY)
@@ -45,10 +45,12 @@ function accountsEqual(a, b) {
 }
 
 /**
- * 目前登入帳號是否可於補休系統檢視「全員」並使用人員篩選／列印。
- * 未指定帳號時一律 false（管理者亦同，須至用戶管理指定）。
+ * 是否可於補休系統檢視「全員」、使用人員篩選與列印。
+ * - 管理員：一律 true
+ * - 一般帳號：僅當與儲存之操作用戶帳號相同時為 true（須由管理員先指定）
  */
-export function canViewAllCompensatoryLeave(account) {
+export function canViewAllCompensatoryLeave(account, isAdminUser) {
+  if (isAdminUser) return true
   const designated = getCompensatoryLeaveManagerAccount()
   if (!designated) return false
   return accountsEqual(account, designated)
