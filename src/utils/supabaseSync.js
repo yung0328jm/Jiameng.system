@@ -146,6 +146,7 @@ export const APP_DATA_KEYS = [
   'jiameng_leave_filler_account',
   // 個人績效：指定「一人」可檢視全員（唯讀）
   'jiameng_performance_viewer_account',
+  'jiameng_compensatory_leave_manager_account',
   // 每日代辦：指定一位代理管理者（可處理所有代辦事項）
   'jiameng_daily_todo_manager_account',
   // 加班申請（待審核/已核准狀態對所有用戶可見）
@@ -667,6 +668,33 @@ export async function refreshAppDataKeyFromSupabase(key) {
       })
       const merged = JSON.stringify(Array.from(byId.values()))
       localStorage.setItem(key, merged)
+    } else if (key === 'jiameng_projects') {
+      const cloudRaw = row.data
+      const fromCloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      let existing = []
+      try {
+        const raw = localStorage.getItem(key)
+        const parsed = raw ? JSON.parse(raw) : []
+        existing = Array.isArray(parsed) ? parsed : []
+      } catch (_) {
+        existing = []
+      }
+      const projectUpdatedAt = (p) => Math.max(Date.parse(p?.updatedAt || '') || 0, Date.parse(p?.createdAt || '') || 0)
+      const byId = new Map()
+      ;[...fromCloud, ...existing].forEach((p) => {
+        const id = String(p?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, p); return }
+        const keep = projectUpdatedAt(p) >= projectUpdatedAt(prev) ? p : prev
+        byId.set(id, keep)
+      })
+      const merged = Array.from(byId.values()).sort(
+        (a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0)
+      )
+      localStorage.setItem(key, JSON.stringify(merged))
     } else {
       const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? (Array.isArray(row.data) ? [] : {}))
       localStorage.setItem(key, val)
