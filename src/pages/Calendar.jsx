@@ -31,6 +31,7 @@ import {
   prepareBlueTagScheduleForSave,
   isBlueTagLegacyWorkScheduleByDate
 } from '../utils/participantWorkEntries'
+import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicleSelfTravel'
 
 /** 藍標（工作/項目）與黃標（出差）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
@@ -157,6 +158,7 @@ function Calendar() {
     startTime: '', // 开始时间
     endTime: '', // 结束时间
     participants: '',
+    mobilePersonnel: '', // 異動／自行前往等臨時到場人員（非公司接駁名單）
     vehicle: '',
     vehicleEntries: [], // 每台車一組：出發/回程駕駛、里程、加油、發票
     departureDriver: '',
@@ -817,6 +819,7 @@ function Calendar() {
       startTime: schedule.startTime || '',
       endTime: schedule.endTime || '',
       participants: schedule.participants || '',
+      mobilePersonnel: schedule.mobilePersonnel || '',
       vehicle: schedule.vehicle || '',
       vehicleEntries: entries,
       departureDriver: schedule.departureDriver || '',
@@ -847,7 +850,7 @@ function Calendar() {
     setOriginalWorkItemIdMap(baseIds)
     const vehiclesWithReturnMileage = new Set(
       (Array.isArray(first.vehicleEntries) ? first.vehicleEntries : [])
-        .filter((e) => e?.returnMileage != null && String(e.returnMileage).trim() !== '')
+        .filter((e) => e?.returnMileage != null && String(e.returnMileage).trim() !== '' && !isSelfTravelVehicle(e.vehicle))
         .map((e) => String(e.vehicle || '').trim())
         .filter(Boolean)
     )
@@ -1001,7 +1004,20 @@ function Calendar() {
     const prevEntries = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
     const nextEntries = nextList.map((v) => {
       const existing = prevEntries.find((e) => String(e?.vehicle || '').trim() === v)
-      return existing ? { ...emptyVehicleEntry(), ...existing, vehicle: v } : { ...emptyVehicleEntry(), vehicle: v }
+      const base = existing
+        ? { ...emptyVehicleEntry(), ...existing, vehicle: v }
+        : { ...emptyVehicleEntry(), vehicle: v }
+      if (isSelfTravelVehicle(v)) {
+        return {
+          ...base,
+          departureMileage: '',
+          returnMileage: '',
+          needRefuel: false,
+          fuelCost: '',
+          invoiceReturned: false
+        }
+      }
+      return base
     })
     setScheduleFormData((prev) => ({ ...prev, vehicle: nextList.join(', '), vehicleEntries: nextEntries }))
   }
@@ -1128,7 +1144,20 @@ function Calendar() {
     const prevEntries = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
     const nextEntries = nextList.map((v) => {
       const existing = prevEntries.find((e) => String(e?.vehicle || '').trim() === v)
-      return existing ? { ...emptyVehicleEntry(), ...existing, vehicle: v } : { ...emptyVehicleEntry(), vehicle: v }
+      const base = existing
+        ? { ...emptyVehicleEntry(), ...existing, vehicle: v }
+        : { ...emptyVehicleEntry(), vehicle: v }
+      if (isSelfTravelVehicle(v)) {
+        return {
+          ...base,
+          departureMileage: '',
+          returnMileage: '',
+          needRefuel: false,
+          fuelCost: '',
+          invoiceReturned: false
+        }
+      }
+      return base
     })
     setScheduleFormData((prev) => ({ ...prev, vehicle: nextList.join(', '), vehicleEntries: nextEntries }))
     setNewVehicleInput('')
@@ -1176,6 +1205,7 @@ function Calendar() {
         startTime: '',
         endTime: '',
         participants: '',
+        mobilePersonnel: '',
         vehicle: '',
         vehicleEntries: [],
         departureDriver: '',
@@ -1206,6 +1236,7 @@ function Calendar() {
         startTime: '',
         endTime: '',
         participants: '',
+        mobilePersonnel: '',
         vehicle: '',
         vehicleEntries: [],
         departureDriver: '',
@@ -1810,7 +1841,8 @@ function Calendar() {
     if (showActivitySubtitle) body += `<p style="font-size:1rem;font-weight:600;margin:0 0 8px 0;color:#333;">活動：${escapeHtml(activityName)}</p>`
     body += `<p style="margin:4px 0;"><strong>日期:</strong> ${escapeHtml(dateStr)} ${timeStr}</p>`
     body += `<p style="margin:4px 0;"><strong>建立者:</strong> ${escapeHtml(displayCreator(item.createdBy))}</p>`
-    if (item.participants) body += `<p style="margin:4px 0;"><strong>參與人員:</strong> ${escapeHtml(item.participants)}</p>`
+    if (item.participants) body += `<p style="margin:4px 0;"><strong>參與人員（公司車／接駁）:</strong> ${escapeHtml(item.participants)}</p>`
+    if (item.mobilePersonnel) body += `<p style="margin:4px 0;"><strong>異動人員:</strong> ${escapeHtml(item.mobilePersonnel)}</p>`
     const detailTagForPrint = String(item?.tag || 'blue').trim()
     const pweForPrint = Array.isArray(item.participantWorkEntries) ? item.participantWorkEntries : []
     if (
@@ -1836,6 +1868,13 @@ function Calendar() {
       if (vehicleLabel) body += `<p style="margin:4px 0;"><strong>車輛:</strong> ${escapeHtml(vehicleLabel)}</p>`
       if (entries.length > 0) {
         entries.forEach((entry, idx) => {
+          if (isSelfTravelVehicle(entry.vehicle)) {
+            body += `<div style="${cardStyle}">`
+            body += `<p style="${cardTitleStyle}">車輛 ${idx + 1} : ${escapeHtml(entry.vehicle || '—')}</p>`
+            body += `<p style="${cardLineStyle}">自行前往：無須填寫公司車里程；交通方式由同仁自行安排。</p>`
+            body += '</div>'
+            return
+          }
           const dep = parseFloat(entry.departureMileage) || 0
           const ret = parseFloat(entry.returnMileage) || 0
           const segmentKm = dep > 0 || ret > 0 ? Math.max(0, ret - dep) : null
@@ -2076,6 +2115,7 @@ function Calendar() {
         startTime: '',
         endTime: '',
         participants: '',
+        mobilePersonnel: '',
         vehicle: '',
         vehicleEntries: [],
         departureDriver: '',
@@ -2501,6 +2541,7 @@ function Calendar() {
         siteName: '',
         date: '',
         participants: '',
+        mobilePersonnel: '',
         vehicle: '',
         vehicleEntries: [],
         departureDriver: '',
@@ -2535,6 +2576,7 @@ function Calendar() {
       siteName: '',
       date: selectedDateForSchedule || '',
       participants: '',
+      mobilePersonnel: '',
       vehicle: '',
       vehicleEntries: [],
       departureDriver: '',
@@ -2725,6 +2767,7 @@ function Calendar() {
         siteName: '',
         date: selectedDateForSchedule || '',
         participants: '',
+        mobilePersonnel: '',
         vehicle: '',
         vehicleEntries: [],
         departureDriver: '',
@@ -3100,7 +3143,7 @@ function Calendar() {
                             const hasVehicle = entries ? schedule.vehicleEntries.some((e) => String(e?.vehicle || '').trim() !== '') : (String(schedule.vehicle || '').trim() !== '')
                             const missingFromEntries = entries && schedule.vehicleEntries.some((e) => {
                               const v = String(e?.vehicle || '').trim()
-                              if (!v) return false
+                              if (!v || isSelfTravelVehicle(v)) return false
                               const dep = String(e?.departureMileage ?? '').trim()
                               const ret = String(e?.returnMileage ?? '').trim()
                               return dep === '' || ret === ''
@@ -3279,7 +3322,10 @@ function Calendar() {
                             <div>
                               <div className="text-white font-semibold">{getScheduleDisplayTitle(schedule)}</div>
                               {schedule.participants && (
-                                <div className="text-gray-400 text-sm">參與人員: {schedule.participants}</div>
+                                <div className="text-gray-400 text-sm">參與人員（公司車／接駁）: {schedule.participants}</div>
+                              )}
+                              {schedule.mobilePersonnel && (
+                                <div className="text-gray-400 text-sm">異動人員: {schedule.mobilePersonnel}</div>
                               )}
                             </div>
                             <button
@@ -3470,7 +3516,12 @@ function Calendar() {
                               )}
                               {schedule.participants && (
                                 <div className="text-blue-200 text-sm">
-                                  <span className="text-blue-300">參與人員:</span> {schedule.participants}
+                                  <span className="text-blue-300">參與人員（公司車／接駁）:</span> {schedule.participants}
+                                </div>
+                              )}
+                              {schedule.mobilePersonnel && (
+                                <div className="text-blue-200 text-sm">
+                                  <span className="text-blue-300">異動人員:</span> {schedule.mobilePersonnel}
                                 </div>
                               )}
                               {schedule.vehicle && (
@@ -3715,8 +3766,14 @@ function Calendar() {
                         {/* 參與人員 */}
                         {selectedDetailItem.participants && (
                           <div>
-                            <span className="text-blue-300">參與人員:</span>
+                            <span className="text-blue-300">參與人員（公司車／接駁）:</span>
                             <span className="ml-2">{selectedDetailItem.participants}</span>
+                          </div>
+                        )}
+                        {selectedDetailItem.mobilePersonnel && (
+                          <div>
+                            <span className="text-blue-300">異動人員:</span>
+                            <span className="ml-2 whitespace-pre-wrap">{selectedDetailItem.mobilePersonnel}</span>
                           </div>
                         )}
 
@@ -3809,6 +3866,10 @@ function Calendar() {
                                 entries.map((entry, idx) => (
                                   <div key={idx} className="bg-gray-800/60 border border-gray-600 rounded-lg p-3 space-y-2">
                                     <div className="text-yellow-400 font-medium text-sm">車輛 {idx + 1}：{entry.vehicle || '—'}</div>
+                                    {isSelfTravelVehicle(entry.vehicle) ? (
+                                      <p className="text-amber-200/90 text-sm">自行前往：無須填寫公司車里程。</p>
+                                    ) : (
+                                      <>
                                     {entry.departureDriver != null && String(entry.departureDriver).trim() !== '' && <div><span className="text-blue-300">出發駕駛:</span><span className="ml-2">{entry.departureDriver}</span>{renderFieldEditor(entry.departureDriverBy, entry.departureDriverAt)}</div>}
                                     {entry.returnDriver != null && String(entry.returnDriver).trim() !== '' && <div><span className="text-blue-300">回程駕駛:</span><span className="ml-2">{entry.returnDriver}</span>{renderFieldEditor(entry.returnDriverBy, entry.returnDriverAt)}</div>}
                                     {entry.departureMileage != null && String(entry.departureMileage).trim() !== '' && <div><span className="text-blue-300">出發里程:</span><span className="ml-2">{entry.departureMileage} km</span>{renderFieldEditor(entry.departureMileageBy, entry.departureMileageAt)}</div>}
@@ -3819,6 +3880,8 @@ function Calendar() {
                                     <div className="flex items-center"><span className="text-blue-300">是否加油:</span><span className="ml-2">{entry.needRefuel ? '是' : '否'}</span>{renderFieldEditor(entry.needRefuelBy, entry.needRefuelAt)}</div>
                                     {entry.fuelCost != null && String(entry.fuelCost).trim() !== '' && <div><span className="text-blue-300">油資:</span><span className="ml-2">NT$ {parseFloat(entry.fuelCost).toLocaleString()}</span>{renderFieldEditor(entry.fuelCostBy, entry.fuelCostAt)}</div>}
                                     <div className="flex items-center"><span className="text-blue-300">發票是否繳回:</span><span className="ml-2">{entry.invoiceReturned ? '是' : '否'}</span>{renderFieldEditor(entry.invoiceReturnedBy, entry.invoiceReturnedAt)}</div>
+                                      </>
+                                    )}
                                   </div>
                                 ))
                               ) : (
@@ -4559,7 +4622,12 @@ function Calendar() {
                       {/* 參與人員 */}
                       {schedule.participants && (
                         <div className="text-white text-sm">
-                          <span className="text-blue-300">參與人員:</span> {schedule.participants}
+                          <span className="text-blue-300">參與人員（公司車／接駁）:</span> {schedule.participants}
+                        </div>
+                      )}
+                      {schedule.mobilePersonnel && (
+                        <div className="text-white text-sm">
+                          <span className="text-blue-300">異動人員:</span> {schedule.mobilePersonnel}
                         </div>
                       )}
 
@@ -4573,7 +4641,7 @@ function Calendar() {
                       {/* 出發駕駛／回程駕駛：多台車時依 vehicleEntries 顯示 */}
                       {(Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0)
                         ? schedule.vehicleEntries.map((entry, idx) => (
-                            (entry.departureDriver || entry.returnDriver) && (
+                            !isSelfTravelVehicle(entry.vehicle) && (entry.departureDriver || entry.returnDriver) && (
                               <div key={idx} className="text-white text-sm">
                                 {entry.vehicle && <span className="text-yellow-300">{entry.vehicle}: </span>}
                                 {entry.departureDriver && <span><span className="text-blue-300">出發</span> {entry.departureDriver}</span>}
@@ -5450,7 +5518,7 @@ function Calendar() {
                 {/* 參與人員 */}
                 <div className="relative" ref={participantDropdownRef}>
                   <label className="block text-gray-300 text-sm mb-2">
-                    參與人員
+                    參與人員（搭乘公司車／接駁）
                   </label>
                   <div className="relative">
                     <input
@@ -5565,6 +5633,21 @@ function Calendar() {
                   )}
                 </div>
 
+                <div className="md:col-span-2">
+                  <label className="block text-gray-300 text-sm mb-2">異動人員（選填）</label>
+                  <p className="text-gray-500 text-xs mb-2 leading-relaxed">
+                    填寫自行前往、臨時到場或其他交通方式到案場的人員（多人請逗號分隔）。與上方「參與人員」接駁名單分開記錄。
+                  </p>
+                  <textarea
+                    name="mobilePersonnel"
+                    value={scheduleFormData.mobilePersonnel || ''}
+                    onChange={handleScheduleChange}
+                    rows={2}
+                    placeholder="例：王小明、李大華"
+                    className="w-full bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
+                  />
+                </div>
+
                 {((scheduleFormData.tag === 'blue' &&
                   !isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)) ||
                   scheduleFormData.tag === 'yellow') && (
@@ -5615,25 +5698,26 @@ function Calendar() {
                   <label className="block text-gray-300 text-sm mb-2">
                     車輛（可勾選多台）
                   </label>
-                  {/* 勾選清單：選單項目 + 已選但尚未在選單中的項目 */}
-                  {(vehicleOptions.length > 0 || selectedVehicleList.length > 0) && (
-                    <div className="mb-3 p-3 bg-gray-800/60 border border-gray-600 rounded-lg">
-                      <span className="text-gray-400 text-xs block mb-2">已選：{selectedVehicleList.length ? selectedVehicleList.join('、') : '無'}</span>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2">
-                        {[...new Set([...vehicleOptions, ...selectedVehicleList])].map((option) => (
-                          <label key={option} className="inline-flex items-center gap-2 cursor-pointer text-white text-sm">
-                            <input
-                              type="checkbox"
-                              checked={selectedVehicleList.includes(option)}
-                              onChange={() => handleVehicleCheckToggle(option)}
-                              className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
-                            />
-                            {option}
-                          </label>
-                        ))}
-                      </div>
+                  <p className="text-gray-500 text-xs mb-2">
+                    可勾選「{SELF_TRAVEL_VEHICLE_LABEL}」表示不搭乘公司車，無須填寫出發／回程里程。
+                  </p>
+                  {/* 勾選清單：含「自行前往」＋選單項目＋已選車牌 */}
+                  <div className="mb-3 p-3 bg-gray-800/60 border border-gray-600 rounded-lg">
+                    <span className="text-gray-400 text-xs block mb-2">已選：{selectedVehicleList.length ? selectedVehicleList.join('、') : '無'}</span>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {[...new Set([SELF_TRAVEL_VEHICLE_LABEL, ...vehicleOptions, ...selectedVehicleList])].map((option) => (
+                        <label key={option} className="inline-flex items-center gap-2 cursor-pointer text-white text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedVehicleList.includes(option)}
+                            onChange={() => handleVehicleCheckToggle(option)}
+                            className="rounded border-gray-500 bg-gray-700 text-yellow-400 focus:ring-yellow-400"
+                          />
+                          {option}
+                        </label>
+                      ))}
                     </div>
-                  )}
+                  </div>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -5670,17 +5754,25 @@ function Calendar() {
                   return (Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []).map((entry, idx) => {
                     const lastReturn = entry.vehicle ? lastReturnMap[String(entry.vehicle).trim()] : null
                     const hasPendingReturnMileageReq = pendingReturnMileageReqs.some((r) => String(r?.vehicle || '').trim() === String(entry.vehicle || '').trim())
+                    const selfTravel = isSelfTravelVehicle(entry.vehicle)
                     return (
                   <div key={entry.vehicle || idx} className="space-y-3 p-4 bg-gray-800/50 border border-gray-600 rounded-lg">
                     <h3 className="text-yellow-400 font-medium text-sm border-b border-gray-600 pb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span>車輛 {idx + 1}：{entry.vehicle || '(未命名)'}</span>
-                      {lastReturn != null && !Number.isNaN(lastReturn) && (
+                      {!selfTravel && lastReturn != null && !Number.isNaN(lastReturn) && (
                         <span className="text-gray-400 font-normal text-xs">
                           上次回程：<span className="text-amber-300 font-semibold">{Number(lastReturn).toLocaleString(undefined, { maximumFractionDigits: 0 })} km</span>
                           <span className="text-gray-500 ml-0.5">（可作出發里程參考）</span>
                         </span>
                       )}
                     </h3>
+                    {selfTravel && (
+                      <p className="text-amber-200/90 text-sm leading-relaxed">
+                        已選「自行前往」：無須填寫公司車出發／回程里程與加油／發票；交通方式由同仁自行安排。
+                      </p>
+                    )}
+                    {!selfTravel && (
+                    <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-gray-300 text-sm mb-1">出發駕駛</label>
@@ -5723,7 +5815,10 @@ function Calendar() {
                       <div>
                         <label className="block text-gray-300 text-sm mb-1">回程里程</label>
                         {(() => {
-                          const isReturnMileageLocked = !!editingScheduleId && originalVehicleReturnMileageLockedRef.current.has(String(entry.vehicle || '').trim())
+                          const isReturnMileageLocked =
+                            !selfTravel &&
+                            !!editingScheduleId &&
+                            originalVehicleReturnMileageLockedRef.current.has(String(entry.vehicle || '').trim())
                           return (
                             <div className="flex flex-wrap items-center gap-2">
                               <input
@@ -5787,6 +5882,8 @@ function Calendar() {
                         <span className="text-gray-300 text-sm">發票是否繳回</span>
                       </label>
                     </div>
+                    </>
+                  )}
                   </div>
                     );
                   });

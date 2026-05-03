@@ -13,6 +13,7 @@ import {
   hideVehicleFromVehicleInfoPage,
   unhideVehicleFromVehicleInfoPage
 } from '../utils/vehicleSettingsStorage'
+import { isSelfTravelVehicle } from '../utils/vehicleSelfTravel'
 
 /** 與 Calendar 一致：取得排程的案場段落（多案場時每個案場一筆，含 siteName + vehicleEntries） */
 function getScheduleSegments(schedule) {
@@ -155,7 +156,7 @@ function VehicleInfo() {
 
     const ensureVehicle = (vehicleKey) => {
       const key = String(vehicleKey || '').trim()
-      if (!key) return null
+      if (!key || isSelfTravelVehicle(key)) return null
       if (!vehicleSummary[key]) {
         vehicleSummary[key] = {
           vehicle: key,
