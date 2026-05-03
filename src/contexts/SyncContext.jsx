@@ -27,8 +27,38 @@ export function SyncProvider({ children, syncReady = false }) {
     const updatedAt = String(data?.updated_at || '')
     if (!updatedAt || updatedAt === lastUpdatedAtRef.current) return false
     lastUpdatedAtRef.current = updatedAt
-    const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? defaultValue)
-    localStorage.setItem(key, val)
+    // 專案清單：不可整包覆寫本機，否則剛軟刪除尚未上雲時，會被舊雲端資料蓋回
+    if (key === 'jiameng_projects') {
+      const cloudRaw = data?.data
+      const fromCloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      let existing = []
+      try {
+        const raw = typeof localStorage !== 'undefined' && localStorage.getItem(key)
+        const parsed = raw ? JSON.parse(raw) : []
+        existing = Array.isArray(parsed) ? parsed : []
+      } catch (_) {
+        existing = []
+      }
+      const projectUpdatedAt = (p) => Math.max(Date.parse(p?.updatedAt || '') || 0, Date.parse(p?.createdAt || '') || 0)
+      const byId = new Map()
+      ;[...fromCloud, ...existing].forEach((p) => {
+        const id = String(p?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, p); return }
+        const keep = projectUpdatedAt(p) >= projectUpdatedAt(prev) ? p : prev
+        byId.set(id, keep)
+      })
+      const merged = Array.from(byId.values()).sort(
+        (a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0)
+      )
+      localStorage.setItem(key, JSON.stringify(merged))
+    } else {
+      const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? defaultValue)
+      localStorage.setItem(key, val)
+    }
     window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
     setRevision((r) => r + 1)
     return true
