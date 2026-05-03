@@ -18,12 +18,51 @@ export function isBlueTagLegacyWorkScheduleByDate(dateVal, tag) {
   return !!ymd && ymd < BLUE_TAG_LEGACY_WORKITEMS_BEFORE
 }
 
-export function mergeParticipantWorkEntries(participantsCsv, existing, options) {
-  const scheduleId = String(options?.scheduleId ?? '').trim()
-  const names = String(participantsCsv || '')
+/** 異動人員欄位：逗號、頓號、分號或換行分隔；保留順序並去重 */
+export function parseMobilePersonnelNames(mobileStr) {
+  const s = String(mobileStr || '').trim()
+  if (!s) return []
+  const raw = s.split(/[,，、;\n\r]+/).map((x) => String(x || '').trim()).filter(Boolean)
+  const seen = new Set()
+  const out = []
+  for (const n of raw) {
+    if (n && !seen.has(n)) {
+      seen.add(n)
+      out.push(n)
+    }
+  }
+  return out
+}
+
+function splitParticipantCsvNames(participantsCsv) {
+  return String(participantsCsv || '')
     .split(',')
     .map((v) => String(v || '').trim())
     .filter(Boolean)
+}
+
+/** 參與人員（接駁）在前，異動人員在後；同名只保留第一筆 */
+export function mergeSchedulePersonNames(participantsCsv, mobilePersonnelStr) {
+  const seen = new Set()
+  const out = []
+  for (const n of splitParticipantCsvNames(participantsCsv)) {
+    if (!seen.has(n)) {
+      seen.add(n)
+      out.push(n)
+    }
+  }
+  for (const n of parseMobilePersonnelNames(mobilePersonnelStr)) {
+    if (!seen.has(n)) {
+      seen.add(n)
+      out.push(n)
+    }
+  }
+  return out
+}
+
+export function mergeParticipantWorkEntries(participantsCsv, existing, options) {
+  const scheduleId = String(options?.scheduleId ?? '').trim()
+  const names = mergeSchedulePersonNames(participantsCsv, options?.mobilePersonnel)
   const existingList = Array.isArray(existing) ? existing : []
   const byName = new Map(existingList.map((e) => [String(e.participantName || '').trim(), e]))
   return names.map((name) => {
@@ -43,7 +82,9 @@ export function mergeParticipantWorkEntries(participantsCsv, existing, options) 
 /** 藍標工作排程儲存前：寫入合併後的參與人工作列；4/1 起清空預排 workItems（改以每人填寫為準）。 */
 export function prepareBlueTagScheduleForSave(form) {
   if (String(form?.tag || 'blue') !== 'blue') return { ...form }
-  const participantWorkEntries = mergeParticipantWorkEntries(form.participants, form.participantWorkEntries)
+  const participantWorkEntries = mergeParticipantWorkEntries(form.participants, form.participantWorkEntries, {
+    mobilePersonnel: form.mobilePersonnel
+  })
   if (isBlueTagLegacyWorkScheduleByDate(form?.date, form?.tag)) {
     return { ...form, participantWorkEntries }
   }
