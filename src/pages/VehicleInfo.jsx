@@ -3,7 +3,7 @@ import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getCurrentUserInfo } from '../utils/authStorage'
 import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
-import { getAllVehicleSettings, saveVehicleSettings, getVehicleSettingsEditors, saveVehicleSettingsEditors } from '../utils/vehicleSettingsStorage'
+import { getAllVehicleSettings, saveVehicleSettings, deleteVehicleSettings, getVehicleSettingsEditors, saveVehicleSettingsEditors } from '../utils/vehicleSettingsStorage'
 
 /** 與 Calendar 一致：取得排程的案場段落（多案場時每個案場一筆，含 siteName + vehicleEntries） */
 function getScheduleSegments(schedule) {
@@ -76,6 +76,32 @@ function VehicleInfo() {
     setVehicleSettings((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), ...next } }))
   }
   const [inspectionDoneChecked, setInspectionDoneChecked] = useState({})
+  const handleDeleteVehicleSettings = (vehicleKey) => {
+    const key = String(vehicleKey || '').trim()
+    if (!key || !canEditVehicleSettings) return
+    if (!window.confirm(`確定刪除「${key}」的保養與驗車設定？\n（不會刪除行事曆中的工程排程與里程紀錄）`)) return
+    const result = deleteVehicleSettings(key)
+    if (!result.success) {
+      alert(result.message || '刪除失敗')
+      return
+    }
+    setVehicleSettings((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    setInspectionDoneChecked((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    setExpandedVehicles((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
   const applyInspectionDone = (vehicleKey) => {
     const key = String(vehicleKey || '').trim()
     if (!key) return
@@ -338,12 +364,13 @@ function VehicleInfo() {
             const isVehicleExpanded = expandedVehicles[vehicle.vehicle]
             return (
             <div key={index} className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+              <div className="flex items-stretch">
               <button
                 type="button"
                 onClick={() => toggleVehicle(vehicle.vehicle)}
-                className="w-full flex items-center justify-between py-4 px-5 text-left hover:bg-gray-700/50 transition-colors flex-wrap gap-2"
+                className="flex-1 min-w-0 flex items-center justify-between py-4 px-5 text-left hover:bg-gray-700/50 transition-colors flex-wrap gap-2"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <svg
                     className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${isVehicleExpanded ? 'rotate-90' : ''}`}
                     fill="none"
@@ -355,7 +382,7 @@ function VehicleInfo() {
                   <svg className="w-6 h-6 shrink-0 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-xl font-semibold text-yellow-400">{vehicle.vehicle}</span>
+                  <span className="text-xl font-semibold text-yellow-400 truncate">{vehicle.vehicle}</span>
                 </div>
                 {(() => {
                   const s = vehicleSettings[String(vehicle.vehicle).trim()] || {}
@@ -370,6 +397,22 @@ function VehicleInfo() {
                   )
                 })()}
               </button>
+              {canEditVehicleSettings && (
+                <div className="shrink-0 flex items-center pr-3 sm:pr-4 border-l border-gray-700/80">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteVehicleSettings(vehicle.vehicle) }}
+                    className="p-2.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-950/40 active:bg-red-950/60 touch-manipulation"
+                    title="刪除此車的保養／驗車設定"
+                    aria-label="刪除車輛保養驗車設定"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              </div>
               {isVehicleExpanded && (
               <div className="px-5 pb-5 pt-0 border-t border-gray-700">
                 {(vehicle.lastReturnMileage != null && !Number.isNaN(Number(vehicle.lastReturnMileage))) && (
