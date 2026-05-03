@@ -47,6 +47,26 @@ export const saveVehicleSettings = (vehicleKey, data) => {
   }
 }
 
+/** 移除該車牌之保養／驗車設定（不影響行事曆排程）；同步至 Supabase */
+export const deleteVehicleSettings = (vehicleKey) => {
+  try {
+    const key = String(vehicleKey || '').trim()
+    if (!key) return { success: false, message: '車牌為必填' }
+    const all = getAllVehicleSettings()
+    if (!Object.prototype.hasOwnProperty.call(all, key)) {
+      return { success: true }
+    }
+    const next = { ...all }
+    delete next[key]
+    const val = JSON.stringify(next)
+    localStorage.setItem(KEY, val)
+    syncKeyToSupabase(KEY, val)
+    return { success: true }
+  } catch (e) {
+    return { success: false, message: e?.message || '刪除失敗' }
+  }
+}
+
 /** 可編輯車輛設定的帳號列表（同步給所有用戶）；僅這些帳號可編輯保養/驗車與勾選本次已經驗車 */
 export const getVehicleSettingsEditors = () => {
   try {
