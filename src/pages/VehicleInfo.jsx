@@ -3,7 +3,16 @@ import { getSchedules } from '../utils/scheduleStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getCurrentUserInfo } from '../utils/authStorage'
 import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
-import { getAllVehicleSettings, saveVehicleSettings, deleteVehicleSettings, getVehicleSettingsEditors, saveVehicleSettingsEditors } from '../utils/vehicleSettingsStorage'
+import {
+  getAllVehicleSettings,
+  saveVehicleSettings,
+  deleteVehicleSettings,
+  getVehicleSettingsEditors,
+  saveVehicleSettingsEditors,
+  getVehicleHiddenPlatesList,
+  hideVehicleFromVehicleInfoPage,
+  unhideVehicleFromVehicleInfoPage
+} from '../utils/vehicleSettingsStorage'
 
 /** 與 Calendar 一致：取得排程的案場段落（多案場時每個案場一筆，含 siteName + vehicleEntries） */
 function getScheduleSegments(schedule) {
@@ -39,8 +48,10 @@ function VehicleInfo() {
   const [newEditorAccount, setNewEditorAccount] = useState('')
   const [expandedVehicles, setExpandedVehicles] = useState({})
   const [expandedActivities, setExpandedActivities] = useState({})
+  const [hiddenPlatesList, setHiddenPlatesList] = useState(() => getVehicleHiddenPlatesList())
   const loadVehicleSettings = () => setVehicleSettings(getAllVehicleSettings())
   const loadEditors = () => setVehicleSettingsEditors(getVehicleSettingsEditors())
+  const loadHiddenPlates = () => setHiddenPlatesList(getVehicleHiddenPlatesList())
   const currentUser = getCurrentUserInfo()
   const currentAccount = currentUser?.username ? String(currentUser.username).trim() : ''
   const isAdmin = currentUser?.role === 'admin'
@@ -76,15 +87,27 @@ function VehicleInfo() {
     setVehicleSettings((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), ...next } }))
   }
   const [inspectionDoneChecked, setInspectionDoneChecked] = useState({})
-  const handleDeleteVehicleSettings = (vehicleKey) => {
+  /** 從本頁移除該車：隱藏車牌列＋清除保養／驗車設定（不刪行事曆排程） */
+  const handleRemoveVehicleFromPage = (vehicleKey) => {
     const key = String(vehicleKey || '').trim()
     if (!key || !canEditVehicleSettings) return
-    if (!window.confirm(`確定刪除「${key}」的保養與驗車設定？\n（不會刪除行事曆中的工程排程與里程紀錄）`)) return
-    const result = deleteVehicleSettings(key)
-    if (!result.success) {
-      alert(result.message || '刪除失敗')
+    if (
+      !window.confirm(
+        `確定將「${key}」從車輛資訊移除？\n\n` +
+          '• 此車將不再顯示於本頁（含里程與加油統計）。\n' +
+          '• 行事曆中的工程排程不會被刪除。\n' +
+          '• 此車的保養／驗車設定會一併清除。\n\n' +
+          '日後可於下方「已隱藏的車牌」恢復顯示。'
+      )
+    ) {
       return
     }
+    const h = hideVehicleFromVehicleInfoPage(key)
+    if (!h.success) {
+      alert(h.message || '隱藏失敗')
+      return
+    }
+    deleteVehicleSettings(key)
     setVehicleSettings((prev) => {
       const next = { ...prev }
       delete next[key]
@@ -100,6 +123,8 @@ function VehicleInfo() {
       delete next[key]
       return next
     })
+    loadHiddenPlates()
+    loadVehicleData()
   }
 
   const applyInspectionDone = (vehicleKey) => {
@@ -248,15 +273,24 @@ function VehicleInfo() {
         if (m && m._dayToFuelCost) delete m._dayToFuelCost
       })
     })
-    
+
+    const hiddenSet = new Set(getVehicleHiddenPlatesList())
+    Object.keys(vehicleSummary).forEach((k) => {
+      if (hiddenSet.has(k)) delete vehicleSummary[k]
+    })
+
     setVehicleData(vehicleSummary)
   }
 
-  useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_vehicle_settings', 'jiameng_vehicle_settings_editors'], () => {
-    loadVehicleData()
-    loadVehicleSettings()
-    loadEditors()
-  })
+  useRealtimeKeys(
+    ['jiameng_engineering_schedules', 'jiameng_vehicle_settings', 'jiameng_vehicle_settings_editors', 'jiameng_vehicle_info_hidden'],
+    () => {
+      loadVehicleData()
+      loadVehicleSettings()
+      loadEditors()
+      loadHiddenPlates()
+    }
+  )
 
   useEffect(() => {
     loadVehicleData()
@@ -270,8 +304,12 @@ function VehicleInfo() {
       if (cancelled) return
       await refreshAppDataKeyFromSupabase('jiameng_vehicle_settings_editors')
       if (cancelled) return
+      await refreshAppDataKeyFromSupabase('jiameng_vehicle_info_hidden')
+      if (cancelled) return
       loadVehicleSettings()
       loadEditors()
+      loadHiddenPlates()
+      loadVehicleData()
     }
     pull()
     return () => { cancelled = true }
@@ -353,6 +391,40 @@ function VehicleInfo() {
         <p className="text-gray-400 text-sm mb-4">目前僅供檢視；僅管理員或已指定之用戶可編輯保養／驗車與勾選。</p>
       )}
 
+      {canEditVehicleSettings && hiddenPlatesList.length > 0 && (
+        <div className="mb-6 p-4 bg-gray-900/80 rounded-lg border border-amber-900/40">
+          <h3 className="text-amber-200 font-semibold mb-2 text-sm">已從本頁隱藏的車牌</h3>
+          <p className="text-gray-500 text-xs mb-3">
+            下列車牌仍可能出現在行事曆排程；恢復後會重新顯示於車輛資訊列表。
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {hiddenPlatesList.map((plate) => (
+              <span
+                key={plate}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-800 border border-gray-600 text-sm text-gray-200"
+              >
+                <span className="font-mono">{plate}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = unhideVehicleFromVehicleInfoPage(plate)
+                    if (!r.success) {
+                      alert(r.message || '恢復失敗')
+                      return
+                    }
+                    loadHiddenPlates()
+                    loadVehicleData()
+                  }}
+                  className="text-amber-400 hover:text-amber-300 text-xs font-medium underline-offset-2 hover:underline"
+                >
+                  恢復顯示
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {vehicles.length === 0 ? (
         <div className="text-gray-400 text-center py-12">
           <p>目前尚無車輛資訊</p>
@@ -401,10 +473,10 @@ function VehicleInfo() {
                 <div className="shrink-0 flex items-center pr-3 sm:pr-4 border-l border-gray-700/80">
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteVehicleSettings(vehicle.vehicle) }}
+                    onClick={(e) => { e.stopPropagation(); handleRemoveVehicleFromPage(vehicle.vehicle) }}
                     className="p-2.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-950/40 active:bg-red-950/60 touch-manipulation"
-                    title="刪除此車的保養／驗車設定"
-                    aria-label="刪除車輛保養驗車設定"
+                    title="從車輛資訊移除（不刪行事曆排程）"
+                    aria-label="從車輛資訊移除該車"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
