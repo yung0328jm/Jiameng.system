@@ -29,6 +29,7 @@ import {
   DocumentIcon,
   PeopleIcon,
   GearIcon,
+  AlertIcon,
   PerformanceIcon,
   ShopIcon,
   BackpackIcon,
@@ -1206,6 +1207,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             isActive={activeTab === 'calendar'}
             onClick={() => handleTabClick('calendar', '/calendar')}
             badge={userRole === 'admin' && activeTab !== 'calendar' && navBadges.overtime > 0 ? navBadges.overtime : null}
+          />
+          <NavItem
+            icon={<AlertIcon />}
+            label="專案管理"
+            isActive={activeTab === 'deficiency'}
+            onClick={() => handleTabClick('deficiency', '/project-deficiency')}
           />
           <NavItem
             icon={<ChatIcon />}
