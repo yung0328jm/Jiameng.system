@@ -178,6 +178,7 @@ export const APP_DATA_KEYS = [
   'jiameng_card_back_equipped',
   'jiameng_vehicle_settings',
   'jiameng_vehicle_settings_editors',
+  'jiameng_vehicle_info_hidden',
   // 每月份工時報表：日期欄平日／假日覆寫（影響假日出工 +8）
   'jiameng_monthly_day_nature'
 ]
@@ -384,6 +385,41 @@ async function _doUpsert(sb, key, value) {
         byId.set(id, keep)
       })
       data = Array.from(byId.values()).sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+    } catch (_) {
+      // 雲端讀取失敗時仍以本次傳入的資料寫入
+    }
+  }
+
+  // 車輛資訊隱藏清單：隱藏＝聯集；恢復顯示＝本機清單為雲端子集且較短時以本機為準（否則無法從雲端移除車牌）
+  if (key === 'jiameng_vehicle_info_hidden') {
+    try {
+      const incomingObj =
+        typeof data === 'object' && data !== null && !Array.isArray(data) ? data : {}
+      const incPlates = Array.isArray(incomingObj.hiddenPlates)
+        ? incomingObj.hiddenPlates.map((s) => String(s).trim()).filter(Boolean)
+        : []
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      const cloudRaw = cloudRow?.data
+      const cloudObj =
+        typeof cloudRaw === 'object' && cloudRaw !== null && !Array.isArray(cloudRaw) ? cloudRaw : {}
+      const cloudPlates = Array.isArray(cloudObj.hiddenPlates)
+        ? cloudObj.hiddenPlates.map((s) => String(s).trim()).filter(Boolean)
+        : []
+      const cloudSet = new Set(cloudPlates)
+      const incSubsetOfCloud = incPlates.every((p) => cloudSet.has(p))
+      const isUnhideWave =
+        incPlates.length < cloudPlates.length && incSubsetOfCloud
+      let mergedPlates
+      if (isUnhideWave) {
+        mergedPlates = [...incPlates]
+      } else {
+        mergedPlates = [
+          ...new Set([...cloudPlates, ...incPlates])
+        ]
+      }
+      mergedPlates.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+      data = { hiddenPlates: mergedPlates }
     } catch (_) {
       // 雲端讀取失敗時仍以本次傳入的資料寫入
     }

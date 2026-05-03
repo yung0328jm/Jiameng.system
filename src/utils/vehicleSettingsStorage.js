@@ -3,6 +3,8 @@ import { syncKeyToSupabase } from './supabaseSync'
 
 const KEY = 'jiameng_vehicle_settings'
 const EDITORS_KEY = 'jiameng_vehicle_settings_editors'
+/** 從「車輛資訊」頁隱藏的車牌（不刪行事曆排程）；同步至 Supabase */
+const HIDDEN_KEY = 'jiameng_vehicle_info_hidden'
 
 export const getVehicleSettings = (vehicleKey) => {
   try {
@@ -85,6 +87,51 @@ export const saveVehicleSettingsEditors = (payload) => {
     const val = JSON.stringify(next)
     localStorage.setItem(EDITORS_KEY, val)
     syncKeyToSupabase(EDITORS_KEY, val)
+    return { success: true }
+  } catch (e) {
+    return { success: false, message: e?.message || '儲存失敗' }
+  }
+}
+
+export const getVehicleHiddenPlatesList = () => {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY)
+    const o = raw ? JSON.parse(raw) : {}
+    const list = Array.isArray(o?.hiddenPlates) ? o.hiddenPlates : []
+    return [...new Set(list.map((s) => String(s).trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, 'zh-Hant')
+    )
+  } catch {
+    return []
+  }
+}
+
+/** 不再於車輛資訊頁顯示該車牌（行事曆排程不受影響） */
+export const hideVehicleFromVehicleInfoPage = (vehicleKey) => {
+  try {
+    const plate = String(vehicleKey || '').trim()
+    if (!plate) return { success: false, message: '車牌為必填' }
+    const current = new Set(getVehicleHiddenPlatesList())
+    current.add(plate)
+    const val = JSON.stringify({
+      hiddenPlates: Array.from(current).sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+    })
+    localStorage.setItem(HIDDEN_KEY, val)
+    syncKeyToSupabase(HIDDEN_KEY, val)
+    return { success: true }
+  } catch (e) {
+    return { success: false, message: e?.message || '儲存失敗' }
+  }
+}
+
+export const unhideVehicleFromVehicleInfoPage = (vehicleKey) => {
+  try {
+    const plate = String(vehicleKey || '').trim()
+    if (!plate) return { success: false, message: '車牌為必填' }
+    const next = getVehicleHiddenPlatesList().filter((p) => p !== plate)
+    const val = JSON.stringify({ hiddenPlates: next })
+    localStorage.setItem(HIDDEN_KEY, val)
+    syncKeyToSupabase(HIDDEN_KEY, val)
     return { success: true }
   } catch (e) {
     return { success: false, message: e?.message || '儲存失敗' }
