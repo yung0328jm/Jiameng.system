@@ -29,7 +29,8 @@ import {
 import {
   mergeParticipantWorkEntries,
   prepareBlueTagScheduleForSave,
-  isBlueTagLegacyWorkScheduleByDate
+  isBlueTagLegacyWorkScheduleByDate,
+  mergeSchedulePersonNames
 } from '../utils/participantWorkEntries'
 import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicleSelfTravel'
 
@@ -832,7 +833,8 @@ function Calendar() {
       workItems: first.workItems || schedule.workItems || [],
       participantWorkEntries: mergeParticipantWorkEntries(
         schedule.participants || '',
-        Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
+        Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : [],
+        { scheduleId: String(schedule.id || '').trim(), mobilePersonnel: schedule.mobilePersonnel || '' }
       ),
       segments: segs.length > 0 ? segs : undefined,
       createdBy: schedule.createdBy || '',
@@ -945,7 +947,10 @@ function Calendar() {
       return {
         ...prev,
         participants: joined,
-        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries)
+        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries, {
+          scheduleId: String(editingScheduleId || '').trim(),
+          mobilePersonnel: prev.mobilePersonnel
+        })
       }
     })
   }
@@ -964,7 +969,10 @@ function Calendar() {
       return {
         ...prev,
         participants: joined,
-        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries)
+        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries, {
+          scheduleId: String(editingScheduleId || '').trim(),
+          mobilePersonnel: prev.mobilePersonnel
+        })
       }
     })
   }
@@ -972,7 +980,14 @@ function Calendar() {
   const clearParticipants = () => {
     setScheduleFormData((prev) => {
       if (!tagUsesParticipantWorkEntries(prev.tag)) return { ...prev, participants: '', participantWorkEntries: [] }
-      return { ...prev, participants: '', participantWorkEntries: [] }
+      return {
+        ...prev,
+        participants: '',
+        participantWorkEntries: mergeParticipantWorkEntries('', prev.participantWorkEntries, {
+          scheduleId: String(editingScheduleId || '').trim(),
+          mobilePersonnel: prev.mobilePersonnel
+        })
+      }
     })
   }
 
@@ -985,7 +1000,10 @@ function Calendar() {
       return {
         ...prev,
         participants: joined,
-        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries)
+        participantWorkEntries: mergeParticipantWorkEntries(joined, prev.participantWorkEntries, {
+          scheduleId: String(editingScheduleId || '').trim(),
+          mobilePersonnel: prev.mobilePersonnel
+        })
       }
     })
   }
@@ -1042,7 +1060,10 @@ function Calendar() {
       if (!tagUsesParticipantWorkEntries(prev.tag)) return prev
       return {
         ...prev,
-        participantWorkEntries: mergeParticipantWorkEntries(prev.participants, prev.participantWorkEntries)
+        participantWorkEntries: mergeParticipantWorkEntries(prev.participants, prev.participantWorkEntries, {
+          scheduleId: String(editingScheduleId || '').trim(),
+          mobilePersonnel: prev.mobilePersonnel
+        })
       }
     })
   }
@@ -1376,12 +1397,16 @@ function Calendar() {
       return
     }
     const pweSerialized = JSON.stringify(selectedDetailItem.participantWorkEntries || [])
-    const syncKey = `${String(selectedDetailItem.id || '')}|${String(selectedDetailItem.participants || '')}|${pweSerialized}`
+    const syncKey = `${String(selectedDetailItem.id || '')}|${String(selectedDetailItem.participants || '')}|${String(selectedDetailItem.mobilePersonnel || '')}|${pweSerialized}`
     if (detailPweSyncKeyRef.current === syncKey) return
     detailPweSyncKeyRef.current = syncKey
     const merged = mergeParticipantWorkEntries(
       selectedDetailItem.participants,
-      Array.isArray(selectedDetailItem.participantWorkEntries) ? selectedDetailItem.participantWorkEntries : []
+      Array.isArray(selectedDetailItem.participantWorkEntries) ? selectedDetailItem.participantWorkEntries : [],
+      {
+        scheduleId: String(selectedDetailItem.id || '').trim(),
+        mobilePersonnel: selectedDetailItem.mobilePersonnel || ''
+      }
     )
     setDetailPweDraft(merged.length ? merged.map((e) => ({ ...e })) : [])
   }, [showDetailModal, selectedDetailType, selectedDetailItem])
@@ -1550,7 +1575,10 @@ function Calendar() {
     if (!sid || !Array.isArray(draft)) return
     const fresh = getSchedules().find((s) => String(s?.id) === sid)
     if (!fresh) return
-    const participantWorkEntries = mergeParticipantWorkEntries(String(fresh.participants || ''), draft, { scheduleId: sid })
+    const participantWorkEntries = mergeParticipantWorkEntries(String(fresh.participants || ''), draft, {
+      scheduleId: sid,
+      mobilePersonnel: String(fresh.mobilePersonnel || '')
+    })
     updateSchedule(sid, { ...getScheduleEditorInfo(), participantWorkEntries })
     setSchedules(getSchedules())
     const updated = getSchedules().find((s) => String(s?.id) === sid)
@@ -2139,10 +2167,17 @@ function Calendar() {
 
   const handleScheduleChange = (e) => {
     const { name, value, type, checked } = e.target
-    setScheduleFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }))
+    const nextVal = type === 'checkbox' ? checked : value
+    setScheduleFormData((prev) => {
+      const next = { ...prev, [name]: nextVal }
+      if (name === 'mobilePersonnel' && tagUsesParticipantWorkEntries(prev.tag)) {
+        next.participantWorkEntries = mergeParticipantWorkEntries(prev.participants, prev.participantWorkEntries, {
+          scheduleId: String(editingScheduleId || '').trim(),
+          mobilePersonnel: String(nextVal || '')
+        })
+      }
+      return next
+    })
   }
 
   /** 每台車一組的駕駛/里程/加油/發票 */
@@ -2307,7 +2342,10 @@ function Calendar() {
 
     const mergedPweForLb =
       scheduleFormData.tag === 'blue' || scheduleFormData.tag === 'yellow'
-        ? mergeParticipantWorkEntries(scheduleFormData.participants, scheduleFormData.participantWorkEntries)
+        ? mergeParticipantWorkEntries(scheduleFormData.participants, scheduleFormData.participantWorkEntries, {
+            scheduleId: String(editingScheduleId || scheduleFormData.id || '').trim(),
+            mobilePersonnel: scheduleFormData.mobilePersonnel
+          })
         : []
     const formBlueLegacyWorkItems = isBlueTagLegacyWorkScheduleByDate(scheduleFormData.date, scheduleFormData.tag)
 
@@ -2452,7 +2490,10 @@ function Calendar() {
               participantWorkEntries: mergeParticipantWorkEntries(
                 scheduleFormData.participants,
                 scheduleFormData.participantWorkEntries,
-                { scheduleId: String(editingScheduleId || scheduleFormData.id || '').trim() }
+                {
+                  scheduleId: String(editingScheduleId || scheduleFormData.id || '').trim(),
+                  mobilePersonnel: scheduleFormData.mobilePersonnel
+                }
               )
             }
           : { ...scheduleFormData, participantWorkEntries: [] }
@@ -4053,9 +4094,17 @@ function Calendar() {
                             <label className="block text-blue-300 text-sm mb-1">加班人員（選填）</label>
                             <div className="max-h-32 overflow-y-auto border border-gray-600 rounded bg-gray-800 p-2 space-y-1">
                               {(() => {
-                                const participantsStr = String(selectedDetailItem?.participants || '').trim()
-                                const names = participantsStr ? participantsStr.split(',').map((s) => s.trim()).filter(Boolean) : []
-                                if (names.length === 0) return <span className="text-gray-500 text-xs">此排程尚無參與人員可勾選</span>
+                                const names = mergeSchedulePersonNames(
+                                  selectedDetailItem?.participants,
+                                  selectedDetailItem?.mobilePersonnel
+                                )
+                                if (names.length === 0) {
+                                  return (
+                                    <span className="text-gray-500 text-xs">
+                                      此排程尚無「參與人員」或「異動人員」可勾選；請先在排程中設定名單。
+                                    </span>
+                                  )
+                                }
                                 return names.map((name) => (
                                   <label key={name} className="flex items-center gap-2 cursor-pointer text-blue-200 text-sm">
                                     <input
@@ -4336,8 +4385,7 @@ function Calendar() {
                     const nextAction = latestIndex === -1 || latestIndex === order.length - 1 ? (tripReports.length === 0 ? '出發' : null) : order[latestIndex + 1]
                     const currentUser = getCurrentUser()
                     const role = getCurrentUserRole()
-                    const participantsStr = String(selectedDetailItem?.participants || '').trim()
-                    const participantNames = new Set(participantsStr.split(',').map((p) => String(p || '').trim()).filter(Boolean))
+                    const participantNames = new Set(mergeSchedulePersonNames(selectedDetailItem?.participants, selectedDetailItem?.mobilePersonnel))
                     const userNames = currentUser ? (getDisplayNamesForAccount(currentUser) || []).map((n) => String(n || '').trim()).filter(Boolean) : []
                     const isParticipant = userNames.some((n) => participantNames.has(n)) || participantNames.has(currentUser || '')
                     const canReport = !!currentUser && !!scheduleId && !!siteName && (role === 'admin' || isParticipant)
@@ -5412,7 +5460,8 @@ function Calendar() {
                           const next = { ...prev, tag: 'blue' }
                           next.participantWorkEntries = mergeParticipantWorkEntries(
                             next.participants,
-                            prev.participantWorkEntries
+                            prev.participantWorkEntries,
+                            { scheduleId: String(editingScheduleId || '').trim(), mobilePersonnel: prev.mobilePersonnel }
                           )
                           return next
                         })
@@ -5432,7 +5481,8 @@ function Calendar() {
                           const next = { ...prev, tag: 'yellow' }
                           next.participantWorkEntries = mergeParticipantWorkEntries(
                             next.participants,
-                            prev.participantWorkEntries
+                            prev.participantWorkEntries,
+                            { scheduleId: String(editingScheduleId || '').trim(), mobilePersonnel: prev.mobilePersonnel }
                           )
                           return next
                         })
@@ -5662,7 +5712,7 @@ function Calendar() {
                     </p>
                     {(scheduleFormData.participantWorkEntries || []).length === 0 ? (
                       <p className="text-gray-500 text-sm">
-                        請先設定參與人員（勾選或手動輸入後點選他處／移開欄位），系統會依名單產生每人專屬欄位。
+                        請先設定<strong className="text-gray-400">參與人員（接駁）</strong>或<strong className="text-gray-400">異動人員</strong>（勾選／輸入後移開欄位），系統會依名單產生每人專屬欄位。
                       </p>
                     ) : (
                       <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">

@@ -17,7 +17,7 @@ import { getOvertimeCompensationMode, OVERTIME_COMPENSATION_CHOICE_KEY } from '.
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { canViewAllPersonalPerformance } from '../utils/performanceViewerStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
-import { mergeParticipantWorkEntries, isBlueTagLegacyWorkScheduleByDate } from '../utils/participantWorkEntries'
+import { mergeParticipantWorkEntries, isBlueTagLegacyWorkScheduleByDate, parseMobilePersonnelNames } from '../utils/participantWorkEntries'
 
 /** 行事曆排程 date 可能為 YYYY-MM-DD 或 YYYY/MM/DD，績效篩選與逐日比對時需一致 */
 function normalizeScheduleYmd(d) {
@@ -268,13 +268,18 @@ function PersonalPerformance() {
       const schedTag = String(schedule.tag || 'blue').trim()
       const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
       const participantsCsv = String(schedule.participants || '').trim()
-      // 藍標（4/1 起每人填寫）與黃標出差：參與人員依人計分；藍標 2026/3 止仍走預排 workItems，避免與舊預排雙計分
+      const hasShuttleOrMobile =
+        participantsCsv.length > 0 || parseMobilePersonnelNames(schedule.mobilePersonnel).length > 0
+      // 藍標（4/1 起每人填寫）與黃標出差：接駁＋異動人員依人計分；藍標 2026/3 止仍走預排 workItems，避免與舊預排雙計分
       const useParticipantWorkRows =
-        participantsCsv.length > 0 &&
+        hasShuttleOrMobile &&
         ((schedTag === 'blue' && !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)) ||
           schedTag === 'yellow')
       const pweList = useParticipantWorkRows
-        ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
+        ? mergeParticipantWorkEntries(schedule.participants, rawPwe, {
+            scheduleId: schedule.id,
+            mobilePersonnel: schedule.mobilePersonnel
+          })
         : []
 
       if (useParticipantWorkRows && pweList.length > 0) {
@@ -968,12 +973,17 @@ function PersonalPerformance() {
         const schedTag = String(schedule.tag || 'blue').trim()
         const rawPwe = Array.isArray(schedule.participantWorkEntries) ? schedule.participantWorkEntries : []
         const participantsCsv = String(schedule.participants || '').trim()
+        const hasShuttleOrMobile =
+          participantsCsv.length > 0 || parseMobilePersonnelNames(schedule.mobilePersonnel).length > 0
         const useDailyPwe =
-          participantsCsv.length > 0 &&
+          hasShuttleOrMobile &&
           ((schedTag === 'blue' && !isBlueTagLegacyWorkScheduleByDate(schedule.date, schedule.tag)) ||
             schedTag === 'yellow')
         const pweList = useDailyPwe
-          ? mergeParticipantWorkEntries(schedule.participants, rawPwe, { scheduleId: schedule.id })
+          ? mergeParticipantWorkEntries(schedule.participants, rawPwe, {
+              scheduleId: schedule.id,
+              mobilePersonnel: schedule.mobilePersonnel
+            })
           : []
         if (useDailyPwe && pweList.length > 0) {
           pweList.forEach((entry) => {
