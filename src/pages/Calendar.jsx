@@ -34,7 +34,7 @@ import {
 } from '../utils/participantWorkEntries'
 import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicleSelfTravel'
 
-/** 藍標（工作/項目）與黃標（出差）皆可使用 participantWorkEntries 由每人填寫當日工作 */
+/** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
   const t = String(tag || '').trim()
   return t === 'blue' || t === 'yellow'
@@ -129,13 +129,10 @@ function Calendar() {
   const [siteStatusFilter, setSiteStatusFilter] = useState('all') // all | in_progress | planning | completed | on_hold
   const [siteSearchQuery, setSiteSearchQuery] = useState('') // 多案場勾選時的搜尋關鍵字
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false)
-  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false)
-  const [newVehicleInput, setNewVehicleInput] = useState('') // 用於「新增車輛到選單」的輸入，不直接寫入 vehicle
   const [showSiteDropdown, setShowSiteDropdown] = useState(false)
   const [selectedSiteNamesForPicker, setSelectedSiteNamesForPicker] = useState([]) // 多案場勾選時暫存的已選案場（套用後寫入 siteName）
   const [showResponsiblePersonDropdown, setShowResponsiblePersonDropdown] = useState({}) // 每个工作项目的下拉選單状态
   const participantDropdownRef = useRef(null)
-  const vehicleDropdownRef = useRef(null)
   const siteDropdownRef = useRef(null)
   const responsiblePersonDropdownRefs = useRef({})
   const scheduleModalBodyRef = useRef(null)
@@ -170,8 +167,8 @@ function Calendar() {
     fuelCost: '',
     invoiceReturned: false,
     workItems: [],
-    participantWorkEntries: [], // 藍標／黃標（出差）：各參與人員各自填寫之當日工作內容
-    tag: 'blue', // red(重要/節假日), green(活動), blue(工作/項目), yellow(出差), 行政(不列入案場工時報表)
+    participantWorkEntries: [], // 藍標／黃標（住宿）：各參與人員各自填寫之當日工作內容
+    tag: 'blue', // red(重要/節假日), green(活動), blue(工作/項目), yellow(住宿), 行政(不列入案場工時報表)
     progressSheet: false,  // 工進單（新增活動卡預設不勾；未勾選時該組所有人績效扣1分、活動框紅色閃爍）
     constructionPhotos: false // 施工照片（同上）
   })
@@ -865,9 +862,6 @@ function Calendar() {
       if (participantDropdownRef.current && !participantDropdownRef.current.contains(event.target)) {
         setShowParticipantDropdown(false)
       }
-      if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(event.target)) {
-        setShowVehicleDropdown(false)
-      }
       if (siteDropdownRef.current && !siteDropdownRef.current.contains(event.target)) {
         setShowSiteDropdown(false)
       }
@@ -1040,15 +1034,6 @@ function Calendar() {
     setScheduleFormData((prev) => ({ ...prev, vehicle: nextList.join(', '), vehicleEntries: nextEntries }))
   }
 
-  // 處理車輛選擇（下拉單選，保留以相容既有邏輯；若需多選請用勾選）
-  const handleVehicleSelect = (value) => {
-    const next = selectedVehicleList.includes(value)
-      ? selectedVehicleList.filter((v) => v !== value)
-      : [...selectedVehicleList, value]
-    setScheduleFormData((prev) => ({ ...prev, vehicle: next.join(', ') }))
-    setShowVehicleDropdown(false)
-  }
-
   // 处理參與人員输入
   const handleParticipantInput = (e) => {
     const value = e.target.value
@@ -1075,11 +1060,6 @@ function Calendar() {
         String(e.id) === String(id) ? { ...e, [field]: value } : e
       )
     }))
-  }
-
-  // 處理「新增車輛到選單」的輸入（不直接寫入排程 vehicle）
-  const handleNewVehicleInput = (e) => {
-    setNewVehicleInput(e.target.value)
   }
 
   // 解析活動名稱為案場陣列（支援 、，, 與空白分隔）
@@ -1152,38 +1132,6 @@ function Calendar() {
     if (any) loadDropdownOptions()
   }
 
-  // 添加新的車輛到選單，並可選擇是否同時勾選；同步 vehicleEntries
-  const handleAddVehicle = () => {
-    const value = newVehicleInput.trim()
-    if (!value) return
-    const added = !vehicleOptions.includes(value)
-    if (added) {
-      addDropdownOption(value, 'vehicles')
-      loadDropdownOptions()
-    }
-    const nextList = selectedVehicleList.includes(value) ? selectedVehicleList : [...selectedVehicleList, value]
-    const prevEntries = Array.isArray(scheduleFormData.vehicleEntries) ? scheduleFormData.vehicleEntries : []
-    const nextEntries = nextList.map((v) => {
-      const existing = prevEntries.find((e) => String(e?.vehicle || '').trim() === v)
-      const base = existing
-        ? { ...emptyVehicleEntry(), ...existing, vehicle: v }
-        : { ...emptyVehicleEntry(), vehicle: v }
-      if (isSelfTravelVehicle(v)) {
-        return {
-          ...base,
-          departureMileage: '',
-          returnMileage: '',
-          needRefuel: false,
-          fuelCost: '',
-          invoiceReturned: false
-        }
-      }
-      return base
-    })
-    setScheduleFormData((prev) => ({ ...prev, vehicle: nextList.join(', '), vehicleEntries: nextEntries }))
-    setNewVehicleInput('')
-  }
-
   // 处理負責人选择
   const handleResponsiblePersonSelect = (itemId, value) => {
     handleWorkItemChange(
@@ -1240,7 +1188,6 @@ function Calendar() {
         participantWorkEntries: [],
         tag: 'blue'
       })
-      setNewVehicleInput('')
       // 显示新增工程排程表单
       setShowScheduleForm(true)
     }
@@ -1270,7 +1217,6 @@ function Calendar() {
         workItems: [],
         participantWorkEntries: []
       })
-      setNewVehicleInput('')
     }
     setShowScheduleForm(true)
   }
@@ -2157,7 +2103,6 @@ function Calendar() {
         participantWorkEntries: [],
         tag: 'blue'
       })
-      setNewVehicleInput('')
     }
     setOriginalWorkItemIdMap({})
     setEditingScheduleId(null)
@@ -2599,7 +2544,6 @@ function Calendar() {
         progressSheet: false,
         constructionPhotos: false
       })
-      setNewVehicleInput('')
       setShowScheduleForm(false)
       setShowScheduleModal(false)
       setEditingScheduleId(null)
@@ -2634,7 +2578,6 @@ function Calendar() {
       progressSheet: false,
       constructionPhotos: false
     })
-    setNewVehicleInput('')
     setEditingScheduleId(null)
     setEditingFormSegmentIndex(0)
     setOriginalWorkItemIdMap({})
@@ -2822,7 +2765,6 @@ function Calendar() {
         participantWorkEntries: [],
         tag: 'blue'
       })
-      setNewVehicleInput('')
       setShowScheduleForm(false)
       // 主题表单保持打开，用户可以继续添加或保存
     } else {
@@ -3818,7 +3760,7 @@ function Calendar() {
                           </div>
                         )}
 
-                        {/* 工作／項目（藍）與出差（黃）：各人於此填寫當日工作內容 */}
+                        {/* 工作／項目（藍）與住宿（黃）：各人於此填寫當日工作內容 */}
                         {!isLeaveScheduleItem(selectedDetailItem) &&
                           ((String(selectedDetailItem?.tag || '').trim() === 'yellow') ||
                             (String(selectedDetailItem?.tag || 'blue').trim() === 'blue' &&
@@ -3828,7 +3770,7 @@ function Calendar() {
                             <p className="text-blue-200/90 text-xs mb-3 leading-relaxed">
                               由<strong className="text-blue-100">本人</strong>填寫。<strong className="text-amber-200/95">個人績效只認「已寫入排程」的內容</strong>：離開輸入框會自動儲存，亦可手動按下方按鈕。未填寫者績效僅扣該員。
                               {String(selectedDetailItem?.tag || '').trim() === 'yellow' && (
-                                <span className="block mt-1 text-amber-100/90">出差排程與工作/項目相同，請於此登記當日實際工作內容。</span>
+                                <span className="block mt-1 text-amber-100/90">住宿排程與工作/項目相同，請於此登記當日實際工作內容。</span>
                               )}
                             </p>
                             {!Array.isArray(detailPweDraft) || detailPweDraft.length === 0 ? (
@@ -5493,7 +5435,7 @@ function Calendar() {
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
-                      出差
+                      住宿
                     </button>
                     <button
                       type="button"
@@ -5559,7 +5501,7 @@ function Calendar() {
                           ? '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'
                           : '下方「車輛」屬於目前選擇的案場；工作內容改由「參與人員」名單每人各自填寫（與案場切換無關）。'
                         : scheduleFormData.tag === 'yellow'
-                          ? '下方「車輛」屬於目前選擇的案場；出差之每人當日工作請於「各參與人員當日工作內容」填寫（與案場切換無關）。「預排工作項目」可選填。'
+                          ? '下方「車輛」屬於目前選擇的案場；住宿之每人當日工作請於「各參與人員當日工作內容」填寫（與案場切換無關）。「預排工作項目」可選填。'
                           : '下方「預排工作項目」與「車輛」屬於目前選擇的案場，切換案場可編輯另一張卡片。'}
                     </p>
                   </div>
@@ -5707,7 +5649,7 @@ function Calendar() {
                       名單中<strong className="text-gray-300">每一位</strong>需自行填寫；績效僅對<strong className="text-gray-300">未填寫的本人</strong>扣分，不影響同案其他人員。
                       <span className="block mt-1 text-amber-200/90">須按下表單底部「新增」或儲存按鈕後才會寫入排程；僅打字未送出時個人績效仍視為未填。</span>
                       {scheduleFormData.tag === 'yellow' && (
-                        <span className="block mt-1 text-amber-100/90">出差排程請於此登記當日實際工作（與工作/項目排程相同規則）。</span>
+                        <span className="block mt-1 text-amber-100/90">住宿排程請於此登記當日實際工作（與工作/項目排程相同規則）。</span>
                       )}
                     </p>
                     {(scheduleFormData.participantWorkEntries || []).length === 0 ? (
@@ -5743,16 +5685,16 @@ function Calendar() {
                   </div>
                 )}
 
-                {/* 車輛（可勾選多台，例如案場兩台車） */}
-                <div className="relative" ref={vehicleDropdownRef}>
+                {/* 車輛（可勾選多台，例如案場兩台車）；車牌選項來自系統選單維護 */}
+                <div className="relative">
                   <label className="block text-gray-300 text-sm mb-2">
                     車輛（可勾選多台）
                   </label>
                   <p className="text-gray-500 text-xs mb-2">
-                    可勾選「{SELF_TRAVEL_VEHICLE_LABEL}」表示不搭乘公司車，無須填寫出發／回程里程。
+                    可勾選「{SELF_TRAVEL_VEHICLE_LABEL}」表示不搭乘公司車，無須填寫出發／回程里程。公司車牌請由上方清單勾選。
                   </p>
-                  {/* 勾選清單：含「自行前往」＋選單項目＋已選車牌 */}
-                  <div className="mb-3 p-3 bg-gray-800/60 border border-gray-600 rounded-lg">
+                  {/* 勾選清單：含「自行前往」＋選單項目＋已選車牌（舊資料可能有清單外車牌，仍會顯示以便勾除） */}
+                  <div className="p-3 bg-gray-800/60 border border-gray-600 rounded-lg">
                     <span className="text-gray-400 text-xs block mb-2">已選：{selectedVehicleList.length ? selectedVehicleList.join('、') : '無'}</span>
                     <div className="flex flex-wrap gap-x-4 gap-y-2">
                       {[...new Set([SELF_TRAVEL_VEHICLE_LABEL, ...vehicleOptions, ...selectedVehicleList])].map((option) => (
@@ -5768,24 +5710,6 @@ function Calendar() {
                       ))}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newVehicleInput}
-                      onChange={handleNewVehicleInput}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddVehicle())}
-                      placeholder="請輸入車輛資訊"
-                      className="flex-1 bg-gray-700 border border-gray-500 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddVehicle}
-                      className="shrink-0 px-3 py-2 rounded bg-gray-600 hover:bg-gray-500 text-yellow-400 text-sm whitespace-nowrap"
-                    >
-                      + 加入選單
-                    </button>
-                  </div>
-                  <p className="text-gray-500 text-xs mt-1">輸入後按「加入選單」可新增選項，再從上方勾選一或多台車輛</p>
                 </div>
 
                 {/* 每台車一組：出發/回程駕駛、里程、加油、發票；多案場時每案場的車輛里程個別填寫 */}
