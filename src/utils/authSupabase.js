@@ -181,23 +181,15 @@ export function subscribeAuthStateChange(callback) {
 }
 
 /**
- * 已登入使用者變更登入密碼：先以目前密碼驗證，再更新 Auth 密碼（不需寄信）
+ * 已登入使用者直接設定新登入密碼（不需舊密碼；依目前 Auth session）
+ * 適用忘記密碼但仍在本裝置保持登入時；若已登出請洽管理員或使用信箱重設。
  */
-export async function changePassword(currentPassword, newPassword) {
+export async function changePassword(newPassword) {
   const sb = getSupabaseClient()
   if (!sb) return { success: false, message: '未設定 Supabase' }
   try {
     const { data: { session } } = await sb.auth.getSession()
-    const email = session?.user?.email
-    if (!email) return { success: false, message: '請先登入' }
-
-    const { error: verifyErr } = await sb.auth.signInWithPassword({
-      email,
-      password: String(currentPassword || '')
-    })
-    if (verifyErr) {
-      return { success: false, message: '目前密碼不正確' }
-    }
+    if (!session?.user) return { success: false, message: '請先登入' }
 
     const { error: updateErr } = await sb.auth.updateUser({
       password: String(newPassword || '')

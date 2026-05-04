@@ -1,5 +1,6 @@
 // 本地存储工具函数
 import { syncKeyToSupabase } from './supabaseSync'
+import { getCurrentUser } from './authStorage'
 const STORAGE_KEY = 'jiameng_users'
 const ADVANCE_KEY = 'jiameng_advances'
 const ADVANCE_REPAYMENTS_KEY = 'jiameng_advance_repayments'
@@ -146,12 +147,10 @@ export const clearAllData = () => {
   }
 }
 
-/** 已登入使用者變更密碼（僅本地 jiameng_users，非 Supabase Auth） */
-export const changeLocalUserPassword = async (account, currentPassword, newPassword) => {
-  const acc = String(account || '').trim()
-  if (!acc) return { success: false, message: '無法取得帳號' }
-  const verify = verifyUser(acc, currentPassword)
-  if (!verify.success) return { success: false, message: verify.message || '目前密碼不正確' }
+/** 已登入使用者直接設新密碼（不需舊密碼；僅限目前 session 對應之帳號） */
+export const setLocalUserPasswordFromSession = async (newPassword) => {
+  const acc = String(getCurrentUser() || '').trim()
+  if (!acc) return { success: false, message: '請先登入' }
   try {
     const users = getUsers()
     const idx = users.findIndex((u) => u.account === acc)
@@ -160,7 +159,7 @@ export const changeLocalUserPassword = async (account, currentPassword, newPassw
     await setUsersAndSync(users)
     return { success: true }
   } catch (e) {
-    console.error('changeLocalUserPassword', e)
+    console.error('setLocalUserPasswordFromSession', e)
     return { success: false, message: '更新失敗' }
   }
 }
