@@ -20,6 +20,7 @@ import Advance from './Advance'
 import Messages from './Messages'
 import MiniGames from './MiniGames'
 import CompensatoryLeave from './CompensatoryLeave'
+import ChangePassword from './ChangePassword'
 import ErrorBoundary from '../components/ErrorBoundary'
 import {
   HomeIcon,
@@ -624,6 +625,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('advance')) return 'advance'
     if (path.includes('compensatory-leave')) return 'compensatory-leave'
     if (path.includes('messages')) return 'messages'
+    if (path.includes('change-password')) return 'change-password'
     if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
   }
@@ -674,7 +676,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'advance': '預支',
       'user-management': '用戶管理',
       'developing': '開發中',
-      'compensatory-leave': '補休系統'
+      'compensatory-leave': '補休系統',
+      'change-password': '修改密碼'
     }
     return titles[tab] || '佳盟事業群'
   }
@@ -751,6 +754,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <Advance />
       case 'compensatory-leave':
         return <CompensatoryLeave />
+      case 'change-password':
+        return <ChangePassword />
       case 'developing':
         return <MiniGames />
       default:
@@ -1281,7 +1286,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
-                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab)
+                ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'change-password'].includes(activeTab)
                   ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/40 shadow-inner'
                   : 'text-cn-parchment border-transparent hover:bg-black/25 hover:border-cn-gold/25 active:bg-black/35'
                 }
@@ -1290,7 +1295,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               <PersonalServiceIcon />
               <span>個人服務</span>
               {(navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo) > 0 && (
-                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages'].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
+                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['performance', 'exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'change-password'].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
                   {navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo}
                 </span>
               )}
@@ -1307,6 +1312,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 >
                   <button type="button" onClick={() => { handleTabClick('performance', '/personal-performance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation">
                     <PerformanceIcon /> 個人績效
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('change-password', '/change-password'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <svg className="w-5 h-5 shrink-0 text-cn-gold/90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z" />
+                    </svg>
+                    修改密碼
                   </button>
                   <button type="button" onClick={() => { handleTabClick('my-backpack', '/my-backpack'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <BackpackIcon /> 我的背包
