@@ -146,6 +146,25 @@ export const clearAllData = () => {
   }
 }
 
+/** 已登入使用者變更密碼（僅本地 jiameng_users，非 Supabase Auth） */
+export const changeLocalUserPassword = async (account, currentPassword, newPassword) => {
+  const acc = String(account || '').trim()
+  if (!acc) return { success: false, message: '無法取得帳號' }
+  const verify = verifyUser(acc, currentPassword)
+  if (!verify.success) return { success: false, message: verify.message || '目前密碼不正確' }
+  try {
+    const users = getUsers()
+    const idx = users.findIndex((u) => u.account === acc)
+    if (idx === -1) return { success: false, message: '用戶不存在' }
+    users[idx] = { ...users[idx], password: newPassword }
+    await setUsersAndSync(users)
+    return { success: true }
+  } catch (e) {
+    console.error('changeLocalUserPassword', e)
+    return { success: false, message: '更新失敗' }
+  }
+}
+
 export const verifyUser = (account, password) => {
   try {
     const users = getUsers()

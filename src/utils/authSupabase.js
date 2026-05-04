@@ -180,4 +180,36 @@ export function subscribeAuthStateChange(callback) {
   return () => subscription?.unsubscribe?.()
 }
 
+/**
+ * 已登入使用者變更登入密碼：先以目前密碼驗證，再更新 Auth 密碼（不需寄信）
+ */
+export async function changePassword(currentPassword, newPassword) {
+  const sb = getSupabaseClient()
+  if (!sb) return { success: false, message: '未設定 Supabase' }
+  try {
+    const { data: { session } } = await sb.auth.getSession()
+    const email = session?.user?.email
+    if (!email) return { success: false, message: '請先登入' }
+
+    const { error: verifyErr } = await sb.auth.signInWithPassword({
+      email,
+      password: String(currentPassword || '')
+    })
+    if (verifyErr) {
+      return { success: false, message: '目前密碼不正確' }
+    }
+
+    const { error: updateErr } = await sb.auth.updateUser({
+      password: String(newPassword || '')
+    })
+    if (updateErr) {
+      return { success: false, message: updateErr.message || '更新密碼失敗' }
+    }
+    return { success: true }
+  } catch (e) {
+    console.warn('changePassword', e)
+    return { success: false, message: e.message || '更新失敗' }
+  }
+}
+
 export { isSupabaseEnabled }
