@@ -36,36 +36,14 @@ import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicle
 import {
   getWorkReportsForMonth,
   getWorkReports,
-  calcWorkReportHours,
   getWorkReportRowTotalHours,
   getWorkReportDurationDisplay,
-  parseWorkReportHeadcount
+  groupWorkReportRowsForDisplay
 } from '../utils/workReportStorage'
 
 function WorkReportDuration({ hours, className, overtimeClassName }) {
   const d = getWorkReportDurationDisplay(hours, { className, overtimeClassName })
   return <span className={d.className}>{d.text}</span>
-}
-
-function WorkReportHoursDetail({ arrivalTime, departureTime, headcount = 1 }) {
-  const perHours = calcWorkReportHours(arrivalTime, departureTime)
-  if (perHours == null) return <span className="text-gray-500">—</span>
-
-  const n = Math.max(1, Math.floor(Number(headcount) || 1))
-  const totalHours = Math.round(perHours * n * 10) / 10
-
-  if (n <= 1) {
-    return <WorkReportDuration hours={perHours} className="text-amber-200/90 font-semibold" />
-  }
-
-  return (
-    <div className="text-right">
-      <div className="text-gray-500 text-[11px] mb-0.5">
-        每人 <WorkReportDuration hours={perHours} className="inline text-amber-200/80" />
-      </div>
-      <WorkReportDuration hours={totalHours} className="text-amber-200/90 font-semibold" />
-    </div>
-  )
 }
 
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
@@ -240,14 +218,26 @@ function Calendar() {
     })
   }, [workReportDetail, workReportsRevision])
 
+  const workReportDetailGroups = useMemo(
+    () => groupWorkReportRowsForDisplay(workReportDetailRows),
+    [workReportDetailRows]
+  )
+
   const workReportDetailTotalHours = useMemo(() => {
     let t = 0
-    workReportDetailRows.forEach((r) => {
-      const h = getWorkReportRowTotalHours(r)
-      if (h != null) t += h
+    workReportDetailGroups.forEach((g) => {
+      if (g.totalHours != null) t += g.totalHours
     })
     return Math.round(t * 10) / 10
-  }, [workReportDetailRows])
+  }, [workReportDetailGroups])
+
+  const workReportDetailHeadcount = useMemo(() => {
+    let n = 0
+    workReportDetailGroups.forEach((g) => {
+      n += g.totalHeadcount || 0
+    })
+    return n
+  }, [workReportDetailGroups])
 
   const currentUser = getCurrentUser()
   const currentRole = getCurrentUserRole()
@@ -4697,39 +4687,41 @@ function Calendar() {
                       hours={workReportDetailTotalHours}
                       className="text-cyan-300 font-semibold"
                     />
-                    （{workReportDetailRows.length} 人）
+                    （{workReportDetailHeadcount} 人次）
                   </p>
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b border-gray-600 text-left text-gray-400">
                         <th className="py-2 pr-2 font-medium">姓名</th>
-                        <th className="py-2 pr-2 font-medium">抵達</th>
-                        <th className="py-2 pr-2 font-medium">離場</th>
+                        <th className="py-2 pr-2 font-medium">時間</th>
                         <th className="py-2 pr-2 font-medium text-right">工時</th>
                         <th className="py-2 font-medium">填寫人</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {workReportDetailRows.map((row) => {
-                        const hc = parseWorkReportHeadcount(row.personName, row.headcount)
-                        return (
-                          <tr key={row.id} className="border-b border-gray-700/60">
-                            <td className="py-2 pr-2 text-white">{row.personName}</td>
-                            <td className="py-2 pr-2 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
-                            <td className="py-2 pr-2 text-cyan-200 tabular-nums">{row.departureTime}</td>
-                            <td className="py-2 pr-2 text-right font-medium">
-                              <WorkReportHoursDetail
-                                arrivalTime={row.arrivalTime}
-                                departureTime={row.departureTime}
-                                headcount={hc}
-                              />
-                            </td>
-                            <td className="py-2 text-gray-400 text-xs">
-                              {row.submittedByName || row.submittedBy || '—'}
-                            </td>
-                          </tr>
-                        )
-                      })}
+                      {workReportDetailGroups.map((group) => (
+                        <tr key={group.id} className="border-b border-gray-700/60">
+                          <td className="py-2 pr-2 text-white">
+                            {group.personName}
+                            {group.kind === 'contractor' && group.totalHeadcount > 0 && (
+                              <span className="block text-teal-300/80 text-xs mt-0.5">
+                                {group.totalHeadcount} 人次
+                                {group.batchCount > 1 ? ` · ${group.batchCount} 批` : ''}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-2 text-cyan-200 tabular-nums text-xs">{group.timeLabel}</td>
+                          <td className="py-2 pr-2 text-right font-medium">
+                            <WorkReportDuration
+                              hours={group.totalHours}
+                              className="text-amber-200/90 font-semibold"
+                            />
+                          </td>
+                          <td className="py-2 text-gray-400 text-xs">
+                            {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </>

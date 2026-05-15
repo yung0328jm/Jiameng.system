@@ -12,7 +12,9 @@ import {
   getWorkReportDurationDisplay,
   formatContractorPersonName,
   getWorkReportRowTotalHours,
-  parseWorkReportHeadcount
+  parseWorkReportHeadcount,
+  getWorkReportStatsPersonKey,
+  groupWorkReportRowsForDisplay
 } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
@@ -532,7 +534,7 @@ function WorkReport() {
     const map = new Map()
     monthRecords.forEach((row) => {
       const dateKey = String(row?.date || '').slice(0, 10)
-      const person = String(row?.personName || '').trim()
+      const person = getWorkReportStatsPersonKey(row?.personName)
       if (!dateKey || !person) return
       const hrs = getWorkReportRowTotalHours(row)
       const key = `${dateKey}\0${person}`
@@ -570,7 +572,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          包商：輸入名稱與人數、選時間，系統自動加總（例：2 人各 1 天 4 小時＝2 天 8 小時）。勞務承攬者(個人)可複選並個別填時間。8 小時＝1 天，超過 8 小時紅字；非下午抵達扣 1 小時午休。
+          包商：以公司／負責人名義登記（例：小豪帶 2 人＝小豪*2），統計時會合併為「小豪」加總，不會拆成多筆。勞務承攬者(個人)可複選並個別填時間。8 小時＝1 天，超過 8 小時紅字；非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -981,7 +983,7 @@ function WorkReport() {
           ) : (
             <div className="space-y-6">
               {sortedDateKeys.map((dateKey) => {
-                const dayRows = recordsByDate.get(dateKey) || []
+                const dayGroups = groupWorkReportRowsForDisplay(recordsByDate.get(dateKey) || [])
                 return (
                   <div key={dateKey}>
                     <h4 className="text-sm font-medium text-gray-200 mb-2 tabular-nums">{dateKey}</h4>
@@ -991,45 +993,58 @@ function WorkReport() {
                           <tr className="border-b border-gray-600 text-left text-gray-400">
                             <th className="py-2 pr-3 font-medium">案場</th>
                             <th className="py-2 pr-3 font-medium">姓名</th>
-                            <th className="py-2 pr-3 font-medium">抵達</th>
-                            <th className="py-2 pr-3 font-medium">離場</th>
+                            <th className="py-2 pr-3 font-medium" colSpan={2}>時間</th>
                             <th className="py-2 pr-3 font-medium text-right">工時</th>
                             <th className="py-2 pr-3 font-medium">填寫人</th>
                             <th className="py-2 font-medium w-16" />
                           </tr>
                         </thead>
                         <tbody>
-                          {dayRows.map((row) => {
-                            const hc = parseWorkReportHeadcount(row.personName, row.headcount)
-                            const canDelete =
-                              userRole === 'admin' ||
-                              String(row.submittedBy || '') === String(currentUser || '')
+                          {dayGroups.map((group) => {
+                            const isContractor = group.kind === 'contractor'
                             return (
-                              <tr key={row.id} className="border-b border-gray-700/60">
-                                <td className="py-2.5 pr-3 text-gray-200">{row.siteName}</td>
-                                <td className="py-2.5 pr-3 text-white">{row.personName}</td>
-                                <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
-                                <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.departureTime}</td>
+                              <tr key={group.id} className="border-b border-gray-700/60">
+                                <td className="py-2.5 pr-3 text-gray-200">{group.siteName}</td>
+                                <td className="py-2.5 pr-3 text-white">
+                                  {group.personName}
+                                  {isContractor && group.totalHeadcount > 0 && (
+                                    <span className="block text-teal-300/80 text-xs mt-0.5">
+                                      當日 {group.totalHeadcount} 人次
+                                      {group.batchCount > 1 ? ` · ${group.batchCount} 批` : ''}
+                                    </span>
+                                  )}
+                                </td>
+                                <td colSpan={2} className="py-2.5 pr-3 text-cyan-200 tabular-nums text-xs">
+                                  {group.timeLabel}
+                                </td>
                                 <td className="py-2.5 pr-3 text-right font-medium">
-                                  <WorkReportHoursDetail
-                                    arrivalTime={row.arrivalTime}
-                                    departureTime={row.departureTime}
-                                    headcount={hc}
+                                  <WorkReportDuration
+                                    hours={group.totalHours}
+                                    className="text-amber-200/90 font-semibold"
                                   />
                                 </td>
                                 <td className="py-2.5 pr-3 text-gray-400 text-xs">
-                                  {row.submittedByName || row.submittedBy || '—'}
+                                  {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
                                 </td>
                                 <td className="py-2.5">
-                                  {canDelete && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDelete(row)}
-                                      className="text-red-400 hover:text-red-300 text-xs"
-                                    >
-                                      刪除
-                                    </button>
-                                  )}
+                                  <div className="flex flex-col gap-1 items-end">
+                                    {group.rows.map((row) => {
+                                      const canDelete =
+                                        userRole === 'admin' ||
+                                        String(row.submittedBy || '') === String(currentUser || '')
+                                      if (!canDelete) return null
+                                      return (
+                                        <button
+                                          key={row.id}
+                                          type="button"
+                                          onClick={() => handleDelete(row)}
+                                          className="text-red-400 hover:text-red-300 text-xs whitespace-nowrap"
+                                        >
+                                          {group.rows.length > 1 ? '刪此批' : '刪除'}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
                                 </td>
                               </tr>
                             )
