@@ -4,6 +4,7 @@ import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDropdownOptionsByCategory, findBoundAccountForDisplayName, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getProjects } from '../utils/projectStorage'
 import {
+  getWorkReports,
   getWorkReportsForMonth,
   groupWorkReportsByDate,
   calcWorkReportHours,
@@ -14,7 +15,8 @@ import {
   getWorkReportRowTotalHours,
   parseWorkReportHeadcount,
   getWorkReportStatsPersonKey,
-  groupWorkReportRowsForDisplay
+  groupWorkReportRowsForDisplay,
+  isWorkReportContractorName
 } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
@@ -250,8 +252,6 @@ function WorkReport() {
   const [contractorHeadcount, setContractorHeadcount] = useState(1)
   const [contractorArrival, setContractorArrival] = useState('')
   const [contractorDeparture, setContractorDeparture] = useState('')
-  /** @type {Array<{ id: string, name: string, headcount: number, arrivalTime: string, departureTime: string }>} */
-  const [contractorQueue, setContractorQueue] = useState([])
   const [contractorOpen, setContractorOpen] = useState(false)
   const [batchApplyArrival, setBatchApplyArrival] = useState('')
   const [batchApplyDeparture, setBatchApplyDeparture] = useState('')
@@ -311,6 +311,67 @@ function WorkReport() {
     if (contractorPerHours == null) return null
     return Math.round(contractorPerHours * contractorPreviewHeadcount * 10) / 10
   }, [contractorPerHours, contractorPreviewHeadcount])
+
+  const dayContractorRecords = useMemo(() => {
+    const d = String(date || '').slice(0, 10)
+    if (!d) return []
+    return getWorkReports({ date: d })
+      .filter((r) => isWorkReportContractorName(r.personName))
+      .sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+  }, [date, monthRecords])
+
+  const refreshMonthForDate = (dateStr) => {
+    const d = new Date(`${dateStr}T00:00:00`)
+    let y = filterYear
+    let m = filterMonth
+    if (!Number.isNaN(d.getTime())) {
+      y = d.getFullYear()
+      m = d.getMonth() + 1
+      setFilterYear(y)
+      setFilterMonth(m)
+    }
+    setMonthRecords(getWorkReportsForMonth(y, m))
+  }
+
+  const registerContractor = () => {
+    setMessage(null)
+    const siteName = resolvedSite
+    if (!siteName) {
+      setMessage({ type: 'error', text: '請選擇或輸入案場' })
+      return
+    }
+    const name = contractorName.trim()
+    if (!name || !contractorArrival || !contractorDeparture) {
+      setMessage({ type: 'error', text: '請填寫包商名稱、抵達與離場時間' })
+      return
+    }
+    const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
+    const result = addWorkReports([
+      {
+        date,
+        siteName,
+        personName: formatContractorPersonName(name, hc),
+        headcount: hc,
+        arrivalTime: contractorArrival,
+        departureTime: contractorDeparture,
+        submittedBy: currentUser,
+        submittedByName: getDisplayNameForAccount(currentUser) || currentUser
+      }
+    ])
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '登記失敗' })
+      return
+    }
+    setContractorName('')
+    setContractorHeadcount(1)
+    setContractorArrival('')
+    setContractorDeparture('')
+    refreshMonthForDate(date)
+    setMessage({
+      type: 'success',
+      text: `已登記 ${formatContractorPersonName(name, hc)}（${date}）`
+    })
+  }
 
   useEffect(() => {
     setPersonTimes((prev) => {
@@ -375,38 +436,6 @@ function WorkReport() {
     setSelectedNames([])
   }
 
-  const addContractorToQueue = () => {
-    const name = contractorName.trim()
-    const headcount = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
-    if (!name) {
-      setMessage({ type: 'error', text: '請輸入包商名稱' })
-      return
-    }
-    if (!contractorArrival || !contractorDeparture) {
-      setMessage({ type: 'error', text: '請填寫包商抵達與離場時間' })
-      return
-    }
-    setMessage(null)
-    setContractorQueue((q) => [
-      ...q,
-      {
-        id: `cq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        name,
-        headcount,
-        arrivalTime: contractorArrival,
-        departureTime: contractorDeparture
-      }
-    ])
-    setContractorName('')
-    setContractorHeadcount(1)
-    setContractorArrival('')
-    setContractorDeparture('')
-  }
-
-  const removeContractorFromQueue = (id) => {
-    setContractorQueue((q) => q.filter((x) => x.id !== id))
-  }
-
   const toggleName = (name) => {
     setSelectedNames((prev) => {
       const t = String(name || '').trim()
@@ -423,34 +452,14 @@ function WorkReport() {
       setMessage({ type: 'error', text: '請選擇或輸入案場' })
       return
     }
-    const contractorEntries = contractorQueue.map((c) => ({
-      date,
-      siteName,
-      personName: formatContractorPersonName(c.name, c.headcount),
-      headcount: c.headcount,
-      arrivalTime: c.arrivalTime,
-      departureTime: c.departureTime,
-      submittedBy: currentUser,
-      submittedByName: getDisplayNameForAccount(currentUser) || currentUser
-    }))
-
-    const draftContractorName = contractorName.trim()
-    if (draftContractorName && contractorArrival && contractorDeparture) {
-      const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
-      contractorEntries.push({
-        date,
-        siteName,
-        personName: formatContractorPersonName(draftContractorName, hc),
-        headcount: hc,
-        arrivalTime: contractorArrival,
-        departureTime: contractorDeparture,
-        submittedBy: currentUser,
-        submittedByName: getDisplayNameForAccount(currentUser) || currentUser
-      })
+    const contractorDraftFilled =
+      contractorName.trim() || contractorArrival || contractorDeparture
+    if (contractorDraftFilled) {
+      setMessage({ type: 'error', text: '包商欄位尚未登記，請按「登記此包商」或清空欄位後再送出勞務承攬者' })
+      return
     }
-
-    if (contractorEntries.length === 0 && allNamesForSubmit.length === 0) {
-      setMessage({ type: 'error', text: '請新增包商或勾選至少一位勞務承攬者(個人)' })
+    if (allNamesForSubmit.length === 0) {
+      setMessage({ type: 'error', text: '請勾選至少一位勞務承攬者(個人)' })
       return
     }
     if (allNamesForSubmit.some((n) => isResignedPersonName(n, resignedSnapshot))) {
@@ -481,30 +490,15 @@ function WorkReport() {
         submittedByName
       }
     })
-    const entries = [...contractorEntries, ...personEntries]
-    const result = addWorkReports(entries)
+    const result = addWorkReports(personEntries)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '送出失敗' })
       return
     }
-    setMessage({ type: 'success', text: `已送出 ${entries.length} 筆出工回報` })
+    setMessage({ type: 'success', text: `已送出 ${personEntries.length} 位勞務承攬者出工` })
     setSelectedNames([])
     setPersonTimes({})
-    setContractorName('')
-    setContractorHeadcount(1)
-    setContractorArrival('')
-    setContractorDeparture('')
-    setContractorQueue([])
-    const d = new Date(`${date}T00:00:00`)
-    let y = filterYear
-    let m = filterMonth
-    if (!Number.isNaN(d.getTime())) {
-      y = d.getFullYear()
-      m = d.getMonth() + 1
-      setFilterYear(y)
-      setFilterMonth(m)
-    }
-    setMonthRecords(getWorkReportsForMonth(y, m))
+    refreshMonthForDate(date)
   }
 
   const handleDelete = (row) => {
@@ -520,7 +514,7 @@ function WorkReport() {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
       return
     }
-    setMonthRecords(getWorkReportsForMonth(filterYear, filterMonth))
+    refreshMonthForDate(row.date || date)
   }
 
   const recordsByDate = useMemo(() => groupWorkReportsByDate(monthRecords), [monthRecords])
@@ -572,7 +566,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          包商：以公司／負責人名義登記（例：小豪帶 2 人＝小豪*2），統計時會合併為「小豪」加總，不會拆成多筆。勞務承攬者(個人)可複選並個別填時間。8 小時＝1 天，超過 8 小時紅字；非下午抵達扣 1 小時午休。
+          包商：填一筆按「登記」，立即寫入當日，可隨時再登記（臨時人員晚到也適用）。勞務承攬者(個人)勾選後按「送出」。8 小時＝1 天，超過 8 小時紅字；非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -790,11 +784,65 @@ function WorkReport() {
             onClick={() => setContractorOpen((v) => !v)}
             className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-teal-950/30 transition-colors"
           >
-            <span className="text-teal-300 text-sm font-medium">包商出工</span>
-            <span className="text-gray-500 text-xs shrink-0">{contractorOpen ? '收合 ▲' : '展開填寫 ▼'}</span>
+            <span className="text-teal-300 text-sm font-medium">包商出工（登記即存當日）</span>
+            <span className="text-gray-500 text-xs shrink-0">
+              {contractorOpen ? '收合 ▲' : '展開 ▼'}
+              {dayContractorRecords.length > 0 ? ` · 本日 ${dayContractorRecords.length} 筆` : ''}
+            </span>
           </button>
           {contractorOpen && (
           <div className="px-4 pb-4 pt-2 space-y-4 border-t border-teal-700/30">
+          {dayContractorRecords.length > 0 && (
+            <div className="rounded-lg border border-gray-600/80 overflow-hidden">
+              <p className="text-xs text-gray-400 px-3 py-2 bg-gray-900/50 border-b border-gray-700/60">
+                {date} 已登記（共 {dayContractorRecords.length} 筆，可隨時再登記）
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse min-w-[480px]">
+                  <thead>
+                    <tr className="border-b border-gray-700/60 text-left text-gray-500 text-xs">
+                      <th className="py-2 px-2 font-medium">案場</th>
+                      <th className="py-2 px-2 font-medium">包商</th>
+                      <th className="py-2 px-2 font-medium">時間</th>
+                      <th className="py-2 px-2 font-medium text-right">工時</th>
+                      <th className="py-2 px-2 w-14" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayContractorRecords.map((row) => {
+                      const hrs = getWorkReportRowTotalHours(row)
+                      const canDelete =
+                        userRole === 'admin' ||
+                        String(row.submittedBy || '') === String(currentUser || '')
+                      return (
+                        <tr key={row.id} className="border-b border-gray-700/40">
+                          <td className="py-2 px-2 text-gray-400 text-xs">{row.siteName}</td>
+                          <td className="py-2 px-2 text-teal-100">{row.personName}</td>
+                          <td className="py-2 px-2 text-cyan-200 tabular-nums text-xs">
+                            {row.arrivalTime}–{row.departureTime}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            <WorkReportDuration hours={hrs} className="text-amber-200/80 text-xs" />
+                          </td>
+                          <td className="py-2 px-2">
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(row)}
+                                className="text-red-400 hover:text-red-300 text-xs"
+                              >
+                                刪
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-gray-400 text-xs mb-1">包商名稱</label>
@@ -802,7 +850,7 @@ function WorkReport() {
                 type="text"
                 value={contractorName}
                 onChange={(e) => setContractorName(e.target.value)}
-                placeholder=""
+                placeholder="例：小豪"
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
               />
             </div>
@@ -827,62 +875,17 @@ function WorkReport() {
               <span className="text-gray-400">
                 × <span className="text-cyan-300">{contractorPreviewHeadcount}</span> 人
               </span>
-              <WorkReportHoursDetail
-                arrivalTime={contractorArrival}
-                departureTime={contractorDeparture}
-                headcount={contractorPreviewHeadcount}
-              />
+              <WorkReportDuration hours={contractorTotalHours} className="text-amber-200/90 font-semibold" />
             </div>
           )}
           <button
             type="button"
-            onClick={addContractorToQueue}
-            className="text-sm px-4 py-2 rounded-lg border border-teal-600/50 text-teal-200 hover:bg-teal-950/40"
+            onClick={registerContractor}
+            className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors"
           >
-            加入包商清單
+            登記此包商
           </button>
-          {contractorQueue.length > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-gray-600">
-              <table className="w-full text-sm border-collapse min-w-[480px]">
-                <thead>
-                  <tr className="border-b border-gray-600 bg-gray-900/60 text-left text-gray-400">
-                    <th className="py-2 px-2 font-medium">包商</th>
-                    <th className="py-2 px-2 font-medium text-center">人數</th>
-                    <th className="py-2 px-2 font-medium">抵達</th>
-                    <th className="py-2 px-2 font-medium">離場</th>
-                    <th className="py-2 px-2 font-medium text-right">工時</th>
-                    <th className="py-2 px-2 w-12" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {contractorQueue.map((c) => (
-                      <tr key={c.id} className="border-b border-gray-700/50">
-                        <td className="py-2 px-2 text-teal-100">{c.name}</td>
-                        <td className="py-2 px-2 text-center tabular-nums">{c.headcount}</td>
-                        <td className="py-2 px-2 text-cyan-200 tabular-nums">{c.arrivalTime}</td>
-                        <td className="py-2 px-2 text-cyan-200 tabular-nums">{c.departureTime}</td>
-                        <td className="py-2 px-2 text-right">
-                          <WorkReportHoursDetail
-                            arrivalTime={c.arrivalTime}
-                            departureTime={c.departureTime}
-                            headcount={c.headcount}
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <button
-                            type="button"
-                            onClick={() => removeContractorFromQueue(c.id)}
-                            className="text-red-400 hover:text-red-300 text-xs"
-                          >
-                            刪
-                          </button>
-                        </td>
-                      </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <p className="text-gray-500 text-xs">登記後立即寫入上方日期，無需等送出；人晚到可再登記一筆。</p>
           </div>
           )}
         </div>
@@ -891,7 +894,7 @@ function WorkReport() {
           type="submit"
           className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-semibold transition-colors"
         >
-          送出回報
+          送出勞務承攬者
         </button>
       </form>
 
