@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { getDropdownOptionsByCategory } from '../utils/dropdownStorage'
+import { getDropdownOptionsByCategory, findBoundAccountForDisplayName } from '../utils/dropdownStorage'
 import { getProjects } from '../utils/projectStorage'
 import { getWorkReports, addWorkReports, deleteWorkReport } from '../utils/workReportStorage'
+import { getUsers } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 const pad2 = (n) => String(n).padStart(2, '0')
@@ -13,17 +14,51 @@ function todayStr() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
+function buildResignedFilter() {
+  const resignedAccounts = new Set()
+  const resignedNames = new Set()
+  ;(getUsers() || []).forEach((u) => {
+    if (u?.role !== 'resigned') return
+    const acc = String(u?.account || '').trim()
+    const name = String(u?.name || '').trim()
+    if (acc) resignedAccounts.add(acc)
+    if (name) resignedNames.add(name)
+    const display = getDisplayNameForAccount(acc)
+    if (display) resignedNames.add(display)
+  })
+  return { resignedAccounts, resignedNames }
+}
+
+function isResignedPersonName(name, filter = buildResignedFilter()) {
+  const t = String(name || '').trim()
+  if (!t) return false
+  if (filter.resignedNames.has(t)) return true
+  if (filter.resignedAccounts.has(t)) return true
+  const bound = findBoundAccountForDisplayName(t)
+  if (bound && filter.resignedAccounts.has(bound)) return true
+  const user = (getUsers() || []).find((u) => String(u?.name || '').trim() === t)
+  return user?.role === 'resigned'
+}
+
 function getParticipantNames() {
+  const filter = buildResignedFilter()
   const seen = new Set()
   const names = []
   const add = (n) => {
     const t = String(n || '').trim()
-    if (!t || seen.has(t)) return
+    if (!t || seen.has(t) || isResignedPersonName(t, filter)) return
     seen.add(t)
     names.push(t)
   }
-  ;(getDropdownOptionsByCategory('participants') || []).forEach((opt) => add(opt?.value))
-  ;(getDropdownOptionsByCategory('responsible_persons') || []).forEach((opt) => add(opt?.value))
+  const addFromOptions = (options) => {
+    ;(options || []).forEach((opt) => {
+      const bound = String(opt?.boundAccount || '').trim()
+      if (bound && filter.resignedAccounts.has(bound)) return
+      add(opt?.value)
+    })
+  }
+  addFromOptions(getDropdownOptionsByCategory('participants'))
+  addFromOptions(getDropdownOptionsByCategory('responsible_persons'))
   return names.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
 
@@ -71,7 +106,7 @@ function WorkReport() {
   }
 
   useRealtimeKeys(
-    ['jiameng_work_reports', 'jiameng_dropdown_options', 'jiameng_projects'],
+    ['jiameng_work_reports', 'jiameng_dropdown_options', 'jiameng_projects', 'jiameng_users'],
     refetch
   )
 
@@ -106,6 +141,10 @@ function WorkReport() {
     }
     if (allNamesForSubmit.length === 0) {
       setMessage({ type: 'error', text: '請勾選或手動輸入至少一位姓名' })
+      return
+    }
+    if (allNamesForSubmit.some((n) => isResignedPersonName(n))) {
+      setMessage({ type: 'error', text: '不可填寫離職人員' })
       return
     }
     if (!arrivalTime || !departureTime) {
