@@ -5,7 +5,8 @@ import { getDropdownOptionsByCategory, findBoundAccountForDisplayName, getDispla
 import { getProjects } from '../utils/projectStorage'
 import { getWorkReports, addWorkReports, deleteWorkReport } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
-import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, getResignedProfileIdentifiers } from '../utils/authSupabase'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
+import { getSupabaseClient } from '../utils/supabaseClient'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 const pad2 = (n) => String(n).padStart(2, '0')
@@ -40,6 +41,18 @@ function profileRowIsResigned(p) {
   return v === true || v === 't' || v === 1
 }
 
+/** 離職者帳號／顯示名（RPC：須在 Supabase 執行 docs/supabase-get-resigned-identifiers.sql） */
+async function fetchResignedProfileIdentifiers() {
+  const sb = getSupabaseClient()
+  if (!sb) return []
+  const { data, error } = await sb.rpc('get_resigned_profile_identifiers')
+  if (error) {
+    console.warn('fetchResignedProfileIdentifiers', error)
+    return []
+  }
+  return Array.isArray(data) ? data : []
+}
+
 /**
  * 合併 Supabase 離職名單。
  * 注意：get_public_profiles() 在資料庫端已排除離職者，無法用來判斷離職；
@@ -68,7 +81,7 @@ async function mergeSupabaseResignedIntoSnapshot(snap, userRole) {
       const all = await getAllProfiles()
       ;(all || []).filter(profileRowIsResigned).forEach(addResignedRow)
     } else {
-      const rows = await getResignedProfileIdentifiers()
+      const rows = await fetchResignedProfileIdentifiers()
       ;(rows || []).forEach(addResignedRow)
     }
   } catch (_) {}
