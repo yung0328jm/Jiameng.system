@@ -179,7 +179,7 @@ export const APP_DATA_KEYS = [
   'jiameng_vehicle_settings',
   'jiameng_vehicle_settings_editors',
   'jiameng_vehicle_info_hidden',
-  // 每月份工時報表：日期欄平日／假日覆寫（影響假日出工 +8）
+  // 每月份工時報表：日期欄平日／假日覆寫（週一至週五假日出工 +8，週六日不加）
   'jiameng_monthly_day_nature'
 ]
 
