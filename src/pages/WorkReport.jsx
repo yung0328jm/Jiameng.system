@@ -8,13 +8,18 @@ import {
   groupWorkReportsByDate,
   calcWorkReportHours,
   addWorkReports,
-  deleteWorkReport
+  deleteWorkReport,
+  getWorkReportDurationDisplay
 } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import { getSupabaseClient } from '../utils/supabaseClient'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import WorkReportDuration from '../components/WorkReportDuration'
+
+function WorkReportDuration({ hours, className, overtimeClassName }) {
+  const d = getWorkReportDurationDisplay(hours, { className, overtimeClassName })
+  return <span className={d.className}>{d.text}</span>
+}
 
 const pad2 = (n) => String(n).padStart(2, '0')
 const HOUR_OPTIONS_24 = Array.from({ length: 24 }, (_, i) => pad2(i))

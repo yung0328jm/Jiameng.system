@@ -36,9 +36,14 @@ import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicle
 import {
   getWorkReportsForMonth,
   getWorkReports,
-  calcWorkReportHours
+  calcWorkReportHours,
+  getWorkReportDurationDisplay
 } from '../utils/workReportStorage'
-import WorkReportDuration from '../components/WorkReportDuration'
+
+function WorkReportDuration({ hours, className, overtimeClassName }) {
+  const d = getWorkReportDurationDisplay(hours, { className, overtimeClassName })
+  return <span className={d.className}>{d.text}</span>
+}
 
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
