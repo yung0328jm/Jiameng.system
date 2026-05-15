@@ -5,7 +5,7 @@ import { getDropdownOptionsByCategory, findBoundAccountForDisplayName, getDispla
 import { getProjects } from '../utils/projectStorage'
 import { getWorkReports, addWorkReports, deleteWorkReport } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
-import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
+import { isSupabaseEnabled as isAuthSupabase, getAllProfiles, getResignedProfileIdentifiers } from '../utils/authSupabase'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 const pad2 = (n) => String(n).padStart(2, '0')
@@ -35,27 +35,44 @@ function collectResignedSnapshotSync() {
   return { accounts: [...accounts], names: [...names] }
 }
 
-/** 合併 Supabase profiles 的離職標記（與用戶管理「標記離職」一致） */
-async function mergeSupabaseResignedIntoSnapshot(snap) {
+function profileRowIsResigned(p) {
+  const v = p?.is_resigned
+  return v === true || v === 't' || v === 1
+}
+
+/**
+ * 合併 Supabase 離職名單。
+ * 注意：get_public_profiles() 在資料庫端已排除離職者，無法用來判斷離職；
+ * 管理員改走 get_all_profiles()；一般用戶走 get_resigned_profile_identifiers()（須執行 docs 內 SQL）。
+ */
+async function mergeSupabaseResignedIntoSnapshot(snap, userRole) {
   const accounts = new Set(snap.accounts)
   const names = new Set(snap.names)
   if (!isAuthSupabase()) return snap
+
+  const addResignedRow = (p) => {
+    const acc = String(p?.account || '').trim()
+    if (acc) {
+      accounts.add(acc)
+      ;(getDisplayNamesForAccount(acc) || []).forEach((n) => {
+        const t = String(n || '').trim()
+        if (t) names.add(t)
+      })
+    }
+    const dn = String(p?.display_name || '').trim()
+    if (dn) names.add(dn)
+  }
+
   try {
-    const profiles = await getPublicProfiles()
-    ;(profiles || []).forEach((p) => {
-      if (!p?.is_resigned) return
-      const acc = String(p.account || '').trim()
-      if (acc) {
-        accounts.add(acc)
-        ;(getDisplayNamesForAccount(acc) || []).forEach((n) => {
-          const t = String(n || '').trim()
-          if (t) names.add(t)
-        })
-      }
-      const dn = String(p.display_name || '').trim()
-      if (dn) names.add(dn)
-    })
+    if (userRole === 'admin') {
+      const all = await getAllProfiles()
+      ;(all || []).filter(profileRowIsResigned).forEach(addResignedRow)
+    } else {
+      const rows = await getResignedProfileIdentifiers()
+      ;(rows || []).forEach(addResignedRow)
+    }
   } catch (_) {}
+
   return { accounts: [...accounts], names: [...names] }
 }
 
@@ -127,11 +144,12 @@ function WorkReport() {
   const [resignedSnapshot, setResignedSnapshot] = useState({ accounts: [], names: [] })
 
   const refetch = useCallback(async () => {
-    setUserRole(getCurrentUserRole())
+    const role = getCurrentUserRole()
+    setUserRole(role)
     const user = getCurrentUser() || ''
     setCurrentUser(user)
     let snap = collectResignedSnapshotSync()
-    snap = await mergeSupabaseResignedIntoSnapshot(snap)
+    snap = await mergeSupabaseResignedIntoSnapshot(snap, role)
     setResignedSnapshot(snap)
     setParticipantNames(getParticipantNames(snap))
     setSelectedNames((prev) => prev.filter((n) => !isResignedPersonName(n, snap)))
