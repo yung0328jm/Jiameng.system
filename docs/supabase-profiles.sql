@@ -68,6 +68,19 @@ as $$
 $$;
 grant execute on function public.get_public_profiles() to authenticated;
 
+-- 出工回報等：非管理員需知離職者帳號／顯示名以過濾勾選（get_public_profiles 不含離職者）
+create or replace function public.get_resigned_profile_identifiers()
+returns table (account text, display_name text)
+language sql
+security definer
+set search_path = public
+as $$
+  select p.account, p.display_name
+  from public.profiles p
+  where coalesce(p.is_resigned, false) = true;
+$$;
+grant execute on function public.get_resigned_profile_identifiers() to authenticated;
+
 -- 僅管理員可設定某帳號的 is_admin
 create or replace function public.set_profile_admin(acc text, new_is_admin boolean)
 returns void
