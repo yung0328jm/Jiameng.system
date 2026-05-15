@@ -119,7 +119,7 @@ export async function flushSyncOutbox() {
 /** 需從 app_data 同步的 localStorage key（不含排程／請假／特休，不含登入狀態） */
 export const APP_DATA_KEYS = [
   'jiameng_todos', 'jiameng_users', 'jiameng_wallets', 'jiameng_transactions',
-  'jiameng_inventories', 'jiameng_items', 'jiameng_trip_reports', 'jiameng_checkin_rewards',
+  'jiameng_inventories', 'jiameng_items', 'jiameng_trip_reports', 'jiameng_work_reports', 'jiameng_checkin_rewards',
   'jiameng_checkin_records', 'jiameng_effect_display_config', 'jiameng_danmus',
   'jiameng_leaderboard_types', 'jiameng_equipped_effects', 'jiameng_title_config',
   'jiameng_exchange_requests', 'jiameng_leaderboard_items', 'jiameng_leaderboard_ui',
@@ -362,6 +362,30 @@ async function _doUpsert(sb, key, value) {
     } catch (_) {
       // 雲端讀取失敗時仍以本次傳入的資料寫入
     }
+  }
+
+  // 出工回報：多裝置合併，以 id 為準（刪除後不會被舊本地覆蓋回來）
+  if (key === 'jiameng_work_reports') {
+    try {
+      const incoming = Array.isArray(data) ? data : []
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      const cloudRaw = cloudRow?.data
+      const cloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      const byId = new Map()
+      ;[...cloud, ...incoming].forEach((r) => {
+        const id = String(r?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, r); return }
+        const ta = Date.parse(prev?.updatedAt || prev?.createdAt || '') || 0
+        const tb = Date.parse(r?.updatedAt || r?.createdAt || '') || 0
+        byId.set(id, tb >= ta ? r : prev)
+      })
+      data = Array.from(byId.values()).sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0)).slice(-5000)
+    } catch (_) {}
   }
 
   // 專案清單：先拉雲端再合併（以 id + updatedAt），避免其他裝置的舊本地覆蓋雲端、導致某裝置新增的專案被刷不見
