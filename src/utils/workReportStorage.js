@@ -46,14 +46,28 @@ function timeToMinutes(hhmm) {
   return h * 60 + min
 }
 
-/** 抵達～離場工時（小時）；離場早於抵達視為跨日 */
+/** 中午休息 1 小時；抵達時間為下午（12:00 起）則不扣 */
+const LUNCH_BREAK_HOURS = 1
+const AFTERNOON_START_MINUTES = 12 * 60
+
+function isAfternoonArrival(arrivalTime) {
+  const a = timeToMinutes(arrivalTime)
+  return a != null && a >= AFTERNOON_START_MINUTES
+}
+
+/** 抵達～離場工時（小時）；離場早於抵達視為跨日；非下午抵達扣 1 小時午休 */
 export function calcWorkReportHours(arrivalTime, departureTime) {
   const a = timeToMinutes(arrivalTime)
   const d = timeToMinutes(departureTime)
   if (a == null || d == null) return null
   let diff = d - a
   if (diff < 0) diff += 24 * 60
-  return Math.round((diff / 60) * 10) / 10
+  let hours = diff / 60
+  if (!isAfternoonArrival(arrivalTime)) {
+    hours -= LUNCH_BREAK_HOURS
+  }
+  if (hours < 0) hours = 0
+  return Math.round(hours * 10) / 10
 }
 
 export function formatWorkReportHours(hours) {
