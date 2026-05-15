@@ -37,21 +37,86 @@ function saveAll(list) {
   }
 }
 
+function timeToMinutes(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim())
+  if (!m) return null
+  const h = parseInt(m[1], 10)
+  const min = parseInt(m[2], 10)
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null
+  return h * 60 + min
+}
+
+/** 抵達～離場工時（小時）；離場早於抵達視為跨日 */
+export function calcWorkReportHours(arrivalTime, departureTime) {
+  const a = timeToMinutes(arrivalTime)
+  const d = timeToMinutes(departureTime)
+  if (a == null || d == null) return null
+  let diff = d - a
+  if (diff < 0) diff += 24 * 60
+  return Math.round((diff / 60) * 10) / 10
+}
+
+export function formatWorkReportHours(hours) {
+  const x = Number(hours)
+  if (!Number.isFinite(x) || x < 0) return '—'
+  if (Math.abs(x - Math.round(x)) < 1e-6) return `${Math.round(x)}`
+  return String(x)
+}
+
 /**
- * @param {{ date?: string, siteName?: string, personName?: string, limit?: number }} [opts]
+ * @param {{ date?: string, year?: number, month?: number, siteName?: string, personName?: string, limit?: number }} [opts]
  */
 export function getWorkReports(opts = {}) {
   const date = String(opts.date || '').trim().slice(0, 10)
   const siteName = String(opts.siteName || '').trim()
   const personName = String(opts.personName || '').trim()
+  const year = Number(opts.year)
+  const month = Number(opts.month)
   let list = loadAll()
   if (date) list = list.filter((r) => String(r?.date || '').slice(0, 10) === date)
+  if (Number.isFinite(year) && year > 0 && Number.isFinite(month) && month >= 1 && month <= 12) {
+    const prefix = `${year}-${String(month).padStart(2, '0')}`
+    list = list.filter((r) => String(r?.date || '').slice(0, 7) === prefix)
+  }
   if (siteName) list = list.filter((r) => String(r?.siteName || '').trim() === siteName)
   if (personName) list = list.filter((r) => String(r?.personName || '').trim() === personName)
-  list.sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+  list.sort((a, b) => {
+    const da = String(a?.date || '').localeCompare(String(b?.date || ''))
+    if (da !== 0) return da
+    return (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0)
+  })
   const limit = Number(opts.limit)
   if (Number.isFinite(limit) && limit > 0) return list.slice(0, limit)
   return list
+}
+
+export function getWorkReportsForMonth(year, month) {
+  return getWorkReports({ year: Number(year), month: Number(month) })
+}
+
+/** 依日期彙整：dateStr → 紀錄陣列 */
+export function groupWorkReportsByDate(records) {
+  const map = new Map()
+  ;(Array.isArray(records) ? records : []).forEach((r) => {
+    const d = String(r?.date || '').slice(0, 10)
+    if (!d) return
+    if (!map.has(d)) map.set(d, [])
+    map.get(d).push(r)
+  })
+  return map
+}
+
+/** 某日不重複案場名稱 */
+export function getWorkReportSitesForDate(records, dateStr) {
+  const d = String(dateStr || '').slice(0, 10)
+  const sites = new Set()
+  ;(Array.isArray(records) ? records : [])
+    .filter((r) => String(r?.date || '').slice(0, 10) === d)
+    .forEach((r) => {
+      const s = String(r?.siteName || '').trim()
+      if (s) sites.add(s)
+    })
+  return [...sites].sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
 
 /**
