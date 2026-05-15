@@ -12,7 +12,9 @@ import {
   getWorkReportDurationDisplay,
   formatContractorPersonName,
   getWorkReportRowTotalHours,
-  parseWorkReportHeadcount
+  parseWorkReportHeadcount,
+  calcWorkReportHoursBreakdown,
+  getWorkReportHoursDetailParts
 } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
@@ -22,6 +24,49 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 function WorkReportDuration({ hours, className, overtimeClassName }) {
   const d = getWorkReportDurationDisplay(hours, { className, overtimeClassName })
   return <span className={d.className}>{d.text}</span>
+}
+
+function WorkReportHoursDetail({ arrivalTime, departureTime, headcount = 1 }) {
+  const bd = calcWorkReportHoursBreakdown(arrivalTime, departureTime)
+  if (!bd) return <span className="text-gray-500">—</span>
+
+  const n = Math.max(1, Math.floor(Number(headcount) || 1))
+  const totalHours = roundHours(bd.totalHours * n)
+  const perParts = getWorkReportHoursDetailParts(bd, 1)
+  const totalParts = n > 1 ? getWorkReportHoursDetailParts(bd, n) : perParts
+
+  const partClass = (tone) => {
+    if (tone === 'overtime') return 'text-red-400/90'
+    return 'text-gray-400'
+  }
+
+  const renderParts = (parts) =>
+    parts.map((p) => (
+      <div key={p.key} className={partClass(p.tone)}>
+        {p.text}
+      </div>
+    ))
+
+  return (
+    <div className="text-right">
+      {n > 1 && (
+        <div className="text-gray-500 text-[11px] mb-1 pb-1 border-b border-gray-700/50">
+          <div>
+            每人 <WorkReportDuration hours={bd.totalHours} className="inline text-amber-200/80" />
+          </div>
+          {perParts.length > 0 && <div className="mt-0.5 space-y-0.5">{renderParts(perParts)}</div>}
+        </div>
+      )}
+      <WorkReportDuration hours={totalHours} className="text-amber-200/90 font-semibold" />
+      {totalParts.length > 0 && (
+        <div className="text-[11px] mt-1 space-y-0.5 leading-snug">{renderParts(totalParts)}</div>
+      )}
+    </div>
+  )
+}
+
+function roundHours(h) {
+  return Math.round(Number(h) * 10) / 10
 }
 
 const pad2 = (n) => String(n).padStart(2, '0')
@@ -746,7 +791,10 @@ function WorkReport() {
                       />
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <WorkReportDuration hours={hrs} className="text-amber-200/90" />
+                      <WorkReportHoursDetail
+                        arrivalTime={t.arrivalTime}
+                        departureTime={t.departureTime}
+                      />
                     </td>
                   </tr>
                 )
@@ -796,13 +844,16 @@ function WorkReport() {
             <TimeInput24 label="離場時間" value={contractorDeparture} onChange={setContractorDeparture} />
           </div>
           {contractorPerHours != null && (
-            <p className="text-sm text-gray-300">
-              每人 <WorkReportDuration hours={contractorPerHours} className="text-amber-300/90" />
-              {' × '}
-              <span className="text-cyan-300">{contractorPreviewHeadcount}</span> 人
-              {' ＝ 加總 '}
-              <WorkReportDuration hours={contractorTotalHours} className="text-yellow-300 font-semibold" />
-            </p>
+            <div className="text-sm text-gray-300 flex flex-wrap items-end justify-between gap-2">
+              <span className="text-gray-400">
+                × <span className="text-cyan-300">{contractorPreviewHeadcount}</span> 人
+              </span>
+              <WorkReportHoursDetail
+                arrivalTime={contractorArrival}
+                departureTime={contractorDeparture}
+                headcount={contractorPreviewHeadcount}
+              />
+            </div>
           )}
           <button
             type="button"
@@ -820,26 +871,23 @@ function WorkReport() {
                     <th className="py-2 px-2 font-medium text-center">人數</th>
                     <th className="py-2 px-2 font-medium">抵達</th>
                     <th className="py-2 px-2 font-medium">離場</th>
-                    <th className="py-2 px-2 font-medium">每人</th>
-                    <th className="py-2 px-2 font-medium text-right">加總</th>
+                    <th className="py-2 px-2 font-medium text-right">工時</th>
                     <th className="py-2 px-2 w-12" />
                   </tr>
                 </thead>
                 <tbody>
-                  {contractorQueue.map((c) => {
-                    const per = calcWorkReportHours(c.arrivalTime, c.departureTime)
-                    const total = per != null ? Math.round(per * c.headcount * 10) / 10 : null
-                    return (
+                  {contractorQueue.map((c) => (
                       <tr key={c.id} className="border-b border-gray-700/50">
                         <td className="py-2 px-2 text-teal-100">{c.name}</td>
                         <td className="py-2 px-2 text-center tabular-nums">{c.headcount}</td>
                         <td className="py-2 px-2 text-cyan-200 tabular-nums">{c.arrivalTime}</td>
                         <td className="py-2 px-2 text-cyan-200 tabular-nums">{c.departureTime}</td>
-                        <td className="py-2 px-2">
-                          <WorkReportDuration hours={per} className="text-amber-200/90" />
-                        </td>
                         <td className="py-2 px-2 text-right">
-                          <WorkReportDuration hours={total} className="text-yellow-300 font-semibold" />
+                          <WorkReportHoursDetail
+                            arrivalTime={c.arrivalTime}
+                            departureTime={c.departureTime}
+                            headcount={c.headcount}
+                          />
                         </td>
                         <td className="py-2 px-2">
                           <button
@@ -851,8 +899,7 @@ function WorkReport() {
                           </button>
                         </td>
                       </tr>
-                    )
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -976,8 +1023,6 @@ function WorkReport() {
                         </thead>
                         <tbody>
                           {dayRows.map((row) => {
-                            const hrs = getWorkReportRowTotalHours(row)
-                            const perHrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
                             const hc = parseWorkReportHeadcount(row.personName, row.headcount)
                             const canDelete =
                               userRole === 'admin' ||
@@ -989,12 +1034,11 @@ function WorkReport() {
                                 <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
                                 <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.departureTime}</td>
                                 <td className="py-2.5 pr-3 text-right font-medium">
-                                  {hc > 1 && perHrs != null ? (
-                                    <span className="text-gray-500 text-xs block">
-                                      每人 <WorkReportDuration hours={perHrs} className="inline text-amber-200/70" />
-                                    </span>
-                                  ) : null}
-                                  <WorkReportDuration hours={hrs} className="text-amber-200/90" />
+                                  <WorkReportHoursDetail
+                                    arrivalTime={row.arrivalTime}
+                                    departureTime={row.departureTime}
+                                    headcount={hc}
+                                  />
                                 </td>
                                 <td className="py-2.5 pr-3 text-gray-400 text-xs">
                                   {row.submittedByName || row.submittedBy || '—'}
