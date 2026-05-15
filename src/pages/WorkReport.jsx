@@ -228,6 +228,9 @@ function WorkReport() {
   const [contractorDeparture, setContractorDeparture] = useState('')
   /** @type {Array<{ id: string, name: string, headcount: number, arrivalTime: string, departureTime: string }>} */
   const [contractorQueue, setContractorQueue] = useState([])
+  const [contractorOpen, setContractorOpen] = useState(false)
+  const [batchApplyArrival, setBatchApplyArrival] = useState('')
+  const [batchApplyDeparture, setBatchApplyDeparture] = useState('')
   const [message, setMessage] = useState(null)
 
   const now = new Date()
@@ -300,6 +303,44 @@ function WorkReport() {
       ...prev,
       [name]: { ...(prev[name] || { arrivalTime: '', departureTime: '' }), [field]: value }
     }))
+  }
+
+  const applySameArrivalToAll = () => {
+    if (!batchApplyArrival) {
+      setMessage({ type: 'error', text: '請先選擇要套用的抵達時間' })
+      return
+    }
+    if (allNamesForSubmit.length === 0) {
+      setMessage({ type: 'error', text: '請先勾選勞務承攬者' })
+      return
+    }
+    setMessage(null)
+    setPersonTimes((prev) => {
+      const next = { ...prev }
+      allNamesForSubmit.forEach((name) => {
+        next[name] = { ...(next[name] || { arrivalTime: '', departureTime: '' }), arrivalTime: batchApplyArrival }
+      })
+      return next
+    })
+  }
+
+  const applySameDepartureToAll = () => {
+    if (!batchApplyDeparture) {
+      setMessage({ type: 'error', text: '請先選擇要套用的離場時間' })
+      return
+    }
+    if (allNamesForSubmit.length === 0) {
+      setMessage({ type: 'error', text: '請先勾選勞務承攬者' })
+      return
+    }
+    setMessage(null)
+    setPersonTimes((prev) => {
+      const next = { ...prev }
+      allNamesForSubmit.forEach((name) => {
+        next[name] = { ...(next[name] || { arrivalTime: '', departureTime: '' }), departureTime: batchApplyDeparture }
+      })
+      return next
+    })
   }
 
   const selectAllNames = () => {
@@ -590,8 +631,143 @@ function WorkReport() {
           </datalist>
         </div>
 
-        <div className="rounded-lg border border-teal-700/40 bg-teal-950/15 p-4 space-y-4">
-          <label className="block text-teal-300 text-sm font-medium">包商出工</label>
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <label className="block text-blue-300 text-sm">勞務承攬者(個人)</label>
+            {participantNames.length > 0 && (
+              <div className="flex gap-2">
+                <button type="button" onClick={selectAllNames} className="text-xs text-cyan-400 hover:text-cyan-300">
+                  全選
+                </button>
+                <button type="button" onClick={clearSelectedNames} className="text-xs text-gray-400 hover:text-gray-300">
+                  清除
+                </button>
+              </div>
+            )}
+          </div>
+          {participantNames.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-3">
+              {participantNames.map((name) => (
+                <label
+                  key={name}
+                  className={`flex items-center gap-2 rounded border px-2.5 py-2 text-sm cursor-pointer transition-colors ${
+                    selectedNames.includes(name)
+                      ? 'border-yellow-500/60 bg-yellow-950/25 text-yellow-100'
+                      : 'border-gray-600 bg-gray-900/40 text-gray-200 hover:border-gray-500'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedNames.includes(name)}
+                    onChange={() => toggleName(name)}
+                    className="accent-yellow-500 shrink-0"
+                  />
+                  <span className="truncate">{name}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-xs mb-2">尚無人員選單。</p>
+          )}
+          {allNamesForSubmit.length > 0 && (
+            <p className="text-gray-500 text-xs mt-2">
+              已選 {allNamesForSubmit.length} 位勞務承攬者
+            </p>
+          )}
+        </div>
+
+        {allNamesForSubmit.length > 0 && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-blue-300 text-sm mb-1">各人抵達／離場時間</label>
+            </div>
+
+            <div className="rounded-lg border border-gray-600/80 bg-gray-900/40 p-3 space-y-3">
+              <p className="text-gray-500 text-xs">批次套用（選填）</p>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-end">
+                <div className="flex flex-wrap items-end gap-2">
+                  <span className="text-gray-400 text-xs shrink-0">相同抵達</span>
+                  <TimeInput24 compact value={batchApplyArrival} onChange={setBatchApplyArrival} />
+                  <button
+                    type="button"
+                    onClick={applySameArrivalToAll}
+                    disabled={!batchApplyArrival || allNamesForSubmit.length === 0}
+                    className="text-xs px-2.5 py-1.5 rounded border border-cyan-600/50 text-cyan-300 hover:bg-cyan-950/30 disabled:opacity-40"
+                  >
+                    套用到全部抵達
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <span className="text-gray-400 text-xs shrink-0">相同離場</span>
+                  <TimeInput24 compact value={batchApplyDeparture} onChange={setBatchApplyDeparture} />
+                  <button
+                    type="button"
+                    onClick={applySameDepartureToAll}
+                    disabled={!batchApplyDeparture || allNamesForSubmit.length === 0}
+                    className="text-xs px-2.5 py-1.5 rounded border border-cyan-600/50 text-cyan-300 hover:bg-cyan-950/30 disabled:opacity-40"
+                  >
+                    套用到全部離場
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-600">
+              <table className="w-full text-sm border-collapse min-w-[520px]">
+                <thead>
+                  <tr className="border-b border-gray-600 bg-gray-900/60 text-left text-gray-400">
+                    <th className="py-2 px-2 font-medium">姓名</th>
+                    <th className="py-2 px-2 font-medium">抵達</th>
+                    <th className="py-2 px-2 font-medium">離場</th>
+                    <th className="py-2 px-2 font-medium text-right">工時</th>
+                  </tr>
+                </thead>
+                <tbody>
+              {allNamesForSubmit.map((name) => {
+                const t = personTimes[name] || { arrivalTime: '', departureTime: '' }
+                const hrs = calcWorkReportHours(t.arrivalTime, t.departureTime)
+                return (
+                  <tr key={name} className="border-b border-gray-700/50">
+                    <td className="py-2 px-2 text-yellow-100 whitespace-nowrap">{name}</td>
+                    <td className="py-2 px-2">
+                      <TimeInput24
+                        compact
+                        value={t.arrivalTime}
+                        onChange={(v) => setPersonTime(name, 'arrivalTime', v)}
+                        required
+                      />
+                    </td>
+                    <td className="py-2 px-2">
+                      <TimeInput24
+                        compact
+                        value={t.departureTime}
+                        onChange={(v) => setPersonTime(name, 'departureTime', v)}
+                        required
+                      />
+                    </td>
+                    <td className="py-2 px-2 text-right">
+                      <WorkReportDuration hours={hrs} className="text-amber-200/90" />
+                    </td>
+                  </tr>
+                )
+              })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-lg border border-teal-700/40 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setContractorOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-teal-950/30 transition-colors"
+          >
+            <span className="text-teal-300 text-sm font-medium">包商出工</span>
+            <span className="text-gray-500 text-xs shrink-0">{contractorOpen ? '收合 ▲' : '展開填寫 ▼'}</span>
+          </button>
+          {contractorOpen && (
+          <div className="px-4 pb-4 pt-2 space-y-4 border-t border-teal-700/30">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-gray-400 text-xs mb-1">包商名稱</label>
@@ -681,103 +857,9 @@ function WorkReport() {
               </table>
             </div>
           )}
-        </div>
-
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <label className="block text-blue-300 text-sm">勞務承攬者(個人)</label>
-            {participantNames.length > 0 && (
-              <div className="flex gap-2">
-                <button type="button" onClick={selectAllNames} className="text-xs text-cyan-400 hover:text-cyan-300">
-                  全選
-                </button>
-                <button type="button" onClick={clearSelectedNames} className="text-xs text-gray-400 hover:text-gray-300">
-                  清除
-                </button>
-              </div>
-            )}
           </div>
-          {participantNames.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-3">
-              {participantNames.map((name) => (
-                <label
-                  key={name}
-                  className={`flex items-center gap-2 rounded border px-2.5 py-2 text-sm cursor-pointer transition-colors ${
-                    selectedNames.includes(name)
-                      ? 'border-yellow-500/60 bg-yellow-950/25 text-yellow-100'
-                      : 'border-gray-600 bg-gray-900/40 text-gray-200 hover:border-gray-500'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedNames.includes(name)}
-                    onChange={() => toggleName(name)}
-                    className="accent-yellow-500 shrink-0"
-                  />
-                  <span className="truncate">{name}</span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-xs mb-2">尚無人員選單。</p>
-          )}
-          {allNamesForSubmit.length > 0 && (
-            <p className="text-gray-500 text-xs mt-2">
-              已選 {allNamesForSubmit.length} 位勞務承攬者
-            </p>
           )}
         </div>
-
-        {allNamesForSubmit.length > 0 && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-blue-300 text-sm mb-1">各人抵達／離場時間</label>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-gray-600">
-              <table className="w-full text-sm border-collapse min-w-[520px]">
-                <thead>
-                  <tr className="border-b border-gray-600 bg-gray-900/60 text-left text-gray-400">
-                    <th className="py-2 px-2 font-medium">姓名</th>
-                    <th className="py-2 px-2 font-medium">抵達</th>
-                    <th className="py-2 px-2 font-medium">離場</th>
-                    <th className="py-2 px-2 font-medium text-right">工時</th>
-                  </tr>
-                </thead>
-                <tbody>
-              {allNamesForSubmit.map((name) => {
-                const t = personTimes[name] || { arrivalTime: '', departureTime: '' }
-                const hrs = calcWorkReportHours(t.arrivalTime, t.departureTime)
-                return (
-                  <tr key={name} className="border-b border-gray-700/50">
-                    <td className="py-2 px-2 text-yellow-100 whitespace-nowrap">{name}</td>
-                    <td className="py-2 px-2">
-                      <TimeInput24
-                        compact
-                        value={t.arrivalTime}
-                        onChange={(v) => setPersonTime(name, 'arrivalTime', v)}
-                        required
-                      />
-                    </td>
-                    <td className="py-2 px-2">
-                      <TimeInput24
-                        compact
-                        value={t.departureTime}
-                        onChange={(v) => setPersonTime(name, 'departureTime', v)}
-                        required
-                      />
-                    </td>
-                    <td className="py-2 px-2 text-right">
-                      <WorkReportDuration hours={hrs} className="text-amber-200/90" />
-                    </td>
-                  </tr>
-                )
-              })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         <button
           type="submit"
