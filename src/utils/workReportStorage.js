@@ -49,25 +49,88 @@ function timeToMinutes(hhmm) {
 /** 中午休息 1 小時；抵達時間為下午（12:00 起）則不扣 */
 const LUNCH_BREAK_HOURS = 1
 const AFTERNOON_START_MINUTES = 12 * 60
+/** 17:00 後視為加班 */
+const OVERTIME_START_MINUTES = 17 * 60
 
 function isAfternoonArrival(arrivalTime) {
   const a = timeToMinutes(arrivalTime)
   return a != null && a >= AFTERNOON_START_MINUTES
 }
 
-/** 抵達～離場工時（小時）；離場早於抵達視為跨日；非下午抵達扣 1 小時午休 */
-export function calcWorkReportHours(arrivalTime, departureTime) {
+const roundHours = (hours) => Math.round(Number(hours) * 10) / 10
+
+/**
+ * 工時細項：天（17:00前）＋ 加班（17:00後）－ 午休
+ * @returns {{ totalHours: number, dayHours: number, overtimeHours: number, lunchDeductHours: number, hasLunchDeduct: boolean, hasOvertime: boolean }|null}
+ */
+export function calcWorkReportHoursBreakdown(arrivalTime, departureTime) {
   const a = timeToMinutes(arrivalTime)
   const d = timeToMinutes(departureTime)
   if (a == null || d == null) return null
-  let diff = d - a
-  if (diff < 0) diff += 24 * 60
-  let hours = diff / 60
-  if (!isAfternoonArrival(arrivalTime)) {
-    hours -= LUNCH_BREAK_HOURS
+
+  let spanMin = d - a
+  if (spanMin < 0) spanMin += 24 * 60
+
+  const lunchMin = isAfternoonArrival(arrivalTime) ? 0 : LUNCH_BREAK_HOURS * 60
+  const overtimeStart = Math.max(a, OVERTIME_START_MINUTES)
+  const overtimeMin = d > overtimeStart ? d - overtimeStart : 0
+  let dayMin = spanMin - overtimeMin - lunchMin
+  if (dayMin < 0) dayMin = 0
+
+  const dayHours = roundHours(dayMin / 60)
+  const overtimeHours = roundHours(overtimeMin / 60)
+  const lunchDeductHours = roundHours(lunchMin / 60)
+  const totalHours = roundHours(dayHours + overtimeHours)
+
+  return {
+    totalHours,
+    dayHours,
+    overtimeHours,
+    lunchDeductHours,
+    hasLunchDeduct: lunchMin > 0,
+    hasOvertime: overtimeMin > 0
   }
-  if (hours < 0) hours = 0
-  return Math.round(hours * 10) / 10
+}
+
+/** 抵達～離場工時（小時）；離場早於抵達視為跨日；非下午抵達扣 1 小時午休 */
+export function calcWorkReportHours(arrivalTime, departureTime) {
+  const bd = calcWorkReportHoursBreakdown(arrivalTime, departureTime)
+  return bd?.totalHours ?? null
+}
+
+/**
+ * 工時細項文字（可乘人數）
+ * @param {ReturnType<typeof calcWorkReportHoursBreakdown>} breakdown
+ * @param {number} [headcount]
+ */
+export function getWorkReportHoursDetailParts(breakdown, headcount = 1) {
+  if (!breakdown) return []
+  const n = Math.max(1, Math.floor(Number(headcount) || 1))
+  const mul = (h) => roundHours(h * n)
+  const parts = []
+
+  if (breakdown.dayHours > 0) {
+    parts.push({
+      key: 'day',
+      text: `(天 ${formatWorkReportDuration(mul(breakdown.dayHours))})`,
+      tone: 'muted'
+    })
+  }
+  if (breakdown.hasOvertime && breakdown.overtimeHours > 0) {
+    parts.push({
+      key: 'ot',
+      text: `(加班 ${formatWorkReportDuration(mul(breakdown.overtimeHours))}，17:00後起算)`,
+      tone: 'overtime'
+    })
+  }
+  if (breakdown.hasLunchDeduct && breakdown.lunchDeductHours > 0) {
+    parts.push({
+      key: 'lunch',
+      text: `(扣除中午休息共 ${formatWorkReportHours(mul(breakdown.lunchDeductHours))}小時)`,
+      tone: 'muted'
+    })
+  }
+  return parts
 }
 
 export function formatWorkReportHours(hours) {
