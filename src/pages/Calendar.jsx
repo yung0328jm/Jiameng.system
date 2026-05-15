@@ -36,9 +36,9 @@ import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicle
 import {
   getWorkReportsForMonth,
   getWorkReports,
-  calcWorkReportHours,
-  formatWorkReportHours
+  calcWorkReportHours
 } from '../utils/workReportStorage'
+import WorkReportDuration from '../components/WorkReportDuration'
 
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
@@ -4665,9 +4665,10 @@ function Calendar() {
                 <>
                   <p className="text-sm text-cyan-300/90 mb-3">
                     合計工時{' '}
-                    <span className="font-semibold tabular-nums">
-                      {formatWorkReportHours(workReportDetailTotalHours)} 小時
-                    </span>
+                    <WorkReportDuration
+                      hours={workReportDetailTotalHours}
+                      className="text-cyan-300 font-semibold"
+                    />
                     （{workReportDetailRows.length} 人）
                   </p>
                   <table className="w-full text-sm border-collapse">
@@ -4688,8 +4689,8 @@ function Calendar() {
                             <td className="py-2 pr-2 text-white">{row.personName}</td>
                             <td className="py-2 pr-2 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
                             <td className="py-2 pr-2 text-cyan-200 tabular-nums">{row.departureTime}</td>
-                            <td className="py-2 pr-2 text-amber-200/90 tabular-nums text-right font-medium">
-                              {hrs != null ? `${formatWorkReportHours(hrs)}h` : '—'}
+                            <td className="py-2 pr-2 text-right font-medium">
+                              <WorkReportDuration hours={hrs} className="text-amber-200/90" />
                             </td>
                             <td className="py-2 text-gray-400 text-xs">
                               {row.submittedByName || row.submittedBy || '—'}

@@ -7,7 +7,6 @@ import {
   getWorkReportsForMonth,
   groupWorkReportsByDate,
   calcWorkReportHours,
-  formatWorkReportHours,
   addWorkReports,
   deleteWorkReport
 } from '../utils/workReportStorage'
@@ -15,6 +14,7 @@ import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import { getSupabaseClient } from '../utils/supabaseClient'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import WorkReportDuration from '../components/WorkReportDuration'
 
 const pad2 = (n) => String(n).padStart(2, '0')
 const HOUR_OPTIONS_24 = Array.from({ length: 24 }, (_, i) => pad2(i))
@@ -422,7 +422,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          填寫案場、姓名與抵達／離場時間；可複選人員，每人可設定不同時間。工時：抵達至離場，非下午抵達者另扣 1 小時午休（12:00 起抵達視為下午）。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
+          填寫案場、姓名與抵達／離場時間；可複選人員，每人可設定不同時間。工時以 8 小時為 1 工顯示（例：12 小時＝1工4小）；超過 1 工以紅字標示。非下午抵達另扣 1 小時午休。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
         </p>
       </div>
 
@@ -585,8 +585,8 @@ function WorkReport() {
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                       <span className="text-yellow-200 font-medium text-sm">{name}</span>
                       {hrs != null && (
-                        <span className="text-amber-300/90 text-xs tabular-nums">
-                          工時 {formatWorkReportHours(hrs)} 小時
+                        <span className="text-xs">
+                          工時 <WorkReportDuration hours={hrs} className="text-amber-300/90" />
                         </span>
                       )}
                     </div>
@@ -664,7 +664,7 @@ function WorkReport() {
                   className="rounded border border-cyan-700/50 bg-gray-900/50 px-2 py-1 text-gray-200"
                 >
                   {personName}{' '}
-                  <span className="text-cyan-300 font-semibold tabular-nums">{formatWorkReportHours(hours)}h</span>
+                  <WorkReportDuration hours={hours} className="text-cyan-300 font-semibold" />
                 </span>
               ))}
             </div>
@@ -688,8 +688,8 @@ function WorkReport() {
                     <td className="py-2 pr-3 text-gray-300 tabular-nums">{row.date}</td>
                     <td className="py-2 pr-3 text-white">{row.personName}</td>
                     <td className="py-2 pr-3 text-gray-400 text-xs">{row.sites || '—'}</td>
-                    <td className="py-2 pr-3 text-cyan-300 font-semibold tabular-nums text-right">
-                      {formatWorkReportHours(row.hours)} 小時
+                    <td className="py-2 pr-3 text-right">
+                      <WorkReportDuration hours={row.hours} className="text-cyan-300 font-semibold" />
                     </td>
                   </tr>
                 ))}
@@ -736,8 +736,8 @@ function WorkReport() {
                                 <td className="py-2.5 pr-3 text-white">{row.personName}</td>
                                 <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
                                 <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.departureTime}</td>
-                                <td className="py-2.5 pr-3 text-amber-200/90 tabular-nums text-right font-medium">
-                                  {hrs != null ? `${formatWorkReportHours(hrs)}h` : '—'}
+                                <td className="py-2.5 pr-3 text-right font-medium">
+                                  <WorkReportDuration hours={hrs} className="text-amber-200/90" />
                                 </td>
                                 <td className="py-2.5 pr-3 text-gray-400 text-xs">
                                   {row.submittedByName || row.submittedBy || '—'}
