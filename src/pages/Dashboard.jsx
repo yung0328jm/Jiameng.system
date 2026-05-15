@@ -21,6 +21,7 @@ import Messages from './Messages'
 import MiniGames from './MiniGames'
 import CompensatoryLeave from './CompensatoryLeave'
 import ChangePassword from './ChangePassword'
+import WorkReport from './WorkReport'
 import ErrorBoundary from '../components/ErrorBoundary'
 import {
   HomeIcon,
@@ -626,6 +627,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('compensatory-leave')) return 'compensatory-leave'
     if (path.includes('messages')) return 'messages'
     if (path.includes('change-password')) return 'change-password'
+    if (path.includes('work-report')) return 'work-report'
     if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
   }
@@ -676,6 +678,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'advance': '預支',
       'user-management': '用戶管理',
       'developing': '開發中',
+      'work-report': '出工回報',
       'compensatory-leave': '補休系統',
       'change-password': '修改密碼'
     }
@@ -758,6 +761,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <ChangePassword />
       case 'developing':
         return <MiniGames />
+      case 'work-report':
+        return <WorkReport />
       default:
         return <Home />
     }
@@ -1218,6 +1223,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="專案管理"
             isActive={activeTab === 'deficiency'}
             onClick={() => handleTabClick('deficiency', '/project-deficiency')}
+          />
+          <NavItem
+            icon={<DocumentIcon />}
+            label="出工回報"
+            isActive={activeTab === 'work-report'}
+            onClick={() => handleTabClick('work-report', '/work-report')}
           />
           <NavItem
             icon={<ChatIcon />}
