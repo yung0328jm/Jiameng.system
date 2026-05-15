@@ -422,7 +422,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          填寫案場、姓名與抵達／離場時間；可複選人員，每人可設定不同時間。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
+          填寫案場、姓名與抵達／離場時間；可複選人員，每人可設定不同時間。工時：抵達至離場，非下午抵達者另扣 1 小時午休（12:00 起抵達視為下午）。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
         </p>
       </div>
 
