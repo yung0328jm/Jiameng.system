@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+﻿import { useState, useEffect, useMemo, useCallback } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDropdownOptionsByCategory, findBoundAccountForDisplayName, getDisplayNamesForAccount } from '../utils/dropdownStorage'
@@ -9,7 +9,10 @@ import {
   calcWorkReportHours,
   addWorkReports,
   deleteWorkReport,
-  getWorkReportDurationDisplay
+  getWorkReportDurationDisplay,
+  formatContractorPersonName,
+  getWorkReportRowTotalHours,
+  parseWorkReportHeadcount
 } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
@@ -31,26 +34,6 @@ function parseTime24(value) {
   const hour = pad2(Math.min(23, Math.max(0, parseInt(m[1], 10) || 0)))
   const minute = pad2(Math.min(59, Math.max(0, parseInt(m[2], 10) || 0)))
   return { hour, minute }
-}
-
-const TIME_PRESETS = [
-  { label: '正常 07:00–16:00', arrival: '07:00', departure: '16:00' },
-  { label: '含加班 07:00–20:00', arrival: '07:00', departure: '20:00' },
-  { label: '下午班 12:00–20:00', arrival: '12:00', departure: '20:00' }
-]
-
-function parseBatchNames(text) {
-  const names = []
-  const seen = new Set()
-  String(text || '')
-    .split(/[\n,，、;；\t]+/)
-    .forEach((part) => {
-      const t = part.trim()
-      if (!t || seen.has(t)) return
-      seen.add(t)
-      names.push(t)
-    })
-  return names
 }
 
 /** 24 小時制時分選擇（避免 type=time 在中文環境顯示上午/下午） */
@@ -237,11 +220,14 @@ function WorkReport() {
   const [siteSelect, setSiteSelect] = useState('')
   const [siteManual, setSiteManual] = useState('')
   const [selectedNames, setSelectedNames] = useState([])
-  const [batchNamesText, setBatchNamesText] = useState('')
   /** @type {Record<string, { arrivalTime: string, departureTime: string }>} */
   const [personTimes, setPersonTimes] = useState({})
-  const [defaultArrival, setDefaultArrival] = useState('')
-  const [defaultDeparture, setDefaultDeparture] = useState('')
+  const [contractorName, setContractorName] = useState('')
+  const [contractorHeadcount, setContractorHeadcount] = useState(1)
+  const [contractorArrival, setContractorArrival] = useState('')
+  const [contractorDeparture, setContractorDeparture] = useState('')
+  /** @type {Array<{ id: string, name: string, headcount: number, arrivalTime: string, departureTime: string }>} */
+  const [contractorQueue, setContractorQueue] = useState([])
   const [message, setMessage] = useState(null)
 
   const now = new Date()
@@ -283,30 +269,27 @@ function WorkReport() {
 
   const resolvedSite = siteMode === 'manual' ? siteManual.trim() : siteSelect.trim()
 
-  const batchParsedNames = useMemo(() => parseBatchNames(batchNamesText), [batchNamesText])
-
   const allNamesForSubmit = useMemo(() => {
-    const set = new Set()
-    selectedNames.forEach((n) => {
-      const t = String(n || '').trim()
-      if (t) set.add(t)
-    })
-    batchParsedNames.forEach((n) => set.add(n))
-    return [...set]
-  }, [selectedNames, batchParsedNames])
+    return selectedNames.map((n) => String(n || '').trim()).filter(Boolean)
+  }, [selectedNames])
+
+  const contractorPerHours = useMemo(
+    () => calcWorkReportHours(contractorArrival, contractorDeparture),
+    [contractorArrival, contractorDeparture]
+  )
+
+  const contractorPreviewHeadcount = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
+
+  const contractorTotalHours = useMemo(() => {
+    if (contractorPerHours == null) return null
+    return Math.round(contractorPerHours * contractorPreviewHeadcount * 10) / 10
+  }, [contractorPerHours, contractorPreviewHeadcount])
 
   useEffect(() => {
     setPersonTimes((prev) => {
       const next = {}
       allNamesForSubmit.forEach((name) => {
-        if (prev[name]) {
-          next[name] = prev[name]
-        } else {
-          next[name] = {
-            arrivalTime: defaultArrival,
-            departureTime: defaultDeparture
-          }
-        }
+        next[name] = prev[name] || { arrivalTime: '', departureTime: '' }
       })
       return next
     })
@@ -319,38 +302,44 @@ function WorkReport() {
     }))
   }
 
-  const applyDefaultTimesToAll = () => {
-    if (!defaultArrival || !defaultDeparture) return
-    setPersonTimes((prev) => {
-      const next = { ...prev }
-      allNamesForSubmit.forEach((name) => {
-        next[name] = { arrivalTime: defaultArrival, departureTime: defaultDeparture }
-      })
-      return next
-    })
-  }
-
-  const applyTimePreset = (preset) => {
-    setDefaultArrival(preset.arrival)
-    setDefaultDeparture(preset.departure)
-    if (allNamesForSubmit.length > 0) {
-      setPersonTimes((prev) => {
-        const next = { ...prev }
-        allNamesForSubmit.forEach((name) => {
-          next[name] = { arrivalTime: preset.arrival, departureTime: preset.departure }
-        })
-        return next
-      })
-    }
-  }
-
   const selectAllNames = () => {
     setSelectedNames(participantNames.filter((n) => !isResignedPersonName(n, resignedSnapshot)))
   }
 
   const clearSelectedNames = () => {
     setSelectedNames([])
-    setBatchNamesText('')
+  }
+
+  const addContractorToQueue = () => {
+    const name = contractorName.trim()
+    const headcount = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
+    if (!name) {
+      setMessage({ type: 'error', text: '請輸入包商名稱' })
+      return
+    }
+    if (!contractorArrival || !contractorDeparture) {
+      setMessage({ type: 'error', text: '請填寫包商抵達與離場時間' })
+      return
+    }
+    setMessage(null)
+    setContractorQueue((q) => [
+      ...q,
+      {
+        id: `cq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        name,
+        headcount,
+        arrivalTime: contractorArrival,
+        departureTime: contractorDeparture
+      }
+    ])
+    setContractorName('')
+    setContractorHeadcount(1)
+    setContractorArrival('')
+    setContractorDeparture('')
+  }
+
+  const removeContractorFromQueue = (id) => {
+    setContractorQueue((q) => q.filter((x) => x.id !== id))
   }
 
   const toggleName = (name) => {
@@ -369,8 +358,34 @@ function WorkReport() {
       setMessage({ type: 'error', text: '請選擇或輸入案場' })
       return
     }
-    if (allNamesForSubmit.length === 0) {
-      setMessage({ type: 'error', text: '請勾選或手動輸入至少一位姓名' })
+    const contractorEntries = contractorQueue.map((c) => ({
+      date,
+      siteName,
+      personName: formatContractorPersonName(c.name, c.headcount),
+      headcount: c.headcount,
+      arrivalTime: c.arrivalTime,
+      departureTime: c.departureTime,
+      submittedBy: currentUser,
+      submittedByName: getDisplayNameForAccount(currentUser) || currentUser
+    }))
+
+    const draftContractorName = contractorName.trim()
+    if (draftContractorName && contractorArrival && contractorDeparture) {
+      const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
+      contractorEntries.push({
+        date,
+        siteName,
+        personName: formatContractorPersonName(draftContractorName, hc),
+        headcount: hc,
+        arrivalTime: contractorArrival,
+        departureTime: contractorDeparture,
+        submittedBy: currentUser,
+        submittedByName: getDisplayNameForAccount(currentUser) || currentUser
+      })
+    }
+
+    if (contractorEntries.length === 0 && allNamesForSubmit.length === 0) {
+      setMessage({ type: 'error', text: '請新增包商或勾選至少一位公司人員' })
       return
     }
     if (allNamesForSubmit.some((n) => isResignedPersonName(n, resignedSnapshot))) {
@@ -389,7 +404,7 @@ function WorkReport() {
       return
     }
     const submittedByName = getDisplayNameForAccount(currentUser) || currentUser
-    const entries = allNamesForSubmit.map((personName) => {
+    const personEntries = allNamesForSubmit.map((personName) => {
       const t = personTimes[personName] || {}
       return {
         date,
@@ -401,6 +416,7 @@ function WorkReport() {
         submittedByName
       }
     })
+    const entries = [...contractorEntries, ...personEntries]
     const result = addWorkReports(entries)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '送出失敗' })
@@ -408,10 +424,12 @@ function WorkReport() {
     }
     setMessage({ type: 'success', text: `已送出 ${entries.length} 筆出工回報` })
     setSelectedNames([])
-    setBatchNamesText('')
     setPersonTimes({})
-    setDefaultArrival('')
-    setDefaultDeparture('')
+    setContractorName('')
+    setContractorHeadcount(1)
+    setContractorArrival('')
+    setContractorDeparture('')
+    setContractorQueue([])
     const d = new Date(`${date}T00:00:00`)
     let y = filterYear
     let m = filterMonth
@@ -453,7 +471,7 @@ function WorkReport() {
       const dateKey = String(row?.date || '').slice(0, 10)
       const person = String(row?.personName || '').trim()
       if (!dateKey || !person) return
-      const hrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
+      const hrs = getWorkReportRowTotalHours(row)
       const key = `${dateKey}\0${person}`
       const prev = map.get(key) || { date: dateKey, personName: person, hours: 0, sites: new Set() }
       if (hrs != null) prev.hours += hrs
@@ -489,7 +507,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          包商批次登錄：先設共同抵達／離場時間，再勾選或貼上多人姓名，一次送出多筆。僅少數人不同時在表格個別調整。8 小時＝1 工，超過 1 工紅字；非下午抵達扣 1 小時午休。
+          包商：輸入名稱與人數、選時間，系統自動加總（例：2 人各 1工4小＝2工8小）。公司人員可複選並個別填時間。8 小時＝1 工，超過 1 工紅字；非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -572,42 +590,102 @@ function WorkReport() {
           </datalist>
         </div>
 
-        <div className="rounded-lg border border-yellow-700/40 bg-yellow-950/15 p-4 space-y-3">
-          <div>
-            <label className="block text-yellow-300 text-sm font-medium mb-1">共同抵達／離場時間</label>
-            <p className="text-gray-500 text-xs">包商整批進場先填這裡；勾選或貼上姓名後自動帶入。</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {TIME_PRESETS.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => applyTimePreset(p)}
-                className="text-xs px-2.5 py-1 rounded border border-gray-600 text-gray-300 hover:border-yellow-500/60 hover:text-yellow-200"
-              >
-                {p.label}
-              </button>
-            ))}
+        <div className="rounded-lg border border-teal-700/40 bg-teal-950/15 p-4 space-y-4">
+          <label className="block text-teal-300 text-sm font-medium">包商出工</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-gray-400 text-xs mb-1">包商名稱</label>
+              <input
+                type="text"
+                value={contractorName}
+                onChange={(e) => setContractorName(e.target.value)}
+                placeholder="例：小豪"
+                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-xs mb-1">人數</label>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={contractorHeadcount}
+                onChange={(e) => setContractorHeadcount(Math.max(1, Number(e.target.value) || 1))}
+                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white tabular-nums"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <TimeInput24 label="抵達時間" value={defaultArrival} onChange={setDefaultArrival} />
-            <TimeInput24 label="離場時間" value={defaultDeparture} onChange={setDefaultDeparture} />
+            <TimeInput24 label="抵達時間" value={contractorArrival} onChange={setContractorArrival} />
+            <TimeInput24 label="離場時間" value={contractorDeparture} onChange={setContractorDeparture} />
           </div>
-          {allNamesForSubmit.length > 0 && (
-            <button
-              type="button"
-              onClick={applyDefaultTimesToAll}
-              disabled={!defaultArrival || !defaultDeparture}
-              className="text-sm px-3 py-1.5 rounded border border-yellow-600/50 text-yellow-300 hover:bg-yellow-950/30 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              套用到已選 {allNamesForSubmit.length} 人
-            </button>
+          {contractorPerHours != null && (
+            <p className="text-sm text-gray-300">
+              每人 <WorkReportDuration hours={contractorPerHours} className="text-amber-300/90" />
+              {' × '}
+              <span className="text-cyan-300">{contractorPreviewHeadcount}</span> 人
+              {' ＝ 加總 '}
+              <WorkReportDuration hours={contractorTotalHours} className="text-yellow-300 font-semibold" />
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={addContractorToQueue}
+            className="text-sm px-4 py-2 rounded-lg border border-teal-600/50 text-teal-200 hover:bg-teal-950/40"
+          >
+            加入包商清單
+          </button>
+          {contractorQueue.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-gray-600">
+              <table className="w-full text-sm border-collapse min-w-[480px]">
+                <thead>
+                  <tr className="border-b border-gray-600 bg-gray-900/60 text-left text-gray-400">
+                    <th className="py-2 px-2 font-medium">包商</th>
+                    <th className="py-2 px-2 font-medium text-center">人數</th>
+                    <th className="py-2 px-2 font-medium">抵達</th>
+                    <th className="py-2 px-2 font-medium">離場</th>
+                    <th className="py-2 px-2 font-medium">每人</th>
+                    <th className="py-2 px-2 font-medium text-right">加總</th>
+                    <th className="py-2 px-2 w-12" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {contractorQueue.map((c) => {
+                    const per = calcWorkReportHours(c.arrivalTime, c.departureTime)
+                    const total = per != null ? Math.round(per * c.headcount * 10) / 10 : null
+                    return (
+                      <tr key={c.id} className="border-b border-gray-700/50">
+                        <td className="py-2 px-2 text-teal-100">{c.name}</td>
+                        <td className="py-2 px-2 text-center tabular-nums">{c.headcount}</td>
+                        <td className="py-2 px-2 text-cyan-200 tabular-nums">{c.arrivalTime}</td>
+                        <td className="py-2 px-2 text-cyan-200 tabular-nums">{c.departureTime}</td>
+                        <td className="py-2 px-2">
+                          <WorkReportDuration hours={per} className="text-amber-200/90" />
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <WorkReportDuration hours={total} className="text-yellow-300 font-semibold" />
+                        </td>
+                        <td className="py-2 px-2">
+                          <button
+                            type="button"
+                            onClick={() => removeContractorFromQueue(c.id)}
+                            className="text-red-400 hover:text-red-300 text-xs"
+                          >
+                            刪
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <label className="block text-blue-300 text-sm">人員（可複選、可批次貼上）</label>
+            <label className="block text-blue-300 text-sm">公司人員（可複選，選填）</label>
             {participantNames.length > 0 && (
               <div className="flex gap-2">
                 <button type="button" onClick={selectAllNames} className="text-xs text-cyan-400 hover:text-cyan-300">
@@ -641,19 +719,11 @@ function WorkReport() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-xs mb-2">尚無人員選單，請於下方手動輸入姓名。</p>
+            <p className="text-gray-500 text-xs mb-2">尚無人員選單。</p>
           )}
-          <label className="block text-gray-400 text-xs mb-1">批次貼上姓名（每行一個，或用逗號分隔）</label>
-          <textarea
-            value={batchNamesText}
-            onChange={(e) => setBatchNamesText(e.target.value)}
-            placeholder={'王小明\n李小華\n張三'}
-            rows={4}
-            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
-          />
           {allNamesForSubmit.length > 0 && (
             <p className="text-gray-500 text-xs mt-2">
-              共 {allNamesForSubmit.length} 人，一次送出 {allNamesForSubmit.length} 筆
+              已選 {allNamesForSubmit.length} 位公司人員
             </p>
           )}
         </div>
@@ -662,63 +732,49 @@ function WorkReport() {
           <div className="space-y-4">
             <div>
               <label className="block text-blue-300 text-sm mb-1">各人抵達／離場時間</label>
-              <p className="text-gray-500 text-xs">
-                每位人員可分別設定；若時間相同，可先填下方批次時間再一鍵套用。
-              </p>
             </div>
 
-            {allNamesForSubmit.length > 1 && (
-              <div className="rounded-lg border border-gray-600/80 bg-gray-900/50 p-3 space-y-3">
-                <p className="text-gray-400 text-xs font-medium">批次套用（選用）</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <TimeInput24 label="抵達時間" value={defaultArrival} onChange={setDefaultArrival} />
-                  <TimeInput24 label="離場時間" value={defaultDeparture} onChange={setDefaultDeparture} />
-                </div>
-                <button
-                  type="button"
-                  onClick={applyDefaultTimesToAll}
-                  disabled={!defaultArrival || !defaultDeparture}
-                  className="text-sm px-3 py-1.5 rounded border border-yellow-600/50 text-yellow-300 hover:bg-yellow-950/30 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  套用到已選 {allNamesForSubmit.length} 人
-                </button>
-              </div>
-            )}
-
-            <div className="space-y-3">
+            <div className="overflow-x-auto rounded-lg border border-gray-600">
+              <table className="w-full text-sm border-collapse min-w-[520px]">
+                <thead>
+                  <tr className="border-b border-gray-600 bg-gray-900/60 text-left text-gray-400">
+                    <th className="py-2 px-2 font-medium">姓名</th>
+                    <th className="py-2 px-2 font-medium">抵達</th>
+                    <th className="py-2 px-2 font-medium">離場</th>
+                    <th className="py-2 px-2 font-medium text-right">工時</th>
+                  </tr>
+                </thead>
+                <tbody>
               {allNamesForSubmit.map((name) => {
                 const t = personTimes[name] || { arrivalTime: '', departureTime: '' }
                 const hrs = calcWorkReportHours(t.arrivalTime, t.departureTime)
                 return (
-                  <div
-                    key={name}
-                    className="rounded-lg border border-gray-600 bg-gray-900/40 p-3 sm:p-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                      <span className="text-yellow-200 font-medium text-sm">{name}</span>
-                      {hrs != null && (
-                        <span className="text-xs">
-                          工時 <WorkReportDuration hours={hrs} className="text-amber-300/90" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <tr key={name} className="border-b border-gray-700/50">
+                    <td className="py-2 px-2 text-yellow-100 whitespace-nowrap">{name}</td>
+                    <td className="py-2 px-2">
                       <TimeInput24
-                        label="抵達時間"
+                        compact
                         value={t.arrivalTime}
                         onChange={(v) => setPersonTime(name, 'arrivalTime', v)}
                         required
                       />
+                    </td>
+                    <td className="py-2 px-2">
                       <TimeInput24
-                        label="離場時間"
+                        compact
                         value={t.departureTime}
                         onChange={(v) => setPersonTime(name, 'departureTime', v)}
                         required
                       />
-                    </div>
-                  </div>
+                    </td>
+                    <td className="py-2 px-2 text-right">
+                      <WorkReportDuration hours={hrs} className="text-amber-200/90" />
+                    </td>
+                  </tr>
                 )
               })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -838,7 +894,9 @@ function WorkReport() {
                         </thead>
                         <tbody>
                           {dayRows.map((row) => {
-                            const hrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
+                            const hrs = getWorkReportRowTotalHours(row)
+                            const perHrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
+                            const hc = parseWorkReportHeadcount(row.personName, row.headcount)
                             const canDelete =
                               userRole === 'admin' ||
                               String(row.submittedBy || '') === String(currentUser || '')
@@ -849,6 +907,11 @@ function WorkReport() {
                                 <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
                                 <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.departureTime}</td>
                                 <td className="py-2.5 pr-3 text-right font-medium">
+                                  {hc > 1 && perHrs != null ? (
+                                    <span className="text-gray-500 text-xs block">
+                                      每人 <WorkReportDuration hours={perHrs} className="inline text-amber-200/70" />
+                                    </span>
+                                  ) : null}
                                   <WorkReportDuration hours={hrs} className="text-amber-200/90" />
                                 </td>
                                 <td className="py-2.5 pr-3 text-gray-400 text-xs">

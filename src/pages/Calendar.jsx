@@ -37,6 +37,7 @@ import {
   getWorkReportsForMonth,
   getWorkReports,
   calcWorkReportHours,
+  getWorkReportRowTotalHours,
   getWorkReportDurationDisplay
 } from '../utils/workReportStorage'
 
@@ -220,7 +221,7 @@ function Calendar() {
   const workReportDetailTotalHours = useMemo(() => {
     let t = 0
     workReportDetailRows.forEach((r) => {
-      const h = calcWorkReportHours(r.arrivalTime, r.departureTime)
+      const h = getWorkReportRowTotalHours(r)
       if (h != null) t += h
     })
     return Math.round(t * 10) / 10
@@ -4688,7 +4689,7 @@ function Calendar() {
                     </thead>
                     <tbody>
                       {workReportDetailRows.map((row) => {
-                        const hrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
+                        const hrs = getWorkReportRowTotalHours(row)
                         return (
                           <tr key={row.id} className="border-b border-gray-700/60">
                             <td className="py-2 pr-2 text-white">{row.personName}</td>
