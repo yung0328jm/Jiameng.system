@@ -385,7 +385,7 @@ function WorkReport() {
     }
 
     if (contractorEntries.length === 0 && allNamesForSubmit.length === 0) {
-      setMessage({ type: 'error', text: '請新增包商或勾選至少一位公司人員' })
+      setMessage({ type: 'error', text: '請新增包商或勾選至少一位勞務承攬者(個人)' })
       return
     }
     if (allNamesForSubmit.some((n) => isResignedPersonName(n, resignedSnapshot))) {
@@ -507,7 +507,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          包商：輸入名稱與人數、選時間，系統自動加總（例：2 人各 1工4小＝2工8小）。公司人員可複選並個別填時間。8 小時＝1 工，超過 1 工紅字；非下午抵達扣 1 小時午休。
+          包商：輸入名稱與人數、選時間，系統自動加總（例：2 人各 1工4小＝2工8小）。勞務承攬者(個人)可複選並個別填時間。8 小時＝1 工，超過 1 工紅字；非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -599,7 +599,7 @@ function WorkReport() {
                 type="text"
                 value={contractorName}
                 onChange={(e) => setContractorName(e.target.value)}
-                placeholder="例：小豪"
+                placeholder=""
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
               />
             </div>
@@ -685,7 +685,7 @@ function WorkReport() {
 
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <label className="block text-blue-300 text-sm">公司人員（可複選，選填）</label>
+            <label className="block text-blue-300 text-sm">勞務承攬者(個人)</label>
             {participantNames.length > 0 && (
               <div className="flex gap-2">
                 <button type="button" onClick={selectAllNames} className="text-xs text-cyan-400 hover:text-cyan-300">
@@ -723,7 +723,7 @@ function WorkReport() {
           )}
           {allNamesForSubmit.length > 0 && (
             <p className="text-gray-500 text-xs mt-2">
-              已選 {allNamesForSubmit.length} 位公司人員
+              已選 {allNamesForSubmit.length} 位勞務承攬者
             </p>
           )}
         </div>
