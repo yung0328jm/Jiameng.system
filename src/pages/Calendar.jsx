@@ -33,7 +33,12 @@ import {
   mergeSchedulePersonNames
 } from '../utils/participantWorkEntries'
 import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicleSelfTravel'
-import { getWorkReportsForMonth } from '../utils/workReportStorage'
+import {
+  getWorkReportsForMonth,
+  getWorkReports,
+  calcWorkReportHours,
+  formatWorkReportHours
+} from '../utils/workReportStorage'
 
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
@@ -54,6 +59,7 @@ function Calendar() {
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
   const [workReportsRevision, setWorkReportsRevision] = useState(0) // 出工回報同步至月曆
+  const [workReportDetail, setWorkReportDetail] = useState(null) // { dateStr, siteName } 點擊月曆「出工」標籤
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const [exportingPdf, setExportingPdf] = useState(false) // 匯出 PDF 中，避免重複點擊與無反應
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
@@ -197,6 +203,23 @@ function Calendar() {
     if (!set) return []
     return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant'))
   }
+
+  const workReportDetailRows = useMemo(() => {
+    if (!workReportDetail) return []
+    return getWorkReports({
+      date: workReportDetail.dateStr,
+      siteName: workReportDetail.siteName
+    })
+  }, [workReportDetail, workReportsRevision])
+
+  const workReportDetailTotalHours = useMemo(() => {
+    let t = 0
+    workReportDetailRows.forEach((r) => {
+      const h = calcWorkReportHours(r.arrivalTime, r.departureTime)
+      if (h != null) t += h
+    })
+    return Math.round(t * 10) / 10
+  }, [workReportDetailRows])
 
   const currentUser = getCurrentUser()
   const currentRole = getCurrentUserRole()
@@ -3201,9 +3224,21 @@ function Calendar() {
                   {workReportSites.map((site) => (
                     <div
                       key={`wr-${cellDateStr}-${site}`}
-                      className="bg-teal-900/90 border border-teal-500/70 text-teal-100 text-[8px] sm:text-[9px] px-0.5 py-0.5 rounded truncate leading-tight"
-                      title={`出工回報：${site}`}
-                      onClick={(e) => e.stopPropagation()}
+                      role="button"
+                      tabIndex={0}
+                      className="bg-teal-900/90 border border-teal-500/70 text-teal-100 text-[8px] sm:text-[9px] px-0.5 py-0.5 rounded truncate leading-tight cursor-pointer hover:bg-teal-800 hover:border-teal-400"
+                      title={`出工回報：${site}（點擊查看完整資訊）`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setWorkReportDetail({ dateStr: cellDateStr, siteName: site })
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setWorkReportDetail({ dateStr: cellDateStr, siteName: site })
+                        }
+                      }}
                     >
                       出工 {site}
                     </div>
@@ -4587,6 +4622,93 @@ function Calendar() {
                 className="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400"
               >
                 確定複製
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 出工回報詳情（點擊月曆青綠標籤） */}
+      {workReportDetail && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[55] p-4"
+          onClick={() => setWorkReportDetail(null)}
+          role="presentation"
+        >
+          <div
+            className="bg-gray-900 border border-teal-600/60 rounded-lg shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="work-report-detail-title"
+          >
+            <div className="flex items-start justify-between gap-3 p-4 border-b border-gray-700 shrink-0">
+              <div>
+                <h3 id="work-report-detail-title" className="text-lg font-semibold text-teal-300">
+                  出工回報
+                </h3>
+                <p className="text-gray-300 text-sm mt-1 tabular-nums">{workReportDetail.dateStr}</p>
+                <p className="text-white font-medium">{workReportDetail.siteName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWorkReportDetail(null)}
+                className="text-gray-400 hover:text-white shrink-0 p-1"
+                aria-label="關閉"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              {workReportDetailRows.length === 0 ? (
+                <p className="text-gray-500 text-sm">尚無紀錄。</p>
+              ) : (
+                <>
+                  <p className="text-sm text-cyan-300/90 mb-3">
+                    合計工時{' '}
+                    <span className="font-semibold tabular-nums">
+                      {formatWorkReportHours(workReportDetailTotalHours)} 小時
+                    </span>
+                    （{workReportDetailRows.length} 人）
+                  </p>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-600 text-left text-gray-400">
+                        <th className="py-2 pr-2 font-medium">姓名</th>
+                        <th className="py-2 pr-2 font-medium">抵達</th>
+                        <th className="py-2 pr-2 font-medium">離場</th>
+                        <th className="py-2 pr-2 font-medium text-right">工時</th>
+                        <th className="py-2 font-medium">填寫人</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workReportDetailRows.map((row) => {
+                        const hrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
+                        return (
+                          <tr key={row.id} className="border-b border-gray-700/60">
+                            <td className="py-2 pr-2 text-white">{row.personName}</td>
+                            <td className="py-2 pr-2 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
+                            <td className="py-2 pr-2 text-cyan-200 tabular-nums">{row.departureTime}</td>
+                            <td className="py-2 pr-2 text-amber-200/90 tabular-nums text-right font-medium">
+                              {hrs != null ? `${formatWorkReportHours(hrs)}h` : '—'}
+                            </td>
+                            <td className="py-2 text-gray-400 text-xs">
+                              {row.submittedByName || row.submittedBy || '—'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+            <div className="p-3 border-t border-gray-700 shrink-0 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setWorkReportDetail(null)}
+                className="px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm"
+              >
+                關閉
               </button>
             </div>
           </div>
