@@ -113,6 +113,25 @@ export function isWorkReportOvertime(hours) {
 }
 
 /**
+ * 供 JSX 顯示：{ text, className }
+ * @param {number|null|undefined} hours
+ * @param {{ className?: string, overtimeClassName?: string }} [opts]
+ */
+export function getWorkReportDurationDisplay(hours, opts = {}) {
+  const normalClass = opts.className || 'text-cyan-300'
+  const overtimeClass = opts.overtimeClassName || 'text-red-400 font-semibold'
+  const x = Number(hours)
+  if (hours == null || !Number.isFinite(x) || x < 0) {
+    return { text: '—', className: 'text-gray-500' }
+  }
+  const overtime = isWorkReportOvertime(x)
+  return {
+    text: formatWorkReportDuration(x),
+    className: `tabular-nums ${overtime ? overtimeClass : normalClass}`
+  }
+}
+
+/**
  * @param {{ date?: string, year?: number, month?: number, siteName?: string, personName?: string, limit?: number }} [opts]
  */
 export function getWorkReports(opts = {}) {
