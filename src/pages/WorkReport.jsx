@@ -206,8 +206,10 @@ function WorkReport() {
   const [siteManual, setSiteManual] = useState('')
   const [selectedNames, setSelectedNames] = useState([])
   const [manualName, setManualName] = useState('')
-  const [arrivalTime, setArrivalTime] = useState('')
-  const [departureTime, setDepartureTime] = useState('')
+  /** @type {Record<string, { arrivalTime: string, departureTime: string }>} */
+  const [personTimes, setPersonTimes] = useState({})
+  const [bulkArrival, setBulkArrival] = useState('')
+  const [bulkDeparture, setBulkDeparture] = useState('')
   const [message, setMessage] = useState(null)
 
   const now = new Date()
@@ -256,6 +258,34 @@ function WorkReport() {
     return [...set]
   }, [selectedNames, manualName])
 
+  useEffect(() => {
+    setPersonTimes((prev) => {
+      const next = {}
+      allNamesForSubmit.forEach((name) => {
+        next[name] = prev[name] || { arrivalTime: '', departureTime: '' }
+      })
+      return next
+    })
+  }, [allNamesForSubmit])
+
+  const setPersonTime = (name, field, value) => {
+    setPersonTimes((prev) => ({
+      ...prev,
+      [name]: { ...(prev[name] || { arrivalTime: '', departureTime: '' }), [field]: value }
+    }))
+  }
+
+  const applyBulkTimesToAll = () => {
+    if (!bulkArrival || !bulkDeparture) return
+    setPersonTimes((prev) => {
+      const next = { ...prev }
+      allNamesForSubmit.forEach((name) => {
+        next[name] = { arrivalTime: bulkArrival, departureTime: bulkDeparture }
+      })
+      return next
+    })
+  }
+
   const toggleName = (name) => {
     setSelectedNames((prev) => {
       const t = String(name || '').trim()
@@ -280,20 +310,30 @@ function WorkReport() {
       setMessage({ type: 'error', text: '不可填寫離職人員' })
       return
     }
-    if (!arrivalTime || !departureTime) {
-      setMessage({ type: 'error', text: '請填寫抵達時間與離場時間' })
+    const missingTime = allNamesForSubmit.filter((personName) => {
+      const t = personTimes[personName]
+      return !t?.arrivalTime || !t?.departureTime
+    })
+    if (missingTime.length > 0) {
+      setMessage({
+        type: 'error',
+        text: `請為以下人員填寫抵達與離場時間：${missingTime.join('、')}`
+      })
       return
     }
     const submittedByName = getDisplayNameForAccount(currentUser) || currentUser
-    const entries = allNamesForSubmit.map((personName) => ({
-      date,
-      siteName,
-      personName,
-      arrivalTime,
-      departureTime,
-      submittedBy: currentUser,
-      submittedByName
-    }))
+    const entries = allNamesForSubmit.map((personName) => {
+      const t = personTimes[personName] || {}
+      return {
+        date,
+        siteName,
+        personName,
+        arrivalTime: t.arrivalTime,
+        departureTime: t.departureTime,
+        submittedBy: currentUser,
+        submittedByName
+      }
+    })
     const result = addWorkReports(entries)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '送出失敗' })
@@ -302,8 +342,9 @@ function WorkReport() {
     setMessage({ type: 'success', text: `已送出 ${entries.length} 筆出工回報` })
     setSelectedNames([])
     setManualName('')
-    setArrivalTime('')
-    setDepartureTime('')
+    setPersonTimes({})
+    setBulkArrival('')
+    setBulkDeparture('')
     const d = new Date(`${date}T00:00:00`)
     let y = filterYear
     let m = filterMonth
@@ -381,7 +422,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          填寫案場、姓名與抵達／離場時間。可從選單勾選，也可手動輸入。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
+          填寫案場、姓名與抵達／離場時間；可複選人員，每人可設定不同時間。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
         </p>
       </div>
 
@@ -505,10 +546,70 @@ function WorkReport() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TimeInput24 label="抵達時間" value={arrivalTime} onChange={setArrivalTime} required />
-          <TimeInput24 label="離場時間" value={departureTime} onChange={setDepartureTime} required />
-        </div>
+        {allNamesForSubmit.length > 0 && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-blue-300 text-sm mb-1">各人抵達／離場時間</label>
+              <p className="text-gray-500 text-xs">
+                每位人員可分別設定；若時間相同，可先填下方批次時間再一鍵套用。
+              </p>
+            </div>
+
+            {allNamesForSubmit.length > 1 && (
+              <div className="rounded-lg border border-gray-600/80 bg-gray-900/50 p-3 space-y-3">
+                <p className="text-gray-400 text-xs font-medium">批次套用（選用）</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <TimeInput24 label="抵達時間" value={bulkArrival} onChange={setBulkArrival} />
+                  <TimeInput24 label="離場時間" value={bulkDeparture} onChange={setBulkDeparture} />
+                </div>
+                <button
+                  type="button"
+                  onClick={applyBulkTimesToAll}
+                  disabled={!bulkArrival || !bulkDeparture}
+                  className="text-sm px-3 py-1.5 rounded border border-yellow-600/50 text-yellow-300 hover:bg-yellow-950/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  套用到已選 {allNamesForSubmit.length} 人
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {allNamesForSubmit.map((name) => {
+                const t = personTimes[name] || { arrivalTime: '', departureTime: '' }
+                const hrs = calcWorkReportHours(t.arrivalTime, t.departureTime)
+                return (
+                  <div
+                    key={name}
+                    className="rounded-lg border border-gray-600 bg-gray-900/40 p-3 sm:p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <span className="text-yellow-200 font-medium text-sm">{name}</span>
+                      {hrs != null && (
+                        <span className="text-amber-300/90 text-xs tabular-nums">
+                          工時 {formatWorkReportHours(hrs)} 小時
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <TimeInput24
+                        label="抵達時間"
+                        value={t.arrivalTime}
+                        onChange={(v) => setPersonTime(name, 'arrivalTime', v)}
+                        required
+                      />
+                      <TimeInput24
+                        label="離場時間"
+                        value={t.departureTime}
+                        onChange={(v) => setPersonTime(name, 'departureTime', v)}
+                        required
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <button
           type="submit"
