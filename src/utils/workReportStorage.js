@@ -77,6 +77,41 @@ export function formatWorkReportHours(hours) {
   return String(x)
 }
 
+/** 8 小時 = 1 工 */
+export const HOURS_PER_WORK_UNIT = 8
+
+export function hoursToWorkUnits(hours) {
+  const x = Number(hours)
+  if (!Number.isFinite(x) || x < 0) return null
+  let gong = Math.floor(x / HOURS_PER_WORK_UNIT)
+  let rem = Math.round((x - gong * HOURS_PER_WORK_UNIT) * 10) / 10
+  if (rem >= HOURS_PER_WORK_UNIT - 1e-6) {
+    gong += 1
+    rem = 0
+  }
+  return { gong, hours: rem }
+}
+
+/** 格式：1工4小；僅小時則 4小；整工則 1工 */
+export function formatWorkReportDuration(hours) {
+  const u = hoursToWorkUnits(hours)
+  if (!u) return '—'
+  const { gong, hours: h } = u
+  const parts = []
+  if (gong > 0) parts.push(`${gong}工`)
+  if (h > 0 || gong === 0) {
+    const hStr = formatWorkReportHours(h)
+    if (hStr !== '—') parts.push(`${hStr}小`)
+  }
+  return parts.join('') || '0小'
+}
+
+/** 超過 8 小時（超過 1 工）視為加班 */
+export function isWorkReportOvertime(hours) {
+  const x = Number(hours)
+  return Number.isFinite(x) && x > HOURS_PER_WORK_UNIT
+}
+
 /**
  * @param {{ date?: string, year?: number, month?: number, siteName?: string, personName?: string, limit?: number }} [opts]
  */
