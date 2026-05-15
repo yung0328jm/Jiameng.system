@@ -109,24 +109,10 @@ export function getWorkReportHoursDetailParts(breakdown, headcount = 1) {
   const mul = (h) => roundHours(h * n)
   const parts = []
 
-  if (breakdown.dayHours > 0) {
-    parts.push({
-      key: 'day',
-      text: `(天 ${formatWorkReportDuration(mul(breakdown.dayHours))})`,
-      tone: 'muted'
-    })
-  }
-  if (breakdown.hasOvertime && breakdown.overtimeHours > 0) {
-    parts.push({
-      key: 'ot',
-      text: `(加班 ${formatWorkReportDuration(mul(breakdown.overtimeHours))}，17:00後起算)`,
-      tone: 'overtime'
-    })
-  }
   if (breakdown.hasLunchDeduct && breakdown.lunchDeductHours > 0) {
     parts.push({
       key: 'lunch',
-      text: `(扣除中午休息共 ${formatWorkReportHours(mul(breakdown.lunchDeductHours))}小時)`,
+      text: `當日扣除午休${formatWorkReportHours(mul(breakdown.lunchDeductHours))}小時`,
       tone: 'muted'
     })
   }
