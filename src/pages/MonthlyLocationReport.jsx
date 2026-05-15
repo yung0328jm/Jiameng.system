@@ -241,14 +241,14 @@ function buildOvertimeHoursMap(year, month) {
 }
 
 /**
- * 標為「假日」且非週日：當日有出工加權時每人另計 8 小時（多案場平分），再與核准加班加總。
- * 週日不論標為平日或假日均不套用 +8。預設週六、週日為假日，其餘平日（可於日期欄覆寫）。
+ * 標為「假日」且為週一至週五：當日有出工加權時每人另計 8 小時（多案場平分），再與核准加班加總。
+ * 週六、週日不論標為平日或假日均不套用 +8（僅計案場加權工數，與平日一致）。預設週六、週日為假日，其餘平日（可於日期欄覆寫）。
  */
 const HOLIDAY_WORK_BONUS_HOURS = 8
 
 function dayQualifiesForHolidayWorkBonus(year, month, day, dayNatureAll) {
   const dow = new Date(year, month - 1, day).getDay()
-  if (dow === 0) return false
+  if (dow === 0 || dow === 6) return false
   return getDayNature(year, month, day, dayNatureAll) === 'holiday'
 }
 
@@ -961,7 +961,7 @@ export default function MonthlyLocationReport() {
             <p>
               編輯：點格開啟整格編輯；<strong className="text-amber-100">點案場名稱</strong>
               可單獨改該案場加權天數（半天 0.5、全天 1）。多案場整格編輯可用「、」分隔，或每行「案場名 0.5」存成加權覆寫。清除覆寫恢復行事曆自動。
-              <strong className="text-amber-100"> 點左欄日期</strong>可設定該日<strong>平日／假日</strong>（預設週六、週日為假日），影響假日出工 +8 小時（週日不加）。
+              <strong className="text-amber-100"> 點左欄日期</strong>可設定該日<strong>平日／假日</strong>（預設週六、週日為假日），影響「週一至週五且為假日」出工 +8 小時（週六、週日不加）。
             </p>
             <button
               type="button"
@@ -990,7 +990,7 @@ export default function MonthlyLocationReport() {
             <p className="text-[10px] text-gray-500 mb-2">
               同一人在同一天，所有排程的案場合計 K 筆時每筆計 1÷K 天（含單卡多案場或多張卡上／下午）；標籤「行政」之排程不列入。僅統計案場／工作地點；假別不計入。
               <span className="text-gray-400"> 點案場卡片可查看各人出工加權明細。</span>
-              已核准<strong className="text-gray-400">加班申請</strong>併入紅字「+小時」。左欄標<strong className="text-gray-400">假日</strong>且<strong className="text-gray-400">非週日</strong>、當日有出工加權者另計<strong className="text-gray-400"> 8 小時</strong>（多案場平分），再與加班單加總；<strong className="text-gray-400">週日不加 8</strong>。預設週六、週日為假日。
+              已核准<strong className="text-gray-400">加班申請</strong>併入紅字「+小時」。左欄標<strong className="text-gray-400">假日</strong>且為<strong className="text-gray-400">週一至週五</strong>、當日有出工加權者另計<strong className="text-gray-400"> 8 小時</strong>（多案場平分），再與加班單加總；<strong className="text-gray-400">週六、週日不加 8</strong>。預設週六、週日為假日。
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => {
@@ -1103,7 +1103,7 @@ export default function MonthlyLocationReport() {
                       }`}
                       title={
                         isAdmin
-                          ? `${dateStr} — 點擊設定此日為平日或假日（影響假日出工 +8 小時規則，週日不加）`
+                          ? `${dateStr} — 點擊設定此日為平日或假日（影響「週一至週五假日」出工 +8 小時規則，週六、週日不加）`
                           : dateStr
                       }
                       onClick={isAdmin ? () => setDayNatureModal({ day: d, dateStr }) : undefined}
@@ -1247,7 +1247,7 @@ export default function MonthlyLocationReport() {
               同一張卡上「參與人員」與工項負責人為同一人時<strong className="text-gray-400">只計一次</strong>（已修正先前重複加倍）。
               <strong className="text-gray-300">出工日數</strong>＝當月有案場（非假別）的<strong>日曆天數</strong>。
               <strong className="text-gray-300">總工（加權）</strong>＝下面每一案場「天數」<strong>全部加起來</strong>（例：2.7+0.4+…）；同一天若出現在兩個案場常是 0.5+0.5，故<strong>總工幾乎一定 ≥ 出工日數</strong>，不是「多算錯誤」。上方「各案場」卡片數字加總＝本區全員總工。
-              紅字<strong className="text-red-400">+小時</strong>＝已核准加班＋<strong className="text-gray-400">「假日」且非週日</strong>出工另計 8 小時（該日多案場平分）；<strong className="text-gray-400">週日不加 8</strong>。日期欄可改平日／假日（預設週六日為假日）。
+              紅字<strong className="text-red-400">+小時</strong>＝已核准加班＋<strong className="text-gray-400">「假日」且為週一至週五</strong>出工另計 8 小時（該日多案場平分）；<strong className="text-gray-400">週六、週日不加 8</strong>。日期欄可改平日／假日（預設週六日為假日）。
             </p>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-cyan-600/35 bg-cyan-950/20 px-3 py-2">
               <span className="text-xs sm:text-sm font-medium text-gray-200">全員總工（加權天數）</span>
@@ -1366,7 +1366,7 @@ export default function MonthlyLocationReport() {
               )
             })()}
             <p className="text-gray-500 text-[11px] mb-3 leading-relaxed">
-              標為「假日」且非週日、當日有出工加權時，加班欄另計 8 小時（與核准加班加總）。<strong className="text-gray-400">週日不論設定皆不加 8 小時。</strong>
+              標為「假日」且為週一至週五、當日有出工加權時，加班欄另計 8 小時（與核准加班加總）。<strong className="text-gray-400">週六、週日不論設定皆不加 8 小時。</strong>
             </p>
             <div className="flex flex-col gap-2">
               <button
