@@ -158,6 +158,108 @@ export function parseWorkReportHeadcount(personName, headcountField) {
   return 1
 }
 
+/** 包商顯示名去掉 *人數，例：小豪*2 → 小豪 */
+export function parseWorkReportBaseName(personName) {
+  const t = String(personName || '').trim()
+  const m = /^(.+)\*(\d+)$/.exec(t)
+  return m ? m[1].trim() : t
+}
+
+/** 是否為包商出工（名稱含 *人數） */
+export function isWorkReportContractorName(personName) {
+  return /\*\d+$/.test(String(personName || '').trim())
+}
+
+/** 統計用 key：包商依名稱合併，勞務承攬者用全名 */
+export function getWorkReportStatsPersonKey(personName) {
+  const t = String(personName || '').trim()
+  if (!t) return ''
+  return isWorkReportContractorName(t) ? parseWorkReportBaseName(t) : t
+}
+
+/**
+ * 當日明細：包商依「案場＋名稱」合併為一列；勞務承攬者維持一列一筆
+ * @param {Array} rows
+ */
+export function groupWorkReportRowsForDisplay(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  const contractorMap = new Map()
+  const singles = []
+
+  for (const row of list) {
+    const person = String(row?.personName || '').trim()
+    if (!person) continue
+    if (isWorkReportContractorName(person)) {
+      const base = parseWorkReportBaseName(person)
+      const site = String(row?.siteName || '').trim()
+      const key = `${site}\0${base}`
+      if (!contractorMap.has(key)) {
+        contractorMap.set(key, { kind: 'contractor', baseName: base, siteName: site, rows: [] })
+      }
+      contractorMap.get(key).rows.push(row)
+    } else {
+      singles.push({ kind: 'single', rows: [row] })
+    }
+  }
+
+  const contractorGroups = [...contractorMap.values()].map((g) => {
+    let totalHours = 0
+    let totalHeadcount = 0
+    g.rows.forEach((r) => {
+      const h = getWorkReportRowTotalHours(r)
+      if (h != null) totalHours += h
+      totalHeadcount += parseWorkReportHeadcount(r.personName, r.headcount)
+    })
+    const times = g.rows.map((r) => ({
+      arrivalTime: r.arrivalTime,
+      departureTime: r.departureTime,
+      headcount: parseWorkReportHeadcount(r.personName, r.headcount)
+    }))
+    const sameTime =
+      times.length === 1 ||
+      times.every(
+        (t) =>
+          t.arrivalTime === times[0].arrivalTime && t.departureTime === times[0].departureTime
+      )
+    return {
+      kind: 'contractor',
+      id: `cg_${g.siteName}_${g.baseName}_${g.rows.map((r) => r.id).join('_')}`,
+      personName: g.baseName,
+      siteName: g.siteName,
+      rows: g.rows,
+      totalHours: Math.round(totalHours * 10) / 10,
+      totalHeadcount,
+      batchCount: g.rows.length,
+      arrivalTime: sameTime ? times[0]?.arrivalTime : '',
+      departureTime: sameTime ? times[0]?.departureTime : '',
+      timeLabel: sameTime
+        ? `${times[0]?.arrivalTime || ''}–${times[0]?.departureTime || ''}`
+        : `共 ${g.rows.length} 批`
+    }
+  })
+
+  const singleGroups = singles.map((s) => {
+    const row = s.rows[0]
+    return {
+      kind: 'single',
+      id: row.id,
+      personName: row.personName,
+      siteName: row.siteName,
+      rows: s.rows,
+      totalHours: getWorkReportRowTotalHours(row),
+      totalHeadcount: 1,
+      batchCount: 1,
+      arrivalTime: row.arrivalTime,
+      departureTime: row.departureTime,
+      timeLabel: `${row.arrivalTime || ''}–${row.departureTime || ''}`
+    }
+  })
+
+  return [...contractorGroups, ...singleGroups].sort((a, b) =>
+    String(a.personName || '').localeCompare(String(b.personName || ''), 'zh-Hant')
+  )
+}
+
 /** 包商顯示名：人數 > 1 時為「名稱*人數」 */
 export function formatContractorPersonName(baseName, headcount) {
   const base = String(baseName || '').trim()
