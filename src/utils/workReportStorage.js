@@ -49,8 +49,10 @@ function timeToMinutes(hhmm) {
 /** 中午休息 1 小時；抵達時間為下午（12:00 起）則不扣 */
 const LUNCH_BREAK_HOURS = 1
 const AFTERNOON_START_MINUTES = 12 * 60
-/** 17:00 後視為加班 */
-const OVERTIME_START_MINUTES = 17 * 60
+/** 當日累積超過 8 小時視為加班 */
+export const HOURS_PER_DAY = 8
+/** @deprecated 請改用 HOURS_PER_DAY */
+export const HOURS_PER_WORK_UNIT = HOURS_PER_DAY
 
 function isAfternoonArrival(arrivalTime) {
   const a = timeToMinutes(arrivalTime)
@@ -60,7 +62,7 @@ function isAfternoonArrival(arrivalTime) {
 const roundHours = (hours) => Math.round(Number(hours) * 10) / 10
 
 /**
- * 工時細項：天（17:00前）＋ 加班（17:00後）－ 午休
+ * 工時細項：抵達～離場扣午休；當日超過 8 小時起算加班
  * @returns {{ totalHours: number, dayHours: number, overtimeHours: number, lunchDeductHours: number, hasLunchDeduct: boolean, hasOvertime: boolean }|null}
  */
 export function calcWorkReportHoursBreakdown(arrivalTime, departureTime) {
@@ -72,15 +74,13 @@ export function calcWorkReportHoursBreakdown(arrivalTime, departureTime) {
   if (spanMin < 0) spanMin += 24 * 60
 
   const lunchMin = isAfternoonArrival(arrivalTime) ? 0 : LUNCH_BREAK_HOURS * 60
-  const overtimeStart = Math.max(a, OVERTIME_START_MINUTES)
-  const overtimeMin = d > overtimeStart ? d - overtimeStart : 0
-  let dayMin = spanMin - overtimeMin - lunchMin
-  if (dayMin < 0) dayMin = 0
+  let workMin = spanMin - lunchMin
+  if (workMin < 0) workMin = 0
 
-  const dayHours = roundHours(dayMin / 60)
-  const overtimeHours = roundHours(overtimeMin / 60)
+  const totalHours = roundHours(workMin / 60)
+  const dayHours = roundHours(Math.min(HOURS_PER_DAY, totalHours))
+  const overtimeHours = roundHours(Math.max(0, totalHours - HOURS_PER_DAY))
   const lunchDeductHours = roundHours(lunchMin / 60)
-  const totalHours = roundHours(dayHours + overtimeHours)
 
   return {
     totalHours,
@@ -88,7 +88,7 @@ export function calcWorkReportHoursBreakdown(arrivalTime, departureTime) {
     overtimeHours,
     lunchDeductHours,
     hasLunchDeduct: lunchMin > 0,
-    hasOvertime: overtimeMin > 0
+    hasOvertime: overtimeHours > 0
   }
 }
 
@@ -98,27 +98,6 @@ export function calcWorkReportHours(arrivalTime, departureTime) {
   return bd?.totalHours ?? null
 }
 
-/**
- * 工時細項文字（可乘人數）
- * @param {ReturnType<typeof calcWorkReportHoursBreakdown>} breakdown
- * @param {number} [headcount]
- */
-export function getWorkReportHoursDetailParts(breakdown, headcount = 1) {
-  if (!breakdown) return []
-  const n = Math.max(1, Math.floor(Number(headcount) || 1))
-  const mul = (h) => roundHours(h * n)
-  const parts = []
-
-  if (breakdown.hasLunchDeduct && breakdown.lunchDeductHours > 0) {
-    parts.push({
-      key: 'lunch',
-      text: `當日扣除午休${formatWorkReportHours(mul(breakdown.lunchDeductHours))}小時`,
-      tone: 'muted'
-    })
-  }
-  return parts
-}
-
 export function formatWorkReportHours(hours) {
   const x = Number(hours)
   if (!Number.isFinite(x) || x < 0) return '—'
@@ -126,39 +105,43 @@ export function formatWorkReportHours(hours) {
   return String(x)
 }
 
-/** 8 小時 = 1 工 */
-export const HOURS_PER_WORK_UNIT = 8
-
-export function hoursToWorkUnits(hours) {
+export function hoursToDayUnits(hours) {
   const x = Number(hours)
   if (!Number.isFinite(x) || x < 0) return null
-  let gong = Math.floor(x / HOURS_PER_WORK_UNIT)
-  let rem = Math.round((x - gong * HOURS_PER_WORK_UNIT) * 10) / 10
-  if (rem >= HOURS_PER_WORK_UNIT - 1e-6) {
-    gong += 1
+  let days = Math.floor(x / HOURS_PER_DAY)
+  let rem = Math.round((x - days * HOURS_PER_DAY) * 10) / 10
+  if (rem >= HOURS_PER_DAY - 1e-6) {
+    days += 1
     rem = 0
   }
-  return { gong, hours: rem }
+  return { days, hours: rem }
 }
 
-/** 格式：1工4小；僅小時則 4小；整工則 1工 */
+/** @deprecated 請改用 hoursToDayUnits */
+export function hoursToWorkUnits(hours) {
+  const u = hoursToDayUnits(hours)
+  if (!u) return null
+  return { gong: u.days, hours: u.hours }
+}
+
+/** 格式：1 天 4 小時；僅小時則 4 小時；整天則 1 天 */
 export function formatWorkReportDuration(hours) {
-  const u = hoursToWorkUnits(hours)
+  const u = hoursToDayUnits(hours)
   if (!u) return '—'
-  const { gong, hours: h } = u
+  const { days, hours: h } = u
   const parts = []
-  if (gong > 0) parts.push(`${gong}工`)
-  if (h > 0 || gong === 0) {
+  if (days > 0) parts.push(`${days} 天`)
+  if (h > 0 || days === 0) {
     const hStr = formatWorkReportHours(h)
-    if (hStr !== '—') parts.push(`${hStr}小`)
+    if (hStr !== '—') parts.push(`${hStr} 小時`)
   }
-  return parts.join('') || '0小'
+  return parts.join(' ') || '0 小時'
 }
 
-/** 超過 8 小時（超過 1 工）視為加班 */
+/** 當日超過 8 小時視為加班（紅字） */
 export function isWorkReportOvertime(hours) {
   const x = Number(hours)
-  return Number.isFinite(x) && x > HOURS_PER_WORK_UNIT
+  return Number.isFinite(x) && x > HOURS_PER_DAY
 }
 
 /**
