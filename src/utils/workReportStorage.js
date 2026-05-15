@@ -117,6 +117,31 @@ export function isWorkReportOvertime(hours) {
  * @param {number|null|undefined} hours
  * @param {{ className?: string, overtimeClassName?: string }} [opts]
  */
+/** 從 personName（如 小豪*2）或 headcount 欄位取得人數 */
+export function parseWorkReportHeadcount(personName, headcountField) {
+  const fromField = Number(headcountField)
+  if (Number.isFinite(fromField) && fromField >= 1) return Math.floor(fromField)
+  const m = /^(.+)\*(\d+)$/.exec(String(personName || '').trim())
+  if (m) return Math.max(1, parseInt(m[2], 10) || 1)
+  return 1
+}
+
+/** 包商顯示名：人數 > 1 時為「名稱*人數」 */
+export function formatContractorPersonName(baseName, headcount) {
+  const base = String(baseName || '').trim()
+  const n = Math.max(1, Math.floor(Number(headcount) || 1))
+  if (!base) return ''
+  return n > 1 ? `${base}*${n}` : base
+}
+
+/** 單筆加總工時（每人時數 × 人數） */
+export function getWorkReportRowTotalHours(row) {
+  const per = calcWorkReportHours(row?.arrivalTime, row?.departureTime)
+  if (per == null) return null
+  const n = parseWorkReportHeadcount(row?.personName, row?.headcount)
+  return Math.round(per * n * 10) / 10
+}
+
 export function getWorkReportDurationDisplay(hours, opts = {}) {
   const normalClass = opts.className || 'text-cyan-300'
   const overtimeClass = opts.overtimeClassName || 'text-red-400 font-semibold'
@@ -205,6 +230,9 @@ export function addWorkReports(entries) {
     const personName = String(row?.personName || '').trim()
     const arrivalTime = String(row?.arrivalTime || '').trim()
     const departureTime = String(row?.departureTime || '').trim()
+    const headcountRaw = Number(row?.headcount)
+    const headcount =
+      Number.isFinite(headcountRaw) && headcountRaw >= 1 ? Math.floor(headcountRaw) : undefined
     if (!date || !siteName || !personName || !arrivalTime || !departureTime) {
       return { success: false, message: '請填寫完整：日期、案場、姓名、抵達時間、離場時間' }
     }
@@ -213,6 +241,7 @@ export function addWorkReports(entries) {
       date,
       siteName,
       personName,
+      ...(headcount != null && headcount > 1 ? { headcount } : {}),
       arrivalTime,
       departureTime,
       submittedBy: String(row?.submittedBy || '').trim(),
