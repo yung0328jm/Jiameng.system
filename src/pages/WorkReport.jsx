@@ -33,16 +33,69 @@ function parseTime24(value) {
   return { hour, minute }
 }
 
+const TIME_PRESETS = [
+  { label: '正常 07:00–16:00', arrival: '07:00', departure: '16:00' },
+  { label: '含加班 07:00–20:00', arrival: '07:00', departure: '20:00' },
+  { label: '下午班 12:00–20:00', arrival: '12:00', departure: '20:00' }
+]
+
+function parseBatchNames(text) {
+  const names = []
+  const seen = new Set()
+  String(text || '')
+    .split(/[\n,，、;；\t]+/)
+    .forEach((part) => {
+      const t = part.trim()
+      if (!t || seen.has(t)) return
+      seen.add(t)
+      names.push(t)
+    })
+  return names
+}
+
 /** 24 小時制時分選擇（避免 type=time 在中文環境顯示上午/下午） */
-function TimeInput24({ label, value, onChange, required }) {
+function TimeInput24({ label, value, onChange, required, compact }) {
   const { hour, minute } = parseTime24(value)
-  const selectClass =
-    'flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded px-2 py-2 text-white text-sm tabular-nums'
+  const selectClass = compact
+    ? 'w-[4.25rem] min-w-0 bg-gray-700 border border-gray-600 rounded px-1 py-1 text-white text-xs tabular-nums'
+    : 'flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded px-2 py-2 text-white text-sm tabular-nums'
 
   const setPart = (nextHour, nextMinute) => {
     if (nextHour !== '' && nextMinute !== '') onChange(`${nextHour}:${nextMinute}`)
     else onChange('')
   }
+
+  const timeRow = (
+    <div className={`flex items-center ${compact ? 'gap-1' : 'gap-2'}`}>
+      <select
+        value={hour}
+        onChange={(e) => setPart(e.target.value, minute || '00')}
+        className={selectClass}
+        required={required}
+        aria-label={`${label || '時間'} 時`}
+      >
+        <option value="">時</option>
+        {HOUR_OPTIONS_24.map((h) => (
+          <option key={h} value={h}>{h}</option>
+        ))}
+      </select>
+      <span className="text-gray-400 font-mono">:</span>
+      <select
+        value={minute}
+        onChange={(e) => setPart(hour || '00', e.target.value)}
+        className={selectClass}
+        required={required}
+        aria-label={`${label || '時間'} 分`}
+      >
+        <option value="">分</option>
+        {MINUTE_OPTIONS.map((m) => (
+          <option key={m} value={m}>{m}</option>
+        ))}
+      </select>
+    </div>
+  )
+
+  if (compact) return timeRow
 
   return (
     <div>
@@ -50,33 +103,7 @@ function TimeInput24({ label, value, onChange, required }) {
         {label}
         <span className="text-gray-500 font-normal ml-1">（24小時制）</span>
       </label>
-      <div className="flex items-center gap-2">
-        <select
-          value={hour}
-          onChange={(e) => setPart(e.target.value, minute || '00')}
-          className={selectClass}
-          required={required}
-          aria-label={`${label} 時`}
-        >
-          <option value="">時</option>
-          {HOUR_OPTIONS_24.map((h) => (
-            <option key={h} value={h}>{h}</option>
-          ))}
-        </select>
-        <span className="text-gray-400 font-mono">:</span>
-        <select
-          value={minute}
-          onChange={(e) => setPart(hour || '00', e.target.value)}
-          className={selectClass}
-          required={required}
-          aria-label={`${label} 分`}
-        >
-          <option value="">分</option>
-          {MINUTE_OPTIONS.map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
-      </div>
+      {timeRow}
     </div>
   )
 }
@@ -210,11 +237,11 @@ function WorkReport() {
   const [siteSelect, setSiteSelect] = useState('')
   const [siteManual, setSiteManual] = useState('')
   const [selectedNames, setSelectedNames] = useState([])
-  const [manualName, setManualName] = useState('')
+  const [batchNamesText, setBatchNamesText] = useState('')
   /** @type {Record<string, { arrivalTime: string, departureTime: string }>} */
   const [personTimes, setPersonTimes] = useState({})
-  const [bulkArrival, setBulkArrival] = useState('')
-  const [bulkDeparture, setBulkDeparture] = useState('')
+  const [defaultArrival, setDefaultArrival] = useState('')
+  const [defaultDeparture, setDefaultDeparture] = useState('')
   const [message, setMessage] = useState(null)
 
   const now = new Date()
@@ -256,18 +283,30 @@ function WorkReport() {
 
   const resolvedSite = siteMode === 'manual' ? siteManual.trim() : siteSelect.trim()
 
+  const batchParsedNames = useMemo(() => parseBatchNames(batchNamesText), [batchNamesText])
+
   const allNamesForSubmit = useMemo(() => {
-    const set = new Set(selectedNames.map((n) => String(n || '').trim()).filter(Boolean))
-    const manual = manualName.trim()
-    if (manual) set.add(manual)
+    const set = new Set()
+    selectedNames.forEach((n) => {
+      const t = String(n || '').trim()
+      if (t) set.add(t)
+    })
+    batchParsedNames.forEach((n) => set.add(n))
     return [...set]
-  }, [selectedNames, manualName])
+  }, [selectedNames, batchParsedNames])
 
   useEffect(() => {
     setPersonTimes((prev) => {
       const next = {}
       allNamesForSubmit.forEach((name) => {
-        next[name] = prev[name] || { arrivalTime: '', departureTime: '' }
+        if (prev[name]) {
+          next[name] = prev[name]
+        } else {
+          next[name] = {
+            arrivalTime: defaultArrival,
+            departureTime: defaultDeparture
+          }
+        }
       })
       return next
     })
@@ -280,15 +319,38 @@ function WorkReport() {
     }))
   }
 
-  const applyBulkTimesToAll = () => {
-    if (!bulkArrival || !bulkDeparture) return
+  const applyDefaultTimesToAll = () => {
+    if (!defaultArrival || !defaultDeparture) return
     setPersonTimes((prev) => {
       const next = { ...prev }
       allNamesForSubmit.forEach((name) => {
-        next[name] = { arrivalTime: bulkArrival, departureTime: bulkDeparture }
+        next[name] = { arrivalTime: defaultArrival, departureTime: defaultDeparture }
       })
       return next
     })
+  }
+
+  const applyTimePreset = (preset) => {
+    setDefaultArrival(preset.arrival)
+    setDefaultDeparture(preset.departure)
+    if (allNamesForSubmit.length > 0) {
+      setPersonTimes((prev) => {
+        const next = { ...prev }
+        allNamesForSubmit.forEach((name) => {
+          next[name] = { arrivalTime: preset.arrival, departureTime: preset.departure }
+        })
+        return next
+      })
+    }
+  }
+
+  const selectAllNames = () => {
+    setSelectedNames(participantNames.filter((n) => !isResignedPersonName(n, resignedSnapshot)))
+  }
+
+  const clearSelectedNames = () => {
+    setSelectedNames([])
+    setBatchNamesText('')
   }
 
   const toggleName = (name) => {
@@ -346,10 +408,10 @@ function WorkReport() {
     }
     setMessage({ type: 'success', text: `已送出 ${entries.length} 筆出工回報` })
     setSelectedNames([])
-    setManualName('')
+    setBatchNamesText('')
     setPersonTimes({})
-    setBulkArrival('')
-    setBulkDeparture('')
+    setDefaultArrival('')
+    setDefaultDeparture('')
     const d = new Date(`${date}T00:00:00`)
     let y = filterYear
     let m = filterMonth
@@ -423,11 +485,11 @@ function WorkReport() {
   }, [dailyPersonStats])
 
   return (
-    <div className="max-w-3xl mx-auto text-white">
+    <div className="max-w-5xl mx-auto text-white">
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          填寫案場、姓名與抵達／離場時間；可複選人員，每人可設定不同時間。工時以 8 小時為 1 工顯示（例：12 小時＝1工4小）；超過 1 工以紅字標示。非下午抵達另扣 1 小時午休。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
+          包商批次登錄：先設共同抵達／離場時間，再勾選或貼上多人姓名，一次送出多筆。僅少數人不同時在表格個別調整。8 小時＝1 工，超過 1 工紅字；非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -510,10 +572,55 @@ function WorkReport() {
           </datalist>
         </div>
 
+        <div className="rounded-lg border border-yellow-700/40 bg-yellow-950/15 p-4 space-y-3">
+          <div>
+            <label className="block text-yellow-300 text-sm font-medium mb-1">共同抵達／離場時間</label>
+            <p className="text-gray-500 text-xs">包商整批進場先填這裡；勾選或貼上姓名後自動帶入。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {TIME_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => applyTimePreset(p)}
+                className="text-xs px-2.5 py-1 rounded border border-gray-600 text-gray-300 hover:border-yellow-500/60 hover:text-yellow-200"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <TimeInput24 label="抵達時間" value={defaultArrival} onChange={setDefaultArrival} />
+            <TimeInput24 label="離場時間" value={defaultDeparture} onChange={setDefaultDeparture} />
+          </div>
+          {allNamesForSubmit.length > 0 && (
+            <button
+              type="button"
+              onClick={applyDefaultTimesToAll}
+              disabled={!defaultArrival || !defaultDeparture}
+              className="text-sm px-3 py-1.5 rounded border border-yellow-600/50 text-yellow-300 hover:bg-yellow-950/30 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              套用到已選 {allNamesForSubmit.length} 人
+            </button>
+          )}
+        </div>
+
         <div>
-          <label className="block text-blue-300 text-sm mb-2">姓名（可複選）</label>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <label className="block text-blue-300 text-sm">人員（可複選、可批次貼上）</label>
+            {participantNames.length > 0 && (
+              <div className="flex gap-2">
+                <button type="button" onClick={selectAllNames} className="text-xs text-cyan-400 hover:text-cyan-300">
+                  全選
+                </button>
+                <button type="button" onClick={clearSelectedNames} className="text-xs text-gray-400 hover:text-gray-300">
+                  清除
+                </button>
+              </div>
+            )}
+          </div>
           {participantNames.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-3">
               {participantNames.map((name) => (
                 <label
                   key={name}
@@ -536,17 +643,17 @@ function WorkReport() {
           ) : (
             <p className="text-gray-500 text-xs mb-2">尚無人員選單，請於下方手動輸入姓名。</p>
           )}
-          <label className="block text-gray-400 text-xs mb-1">或手動輸入姓名</label>
-          <input
-            type="text"
-            value={manualName}
-            onChange={(e) => setManualName(e.target.value)}
-            placeholder="輸入姓名（可與勾選併用）"
-            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+          <label className="block text-gray-400 text-xs mb-1">批次貼上姓名（每行一個，或用逗號分隔）</label>
+          <textarea
+            value={batchNamesText}
+            onChange={(e) => setBatchNamesText(e.target.value)}
+            placeholder={'王小明\n李小華\n張三'}
+            rows={4}
+            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
           />
           {allNamesForSubmit.length > 0 && (
             <p className="text-gray-500 text-xs mt-2">
-              將送出：{allNamesForSubmit.join('、')}
+              共 {allNamesForSubmit.length} 人，一次送出 {allNamesForSubmit.length} 筆
             </p>
           )}
         </div>
@@ -564,13 +671,13 @@ function WorkReport() {
               <div className="rounded-lg border border-gray-600/80 bg-gray-900/50 p-3 space-y-3">
                 <p className="text-gray-400 text-xs font-medium">批次套用（選用）</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <TimeInput24 label="抵達時間" value={bulkArrival} onChange={setBulkArrival} />
-                  <TimeInput24 label="離場時間" value={bulkDeparture} onChange={setBulkDeparture} />
+                  <TimeInput24 label="抵達時間" value={defaultArrival} onChange={setDefaultArrival} />
+                  <TimeInput24 label="離場時間" value={defaultDeparture} onChange={setDefaultDeparture} />
                 </div>
                 <button
                   type="button"
-                  onClick={applyBulkTimesToAll}
-                  disabled={!bulkArrival || !bulkDeparture}
+                  onClick={applyDefaultTimesToAll}
+                  disabled={!defaultArrival || !defaultDeparture}
                   className="text-sm px-3 py-1.5 rounded border border-yellow-600/50 text-yellow-300 hover:bg-yellow-950/30 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   套用到已選 {allNamesForSubmit.length} 人
