@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { getDropdownOptionsByCategory, findBoundAccountForDisplayName } from '../utils/dropdownStorage'
+import { getDropdownOptionsByCategory, findBoundAccountForDisplayName, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getProjects } from '../utils/projectStorage'
 import { getWorkReports, addWorkReports, deleteWorkReport } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
+import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 const pad2 = (n) => String(n).padStart(2, '0')
@@ -14,46 +15,76 @@ function todayStr() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
-function buildResignedFilter() {
-  const resignedAccounts = new Set()
-  const resignedNames = new Set()
+/** @returns {{ accounts: string[], names: string[] }} */
+function collectResignedSnapshotSync() {
+  const accounts = new Set()
+  const names = new Set()
   ;(getUsers() || []).forEach((u) => {
     if (u?.role !== 'resigned') return
     const acc = String(u?.account || '').trim()
-    const name = String(u?.name || '').trim()
-    if (acc) resignedAccounts.add(acc)
-    if (name) resignedNames.add(name)
-    const display = getDisplayNameForAccount(acc)
-    if (display) resignedNames.add(display)
+    const uname = String(u?.name || '').trim()
+    if (acc) {
+      accounts.add(acc)
+      ;(getDisplayNamesForAccount(acc) || []).forEach((n) => {
+        const t = String(n || '').trim()
+        if (t) names.add(t)
+      })
+    }
+    if (uname) names.add(uname)
   })
-  return { resignedAccounts, resignedNames }
+  return { accounts: [...accounts], names: [...names] }
 }
 
-function isResignedPersonName(name, filter = buildResignedFilter()) {
+/** 合併 Supabase profiles 的離職標記（與用戶管理「標記離職」一致） */
+async function mergeSupabaseResignedIntoSnapshot(snap) {
+  const accounts = new Set(snap.accounts)
+  const names = new Set(snap.names)
+  if (!isAuthSupabase()) return snap
+  try {
+    const profiles = await getPublicProfiles()
+    ;(profiles || []).forEach((p) => {
+      if (!p?.is_resigned) return
+      const acc = String(p.account || '').trim()
+      if (acc) {
+        accounts.add(acc)
+        ;(getDisplayNamesForAccount(acc) || []).forEach((n) => {
+          const t = String(n || '').trim()
+          if (t) names.add(t)
+        })
+      }
+      const dn = String(p.display_name || '').trim()
+      if (dn) names.add(dn)
+    })
+  } catch (_) {}
+  return { accounts: [...accounts], names: [...names] }
+}
+
+function isResignedPersonName(name, snap) {
   const t = String(name || '').trim()
-  if (!t) return false
-  if (filter.resignedNames.has(t)) return true
-  if (filter.resignedAccounts.has(t)) return true
+  if (!t || !snap) return false
+  const accounts = new Set(snap.accounts || [])
+  const names = new Set(snap.names || [])
+  if (names.has(t) || accounts.has(t)) return true
   const bound = findBoundAccountForDisplayName(t)
-  if (bound && filter.resignedAccounts.has(bound)) return true
+  if (bound && accounts.has(bound)) return true
   const user = (getUsers() || []).find((u) => String(u?.name || '').trim() === t)
   return user?.role === 'resigned'
 }
 
-function getParticipantNames() {
-  const filter = buildResignedFilter()
+function getParticipantNames(snap) {
   const seen = new Set()
   const names = []
   const add = (n) => {
     const t = String(n || '').trim()
-    if (!t || seen.has(t) || isResignedPersonName(t, filter)) return
+    if (!t || seen.has(t) || isResignedPersonName(t, snap)) return
     seen.add(t)
     names.push(t)
   }
   const addFromOptions = (options) => {
+    const accSet = new Set(snap.accounts || [])
     ;(options || []).forEach((opt) => {
       const bound = String(opt?.boundAccount || '').trim()
-      if (bound && filter.resignedAccounts.has(bound)) return
+      if (bound && accSet.has(bound)) return
       add(opt?.value)
     })
   }
@@ -93,17 +124,22 @@ function WorkReport() {
 
   const [filterDate, setFilterDate] = useState(todayStr)
   const [records, setRecords] = useState([])
+  const [resignedSnapshot, setResignedSnapshot] = useState({ accounts: [], names: [] })
 
-  const refetch = () => {
+  const refetch = useCallback(async () => {
     setUserRole(getCurrentUserRole())
     const user = getCurrentUser() || ''
     setCurrentUser(user)
-    setParticipantNames(getParticipantNames())
+    let snap = collectResignedSnapshotSync()
+    snap = await mergeSupabaseResignedIntoSnapshot(snap)
+    setResignedSnapshot(snap)
+    setParticipantNames(getParticipantNames(snap))
+    setSelectedNames((prev) => prev.filter((n) => !isResignedPersonName(n, snap)))
     const sites = getSiteNameOptions()
     setSiteOptions(sites)
     setSiteSelect((prev) => (prev && sites.includes(prev) ? prev : sites[0] || ''))
     setRecords(getWorkReports({ date: filterDate }))
-  }
+  }, [filterDate])
 
   useRealtimeKeys(
     ['jiameng_work_reports', 'jiameng_dropdown_options', 'jiameng_projects', 'jiameng_users'],
@@ -112,7 +148,15 @@ function WorkReport() {
 
   useEffect(() => {
     refetch()
-  }, [filterDate])
+  }, [refetch])
+
+  useEffect(() => {
+    const onFocus = () => {
+      refetch()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refetch])
 
   const resolvedSite = siteMode === 'manual' ? siteManual.trim() : siteSelect.trim()
 
@@ -143,7 +187,7 @@ function WorkReport() {
       setMessage({ type: 'error', text: '請勾選或手動輸入至少一位姓名' })
       return
     }
-    if (allNamesForSubmit.some((n) => isResignedPersonName(n))) {
+    if (allNamesForSubmit.some((n) => isResignedPersonName(n, resignedSnapshot))) {
       setMessage({ type: 'error', text: '不可填寫離職人員' })
       return
     }
