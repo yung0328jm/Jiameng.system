@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
 import { getSchedules, saveSchedule, updateSchedule, deleteSchedule, getLastReturnMileageByVehicle } from '../utils/scheduleStorage'
 import { deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
@@ -33,6 +33,7 @@ import {
   mergeSchedulePersonNames
 } from '../utils/participantWorkEntries'
 import { isSelfTravelVehicle, SELF_TRAVEL_VEHICLE_LABEL } from '../utils/vehicleSelfTravel'
+import { getWorkReportsForMonth } from '../utils/workReportStorage'
 
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
@@ -52,6 +53,7 @@ function Calendar() {
   const [selectedDetailItem, setSelectedDetailItem] = useState(null) // 选中的详情项（主题或排程）
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
+  const [workReportsRevision, setWorkReportsRevision] = useState(0) // 出工回報同步至月曆
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const [exportingPdf, setExportingPdf] = useState(false) // 匯出 PDF 中，避免重複點擊與無反應
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
@@ -175,6 +177,27 @@ function Calendar() {
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
+
+  const workReportSitesByDate = useMemo(() => {
+    void workReportsRevision
+    const map = new Map()
+    getWorkReportsForMonth(year, month + 1).forEach((r) => {
+      const d = String(r?.date || '').slice(0, 10)
+      const site = String(r?.siteName || '').trim()
+      if (!d || !site) return
+      if (!map.has(d)) map.set(d, new Set())
+      map.get(d).add(site)
+    })
+    return map
+  }, [year, month, workReportsRevision])
+
+  const getWorkReportSitesForDay = (day) => {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const set = workReportSitesByDate.get(dateStr)
+    if (!set) return []
+    return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+  }
+
   const currentUser = getCurrentUser()
   const currentRole = getCurrentUserRole()
   const myDisplayNames = getDisplayNamesForAccount(currentUser || '') || []
@@ -781,6 +804,7 @@ function Calendar() {
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
   useRealtimeKeys(['jiameng_overtime_applications'], () => setOvertimeReviewRevision((r) => r + 1))
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
+  useRealtimeKeys(['jiameng_work_reports'], () => setWorkReportsRevision((r) => r + 1))
 
   // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
   useEffect(() => {
@@ -3054,6 +3078,8 @@ function Calendar() {
           {currentMonthDays.map((day) => {
             const events = getEventsForDay(day, true)
             const daySchedules = getSchedulesForDay(day, true)
+            const workReportSites = getWorkReportSitesForDay(day)
+            const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             const today = isToday(day)
             const holiday = isHoliday(day)
             
@@ -3171,6 +3197,17 @@ function Calendar() {
                       </div>
                     )
                   })}
+                  {/* 出工回報案場（僅顯示，不寫入排程） */}
+                  {workReportSites.map((site) => (
+                    <div
+                      key={`wr-${cellDateStr}-${site}`}
+                      className="bg-teal-900/90 border border-teal-500/70 text-teal-100 text-[8px] sm:text-[9px] px-0.5 py-0.5 rounded truncate leading-tight"
+                      title={`出工回報：${site}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      出工 {site}
+                    </div>
+                  ))}
                   {/* 显示其他事件 */}
                   {events.map((event) => (
                     <div

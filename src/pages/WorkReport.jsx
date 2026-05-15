@@ -3,7 +3,14 @@ import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { getDropdownOptionsByCategory, findBoundAccountForDisplayName, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { getProjects } from '../utils/projectStorage'
-import { getWorkReports, addWorkReports, deleteWorkReport } from '../utils/workReportStorage'
+import {
+  getWorkReportsForMonth,
+  groupWorkReportsByDate,
+  calcWorkReportHours,
+  formatWorkReportHours,
+  addWorkReports,
+  deleteWorkReport
+} from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import { getSupabaseClient } from '../utils/supabaseClient'
@@ -74,7 +81,6 @@ function todayStr() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
-/** @returns {{ accounts: string[], names: string[] }} */
 function collectResignedSnapshotSync() {
   const accounts = new Set()
   const names = new Set()
@@ -99,7 +105,6 @@ function profileRowIsResigned(p) {
   return v === true || v === 't' || v === 1
 }
 
-/** 離職者帳號／顯示名（RPC：須在 Supabase 執行 docs/supabase-get-resigned-identifiers.sql） */
 async function fetchResignedProfileIdentifiers() {
   const sb = getSupabaseClient()
   if (!sb) return []
@@ -111,11 +116,6 @@ async function fetchResignedProfileIdentifiers() {
   return Array.isArray(data) ? data : []
 }
 
-/**
- * 合併 Supabase 離職名單。
- * 注意：get_public_profiles() 在資料庫端已排除離職者，無法用來判斷離職；
- * 管理員改走 get_all_profiles()；一般用戶走 get_resigned_profile_identifiers()（須執行 docs 內 SQL）。
- */
 async function mergeSupabaseResignedIntoSnapshot(snap, userRole) {
   const accounts = new Set(snap.accounts)
   const names = new Set(snap.names)
@@ -210,8 +210,10 @@ function WorkReport() {
   const [departureTime, setDepartureTime] = useState('')
   const [message, setMessage] = useState(null)
 
-  const [filterDate, setFilterDate] = useState(todayStr)
-  const [records, setRecords] = useState([])
+  const now = new Date()
+  const [filterYear, setFilterYear] = useState(now.getFullYear())
+  const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1)
+  const [monthRecords, setMonthRecords] = useState([])
   const [resignedSnapshot, setResignedSnapshot] = useState({ accounts: [], names: [] })
 
   const refetch = useCallback(async () => {
@@ -227,8 +229,8 @@ function WorkReport() {
     const sites = getSiteNameOptions()
     setSiteOptions(sites)
     setSiteSelect((prev) => (prev && sites.includes(prev) ? prev : sites[0] || ''))
-    setRecords(getWorkReports({ date: filterDate }))
-  }, [filterDate])
+    setMonthRecords(getWorkReportsForMonth(filterYear, filterMonth))
+  }, [filterYear, filterMonth])
 
   useRealtimeKeys(
     ['jiameng_work_reports', 'jiameng_dropdown_options', 'jiameng_projects', 'jiameng_users'],
@@ -240,9 +242,7 @@ function WorkReport() {
   }, [refetch])
 
   useEffect(() => {
-    const onFocus = () => {
-      refetch()
-    }
+    const onFocus = () => refetch()
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [refetch])
@@ -304,8 +304,16 @@ function WorkReport() {
     setManualName('')
     setArrivalTime('')
     setDepartureTime('')
-    setFilterDate(date)
-    setRecords(getWorkReports({ date }))
+    const d = new Date(`${date}T00:00:00`)
+    let y = filterYear
+    let m = filterMonth
+    if (!Number.isNaN(d.getTime())) {
+      y = d.getFullYear()
+      m = d.getMonth() + 1
+      setFilterYear(y)
+      setFilterMonth(m)
+    }
+    setMonthRecords(getWorkReportsForMonth(y, m))
   }
 
   const handleDelete = (row) => {
@@ -321,15 +329,59 @@ function WorkReport() {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
       return
     }
-    setRecords(getWorkReports({ date: filterDate }))
+    setMonthRecords(getWorkReportsForMonth(filterYear, filterMonth))
   }
+
+  const recordsByDate = useMemo(() => groupWorkReportsByDate(monthRecords), [monthRecords])
+
+  const sortedDateKeys = useMemo(
+    () => [...recordsByDate.keys()].sort((a, b) => b.localeCompare(a)),
+    [recordsByDate]
+  )
+
+  const dailyPersonStats = useMemo(() => {
+    const map = new Map()
+    monthRecords.forEach((row) => {
+      const dateKey = String(row?.date || '').slice(0, 10)
+      const person = String(row?.personName || '').trim()
+      if (!dateKey || !person) return
+      const hrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
+      const key = `${dateKey}\0${person}`
+      const prev = map.get(key) || { date: dateKey, personName: person, hours: 0, sites: new Set() }
+      if (hrs != null) prev.hours += hrs
+      const site = String(row?.siteName || '').trim()
+      if (site) prev.sites.add(site)
+      map.set(key, prev)
+    })
+    return [...map.values()]
+      .map((x) => ({
+        date: x.date,
+        personName: x.personName,
+        hours: Math.round(x.hours * 10) / 10,
+        sites: [...x.sites].join('、')
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date) || a.personName.localeCompare(b.personName, 'zh-Hant'))
+  }, [monthRecords])
+
+  const personMonthTotals = useMemo(() => {
+    const map = new Map()
+    dailyPersonStats.forEach((row) => {
+      map.set(row.personName, (map.get(row.personName) || 0) + row.hours)
+    })
+    return [...map.entries()]
+      .map(([personName, hours]) => ({
+        personName,
+        hours: Math.round(hours * 10) / 10
+      }))
+      .sort((a, b) => b.hours - a.hours || a.personName.localeCompare(b.personName, 'zh-Hant'))
+  }, [dailyPersonStats])
 
   return (
     <div className="max-w-3xl mx-auto text-white">
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          填寫案場、姓名與抵達／離場時間。可從選單勾選，也可手動輸入。此表單獨立於行事曆，不會修改排程資料。
+          填寫案場、姓名與抵達／離場時間。可從選單勾選，也可手動輸入。此表單獨立於行事曆排程，不會修改排程資料；案場會同步顯示在行事曆上。
         </p>
       </div>
 
@@ -454,18 +506,8 @@ function WorkReport() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TimeInput24
-            label="抵達時間"
-            value={arrivalTime}
-            onChange={setArrivalTime}
-            required
-          />
-          <TimeInput24
-            label="離場時間"
-            value={departureTime}
-            onChange={setDepartureTime}
-            required
-          />
+          <TimeInput24 label="抵達時間" value={arrivalTime} onChange={setArrivalTime} required />
+          <TimeInput24 label="離場時間" value={departureTime} onChange={setDepartureTime} required />
         </div>
 
         <button
@@ -476,66 +518,152 @@ function WorkReport() {
         </button>
       </form>
 
-      <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
-          <h2 className="text-lg font-semibold text-yellow-400">已送出紀錄</h2>
+      <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4 sm:p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
-            <label className="block text-gray-400 text-xs mb-1">篩選日期</label>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
-            />
+            <h2 className="text-lg font-semibold text-yellow-400">當月回報統計</h2>
+            <p className="text-gray-500 text-xs mt-1">
+              整月檢視，不需逐日搜尋；依日期加總各人出工時數。
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="block text-gray-400 text-xs mb-1">年</label>
+              <input
+                type="number"
+                min={2020}
+                max={2035}
+                value={filterYear}
+                onChange={(e) => setFilterYear(Number(e.target.value) || filterYear)}
+                className="w-24 bg-gray-700 border border-gray-600 rounded px-2 py-2 text-white text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-xs mb-1">月</label>
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(Number(e.target.value))}
+                className="bg-gray-700 border border-gray-600 rounded px-2 py-2 text-white text-sm"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => (
+                  <option key={mo} value={mo}>{mo} 月</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
-        {records.length === 0 ? (
-          <p className="text-gray-500 text-sm">此日期尚無出工回報。</p>
-        ) : (
+        {personMonthTotals.length > 0 && (
+          <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
+            <h3 className="text-sm font-medium text-cyan-300 mb-2">當月個人總工時</h3>
+            <div className="flex flex-wrap gap-2 text-sm">
+              {personMonthTotals.map(({ personName, hours }) => (
+                <span
+                  key={personName}
+                  className="rounded border border-cyan-700/50 bg-gray-900/50 px-2 py-1 text-gray-200"
+                >
+                  {personName}{' '}
+                  <span className="text-cyan-300 font-semibold tabular-nums">{formatWorkReportHours(hours)}h</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {dailyPersonStats.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[520px]">
+            <table className="w-full text-sm border-collapse min-w-[480px]">
               <thead>
                 <tr className="border-b border-gray-600 text-left text-gray-400">
-                  <th className="py-2 pr-3 font-medium">案場</th>
+                  <th className="py-2 pr-3 font-medium">日期</th>
                   <th className="py-2 pr-3 font-medium">姓名</th>
-                  <th className="py-2 pr-3 font-medium">抵達</th>
-                  <th className="py-2 pr-3 font-medium">離場</th>
-                  <th className="py-2 pr-3 font-medium">填寫人</th>
-                  <th className="py-2 font-medium w-16" />
+                  <th className="py-2 pr-3 font-medium">案場</th>
+                  <th className="py-2 pr-3 font-medium text-right">當日工時</th>
                 </tr>
               </thead>
               <tbody>
-                {records.map((row) => {
-                  const canDelete =
-                    userRole === 'admin' || String(row.submittedBy || '') === String(currentUser || '')
-                  return (
-                    <tr key={row.id} className="border-b border-gray-700/60">
-                      <td className="py-2.5 pr-3 text-gray-200">{row.siteName}</td>
-                      <td className="py-2.5 pr-3 text-white">{row.personName}</td>
-                      <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
-                      <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.departureTime}</td>
-                      <td className="py-2.5 pr-3 text-gray-400 text-xs">
-                        {row.submittedByName || row.submittedBy || '—'}
-                      </td>
-                      <td className="py-2.5">
-                        {canDelete && (
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(row)}
-                            className="text-red-400 hover:text-red-300 text-xs"
-                          >
-                            刪除
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {dailyPersonStats.map((row) => (
+                  <tr key={`${row.date}-${row.personName}`} className="border-b border-gray-700/60">
+                    <td className="py-2 pr-3 text-gray-300 tabular-nums">{row.date}</td>
+                    <td className="py-2 pr-3 text-white">{row.personName}</td>
+                    <td className="py-2 pr-3 text-gray-400 text-xs">{row.sites || '—'}</td>
+                    <td className="py-2 pr-3 text-cyan-300 font-semibold tabular-nums text-right">
+                      {formatWorkReportHours(row.hours)} 小時
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+        ) : (
+          <p className="text-gray-500 text-sm">此月份尚無出工回報。</p>
         )}
+
+        <div className="border-t border-gray-700 pt-4">
+          <h3 className="text-base font-semibold text-yellow-400/90 mb-3">當月明細</h3>
+          {sortedDateKeys.length === 0 ? (
+            <p className="text-gray-500 text-sm">尚無紀錄。</p>
+          ) : (
+            <div className="space-y-6">
+              {sortedDateKeys.map((dateKey) => {
+                const dayRows = recordsByDate.get(dateKey) || []
+                return (
+                  <div key={dateKey}>
+                    <h4 className="text-sm font-medium text-gray-200 mb-2 tabular-nums">{dateKey}</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse min-w-[560px]">
+                        <thead>
+                          <tr className="border-b border-gray-600 text-left text-gray-400">
+                            <th className="py-2 pr-3 font-medium">案場</th>
+                            <th className="py-2 pr-3 font-medium">姓名</th>
+                            <th className="py-2 pr-3 font-medium">抵達</th>
+                            <th className="py-2 pr-3 font-medium">離場</th>
+                            <th className="py-2 pr-3 font-medium text-right">工時</th>
+                            <th className="py-2 pr-3 font-medium">填寫人</th>
+                            <th className="py-2 font-medium w-16" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dayRows.map((row) => {
+                            const hrs = calcWorkReportHours(row.arrivalTime, row.departureTime)
+                            const canDelete =
+                              userRole === 'admin' ||
+                              String(row.submittedBy || '') === String(currentUser || '')
+                            return (
+                              <tr key={row.id} className="border-b border-gray-700/60">
+                                <td className="py-2.5 pr-3 text-gray-200">{row.siteName}</td>
+                                <td className="py-2.5 pr-3 text-white">{row.personName}</td>
+                                <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.arrivalTime}</td>
+                                <td className="py-2.5 pr-3 text-cyan-200 tabular-nums">{row.departureTime}</td>
+                                <td className="py-2.5 pr-3 text-amber-200/90 tabular-nums text-right font-medium">
+                                  {hrs != null ? `${formatWorkReportHours(hrs)}h` : '—'}
+                                </td>
+                                <td className="py-2.5 pr-3 text-gray-400 text-xs">
+                                  {row.submittedByName || row.submittedBy || '—'}
+                                </td>
+                                <td className="py-2.5">
+                                  {canDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(row)}
+                                      className="text-red-400 hover:text-red-300 text-xs"
+                                    >
+                                      刪除
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
