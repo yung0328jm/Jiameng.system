@@ -39,8 +39,6 @@ import {
   calcWorkReportHours,
   getWorkReportRowTotalHours,
   getWorkReportDurationDisplay,
-  calcWorkReportHoursBreakdown,
-  getWorkReportHoursDetailParts,
   parseWorkReportHeadcount
 } from '../utils/workReportStorage'
 
@@ -50,33 +48,22 @@ function WorkReportDuration({ hours, className, overtimeClassName }) {
 }
 
 function WorkReportHoursDetail({ arrivalTime, departureTime, headcount = 1 }) {
-  const bd = calcWorkReportHoursBreakdown(arrivalTime, departureTime)
-  if (!bd) return <span className="text-gray-500">—</span>
+  const perHours = calcWorkReportHours(arrivalTime, departureTime)
+  if (perHours == null) return <span className="text-gray-500">—</span>
+
   const n = Math.max(1, Math.floor(Number(headcount) || 1))
-  const totalHours = Math.round(bd.totalHours * n * 10) / 10
-  const perParts = getWorkReportHoursDetailParts(bd, 1)
-  const totalParts = n > 1 ? getWorkReportHoursDetailParts(bd, n) : perParts
-  const partClass = (tone) => (tone === 'overtime' ? 'text-red-400/90' : 'text-gray-400')
-  const renderParts = (parts) =>
-    parts.map((p) => (
-      <div key={p.key} className={partClass(p.tone)}>
-        {p.text}
-      </div>
-    ))
+  const totalHours = Math.round(perHours * n * 10) / 10
+
+  if (n <= 1) {
+    return <WorkReportDuration hours={perHours} className="text-amber-200/90 font-semibold" />
+  }
+
   return (
     <div className="text-right">
-      {n > 1 && (
-        <div className="text-gray-500 text-[11px] mb-1 pb-1 border-b border-gray-700/50">
-          <div>
-            每人 <WorkReportDuration hours={bd.totalHours} className="inline text-amber-200/80" />
-          </div>
-          {perParts.length > 0 && <div className="mt-0.5 space-y-0.5">{renderParts(perParts)}</div>}
-        </div>
-      )}
+      <div className="text-gray-500 text-[11px] mb-0.5">
+        每人 <WorkReportDuration hours={perHours} className="inline text-amber-200/80" />
+      </div>
       <WorkReportDuration hours={totalHours} className="text-amber-200/90 font-semibold" />
-      {totalParts.length > 0 && (
-        <div className="text-[11px] mt-1 space-y-0.5 leading-snug">{renderParts(totalParts)}</div>
-      )}
     </div>
   )
 }
