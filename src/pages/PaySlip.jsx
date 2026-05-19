@@ -278,7 +278,7 @@ function PaySlip() {
     }
     cancelEditRate(name)
     setRevision((v) => v + 1)
-    setMessage({ type: 'success', text: `已儲存 ${name} 的薪資參數` })
+    setMessage({ type: 'success', text: `已儲存 ${name} 的費用參數` })
   }
 
   const startEditBonus = (name) => {
@@ -301,7 +301,7 @@ function PaySlip() {
     }
     cancelEditBonus(name)
     setRevision((v) => v + 1)
-    setMessage({ type: 'success', text: `已儲存 ${name} 的 ${yearMonth} 獎金` })
+    setMessage({ type: 'success', text: `已儲存 ${name} 的 ${yearMonth} 品質獎勵金` })
   }
 
   const toggleOpen = (name) => setOpenIds((prev) => ({ ...prev, [name]: !prev[name] }))
@@ -311,7 +311,7 @@ function PaySlip() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">勞務報酬單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          依出工回報統計＋每人薪資參數計算月度報酬。所有數字可由管理員自行設定。
+          依出工回報統計＋每人費用參數計算月度勞務報酬。所有數字可由管理員自行設定。
           {!isAdmin && '（一般使用者僅顯示自己的紀錄）'}
         </p>
       </div>
@@ -393,27 +393,27 @@ function PaySlip() {
             <h3 className="text-sm font-medium text-cyan-300 mb-2">{yearMonth} 全部人員合計</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 tabular-nums">
               <div>
-                <div className="text-gray-400 text-xs">出工</div>
+                <div className="text-gray-400 text-xs">出勤基本工程款</div>
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.day)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">未滿時薪</div>
+                <div className="text-gray-400 text-xs">未滿時段工程款</div>
                 <div className="text-orange-300 font-semibold">${formatMoney(grandTotal.under)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">加班</div>
+                <div className="text-gray-400 text-xs">緊急追加服務費</div>
                 <div className="text-red-300 font-semibold">${formatMoney(grandTotal.ot)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">餐費</div>
+                <div className="text-gray-400 text-xs">誤餐雜支費</div>
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.meal)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">勞健保</div>
+                <div className="text-gray-400 text-xs">風險管理補貼</div>
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.insur)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">獎金</div>
+                <div className="text-gray-400 text-xs">完工品質獎勵金</div>
                 <div className="text-cyan-300 font-semibold">${formatMoney(grandTotal.bonus)}</div>
               </div>
               <div>
@@ -453,7 +453,7 @@ function PaySlip() {
                     )}
                     {rateMissing && (
                       <span className="text-orange-300 text-xs bg-orange-900/30 border border-orange-700/50 px-1.5 py-0.5 rounded">
-                        未設薪資
+                        未設費用參數
                       </span>
                     )}
                     {stats.fullDays === 0 && stats.underHours === 0 && stats.overtimeHours === 0 && (
@@ -491,7 +491,7 @@ function PaySlip() {
 
                     <div className="rounded-lg border border-emerald-700/40 bg-emerald-950/20 px-3 py-3 space-y-1.5 tabular-nums text-sm">
                       <div className="flex justify-between">
-                        <span className="text-gray-300">出工薪</span>
+                        <span className="text-gray-300">案場出勤基本工程款</span>
                         <span className="text-amber-200">
                           {stats.fullDays} × ${formatMoney(rate.dailyRate)} =
                           <span className="ml-1 font-semibold">${formatMoney(amounts.dayAmount)}</span>
@@ -499,7 +499,7 @@ function PaySlip() {
                       </div>
                       {stats.underHours > 0 && (
                         <div className="flex justify-between">
-                          <span className="text-gray-300">未滿時薪</span>
+                          <span className="text-gray-300">未滿時段工程款</span>
                           <span className="text-orange-300">
                             {formatWorkReportHours(stats.underHours)} × ${formatMoney(hourly)} =
                             <span className="ml-1 font-semibold">${formatMoney(amounts.underAmount)}</span>
@@ -508,7 +508,7 @@ function PaySlip() {
                       )}
                       {stats.overtimeHours > 0 && (
                         <div className="flex justify-between">
-                          <span className="text-gray-300">加班費</span>
+                          <span className="text-gray-300">緊急追加服務費</span>
                           <span className="text-red-300">
                             {formatWorkReportHours(stats.overtimeHours)} × ${formatMoney(hourly)} × {rate.overtimeMultiplier} =
                             <span className="ml-1 font-semibold">${formatMoney(amounts.overtimeAmount)}</span>
@@ -516,7 +516,7 @@ function PaySlip() {
                         </div>
                       )}
                       <div className="flex justify-between">
-                        <span className="text-gray-300">餐費補貼</span>
+                        <span className="text-gray-300">案場誤餐雜支費</span>
                         <span className="text-amber-200">
                           滿日 {stats.fullDays} × ${formatMoney(rate.mealAllowancePerDay)}
                           {stats.underHours > 0 && (
@@ -526,7 +526,7 @@ function PaySlip() {
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-300">勞健保補貼</span>
+                        <span className="text-gray-300">外包商風險管理補貼</span>
                         <span className="text-amber-200">
                           滿日 {stats.fullDays} × ${formatMoney(rate.insuranceSubsidyPerDay)}
                           {stats.underHours > 0 && (
@@ -536,7 +536,7 @@ function PaySlip() {
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-300">獎金</span>
+                        <span className="text-gray-300">案場完工品質獎勵金</span>
                         <span className="text-cyan-300 font-semibold">${formatMoney(amounts.bonusAmount)}</span>
                       </div>
                       <div className="border-t border-emerald-700/40 pt-1 flex justify-between">
@@ -546,11 +546,11 @@ function PaySlip() {
                     </div>
                   </div>
 
-                  {/* 右：薪資參數 + 獎金（admin 可編） */}
+                  {/* 右：費用參數 + 獎勵金（admin 可編） */}
                   <div className="space-y-3">
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-gray-400">薪資參數</div>
+                        <div className="text-xs text-gray-400">費用參數</div>
                         {isAdmin && !isEditingRate && (
                           <button
                             type="button"
@@ -564,7 +564,7 @@ function PaySlip() {
                       {isAdmin && isEditingRate ? (
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <NumberField
-                            label="日薪"
+                            label="出勤基本工程款（日）"
                             suffix="元"
                             value={editingRate[personName]?.dailyRate || ''}
                             onChange={(v) =>
@@ -575,7 +575,7 @@ function PaySlip() {
                             }
                           />
                           <NumberField
-                            label="加班倍率"
+                            label="緊急追加服務倍率"
                             step={0.05}
                             value={editingRate[personName]?.overtimeMultiplier || ''}
                             onChange={(v) =>
@@ -584,10 +584,10 @@ function PaySlip() {
                                 [personName]: { ...prev[personName], overtimeMultiplier: v }
                               }))
                             }
-                            hint="加班費 = 日薪/8 × 倍率 × 加班小時"
+                            hint="緊急追加服務費 = 出勤基本工程款 / 8 × 倍率 × 加班小時"
                           />
                           <NumberField
-                            label="餐費（滿日）"
+                            label="誤餐雜支費（滿日）"
                             suffix="元/天"
                             value={editingRate[personName]?.mealAllowancePerDay || ''}
                             onChange={(v) =>
@@ -599,7 +599,7 @@ function PaySlip() {
                             hint="未滿日按比例 X/8 × 時數"
                           />
                           <NumberField
-                            label="勞健保（滿日）"
+                            label="風險管理補貼（滿日）"
                             suffix="元/天"
                             value={editingRate[personName]?.insuranceSubsidyPerDay || ''}
                             onChange={(v) =>
@@ -630,19 +630,19 @@ function PaySlip() {
                       ) : (
                         <div className="grid grid-cols-2 gap-2 text-xs tabular-nums">
                           <div>
-                            <div className="text-gray-400">日薪</div>
-                            <div className="text-white">${formatMoney(rate.dailyRate)}</div>
+                            <div className="text-gray-400">出勤基本工程款</div>
+                            <div className="text-white">${formatMoney(rate.dailyRate)} / 日</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">加班倍率</div>
+                            <div className="text-gray-400">追加服務倍率</div>
                             <div className="text-white">×{rate.overtimeMultiplier}</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">餐費（滿日）</div>
+                            <div className="text-gray-400">誤餐雜支（滿日）</div>
                             <div className="text-white">${formatMoney(rate.mealAllowancePerDay)} / 天</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">勞健保（滿日）</div>
+                            <div className="text-gray-400">風險管理（滿日）</div>
                             <div className="text-white">${formatMoney(rate.insuranceSubsidyPerDay)} / 天</div>
                           </div>
                         </div>
@@ -651,7 +651,7 @@ function PaySlip() {
 
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-gray-400">本月獎金（{yearMonth}）</div>
+                        <div className="text-xs text-gray-400">本月案場完工品質獎勵金（{yearMonth}）</div>
                         {isAdmin && !isEditingBonus && (
                           <button
                             type="button"
@@ -666,7 +666,7 @@ function PaySlip() {
                         <div className="flex items-end gap-2">
                           <div className="flex-1">
                             <NumberField
-                              label="獎金"
+                              label="品質獎勵金"
                               suffix="元"
                               value={editingBonus[personName] ?? ''}
                               onChange={(v) =>
@@ -776,6 +776,11 @@ function PaySlip() {
           })}
         </div>
       )}
+
+      <div className="mt-6 rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-3 text-gray-300 text-xs leading-relaxed">
+        <span className="text-gray-400">備註：</span>
+        本明細為雙方共同確認之承攬勞務報酬及追加工程款核銷記錄，雙方無雇傭關係，各項款項依約案件／按日結算。
+      </div>
     </div>
   )
 }
