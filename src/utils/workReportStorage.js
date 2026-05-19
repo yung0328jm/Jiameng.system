@@ -145,6 +145,43 @@ export function isWorkReportOvertime(hours) {
 }
 
 /**
+ * 單筆出工摘要：出工人數 ＋ 超過 8 小時的加班時數（不換算成天）
+ * @param {{ arrivalTime?: string, departureTime?: string, personName?: string, headcount?: number }} row
+ */
+export function getWorkReportRowShiftSummary(row) {
+  const bd = calcWorkReportHoursBreakdown(row?.arrivalTime, row?.departureTime)
+  if (!bd) return null
+  const headcount = parseWorkReportHeadcount(row?.personName, row?.headcount)
+  const totalOvertimeHours = roundHours(bd.overtimeHours * headcount)
+  return {
+    headcount,
+    perPersonHours: bd.totalHours,
+    perPersonOvertimeHours: bd.overtimeHours,
+    totalOvertimeHours,
+    hasOvertime: totalOvertimeHours > 0
+  }
+}
+
+/** 多筆合併（包商同日多批） */
+export function aggregateWorkReportShiftSummary(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  let totalHeadcount = 0
+  let totalOvertimeHours = 0
+  list.forEach((row) => {
+    const s = getWorkReportRowShiftSummary(row)
+    if (!s) return
+    totalHeadcount += s.headcount
+    totalOvertimeHours += s.totalOvertimeHours
+  })
+  totalOvertimeHours = roundHours(totalOvertimeHours)
+  return {
+    totalHeadcount,
+    totalOvertimeHours,
+    hasOvertime: totalOvertimeHours > 0
+  }
+}
+
+/**
  * 供 JSX 顯示：{ text, className }
  * @param {number|null|undefined} hours
  * @param {{ className?: string, overtimeClassName?: string }} [opts]
@@ -203,13 +240,13 @@ export function groupWorkReportRowsForDisplay(rows) {
   }
 
   const contractorGroups = [...contractorMap.values()].map((g) => {
+    const shiftSummary = aggregateWorkReportShiftSummary(g.rows)
     let totalHours = 0
-    let totalHeadcount = 0
     g.rows.forEach((r) => {
       const h = getWorkReportRowTotalHours(r)
       if (h != null) totalHours += h
-      totalHeadcount += parseWorkReportHeadcount(r.personName, r.headcount)
     })
+    const totalHeadcount = shiftSummary.totalHeadcount
     const times = g.rows.map((r) => ({
       arrivalTime: r.arrivalTime,
       departureTime: r.departureTime,
@@ -229,6 +266,7 @@ export function groupWorkReportRowsForDisplay(rows) {
       rows: g.rows,
       totalHours: Math.round(totalHours * 10) / 10,
       totalHeadcount,
+      shiftSummary,
       batchCount: g.rows.length,
       arrivalTime: sameTime ? times[0]?.arrivalTime : '',
       departureTime: sameTime ? times[0]?.departureTime : '',
@@ -240,6 +278,7 @@ export function groupWorkReportRowsForDisplay(rows) {
 
   const singleGroups = singles.map((s) => {
     const row = s.rows[0]
+    const shiftSummary = aggregateWorkReportShiftSummary(s.rows)
     return {
       kind: 'single',
       id: row.id,
@@ -247,7 +286,8 @@ export function groupWorkReportRowsForDisplay(rows) {
       siteName: row.siteName,
       rows: s.rows,
       totalHours: getWorkReportRowTotalHours(row),
-      totalHeadcount: 1,
+      totalHeadcount: shiftSummary.totalHeadcount,
+      shiftSummary,
       batchCount: 1,
       arrivalTime: row.arrivalTime,
       departureTime: row.departureTime,
