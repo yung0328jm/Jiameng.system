@@ -24,6 +24,7 @@ import {
 } from '../utils/dropdownStorage'
 import { getUsers } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 
 const round1 = (x) => Math.round(Number(x) * 10) / 10
 
@@ -71,14 +72,29 @@ function getActiveMemberNames() {
   return out
 }
 
+function buildApprovedWorkReportOvertimeMap() {
+  const map = new Map()
+  ;(getOvertimeApplications() || []).forEach((app) => {
+    if (String(app?.status || '').trim() !== 'approved') return
+    const rowId = String(app?.workReportRowId || '').trim()
+    if (!rowId) return
+    const hours = Number(app?.hours) || 0
+    if (hours <= 0) return
+    map.set(rowId, (map.get(rowId) || 0) + hours)
+  })
+  return map
+}
+
 /** 將月份內所有出工紀錄依「統計人名」彙整成每人 { fullDays, overtimeHours, underHours, rows } */
 function buildPersonStatsMap(monthRecords) {
   const map = new Map()
+  const approvedOvertimeByRowId = buildApprovedWorkReportOvertimeMap()
   monthRecords.forEach((row) => {
     const person = getWorkReportStatsPersonKey(row?.personName)
     if (!person) return
     const shift = getWorkReportRowShiftSummary(row)
     if (!shift) return
+    const approvedOvertimeHours = round1(approvedOvertimeByRowId.get(String(row?.id || '').trim()) || 0)
     const prev = map.get(person) || {
       personName: person,
       isContractor: isWorkReportContractorName(row?.personName),
@@ -88,9 +104,9 @@ function buildPersonStatsMap(monthRecords) {
       rows: []
     }
     prev.fullDays += shift.fullDayHeadcount || 0
-    prev.overtimeHours += shift.totalOvertimeHours || 0
+    prev.overtimeHours += approvedOvertimeHours
     prev.underHours += shift.underActualHours || 0
-    prev.rows.push({ row, shift })
+    prev.rows.push({ row, shift, approvedOvertimeHours })
     map.set(person, prev)
   })
   // 四捨五入＋未滿時數累計補日（每滿 8 小時 → 出工 +1 天）
@@ -154,6 +170,7 @@ function PaySlip() {
   useRealtimeKeys(
     [
       'jiameng_work_reports',
+      'jiameng_overtime_applications',
       'jiameng_pay_rates',
       'jiameng_pay_bonuses',
       'jiameng_dropdown_options',
@@ -734,9 +751,9 @@ function PaySlip() {
                           .sort((a, b) =>
                             String(a.row?.date || '').localeCompare(String(b.row?.date || ''))
                           )
-                          .map(({ row, shift }) => {
+                          .map(({ row, shift, approvedOvertimeHours }) => {
                             const isFull = (shift?.fullDayHeadcount || 0) > 0
-                            const ot = shift?.totalOvertimeHours || 0
+                            const ot = approvedOvertimeHours || 0
                             const under = shift?.underActualHours || 0
                             const headcount = shift?.headcount || 1
                             return (
