@@ -1,7 +1,15 @@
 ﻿import { useState, useEffect, useMemo, useCallback } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { getDropdownOptionsByCategory, findBoundAccountForDisplayName, getDisplayNamesForAccount } from '../utils/dropdownStorage'
+import {
+  getDropdownOptionsByCategory,
+  findBoundAccountForDisplayName,
+  getDisplayNamesForAccount,
+  addDropdownOption
+} from '../utils/dropdownStorage'
+
+const WORK_REPORT_SITE_CATEGORY = 'work_report_sites'
+const WORK_REPORT_CONTRACTOR_CATEGORY = 'work_report_contractors'
 import { getProjects } from '../utils/projectStorage'
 import {
   getWorkReports,
@@ -227,8 +235,75 @@ function getSiteNameOptions() {
     seen.add(t)
     sites.push(t)
   }
+  ;(getDropdownOptionsByCategory(WORK_REPORT_SITE_CATEGORY) || []).forEach((o) => add(o?.value))
   ;(getProjects() || []).forEach((p) => add(p?.name || p?.siteName))
   return sites.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+}
+
+function getContractorNameOptions() {
+  const seen = new Set()
+  const names = []
+  const add = (n) => {
+    const t = String(n || '').trim()
+    if (!t || seen.has(t)) return
+    seen.add(t)
+    names.push(t)
+  }
+  ;(getDropdownOptionsByCategory(WORK_REPORT_CONTRACTOR_CATEGORY) || []).forEach((o) => add(o?.value))
+  return names.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+}
+
+function DayRegisterTable({ rows, labelName, currentUser, userRole, onDelete }) {
+  if (!rows?.length) return null
+  return (
+    <div className="rounded-lg border border-gray-600/80 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse min-w-[480px]">
+          <thead>
+            <tr className="border-b border-gray-700/60 text-left text-gray-500 text-xs">
+              <th className="py-2 px-2 font-medium">案場</th>
+              <th className="py-2 px-2 font-medium">{labelName}</th>
+              <th className="py-2 px-2 font-medium">時間</th>
+              <th className="py-2 px-2 font-medium text-right">工時</th>
+              <th className="py-2 px-2 w-14" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const canDelete =
+                userRole === 'admin' || String(row.submittedBy || '') === String(currentUser || '')
+              return (
+                <tr key={row.id} className="border-b border-gray-700/40">
+                  <td className="py-2 px-2 text-gray-400 text-xs">{row.siteName}</td>
+                  <td className="py-2 px-2 text-teal-100">{row.personName}</td>
+                  <td className="py-2 px-2 text-cyan-200 tabular-nums text-xs">
+                    {row.arrivalTime}–{row.departureTime}
+                  </td>
+                  <td className="py-2 px-2 text-right">
+                    <WorkReportShiftSummary
+                      summary={getWorkReportRowShiftSummary(row)}
+                      className="text-xs"
+                    />
+                  </td>
+                  <td className="py-2 px-2">
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(row)}
+                        className="text-red-400 hover:text-red-300 text-xs"
+                      >
+                        刪
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 function WorkReport() {
@@ -236,21 +311,22 @@ function WorkReport() {
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
   const [participantNames, setParticipantNames] = useState([])
   const [siteOptions, setSiteOptions] = useState([])
+  const [contractorOptions, setContractorOptions] = useState([])
 
   const [date, setDate] = useState(todayStr)
-  const [siteMode, setSiteMode] = useState('select')
   const [siteSelect, setSiteSelect] = useState('')
-  const [siteManual, setSiteManual] = useState('')
-  const [selectedNames, setSelectedNames] = useState([])
-  /** @type {Record<string, { arrivalTime: string, departureTime: string }>} */
-  const [personTimes, setPersonTimes] = useState({})
   const [contractorName, setContractorName] = useState('')
   const [contractorHeadcount, setContractorHeadcount] = useState(1)
   const [contractorArrival, setContractorArrival] = useState('')
   const [contractorDeparture, setContractorDeparture] = useState('')
-  const [contractorOpen, setContractorOpen] = useState(false)
-  const [batchApplyArrival, setBatchApplyArrival] = useState('')
-  const [batchApplyDeparture, setBatchApplyDeparture] = useState('')
+  const [contractorOpen, setContractorOpen] = useState(true)
+  const [laborName, setLaborName] = useState('')
+  const [laborArrival, setLaborArrival] = useState('')
+  const [laborDeparture, setLaborDeparture] = useState('')
+  const [laborOpen, setLaborOpen] = useState(true)
+  const [listsOpen, setListsOpen] = useState(false)
+  const [newSiteName, setNewSiteName] = useState('')
+  const [newContractorName, setNewContractorName] = useState('')
   const [message, setMessage] = useState(null)
 
   const now = new Date()
@@ -268,10 +344,13 @@ function WorkReport() {
     snap = await mergeSupabaseResignedIntoSnapshot(snap, role)
     setResignedSnapshot(snap)
     setParticipantNames(getParticipantNames(snap))
-    setSelectedNames((prev) => prev.filter((n) => !isResignedPersonName(n, snap)))
     const sites = getSiteNameOptions()
+    const contractors = getContractorNameOptions()
     setSiteOptions(sites)
+    setContractorOptions(contractors)
     setSiteSelect((prev) => (prev && sites.includes(prev) ? prev : sites[0] || ''))
+    setContractorName((prev) => (prev && contractors.includes(prev) ? prev : ''))
+    setLaborName((prev) => (prev && getParticipantNames(snap).includes(prev) ? prev : ''))
     setMonthRecords(getWorkReportsForMonth(filterYear, filterMonth))
   }, [filterYear, filterMonth])
 
@@ -290,11 +369,7 @@ function WorkReport() {
     return () => window.removeEventListener('focus', onFocus)
   }, [refetch])
 
-  const resolvedSite = siteMode === 'manual' ? siteManual.trim() : siteSelect.trim()
-
-  const allNamesForSubmit = useMemo(() => {
-    return selectedNames.map((n) => String(n || '').trim()).filter(Boolean)
-  }, [selectedNames])
+  const resolvedSite = siteSelect.trim()
 
   const contractorPerHours = useMemo(
     () => calcWorkReportHours(contractorArrival, contractorDeparture),
@@ -320,6 +395,29 @@ function WorkReport() {
       .filter((r) => isWorkReportContractorName(r.personName))
       .sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
   }, [date, monthRecords])
+
+  const dayLaborRecords = useMemo(() => {
+    const d = String(date || '').slice(0, 10)
+    if (!d) return []
+    return getWorkReports({ date: d })
+      .filter((r) => !isWorkReportContractorName(r.personName))
+      .sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
+  }, [date, monthRecords])
+
+  const laborPerHours = useMemo(
+    () => calcWorkReportHours(laborArrival, laborDeparture),
+    [laborArrival, laborDeparture]
+  )
+
+  const laborPreviewSummary = useMemo(() => {
+    if (laborPerHours == null || !laborName.trim()) return null
+    return getWorkReportRowShiftSummary({
+      arrivalTime: laborArrival,
+      departureTime: laborDeparture,
+      headcount: 1,
+      personName: laborName.trim()
+    })
+  }, [laborPerHours, laborArrival, laborDeparture, laborName])
 
   const refreshMonthForDate = (dateStr) => {
     const d = new Date(`${dateStr}T00:00:00`)
@@ -363,8 +461,6 @@ function WorkReport() {
       setMessage({ type: 'error', text: result.message || '登記失敗' })
       return
     }
-    setContractorName('')
-    setContractorHeadcount(1)
     setContractorArrival('')
     setContractorDeparture('')
     refreshMonthForDate(date)
@@ -374,132 +470,71 @@ function WorkReport() {
     })
   }
 
-  useEffect(() => {
-    setPersonTimes((prev) => {
-      const next = {}
-      allNamesForSubmit.forEach((name) => {
-        next[name] = prev[name] || { arrivalTime: '', departureTime: '' }
-      })
-      return next
-    })
-  }, [allNamesForSubmit])
-
-  const setPersonTime = (name, field, value) => {
-    setPersonTimes((prev) => ({
-      ...prev,
-      [name]: { ...(prev[name] || { arrivalTime: '', departureTime: '' }), [field]: value }
-    }))
-  }
-
-  const applySameArrivalToAll = () => {
-    if (!batchApplyArrival) {
-      setMessage({ type: 'error', text: '請先選擇要套用的抵達時間' })
-      return
-    }
-    if (allNamesForSubmit.length === 0) {
-      setMessage({ type: 'error', text: '請先勾選勞務承攬者' })
-      return
-    }
-    setMessage(null)
-    setPersonTimes((prev) => {
-      const next = { ...prev }
-      allNamesForSubmit.forEach((name) => {
-        next[name] = { ...(next[name] || { arrivalTime: '', departureTime: '' }), arrivalTime: batchApplyArrival }
-      })
-      return next
-    })
-  }
-
-  const applySameDepartureToAll = () => {
-    if (!batchApplyDeparture) {
-      setMessage({ type: 'error', text: '請先選擇要套用的離場時間' })
-      return
-    }
-    if (allNamesForSubmit.length === 0) {
-      setMessage({ type: 'error', text: '請先勾選勞務承攬者' })
-      return
-    }
-    setMessage(null)
-    setPersonTimes((prev) => {
-      const next = { ...prev }
-      allNamesForSubmit.forEach((name) => {
-        next[name] = { ...(next[name] || { arrivalTime: '', departureTime: '' }), departureTime: batchApplyDeparture }
-      })
-      return next
-    })
-  }
-
-  const selectAllNames = () => {
-    setSelectedNames(participantNames.filter((n) => !isResignedPersonName(n, resignedSnapshot)))
-  }
-
-  const clearSelectedNames = () => {
-    setSelectedNames([])
-  }
-
-  const toggleName = (name) => {
-    setSelectedNames((prev) => {
-      const t = String(name || '').trim()
-      if (!t) return prev
-      return prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
-    })
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  const registerLabor = () => {
     setMessage(null)
     const siteName = resolvedSite
     if (!siteName) {
-      setMessage({ type: 'error', text: '請選擇或輸入案場' })
+      setMessage({ type: 'error', text: '請選擇案場' })
       return
     }
-    const contractorDraftFilled =
-      contractorName.trim() || contractorArrival || contractorDeparture
-    if (contractorDraftFilled) {
-      setMessage({ type: 'error', text: '包商欄位尚未登記，請按「登記此包商」或清空欄位後再送出勞務承攬者' })
+    const name = laborName.trim()
+    if (!name || !laborArrival || !laborDeparture) {
+      setMessage({ type: 'error', text: '請選擇承攬者並填寫抵達與離場時間' })
       return
     }
-    if (allNamesForSubmit.length === 0) {
-      setMessage({ type: 'error', text: '請勾選至少一位勞務承攬者(個人)' })
-      return
-    }
-    if (allNamesForSubmit.some((n) => isResignedPersonName(n, resignedSnapshot))) {
+    if (isResignedPersonName(name, resignedSnapshot)) {
       setMessage({ type: 'error', text: '不可填寫離職人員' })
       return
     }
-    const missingTime = allNamesForSubmit.filter((personName) => {
-      const t = personTimes[personName]
-      return !t?.arrivalTime || !t?.departureTime
-    })
-    if (missingTime.length > 0) {
-      setMessage({
-        type: 'error',
-        text: `請為以下人員填寫抵達與離場時間：${missingTime.join('、')}`
-      })
-      return
-    }
-    const submittedByName = getDisplayNameForAccount(currentUser) || currentUser
-    const personEntries = allNamesForSubmit.map((personName) => {
-      const t = personTimes[personName] || {}
-      return {
+    const result = addWorkReports([
+      {
         date,
         siteName,
-        personName,
-        arrivalTime: t.arrivalTime,
-        departureTime: t.departureTime,
+        personName: name,
+        arrivalTime: laborArrival,
+        departureTime: laborDeparture,
         submittedBy: currentUser,
-        submittedByName
+        submittedByName: getDisplayNameForAccount(currentUser) || currentUser
       }
-    })
-    const result = addWorkReports(personEntries)
+    ])
     if (!result.success) {
-      setMessage({ type: 'error', text: result.message || '送出失敗' })
+      setMessage({ type: 'error', text: result.message || '登記失敗' })
       return
     }
-    setMessage({ type: 'success', text: `已送出 ${personEntries.length} 位勞務承攬者出工` })
-    setSelectedNames([])
-    setPersonTimes({})
+    setLaborArrival('')
+    setLaborDeparture('')
     refreshMonthForDate(date)
+    setMessage({ type: 'success', text: `已登記 ${name}（${date}）` })
+  }
+
+  const addSiteToList = () => {
+    const v = newSiteName.trim()
+    if (!v) return
+    const result = addDropdownOption(v, WORK_REPORT_SITE_CATEGORY)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '新增案場失敗' })
+      return
+    }
+    const sites = getSiteNameOptions()
+    setSiteOptions(sites)
+    setSiteSelect(v)
+    setNewSiteName('')
+    setMessage({ type: 'success', text: `已新增案場「${v}」` })
+  }
+
+  const addContractorToList = () => {
+    const v = newContractorName.trim()
+    if (!v) return
+    const result = addDropdownOption(v, WORK_REPORT_CONTRACTOR_CATEGORY)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '新增包商失敗' })
+      return
+    }
+    const contractors = getContractorNameOptions()
+    setContractorOptions(contractors)
+    setContractorName(v)
+    setNewContractorName('')
+    setMessage({ type: 'success', text: `已新增包商「${v}」` })
   }
 
   const handleDelete = (row) => {
@@ -593,7 +628,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          包商：填一筆按「登記」，立即寫入當日。工時顯示「出工 N 人」與「加班 X 小時」（每人超過 8 小時起算，不換算成天）。勞務承攬者勾選後按「送出」。非下午抵達扣 1 小時午休。
+          選日期與案場後，包商或勞務承攬者填一筆按「登記」即寫入當日。顯示出工人數與加班時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -609,10 +644,7 @@ function WorkReport() {
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-xl border border-gray-700 bg-gray-800/60 p-4 sm:p-6 space-y-5 mb-8"
-      >
+      <div className="rounded-xl border border-gray-700 bg-gray-800/60 p-4 sm:p-6 space-y-5 mb-8">
         <div>
           <label className="block text-blue-300 text-sm mb-1">日期</label>
           <input
@@ -620,193 +652,67 @@ function WorkReport() {
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="w-full sm:w-auto bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-            required
           />
         </div>
 
-        <div>
-          <label className="block text-blue-300 text-sm mb-2">案場</label>
-          <div className="flex flex-wrap gap-3 mb-2">
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-              <input
-                type="radio"
-                name="siteMode"
-                checked={siteMode === 'select'}
-                onChange={() => setSiteMode('select')}
-                className="accent-yellow-500"
-              />
-              從選單選擇
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-              <input
-                type="radio"
-                name="siteMode"
-                checked={siteMode === 'manual'}
-                onChange={() => setSiteMode('manual')}
-                className="accent-yellow-500"
-              />
-              手動輸入
-            </label>
-          </div>
-          {siteMode === 'select' ? (
-            <select
-              value={siteSelect}
-              onChange={(e) => setSiteSelect(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-            >
-              <option value="">— 請選擇案場 —</option>
-              {siteOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              value={siteManual}
-              onChange={(e) => setSiteManual(e.target.value)}
-              placeholder="輸入案場名稱"
-              list="work-report-site-list"
-              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-            />
-          )}
-          <datalist id="work-report-site-list">
-            {siteOptions.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
-        </div>
-
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <label className="block text-blue-300 text-sm">勞務承攬者(個人)</label>
-            {participantNames.length > 0 && (
-              <div className="flex gap-2">
-                <button type="button" onClick={selectAllNames} className="text-xs text-cyan-400 hover:text-cyan-300">
-                  全選
-                </button>
-                <button type="button" onClick={clearSelectedNames} className="text-xs text-gray-400 hover:text-gray-300">
-                  清除
-                </button>
-              </div>
-            )}
-          </div>
-          {participantNames.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-3">
-              {participantNames.map((name) => (
-                <label
-                  key={name}
-                  className={`flex items-center gap-2 rounded border px-2.5 py-2 text-sm cursor-pointer transition-colors ${
-                    selectedNames.includes(name)
-                      ? 'border-yellow-500/60 bg-yellow-950/25 text-yellow-100'
-                      : 'border-gray-600 bg-gray-900/40 text-gray-200 hover:border-gray-500'
-                  }`}
-                >
+        <div className="rounded-lg border border-gray-600/80 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setListsOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-gray-900/40"
+          >
+            <span className="text-gray-300 text-sm">常用清單（案場、包商名稱）</span>
+            <span className="text-gray-500 text-xs">{listsOpen ? '收合 ▲' : '展開 ▼'}</span>
+          </button>
+          {listsOpen && (
+            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-gray-700/60">
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">新增案場</label>
+                <div className="flex gap-2">
                   <input
-                    type="checkbox"
-                    checked={selectedNames.includes(name)}
-                    onChange={() => toggleName(name)}
-                    className="accent-yellow-500 shrink-0"
+                    type="text"
+                    value={newSiteName}
+                    onChange={(e) => setNewSiteName(e.target.value)}
+                    placeholder="案場名稱"
+                    className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
                   />
-                  <span className="truncate">{name}</span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-xs mb-2">尚無人員選單。</p>
-          )}
-          {allNamesForSubmit.length > 0 && (
-            <p className="text-gray-500 text-xs mt-2">
-              已選 {allNamesForSubmit.length} 位勞務承攬者
-            </p>
-          )}
-        </div>
-
-        {allNamesForSubmit.length > 0 && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-blue-300 text-sm mb-1">各人抵達／離場時間</label>
-            </div>
-
-            <div className="rounded-lg border border-gray-600/80 bg-gray-900/40 p-3 space-y-3">
-              <p className="text-gray-500 text-xs">批次套用（選填）</p>
-              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-end">
-                <div className="flex flex-wrap items-end gap-2">
-                  <span className="text-gray-400 text-xs shrink-0">相同抵達</span>
-                  <TimeInput24 compact value={batchApplyArrival} onChange={setBatchApplyArrival} />
-                  <button
-                    type="button"
-                    onClick={applySameArrivalToAll}
-                    disabled={!batchApplyArrival || allNamesForSubmit.length === 0}
-                    className="text-xs px-2.5 py-1.5 rounded border border-cyan-600/50 text-cyan-300 hover:bg-cyan-950/30 disabled:opacity-40"
-                  >
-                    套用到全部抵達
+                  <button type="button" onClick={addSiteToList} className="shrink-0 px-3 py-2 rounded-lg border border-yellow-600/50 text-yellow-200 text-sm hover:bg-yellow-950/30">
+                    加入
                   </button>
                 </div>
-                <div className="flex flex-wrap items-end gap-2">
-                  <span className="text-gray-400 text-xs shrink-0">相同離場</span>
-                  <TimeInput24 compact value={batchApplyDeparture} onChange={setBatchApplyDeparture} />
-                  <button
-                    type="button"
-                    onClick={applySameDepartureToAll}
-                    disabled={!batchApplyDeparture || allNamesForSubmit.length === 0}
-                    className="text-xs px-2.5 py-1.5 rounded border border-cyan-600/50 text-cyan-300 hover:bg-cyan-950/30 disabled:opacity-40"
-                  >
-                    套用到全部離場
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">新增包商名稱</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newContractorName}
+                    onChange={(e) => setNewContractorName(e.target.value)}
+                    placeholder="例：小豪"
+                    className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                  />
+                  <button type="button" onClick={addContractorToList} className="shrink-0 px-3 py-2 rounded-lg border border-teal-600/50 text-teal-200 text-sm hover:bg-teal-950/30">
+                    加入
                   </button>
                 </div>
               </div>
             </div>
+          )}
+        </div>
 
-            <div className="overflow-x-auto rounded-lg border border-gray-600">
-              <table className="w-full text-sm border-collapse min-w-[520px]">
-                <thead>
-                  <tr className="border-b border-gray-600 bg-gray-900/60 text-left text-gray-400">
-                    <th className="py-2 px-2 font-medium">姓名</th>
-                    <th className="py-2 px-2 font-medium">抵達</th>
-                    <th className="py-2 px-2 font-medium">離場</th>
-                    <th className="py-2 px-2 font-medium text-right">工時</th>
-                  </tr>
-                </thead>
-                <tbody>
-              {allNamesForSubmit.map((name) => {
-                const t = personTimes[name] || { arrivalTime: '', departureTime: '' }
-                return (
-                  <tr key={name} className="border-b border-gray-700/50">
-                    <td className="py-2 px-2 text-yellow-100 whitespace-nowrap">{name}</td>
-                    <td className="py-2 px-2">
-                      <TimeInput24
-                        compact
-                        value={t.arrivalTime}
-                        onChange={(v) => setPersonTime(name, 'arrivalTime', v)}
-                        required
-                      />
-                    </td>
-                    <td className="py-2 px-2">
-                      <TimeInput24
-                        compact
-                        value={t.departureTime}
-                        onChange={(v) => setPersonTime(name, 'departureTime', v)}
-                        required
-                      />
-                    </td>
-                    <td className="py-2 px-2 text-right">
-                      <WorkReportShiftSummary
-                        summary={getWorkReportRowShiftSummary({
-                          arrivalTime: t.arrivalTime,
-                          departureTime: t.departureTime,
-                          headcount: 1,
-                          personName: name
-                        })}
-                      />
-                    </td>
-                  </tr>
-                )
-              })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        <div>
+          <label className="block text-blue-300 text-sm mb-1">案場</label>
+          <select
+            value={siteSelect}
+            onChange={(e) => setSiteSelect(e.target.value)}
+            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+          >
+            <option value="">— 請選擇案場 —</option>
+            {siteOptions.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
 
         <div className="rounded-lg border border-teal-700/40 overflow-hidden">
           <button
@@ -821,109 +727,120 @@ function WorkReport() {
             </span>
           </button>
           {contractorOpen && (
-          <div className="px-4 pb-4 pt-2 space-y-4 border-t border-teal-700/30">
-          {dayContractorRecords.length > 0 && (
-            <div className="rounded-lg border border-gray-600/80 overflow-hidden">
-              <p className="text-xs text-gray-400 px-3 py-2 bg-gray-900/50 border-b border-gray-700/60">
-                {date} 已登記（共 {dayContractorRecords.length} 筆，可隨時再登記）
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse min-w-[480px]">
-                  <thead>
-                    <tr className="border-b border-gray-700/60 text-left text-gray-500 text-xs">
-                      <th className="py-2 px-2 font-medium">案場</th>
-                      <th className="py-2 px-2 font-medium">包商</th>
-                      <th className="py-2 px-2 font-medium">時間</th>
-                      <th className="py-2 px-2 font-medium text-right">工時</th>
-                      <th className="py-2 px-2 w-14" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dayContractorRecords.map((row) => {
-                      const canDelete =
-                        userRole === 'admin' ||
-                        String(row.submittedBy || '') === String(currentUser || '')
-                      return (
-                        <tr key={row.id} className="border-b border-gray-700/40">
-                          <td className="py-2 px-2 text-gray-400 text-xs">{row.siteName}</td>
-                          <td className="py-2 px-2 text-teal-100">{row.personName}</td>
-                          <td className="py-2 px-2 text-cyan-200 tabular-nums text-xs">
-                            {row.arrivalTime}–{row.departureTime}
-                          </td>
-                          <td className="py-2 px-2 text-right">
-                            <WorkReportShiftSummary
-                              summary={getWorkReportRowShiftSummary(row)}
-                              className="text-xs"
-                            />
-                          </td>
-                          <td className="py-2 px-2">
-                            {canDelete && (
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(row)}
-                                className="text-red-400 hover:text-red-300 text-xs"
-                              >
-                                刪
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-teal-700/30">
+              {dayContractorRecords.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">{date} 已登記包商 {dayContractorRecords.length} 筆</p>
+                  <DayRegisterTable
+                    rows={dayContractorRecords}
+                    labelName="包商"
+                    currentUser={currentUser}
+                    userRole={userRole}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 text-xs mb-1">包商名稱</label>
+                  <select
+                    value={contractorName}
+                    onChange={(e) => setContractorName(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                  >
+                    <option value="">— 請選擇包商 —</option>
+                    {contractorOptions.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-xs mb-1">人數</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={contractorHeadcount}
+                    onChange={(e) => setContractorHeadcount(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white tabular-nums"
+                  />
+                </div>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TimeInput24 label="抵達時間" value={contractorArrival} onChange={setContractorArrival} />
+                <TimeInput24 label="離場時間" value={contractorDeparture} onChange={setContractorDeparture} />
+              </div>
+              {contractorPreviewSummary && <WorkReportShiftSummary summary={contractorPreviewSummary} />}
+              <button
+                type="button"
+                onClick={registerContractor}
+                className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors"
+              >
+                登記此包商
+              </button>
             </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-gray-400 text-xs mb-1">包商名稱</label>
-              <input
-                type="text"
-                value={contractorName}
-                onChange={(e) => setContractorName(e.target.value)}
-                placeholder="例：小豪"
-                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-gray-400 text-xs mb-1">人數</label>
-              <input
-                type="number"
-                min={1}
-                max={999}
-                value={contractorHeadcount}
-                onChange={(e) => setContractorHeadcount(Math.max(1, Number(e.target.value) || 1))}
-                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white tabular-nums"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <TimeInput24 label="抵達時間" value={contractorArrival} onChange={setContractorArrival} />
-            <TimeInput24 label="離場時間" value={contractorDeparture} onChange={setContractorDeparture} />
-          </div>
-          {contractorPreviewSummary && (
-            <WorkReportShiftSummary summary={contractorPreviewSummary} />
-          )}
-          <button
-            type="button"
-            onClick={registerContractor}
-            className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors"
-          >
-            登記此包商
-          </button>
-          <p className="text-gray-500 text-xs">登記後立即寫入上方日期，無需等送出；人晚到可再登記一筆。</p>
-          </div>
           )}
         </div>
 
-        <button
-          type="submit"
-          className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-semibold transition-colors"
-        >
-          送出勞務承攬者
-        </button>
-      </form>
+        <div className="rounded-lg border border-yellow-700/40 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setLaborOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-yellow-950/20 transition-colors"
+          >
+            <span className="text-yellow-300/90 text-sm font-medium">勞務承攬者（登記即存當日）</span>
+            <span className="text-gray-500 text-xs shrink-0">
+              {laborOpen ? '收合 ▲' : '展開 ▼'}
+              {dayLaborRecords.length > 0 ? ` · 本日 ${dayLaborRecords.length} 筆` : ''}
+            </span>
+          </button>
+          {laborOpen && (
+            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-yellow-700/30">
+              {dayLaborRecords.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">{date} 已登記承攬者 {dayLaborRecords.length} 筆</p>
+                  <DayRegisterTable
+                    rows={dayLaborRecords}
+                    labelName="姓名"
+                    currentUser={currentUser}
+                    userRole={userRole}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">承攬者</label>
+                <select
+                  value={laborName}
+                  onChange={(e) => setLaborName(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                >
+                  <option value="">— 請選擇 —</option>
+                  {participantNames.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                {participantNames.length === 0 && (
+                  <p className="text-gray-500 text-xs mt-1">尚無人員，請至下拉選單管理新增「參與人員」。</p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TimeInput24 label="抵達時間" value={laborArrival} onChange={setLaborArrival} />
+                <TimeInput24 label="離場時間" value={laborDeparture} onChange={setLaborDeparture} />
+              </div>
+              {laborPreviewSummary && <WorkReportShiftSummary summary={laborPreviewSummary} />}
+              <button
+                type="button"
+                onClick={registerLabor}
+                className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-semibold transition-colors"
+              >
+                登記此承攬者
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
 
       <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4 sm:p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
