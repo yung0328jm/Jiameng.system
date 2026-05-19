@@ -22,6 +22,7 @@ import MiniGames from './MiniGames'
 import CompensatoryLeave from './CompensatoryLeave'
 import ChangePassword from './ChangePassword'
 import WorkReport from './WorkReport'
+import PaySlip from './PaySlip'
 import ErrorBoundary from '../components/ErrorBoundary'
 import {
   HomeIcon,
@@ -627,6 +628,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('compensatory-leave')) return 'compensatory-leave'
     if (path.includes('messages')) return 'messages'
     if (path.includes('change-password')) return 'change-password'
+    if (path.includes('pay-slip')) return 'pay-slip'
     if (path.includes('work-report')) return 'work-report'
     if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
@@ -679,6 +681,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'user-management': '用戶管理',
       'developing': '開發中',
       'work-report': '出工回報',
+      'pay-slip': '勞務報酬單',
       'compensatory-leave': '補休系統',
       'change-password': '修改密碼'
     }
@@ -763,6 +766,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <MiniGames />
       case 'work-report':
         return <WorkReport />
+      case 'pay-slip':
+        return <PaySlip />
       default:
         return <Home />
     }
@@ -1219,16 +1224,16 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             badge={userRole === 'admin' && activeTab !== 'calendar' && navBadges.overtime > 0 ? navBadges.overtime : null}
           />
           <NavItem
-            icon={<AlertIcon />}
-            label="專案管理"
-            isActive={activeTab === 'deficiency'}
-            onClick={() => handleTabClick('deficiency', '/project-deficiency')}
-          />
-          <NavItem
             icon={<DocumentIcon />}
             label="出工回報"
             isActive={activeTab === 'work-report'}
             onClick={() => handleTabClick('work-report', '/work-report')}
+          />
+          <NavItem
+            icon={<DocumentIcon />}
+            label="勞務報酬單"
+            isActive={activeTab === 'pay-slip'}
+            onClick={() => handleTabClick('pay-slip', '/pay-slip')}
           />
           <NavItem
             icon={<ChatIcon />}
