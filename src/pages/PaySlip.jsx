@@ -9,28 +9,74 @@ import {
 import {
   getPayRate,
   setPayRate,
-  suggestRatesFromDaily,
+  getBonus,
+  setBonus,
   calcPayAmount,
-  getAllPayRates
+  getAllPayRates,
+  getAllBonuses,
+  DEFAULT_PAY_RATE
 } from '../utils/paySlipStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
-import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
+import {
+  getDropdownOptionsByCategory,
+  getDisplayNamesForAccount,
+  findBoundAccountForDisplayName
+} from '../utils/dropdownStorage'
+import { getUsers } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 const round1 = (x) => Math.round(Number(x) * 10) / 10
-const round2 = (x) => Math.round(Number(x) * 100) / 100
 
 function formatMoney(n) {
   const x = Number(n) || 0
   return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 2 })
 }
 
-function buildPersonStats(monthRecords, personNameFilter = null) {
+/** 取得所有在職成員顯示名（participants + responsible_persons，排除 resigned） */
+function getActiveMemberNames() {
+  const users = getUsers() || []
+  const resignedAccounts = new Set(
+    users.filter((u) => u?.role === 'resigned').map((u) => String(u?.account || '').trim()).filter(Boolean)
+  )
+  const resignedNames = new Set(
+    users.filter((u) => u?.role === 'resigned').map((u) => String(u?.name || '').trim()).filter(Boolean)
+  )
+  resignedAccounts.forEach((acc) => {
+    ;(getDisplayNamesForAccount(acc) || []).forEach((n) => {
+      const t = String(n || '').trim()
+      if (t) resignedNames.add(t)
+    })
+  })
+
+  const isResigned = (name) => {
+    const t = String(name || '').trim()
+    if (!t) return true
+    if (resignedNames.has(t) || resignedAccounts.has(t)) return true
+    const bound = findBoundAccountForDisplayName(t)
+    if (bound && resignedAccounts.has(bound)) return true
+    return false
+  }
+
+  const seen = new Set()
+  const out = []
+  const add = (n) => {
+    const t = String(n || '').trim()
+    if (!t || seen.has(t) || isResigned(t)) return
+    seen.add(t)
+    out.push(t)
+  }
+  ;(getDropdownOptionsByCategory('participants') || []).forEach((opt) => add(opt?.value))
+  ;(getDropdownOptionsByCategory('responsible_persons') || []).forEach((opt) => add(opt?.value))
+  out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+  return out
+}
+
+/** 將月份內所有出工紀錄依「統計人名」彙整成每人 { fullDays, overtimeHours, underHours, rows } */
+function buildPersonStatsMap(monthRecords) {
   const map = new Map()
   monthRecords.forEach((row) => {
     const person = getWorkReportStatsPersonKey(row?.personName)
     if (!person) return
-    if (personNameFilter && person !== personNameFilter) return
     const shift = getWorkReportRowShiftSummary(row)
     if (!shift) return
     const prev = map.get(person) || {
@@ -47,27 +93,32 @@ function buildPersonStats(monthRecords, personNameFilter = null) {
     prev.rows.push({ row, shift })
     map.set(person, prev)
   })
-  const list = [...map.values()].map((agg) => {
-    const totalUnder = round1(agg.underHours)
-    const carryDays = Math.floor((totalUnder + 1e-9) / 8)
-    const remainUnder = round1(Math.max(0, totalUnder - carryDays * 8))
-    return {
-      ...agg,
-      fullDays: agg.fullDays + carryDays,
-      baseDays: agg.fullDays,
-      carryDays,
-      overtimeHours: round1(agg.overtimeHours),
-      underHours: remainUnder,
-      rawUnderHours: totalUnder
-    }
+  // 四捨五入到 0.1
+  map.forEach((v) => {
+    v.overtimeHours = round1(v.overtimeHours)
+    v.underHours = round1(v.underHours)
   })
-  list.sort(
-    (a, b) =>
-      b.fullDays - a.fullDays ||
-      b.overtimeHours - a.overtimeHours ||
-      a.personName.localeCompare(b.personName, 'zh-Hant')
+  return map
+}
+
+function NumberField({ label, value, onChange, suffix, step = 1, hint }) {
+  return (
+    <label className="block">
+      <span className="text-gray-400 text-xs">{label}</span>
+      <div className="flex items-center gap-1">
+        <input
+          type="number"
+          step={step}
+          min={0}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white tabular-nums"
+        />
+        {suffix && <span className="text-gray-500 text-xs whitespace-nowrap">{suffix}</span>}
+      </div>
+      {hint && <div className="text-gray-500 text-[10px] mt-0.5">{hint}</div>}
+    </label>
   )
-  return list
 }
 
 function PaySlip() {
@@ -75,21 +126,34 @@ function PaySlip() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [monthRecords, setMonthRecords] = useState([])
+  const [memberNames, setMemberNames] = useState([])
   const [userRole, setUserRole] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
   const [openIds, setOpenIds] = useState({})
-  const [editing, setEditing] = useState({})
-  const [ratesRevision, setRatesRevision] = useState(0)
+  const [editingRate, setEditingRate] = useState({})
+  const [editingBonus, setEditingBonus] = useState({})
+  const [revision, setRevision] = useState(0)
   const [message, setMessage] = useState(null)
+  const [showZero, setShowZero] = useState(true)
 
   const refetch = useCallback(() => {
     setUserRole(getCurrentUserRole())
     setCurrentUser(getCurrentUser() || '')
     setMonthRecords(getWorkReportsForMonth(year, month))
-    setRatesRevision((v) => v + 1)
+    setMemberNames(getActiveMemberNames())
+    setRevision((v) => v + 1)
   }, [year, month])
 
-  useRealtimeKeys(['jiameng_work_reports', 'jiameng_pay_rates', 'jiameng_dropdown_options', 'jiameng_users'], refetch)
+  useRealtimeKeys(
+    [
+      'jiameng_work_reports',
+      'jiameng_pay_rates',
+      'jiameng_pay_bonuses',
+      'jiameng_dropdown_options',
+      'jiameng_users'
+    ],
+    refetch
+  )
 
   useEffect(() => {
     refetch()
@@ -102,6 +166,7 @@ function PaySlip() {
   }, [refetch])
 
   const isAdmin = userRole === 'admin'
+  const yearMonth = `${year}-${String(month).padStart(2, '0')}`
 
   const selfDisplayNames = useMemo(() => {
     if (!currentUser) return []
@@ -112,107 +177,141 @@ function PaySlip() {
     }
   }, [currentUser])
 
-  const allPersonStats = useMemo(
-    () => buildPersonStats(monthRecords),
-    [monthRecords]
-  )
+  const statsMap = useMemo(() => buildPersonStatsMap(monthRecords), [monthRecords])
 
-  const personStats = useMemo(() => {
-    if (isAdmin) return allPersonStats
-    return allPersonStats.filter((p) => selfDisplayNames.includes(p.personName))
-  }, [allPersonStats, isAdmin, selfDisplayNames])
+  /** 完整人員清單：在職成員 ∪ 本月有紀錄的人（包含包商） */
+  const fullPersonList = useMemo(() => {
+    const set = new Set(memberNames)
+    statsMap.forEach((v) => set.add(v.personName))
+    return [...set]
+  }, [memberNames, statsMap])
 
-  const ratesByPerson = useMemo(() => {
-    const all = getAllPayRates()
-    void ratesRevision
-    return all
-  }, [ratesRevision])
+  /** 套用權限：admin 全部；user 只看自己 */
+  const visiblePersons = useMemo(() => {
+    const list = fullPersonList.filter((name) => {
+      if (isAdmin) return true
+      return selfDisplayNames.includes(name)
+    })
+    list.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+    return list
+  }, [fullPersonList, isAdmin, selfDisplayNames])
 
-  const monthLabel = `${year}-${String(month).padStart(2, '0')}`
+  /** 依顯示條件過濾（顯示無資料的成員與否） */
+  const personRows = useMemo(() => {
+    void revision
+    return visiblePersons
+      .map((name) => {
+        const s = statsMap.get(name)
+        const stats = s
+          ? {
+              fullDays: s.fullDays,
+              overtimeHours: s.overtimeHours,
+              underHours: s.underHours,
+              rows: s.rows,
+              isContractor: s.isContractor
+            }
+          : { fullDays: 0, overtimeHours: 0, underHours: 0, rows: [], isContractor: false }
+        const rate = getPayRate(name)
+        const bonus = getBonus(name, yearMonth)
+        const amounts = calcPayAmount(stats, rate, bonus)
+        return { personName: name, stats, rate, bonus, amounts }
+      })
+      .filter((p) => showZero || p.stats.fullDays || p.stats.overtimeHours || p.stats.underHours || p.amounts.total)
+      .sort((a, b) => {
+        const bd = (b.stats.fullDays || 0) - (a.stats.fullDays || 0)
+        if (bd !== 0) return bd
+        return a.personName.localeCompare(b.personName, 'zh-Hant')
+      })
+  }, [visiblePersons, statsMap, yearMonth, showZero, revision])
 
   const grandTotal = useMemo(() => {
-    let dayAmt = 0
-    let otAmt = 0
-    let uhAmt = 0
-    personStats.forEach((p) => {
-      const rate = getPayRate(p.personName)
-      const a = calcPayAmount(p, rate)
-      dayAmt += a.dayAmount
-      otAmt += a.overtimeAmount
-      uhAmt += a.underAmount
+    let day = 0
+    let under = 0
+    let ot = 0
+    let meal = 0
+    let insur = 0
+    let bonus = 0
+    personRows.forEach((p) => {
+      day += p.amounts.dayAmount
+      under += p.amounts.underAmount
+      ot += p.amounts.overtimeAmount
+      meal += p.amounts.mealAmount
+      insur += p.amounts.insuranceAmount
+      bonus += p.amounts.bonusAmount
     })
-    return {
-      dayAmount: round2(dayAmt),
-      overtimeAmount: round2(otAmt),
-      underAmount: round2(uhAmt),
-      total: round2(dayAmt + otAmt + uhAmt)
-    }
-  }, [personStats, ratesByPerson])
+    const total = day + under + ot + meal + insur + bonus
+    return { day, under, ot, meal, insur, bonus, total }
+  }, [personRows])
 
-  const startEdit = (personName) => {
-    const r = getPayRate(personName)
-    setEditing((prev) => ({
+  const startEditRate = (name) => {
+    const r = getPayRate(name)
+    setEditingRate((prev) => ({
       ...prev,
-      [personName]: {
+      [name]: {
         dailyRate: String(r.dailyRate || ''),
-        overtimeHourRate: String(r.overtimeHourRate || ''),
-        underHourRate: String(r.underHourRate || '')
+        overtimeMultiplier: String(r.overtimeMultiplier ?? DEFAULT_PAY_RATE.overtimeMultiplier),
+        mealAllowancePerDay: String(r.mealAllowancePerDay ?? DEFAULT_PAY_RATE.mealAllowancePerDay),
+        insuranceSubsidyPerDay: String(r.insuranceSubsidyPerDay ?? DEFAULT_PAY_RATE.insuranceSubsidyPerDay)
       }
     }))
   }
 
-  const cancelEdit = (personName) => {
-    setEditing((prev) => {
+  const cancelEditRate = (name) => {
+    setEditingRate((prev) => {
       const next = { ...prev }
-      delete next[personName]
+      delete next[name]
       return next
     })
   }
 
-  const saveEdit = (personName) => {
-    const draft = editing[personName] || {}
-    const r = {
-      dailyRate: Number(draft.dailyRate) || 0,
-      overtimeHourRate: Number(draft.overtimeHourRate) || 0,
-      underHourRate: Number(draft.underHourRate) || 0
-    }
-    const result = setPayRate(personName, r)
+  const saveEditRate = (name) => {
+    const d = editingRate[name] || {}
+    const result = setPayRate(name, {
+      dailyRate: Number(d.dailyRate) || 0,
+      overtimeMultiplier: Number(d.overtimeMultiplier) || 0,
+      mealAllowancePerDay: Number(d.mealAllowancePerDay) || 0,
+      insuranceSubsidyPerDay: Number(d.insuranceSubsidyPerDay) || 0
+    })
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '儲存失敗' })
       return
     }
-    cancelEdit(personName)
-    setRatesRevision((v) => v + 1)
-    setMessage({ type: 'success', text: `已儲存 ${personName} 的薪資設定` })
+    cancelEditRate(name)
+    setRevision((v) => v + 1)
+    setMessage({ type: 'success', text: `已儲存 ${name} 的薪資參數` })
   }
 
-  const autoFillFromDaily = (personName) => {
-    const draft = editing[personName] || {}
-    const d = Number(draft.dailyRate) || 0
-    const suggested = suggestRatesFromDaily(d)
-    setEditing((prev) => ({
-      ...prev,
-      [personName]: {
-        dailyRate: String(suggested.dailyRate || ''),
-        overtimeHourRate: String(suggested.overtimeHourRate || ''),
-        underHourRate: String(suggested.underHourRate || '')
-      }
-    }))
+  const startEditBonus = (name) => {
+    const v = getBonus(name, yearMonth)
+    setEditingBonus((prev) => ({ ...prev, [name]: String(v || '') }))
+  }
+  const cancelEditBonus = (name) => {
+    setEditingBonus((prev) => {
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
+  }
+  const saveEditBonus = (name) => {
+    const v = Number(editingBonus[name]) || 0
+    const result = setBonus(name, yearMonth, v)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '儲存失敗' })
+      return
+    }
+    cancelEditBonus(name)
+    setRevision((v) => v + 1)
+    setMessage({ type: 'success', text: `已儲存 ${name} 的 ${yearMonth} 獎金` })
   }
 
-  const toggleOpen = (personName) =>
-    setOpenIds((prev) => ({ ...prev, [personName]: !prev[personName] }))
-
-  const handlePrint = () => {
-    window.print()
-  }
+  const toggleOpen = (name) => setOpenIds((prev) => ({ ...prev, [name]: !prev[name] }))
 
   return (
     <div className="max-w-6xl mx-auto text-white">
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">勞務報酬單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          依出工回報資料計算月度勞務報酬：日薪 × 出工天 ＋ 加班時薪 × 加班時數 ＋ 未滿時薪 × 出工剩餘時數。
+          依出工回報統計＋每人薪資參數計算月度報酬。所有數字可由管理員自行設定。
           {!isAdmin && '（一般使用者僅顯示自己的紀錄）'}
         </p>
       </div>
@@ -265,13 +364,23 @@ function PaySlip() {
               </select>
             </div>
             <div className="text-gray-400 text-xs ml-2">
-              月份：<span className="text-white tabular-nums">{monthLabel}</span>
+              月份：<span className="text-white tabular-nums">{yearMonth}</span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <label className="flex items-center gap-1 text-xs text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={showZero}
+                  onChange={(e) => setShowZero(e.target.checked)}
+                />
+                顯示無出工成員
+              </label>
+            )}
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={() => window.print()}
               className="min-h-[40px] px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm"
             >
               列印 / 匯出 PDF
@@ -279,273 +388,330 @@ function PaySlip() {
           </div>
         </div>
 
-        {isAdmin && personStats.length > 0 && (
+        {isAdmin && personRows.length > 0 && (
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
-            <h3 className="text-sm font-medium text-cyan-300 mb-2">{monthLabel} 全部人員合計</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 tabular-nums">
+            <h3 className="text-sm font-medium text-cyan-300 mb-2">{yearMonth} 全部人員合計</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 tabular-nums">
               <div>
-                <div className="text-gray-400 text-xs">出工金額</div>
-                <div className="text-amber-200 text-base font-semibold">
-                  ${formatMoney(grandTotal.dayAmount)}
-                </div>
+                <div className="text-gray-400 text-xs">出工</div>
+                <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.day)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">加班金額</div>
-                <div className="text-red-300 text-base font-semibold">
-                  ${formatMoney(grandTotal.overtimeAmount)}
-                </div>
+                <div className="text-gray-400 text-xs">未滿時薪</div>
+                <div className="text-orange-300 font-semibold">${formatMoney(grandTotal.under)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">未滿時數金額</div>
-                <div className="text-orange-300 text-base font-semibold">
-                  ${formatMoney(grandTotal.underAmount)}
-                </div>
+                <div className="text-gray-400 text-xs">加班</div>
+                <div className="text-red-300 font-semibold">${formatMoney(grandTotal.ot)}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">餐費</div>
+                <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.meal)}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">勞健保</div>
+                <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.insur)}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">獎金</div>
+                <div className="text-cyan-300 font-semibold">${formatMoney(grandTotal.bonus)}</div>
               </div>
               <div>
                 <div className="text-gray-400 text-xs">總計</div>
-                <div className="text-emerald-300 text-lg font-bold">
-                  ${formatMoney(grandTotal.total)}
-                </div>
+                <div className="text-emerald-300 text-lg font-bold">${formatMoney(grandTotal.total)}</div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {personStats.length === 0 ? (
+      {personRows.length === 0 ? (
         <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-8 text-center text-gray-400">
-          {isAdmin
-            ? `${monthLabel} 尚無任何出工紀錄`
-            : `${monthLabel} 尚無屬於您的出工紀錄`}
+          {isAdmin ? '無人員資料' : `${yearMonth} 尚無屬於您的紀錄`}
         </div>
       ) : (
         <div className="space-y-4">
-          {personStats.map((p) => {
-            const rate = getPayRate(p.personName)
-            const amounts = calcPayAmount(p, rate)
-            const isOpen = !!openIds[p.personName]
-            const isEditing = !!editing[p.personName]
-            const draft = editing[p.personName] || {
-              dailyRate: String(rate.dailyRate || ''),
-              overtimeHourRate: String(rate.overtimeHourRate || ''),
-              underHourRate: String(rate.underHourRate || '')
-            }
-            const rateMissing =
-              !rate.dailyRate && !rate.overtimeHourRate && !rate.underHourRate
+          {personRows.map((p) => {
+            const { personName, stats, rate, bonus, amounts } = p
+            const isOpen = !!openIds[personName]
+            const isEditingRate = !!editingRate[personName]
+            const isEditingBonus = personName in editingBonus
+            const rateMissing = !rate.dailyRate
+            const hourly = rate.dailyRate ? rate.dailyRate / 8 : 0
             return (
               <div
-                key={p.personName}
+                key={personName}
                 className="rounded-xl border border-gray-700 bg-gray-800/40 p-4 sm:p-6"
               >
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-lg font-semibold text-white">{p.personName}</h2>
-                      {p.isContractor && (
-                        <span className="text-teal-300 text-xs bg-teal-900/40 border border-teal-700/50 px-1.5 py-0.5 rounded">
-                          包商
-                        </span>
-                      )}
-                      {rateMissing && (
-                        <span className="text-orange-300 text-xs bg-orange-900/30 border border-orange-700/50 px-1.5 py-0.5 rounded">
-                          未設薪資
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-semibold text-white">{personName}</h2>
+                    {stats.isContractor && (
+                      <span className="text-teal-300 text-xs bg-teal-900/40 border border-teal-700/50 px-1.5 py-0.5 rounded">
+                        包商
+                      </span>
+                    )}
+                    {rateMissing && (
+                      <span className="text-orange-300 text-xs bg-orange-900/30 border border-orange-700/50 px-1.5 py-0.5 rounded">
+                        未設薪資
+                      </span>
+                    )}
+                    {stats.fullDays === 0 && stats.underHours === 0 && stats.overtimeHours === 0 && (
+                      <span className="text-gray-400 text-xs bg-gray-700/40 border border-gray-600 px-1.5 py-0.5 rounded">
+                        本月無出工
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-emerald-300 text-xl font-bold tabular-nums">
+                    ${formatMoney(amounts.total)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* 左：出工統計 + 計算明細 */}
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-sm tabular-nums">
                       <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
                         <div className="text-gray-400 text-xs">出工天</div>
-                        <div className="text-amber-200 font-semibold">{p.fullDays} 天</div>
-                        {p.carryDays > 0 && (
-                          <div className="text-cyan-300/80 text-[10px] mt-0.5">
-                            含未滿補 {p.carryDays} 天
-                          </div>
-                        )}
+                        <div className="text-amber-200 font-semibold">{stats.fullDays} 天</div>
                       </div>
                       <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
                         <div className="text-gray-400 text-xs">加班時數</div>
                         <div className="text-red-300 font-semibold">
-                          {formatWorkReportHours(p.overtimeHours)} 小時
+                          {formatWorkReportHours(stats.overtimeHours)} 小時
                         </div>
                       </div>
                       <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
-                        <div className="text-gray-400 text-xs">出工時數</div>
+                        <div className="text-gray-400 text-xs">未滿時數</div>
                         <div className="text-orange-300 font-semibold">
-                          {formatWorkReportHours(p.underHours)} 小時
+                          {formatWorkReportHours(stats.underHours)} 小時
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-emerald-700/40 bg-emerald-950/20 px-3 py-3 space-y-1.5 tabular-nums text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">出工薪</span>
+                        <span className="text-amber-200">
+                          {stats.fullDays} × ${formatMoney(rate.dailyRate)} =
+                          <span className="ml-1 font-semibold">${formatMoney(amounts.dayAmount)}</span>
+                        </span>
+                      </div>
+                      {stats.underHours > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">未滿時薪</span>
+                          <span className="text-orange-300">
+                            {formatWorkReportHours(stats.underHours)} × ${formatMoney(hourly)} =
+                            <span className="ml-1 font-semibold">${formatMoney(amounts.underAmount)}</span>
+                          </span>
+                        </div>
+                      )}
+                      {stats.overtimeHours > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">加班費</span>
+                          <span className="text-red-300">
+                            {formatWorkReportHours(stats.overtimeHours)} × ${formatMoney(hourly)} × {rate.overtimeMultiplier} =
+                            <span className="ml-1 font-semibold">${formatMoney(amounts.overtimeAmount)}</span>
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">餐費補貼</span>
+                        <span className="text-amber-200">
+                          滿日 {stats.fullDays} × ${formatMoney(rate.mealAllowancePerDay)}
+                          {stats.underHours > 0 && (
+                            <> ＋未滿 {formatWorkReportHours(stats.underHours)} × ${formatMoney(rate.mealAllowancePerDay / 8)}</>
+                          )} =
+                          <span className="ml-1 font-semibold">${formatMoney(amounts.mealAmount)}</span>
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">勞健保補貼</span>
+                        <span className="text-amber-200">
+                          滿日 {stats.fullDays} × ${formatMoney(rate.insuranceSubsidyPerDay)}
+                          {stats.underHours > 0 && (
+                            <> ＋未滿 {formatWorkReportHours(stats.underHours)} × ${formatMoney(rate.insuranceSubsidyPerDay / 8)}</>
+                          )} =
+                          <span className="ml-1 font-semibold">${formatMoney(amounts.insuranceAmount)}</span>
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">獎金</span>
+                        <span className="text-cyan-300 font-semibold">${formatMoney(amounts.bonusAmount)}</span>
+                      </div>
+                      <div className="border-t border-emerald-700/40 pt-1 flex justify-between">
+                        <span className="text-gray-200">合計</span>
+                        <span className="text-emerald-300 font-bold">${formatMoney(amounts.total)}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="md:w-72 shrink-0">
+                  {/* 右：薪資參數 + 獎金（admin 可編） */}
+                  <div className="space-y-3">
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-gray-400">薪資設定</div>
-                        {isAdmin && !isEditing && (
+                        <div className="text-xs text-gray-400">薪資參數</div>
+                        {isAdmin && !isEditingRate && (
                           <button
                             type="button"
-                            onClick={() => startEdit(p.personName)}
+                            onClick={() => startEditRate(personName)}
                             className="text-cyan-300 hover:text-cyan-200 text-xs"
                           >
                             {rateMissing ? '＋ 設定' : '編輯'}
                           </button>
                         )}
                       </div>
-
-                      {isAdmin && isEditing ? (
-                        <div className="space-y-2 text-sm">
-                          <label className="block">
-                            <span className="text-gray-400 text-xs">日薪</span>
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={draft.dailyRate}
-                              onChange={(e) =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [p.personName]: {
-                                    ...prev[p.personName],
-                                    dailyRate: e.target.value
-                                  }
-                                }))
-                              }
-                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white tabular-nums"
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-gray-400 text-xs">加班時薪</span>
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={draft.overtimeHourRate}
-                              onChange={(e) =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [p.personName]: {
-                                    ...prev[p.personName],
-                                    overtimeHourRate: e.target.value
-                                  }
-                                }))
-                              }
-                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white tabular-nums"
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-gray-400 text-xs">未滿時薪</span>
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={draft.underHourRate}
-                              onChange={(e) =>
-                                setEditing((prev) => ({
-                                  ...prev,
-                                  [p.personName]: {
-                                    ...prev[p.personName],
-                                    underHourRate: e.target.value
-                                  }
-                                }))
-                              }
-                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white tabular-nums"
-                            />
-                          </label>
-                          <div className="flex gap-2 pt-1">
+                      {isAdmin && isEditingRate ? (
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <NumberField
+                            label="日薪"
+                            suffix="元"
+                            value={editingRate[personName]?.dailyRate || ''}
+                            onChange={(v) =>
+                              setEditingRate((prev) => ({
+                                ...prev,
+                                [personName]: { ...prev[personName], dailyRate: v }
+                              }))
+                            }
+                          />
+                          <NumberField
+                            label="加班倍率"
+                            step={0.05}
+                            value={editingRate[personName]?.overtimeMultiplier || ''}
+                            onChange={(v) =>
+                              setEditingRate((prev) => ({
+                                ...prev,
+                                [personName]: { ...prev[personName], overtimeMultiplier: v }
+                              }))
+                            }
+                            hint="加班費 = 日薪/8 × 倍率 × 加班小時"
+                          />
+                          <NumberField
+                            label="餐費（滿日）"
+                            suffix="元/天"
+                            value={editingRate[personName]?.mealAllowancePerDay || ''}
+                            onChange={(v) =>
+                              setEditingRate((prev) => ({
+                                ...prev,
+                                [personName]: { ...prev[personName], mealAllowancePerDay: v }
+                              }))
+                            }
+                            hint="未滿日按比例 X/8 × 時數"
+                          />
+                          <NumberField
+                            label="勞健保（滿日）"
+                            suffix="元/天"
+                            value={editingRate[personName]?.insuranceSubsidyPerDay || ''}
+                            onChange={(v) =>
+                              setEditingRate((prev) => ({
+                                ...prev,
+                                [personName]: { ...prev[personName], insuranceSubsidyPerDay: v }
+                              }))
+                            }
+                            hint="未滿日按比例，當日最高 X 元"
+                          />
+                          <div className="col-span-2 flex gap-2 pt-1">
                             <button
                               type="button"
-                              onClick={() => autoFillFromDaily(p.personName)}
-                              className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200"
-                              title="加班時薪 = 日薪/8×1.5；未滿時薪 = 日薪/8"
-                            >
-                              依日薪推算
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => saveEdit(p.personName)}
+                              onClick={() => saveEditRate(personName)}
                               className="text-xs px-3 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white"
                             >
                               儲存
                             </button>
                             <button
                               type="button"
-                              onClick={() => cancelEdit(p.personName)}
-                              className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
+                              onClick={() => cancelEditRate(personName)}
+                              className="text-xs px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200"
                             >
                               取消
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-3 gap-2 text-xs tabular-nums">
+                        <div className="grid grid-cols-2 gap-2 text-xs tabular-nums">
                           <div>
                             <div className="text-gray-400">日薪</div>
                             <div className="text-white">${formatMoney(rate.dailyRate)}</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">加班時薪</div>
-                            <div className="text-white">${formatMoney(rate.overtimeHourRate)}</div>
+                            <div className="text-gray-400">加班倍率</div>
+                            <div className="text-white">×{rate.overtimeMultiplier}</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">未滿時薪</div>
-                            <div className="text-white">${formatMoney(rate.underHourRate)}</div>
+                            <div className="text-gray-400">餐費（滿日）</div>
+                            <div className="text-white">${formatMoney(rate.mealAllowancePerDay)} / 天</div>
                           </div>
+                          <div>
+                            <div className="text-gray-400">勞健保（滿日）</div>
+                            <div className="text-white">${formatMoney(rate.insuranceSubsidyPerDay)} / 天</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-gray-400">本月獎金（{yearMonth}）</div>
+                        {isAdmin && !isEditingBonus && (
+                          <button
+                            type="button"
+                            onClick={() => startEditBonus(personName)}
+                            className="text-cyan-300 hover:text-cyan-200 text-xs"
+                          >
+                            {bonus > 0 ? '編輯' : '＋ 設定'}
+                          </button>
+                        )}
+                      </div>
+                      {isAdmin && isEditingBonus ? (
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <NumberField
+                              label="獎金"
+                              suffix="元"
+                              value={editingBonus[personName] ?? ''}
+                              onChange={(v) =>
+                                setEditingBonus((prev) => ({ ...prev, [personName]: v }))
+                              }
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => saveEditBonus(personName)}
+                            className="text-xs px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white"
+                          >
+                            儲存
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => cancelEditBonus(personName)}
+                            className="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-200"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-cyan-300 text-base font-semibold tabular-nums">
+                          ${formatMoney(bonus)}
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-lg border border-emerald-700/40 bg-emerald-950/20 px-3 py-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 tabular-nums">
-                    <div>
-                      <div className="text-gray-400 text-xs">出工金額</div>
-                      <div className="text-amber-200 text-sm font-semibold">
-                        ${formatMoney(amounts.dayAmount)}
-                        <span className="text-gray-500 text-[10px] ml-1">
-                          ({p.fullDays} × ${formatMoney(rate.dailyRate)})
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-gray-400 text-xs">加班金額</div>
-                      <div className="text-red-300 text-sm font-semibold">
-                        ${formatMoney(amounts.overtimeAmount)}
-                        <span className="text-gray-500 text-[10px] ml-1">
-                          ({formatWorkReportHours(p.overtimeHours)} × ${formatMoney(rate.overtimeHourRate)})
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-gray-400 text-xs">未滿金額</div>
-                      <div className="text-orange-300 text-sm font-semibold">
-                        ${formatMoney(amounts.underAmount)}
-                        <span className="text-gray-500 text-[10px] ml-1">
-                          ({formatWorkReportHours(p.underHours)} × ${formatMoney(rate.underHourRate)})
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-gray-400 text-xs">合計</div>
-                      <div className="text-emerald-300 text-lg font-bold">
-                        ${formatMoney(amounts.total)}
-                      </div>
-                    </div>
+                {stats.rows.length > 0 && (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleOpen(personName)}
+                      className="text-cyan-300 hover:text-cyan-200 text-xs"
+                    >
+                      {isOpen ? '收合明細 ▲' : `查看 ${stats.rows.length} 筆出工明細 ▼`}
+                    </button>
                   </div>
-                </div>
+                )}
 
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleOpen(p.personName)}
-                    className="text-cyan-300 hover:text-cyan-200 text-xs"
-                  >
-                    {isOpen ? '收合明細 ▲' : `查看 ${p.rows.length} 筆明細 ▼`}
-                  </button>
-                </div>
-
-                {isOpen && (
-                  <div className="mt-3 overflow-x-auto">
+                {isOpen && stats.rows.length > 0 && (
+                  <div className="mt-2 overflow-x-auto">
                     <table className="w-full text-xs sm:text-sm border-collapse min-w-[520px]">
                       <thead>
                         <tr className="border-b border-gray-600 text-left text-gray-400">
@@ -556,7 +722,7 @@ function PaySlip() {
                         </tr>
                       </thead>
                       <tbody>
-                        {p.rows
+                        {stats.rows
                           .slice()
                           .sort((a, b) =>
                             String(a.row?.date || '').localeCompare(String(b.row?.date || ''))
