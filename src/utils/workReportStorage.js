@@ -189,12 +189,14 @@ export function aggregateWorkReportShiftSummary(rows) {
   })
   totalOvertimeHours = roundHours(totalOvertimeHours)
   underActualHours = roundHours(underActualHours)
+  const underPerPersonHours = underHeadcount > 0 ? roundHours(underActualHours / underHeadcount) : 0
   return {
     totalHeadcount,
     totalOvertimeHours,
     hasOvertime: totalOvertimeHours > 0,
     underHeadcount,
     underActualHours,
+    underPerPersonHours,
     hasUnderHours: underHeadcount > 0
   }
 }
