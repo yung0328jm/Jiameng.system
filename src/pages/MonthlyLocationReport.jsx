@@ -953,8 +953,8 @@ export default function MonthlyLocationReport() {
     return out
   }, [userNames, days, year, month, overrides, scheduleMap, leaveCellTextMap])
 
-  /** 全表加權人天：各案場數字加總＝各人「總工（加權）」加總 */
-  const grandTotalWeightedDays = useMemo(
+  /** 各案場權重直接加總（未計入未滿時數進工） */
+  const siteWeightedDaysBase = useMemo(
     () => siteStatsSorted.reduce((s, [, c]) => s + (Number(c) || 0), 0),
     [siteStatsSorted]
   )
@@ -978,14 +978,37 @@ export default function MonthlyLocationReport() {
     return s
   }, [overtimeHoursMap])
 
-  /** 全部未滿時數（橘色，僅出工回報帶入的未滿 8 小時） */
-  const grandTotalUnderHours = useMemo(() => {
-    let s = 0
-    workReportUnderHoursMap?.forEach((h) => {
-      s += Number(h) || 0
+  /** 各人累積未滿時數（每滿 8 小時自動進 1 工，餘數仍計為未滿時數） */
+  const underHoursCarryByPerson = useMemo(() => {
+    const totalByPerson = new Map()
+    workReportUnderHoursMap?.forEach((h, k) => {
+      const parts = String(k).split('\0')
+      if (parts.length === 3) {
+        const person = parts[0]
+        totalByPerson.set(person, (totalByPerson.get(person) || 0) + (Number(h) || 0))
+      }
     })
-    return s
+    let carryDays = 0
+    let remainingHours = 0
+    totalByPerson.forEach((h) => {
+      const days = Math.floor(h / 8)
+      carryDays += days
+      remainingHours += h - days * 8
+    })
+    return { carryDays, remainingHours }
   }, [workReportUnderHoursMap])
+
+  /** 全部未滿時數（橘色，已扣除每滿 8 小時進 1 工的部分；只剩餘數） */
+  const grandTotalUnderHours = useMemo(
+    () => underHoursCarryByPerson.remainingHours,
+    [underHoursCarryByPerson]
+  )
+
+  /** 全表總工 = 案場權重總和 + 各人未滿時數每 8 小時自動進 1 工 */
+  const grandTotalWeightedDays = useMemo(
+    () => (Number(siteWeightedDaysBase) || 0) + (Number(underHoursCarryByPerson.carryDays) || 0),
+    [siteWeightedDaysBase, underHoursCarryByPerson]
+  )
 
   /** 各案場未滿時數彙總 */
   const siteUnderHoursTotals = useMemo(() => {
@@ -1203,14 +1226,14 @@ export default function MonthlyLocationReport() {
               })}
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-yellow-500/35 bg-yellow-950/25 px-3 py-2">
-              <span className="text-xs sm:text-sm font-medium text-gray-200">全部總工</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-200">案場出勤基本工程款（工數）</span>
               <span className="shrink-0 font-mono text-base sm:text-lg font-semibold text-yellow-400 tabular-nums">
                 {formatSiteStatNumber(grandTotalWeightedDays)} 工
               </span>
             </div>
             {grandTotalUnderHours > 0 && (
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded border border-orange-700/40 bg-orange-950/20 px-3 py-2">
-                <span className="text-xs sm:text-sm font-medium text-gray-200">全部未滿時數（橘）</span>
+                <span className="text-xs sm:text-sm font-medium text-gray-200">案場臨時調度費用（時數）</span>
                 <span className="shrink-0 font-mono text-base font-semibold text-orange-400 tabular-nums">
                   {formatUnderHoursText(grandTotalUnderHours)}
                 </span>
@@ -1218,7 +1241,7 @@ export default function MonthlyLocationReport() {
             )}
             {grandTotalOvertimeHours > 0 && (
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded border border-red-900/40 bg-red-950/20 px-3 py-2">
-                <span className="text-xs sm:text-sm font-medium text-gray-200">全部總加班（紅）</span>
+                <span className="text-xs sm:text-sm font-medium text-gray-200">緊急追加服務費</span>
                 <span className="shrink-0 font-mono text-base font-semibold text-red-400 tabular-nums">
                   {formatSiteStatNumber(grandTotalOvertimeHours)} 小時
                 </span>
@@ -1247,16 +1270,16 @@ export default function MonthlyLocationReport() {
               return `${s} ${workPart}${underPart}${otPart}`.trim()
             }).join(' ｜ ')}
             <span className="block sm:inline sm:ml-1 mt-1 sm:mt-0 text-amber-200/90">
-              ｜ <strong>全部總工</strong> {formatSiteStatNumber(grandTotalWeightedDays)} 工
+              ｜ <strong>案場出勤基本工程款（工數）</strong> {formatSiteStatNumber(grandTotalWeightedDays)} 工
             </span>
             {grandTotalUnderHours > 0 && (
               <span className="block text-orange-300/90 mt-1">
-                <strong>全部未滿時數</strong> {formatUnderHoursText(grandTotalUnderHours)}
+                <strong>案場臨時調度費用（時數）</strong> {formatUnderHoursText(grandTotalUnderHours)}
               </span>
             )}
             {grandTotalOvertimeHours > 0 && (
               <span className="block text-red-300/90 mt-1">
-                <strong>全部總加班</strong> {formatSiteStatNumber(grandTotalOvertimeHours)} 小時
+                <strong>緊急追加服務費</strong> {formatSiteStatNumber(grandTotalOvertimeHours)} 小時
               </span>
             )}
           </div>
