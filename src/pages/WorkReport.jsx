@@ -714,6 +714,63 @@ function WorkReport() {
           </select>
         </div>
 
+        <div className="rounded-lg border border-yellow-700/40 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setLaborOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-yellow-950/20 transition-colors"
+          >
+            <span className="text-yellow-300/90 text-sm font-medium">勞務承攬者（登記即存當日）</span>
+            <span className="text-gray-500 text-xs shrink-0">
+              {laborOpen ? '收合 ▲' : '展開 ▼'}
+              {dayLaborRecords.length > 0 ? ` · 本日 ${dayLaborRecords.length} 筆` : ''}
+            </span>
+          </button>
+          {laborOpen && (
+            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-yellow-700/30">
+              {dayLaborRecords.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">{date} 已登記承攬者 {dayLaborRecords.length} 筆</p>
+                  <DayRegisterTable
+                    rows={dayLaborRecords}
+                    labelName="姓名"
+                    currentUser={currentUser}
+                    userRole={userRole}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">承攬者</label>
+                <select
+                  value={laborName}
+                  onChange={(e) => setLaborName(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                >
+                  <option value="">— 請選擇 —</option>
+                  {participantNames.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                {participantNames.length === 0 && (
+                  <p className="text-gray-500 text-xs mt-1">尚無人員，請至下拉選單管理新增「參與人員」。</p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TimeInput24 label="抵達時間" value={laborArrival} onChange={setLaborArrival} />
+                <TimeInput24 label="離場時間" value={laborDeparture} onChange={setLaborDeparture} />
+              </div>
+              {laborPreviewSummary && <WorkReportShiftSummary summary={laborPreviewSummary} />}
+              <button
+                type="button"
+                onClick={registerLabor}
+                className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-semibold transition-colors"
+              >
+                登記
+              </button>
+            </div>
+          )}
+        </div>
         <div className="rounded-lg border border-teal-700/40 overflow-hidden">
           <button
             type="button"
@@ -776,69 +833,12 @@ function WorkReport() {
                 onClick={registerContractor}
                 className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors"
               >
-                登記此包商
+                登記
               </button>
             </div>
           )}
         </div>
 
-        <div className="rounded-lg border border-yellow-700/40 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setLaborOpen((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-yellow-950/20 transition-colors"
-          >
-            <span className="text-yellow-300/90 text-sm font-medium">勞務承攬者（登記即存當日）</span>
-            <span className="text-gray-500 text-xs shrink-0">
-              {laborOpen ? '收合 ▲' : '展開 ▼'}
-              {dayLaborRecords.length > 0 ? ` · 本日 ${dayLaborRecords.length} 筆` : ''}
-            </span>
-          </button>
-          {laborOpen && (
-            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-yellow-700/30">
-              {dayLaborRecords.length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-400 mb-2">{date} 已登記承攬者 {dayLaborRecords.length} 筆</p>
-                  <DayRegisterTable
-                    rows={dayLaborRecords}
-                    labelName="姓名"
-                    currentUser={currentUser}
-                    userRole={userRole}
-                    onDelete={handleDelete}
-                  />
-                </div>
-              )}
-              <div>
-                <label className="block text-gray-400 text-xs mb-1">承攬者</label>
-                <select
-                  value={laborName}
-                  onChange={(e) => setLaborName(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                >
-                  <option value="">— 請選擇 —</option>
-                  {participantNames.map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-                {participantNames.length === 0 && (
-                  <p className="text-gray-500 text-xs mt-1">尚無人員，請至下拉選單管理新增「參與人員」。</p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TimeInput24 label="抵達時間" value={laborArrival} onChange={setLaborArrival} />
-                <TimeInput24 label="離場時間" value={laborDeparture} onChange={setLaborDeparture} />
-              </div>
-              {laborPreviewSummary && <WorkReportShiftSummary summary={laborPreviewSummary} />}
-              <button
-                type="button"
-                onClick={registerLabor}
-                className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-semibold transition-colors"
-              >
-                登記此承攬者
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
 
@@ -847,7 +847,7 @@ function WorkReport() {
           <div>
             <h2 className="text-lg font-semibold text-yellow-400">當月回報統計</h2>
             <p className="text-gray-500 text-xs mt-1">
-              整月檢視，不需逐日搜尋；依日期加總各人出工時數。
+              上方為當月各人彙總；下方為每筆登記明細，可刪除。
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -894,36 +894,7 @@ function WorkReport() {
           </div>
         )}
 
-        {dailyPersonStats.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[480px]">
-              <thead>
-                <tr className="border-b border-gray-600 text-left text-gray-400">
-                  <th className="py-2 pr-3 font-medium">日期</th>
-                  <th className="py-2 pr-3 font-medium">姓名</th>
-                  <th className="py-2 pr-3 font-medium">案場</th>
-                  <th className="py-2 pr-3 font-medium text-right">當日工時</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailyPersonStats.map((row) => (
-                  <tr key={`${row.date}-${row.personName}`} className="border-b border-gray-700/60">
-                    <td className="py-2 pr-3 text-gray-300 tabular-nums">{row.date}</td>
-                    <td className="py-2 pr-3 text-white">{row.personName}</td>
-                    <td className="py-2 pr-3 text-gray-400 text-xs">{row.sites || '—'}</td>
-                    <td className="py-2 pr-3 text-right">
-                      <WorkReportShiftSummary summary={row.shiftSummary} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-gray-500 text-sm">此月份尚無出工回報。</p>
-        )}
-
-        <div className="border-t border-gray-700 pt-4">
+        <div className={personMonthTotals.length > 0 ? 'border-t border-gray-700 pt-4' : ''}>
           <h3 className="text-base font-semibold text-yellow-400/90 mb-3">當月明細</h3>
           {sortedDateKeys.length === 0 ? (
             <p className="text-gray-500 text-sm">尚無紀錄。</p>
