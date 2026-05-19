@@ -320,7 +320,7 @@ function WorkReport() {
   const [contractorArrival, setContractorArrival] = useState('')
   const [contractorDeparture, setContractorDeparture] = useState('')
   const [contractorOpen, setContractorOpen] = useState(true)
-  const [laborName, setLaborName] = useState('')
+  const [laborNames, setLaborNames] = useState([])
   const [laborArrival, setLaborArrival] = useState('')
   const [laborDeparture, setLaborDeparture] = useState('')
   const [laborOpen, setLaborOpen] = useState(true)
@@ -350,7 +350,10 @@ function WorkReport() {
     setContractorOptions(contractors)
     setSiteSelect((prev) => (prev && sites.includes(prev) ? prev : sites[0] || ''))
     setContractorName((prev) => (prev && contractors.includes(prev) ? prev : ''))
-    setLaborName((prev) => (prev && getParticipantNames(snap).includes(prev) ? prev : ''))
+    setLaborNames((prev) => {
+      const valid = getParticipantNames(snap)
+      return Array.isArray(prev) ? prev.filter((n) => valid.includes(n)) : []
+    })
     setMonthRecords(getWorkReportsForMonth(filterYear, filterMonth))
   }, [filterYear, filterMonth])
 
@@ -410,14 +413,14 @@ function WorkReport() {
   )
 
   const laborPreviewSummary = useMemo(() => {
-    if (laborPerHours == null || !laborName.trim()) return null
+    if (laborPerHours == null || laborNames.length === 0) return null
     return getWorkReportRowShiftSummary({
       arrivalTime: laborArrival,
       departureTime: laborDeparture,
-      headcount: 1,
-      personName: laborName.trim()
+      headcount: laborNames.length,
+      personName: laborNames[0]
     })
-  }, [laborPerHours, laborArrival, laborDeparture, laborName])
+  }, [laborPerHours, laborArrival, laborDeparture, laborNames])
 
   const refreshMonthForDate = (dateStr) => {
     const d = new Date(`${dateStr}T00:00:00`)
@@ -477,17 +480,18 @@ function WorkReport() {
       setMessage({ type: 'error', text: '請選擇案場' })
       return
     }
-    const name = laborName.trim()
-    if (!name || !laborArrival || !laborDeparture) {
-      setMessage({ type: 'error', text: '請選擇承攬者並填寫抵達與離場時間' })
+    const names = (laborNames || []).map((n) => String(n).trim()).filter(Boolean)
+    if (names.length === 0 || !laborArrival || !laborDeparture) {
+      setMessage({ type: 'error', text: '請至少選擇一位承攬者並填寫抵達與離場時間' })
       return
     }
-    if (isResignedPersonName(name, resignedSnapshot)) {
-      setMessage({ type: 'error', text: '不可填寫離職人員' })
+    const resigned = names.filter((n) => isResignedPersonName(n, resignedSnapshot))
+    if (resigned.length > 0) {
+      setMessage({ type: 'error', text: `不可填寫離職人員：${resigned.join('、')}` })
       return
     }
-    const result = addWorkReports([
-      {
+    const result = addWorkReports(
+      names.map((name) => ({
         date,
         siteName,
         personName: name,
@@ -495,16 +499,17 @@ function WorkReport() {
         departureTime: laborDeparture,
         submittedBy: currentUser,
         submittedByName: getDisplayNameForAccount(currentUser) || currentUser
-      }
-    ])
+      }))
+    )
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '登記失敗' })
       return
     }
+    setLaborNames([])
     setLaborArrival('')
     setLaborDeparture('')
     refreshMonthForDate(date)
-    setMessage({ type: 'success', text: `已登記 ${name}（${date}）` })
+    setMessage({ type: 'success', text: `已登記 ${names.join('、')}（${date}）` })
   }
 
   const addSiteToList = () => {
@@ -741,19 +746,63 @@ function WorkReport() {
                 </div>
               )}
               <div>
-                <label className="block text-gray-400 text-xs mb-1">承攬者</label>
-                <select
-                  value={laborName}
-                  onChange={(e) => setLaborName(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                >
-                  <option value="">— 請選擇 —</option>
-                  {participantNames.map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-                {participantNames.length === 0 && (
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-gray-400 text-xs">承攬者（可多選）</label>
+                  {participantNames.length > 0 && (
+                    <div className="flex gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setLaborNames(participantNames.slice())}
+                        className="text-yellow-300/80 hover:text-yellow-200"
+                      >
+                        全選
+                      </button>
+                      <span className="text-gray-600">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setLaborNames([])}
+                        className="text-gray-400 hover:text-gray-200"
+                      >
+                        清除
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {participantNames.length === 0 ? (
                   <p className="text-gray-500 text-xs mt-1">尚無人員，請至下拉選單管理新增「參與人員」。</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-gray-900/30 border border-gray-700 rounded p-2">
+                    {participantNames.map((n) => {
+                      const checked = laborNames.includes(n)
+                      return (
+                        <label
+                          key={n}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm select-none ${
+                            checked
+                              ? 'bg-yellow-600/20 border border-yellow-500/50 text-yellow-100'
+                              : 'border border-gray-700 text-gray-200 hover:bg-gray-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-yellow-500"
+                            checked={checked}
+                            onChange={(e) => {
+                              setLaborNames((prev) =>
+                                e.target.checked
+                                  ? [...prev, n]
+                                  : prev.filter((x) => x !== n)
+                              )
+                            }}
+                          />
+                          <span>{n}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+                {laborNames.length > 0 && (
+                  <p className="text-yellow-300/80 text-xs mt-2">已選 {laborNames.length} 人：{laborNames.join('、')}</p>
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
