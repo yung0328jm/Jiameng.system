@@ -37,13 +37,28 @@ import {
   getWorkReportsForMonth,
   getWorkReports,
   getWorkReportRowTotalHours,
-  getWorkReportDurationDisplay,
-  groupWorkReportRowsForDisplay
+  groupWorkReportRowsForDisplay,
+  formatWorkReportHours
 } from '../utils/workReportStorage'
 
-function WorkReportDuration({ hours, className, overtimeClassName }) {
-  const d = getWorkReportDurationDisplay(hours, { className, overtimeClassName })
-  return <span className={d.className}>{d.text}</span>
+function WorkReportShiftSummary({ summary, className = '' }) {
+  if (!summary || (summary.totalHeadcount == null && summary.headcount == null)) {
+    return <span className="text-gray-500">—</span>
+  }
+  const n = summary.totalHeadcount ?? summary.headcount
+  const ot = summary.totalOvertimeHours ?? 0
+  return (
+    <div className={`text-right tabular-nums ${className}`}>
+      <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>
+      {summary.hasOvertime ? (
+        <div className="text-red-400/90 text-xs mt-0.5 font-medium">
+          加班 {formatWorkReportHours(ot)} 小時
+        </div>
+      ) : (
+        <div className="text-gray-500 text-xs mt-0.5">無加班</div>
+      )}
+    </div>
+  )
 }
 
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
@@ -223,10 +238,10 @@ function Calendar() {
     [workReportDetailRows]
   )
 
-  const workReportDetailTotalHours = useMemo(() => {
+  const workReportDetailTotalOvertime = useMemo(() => {
     let t = 0
     workReportDetailGroups.forEach((g) => {
-      if (g.totalHours != null) t += g.totalHours
+      if (g.shiftSummary?.totalOvertimeHours != null) t += g.shiftSummary.totalOvertimeHours
     })
     return Math.round(t * 10) / 10
   }, [workReportDetailGroups])
@@ -4682,12 +4697,14 @@ function Calendar() {
               ) : (
                 <>
                   <p className="text-sm text-cyan-300/90 mb-3">
-                    合計工時{' '}
-                    <WorkReportDuration
-                      hours={workReportDetailTotalHours}
-                      className="text-cyan-300 font-semibold"
-                    />
-                    （{workReportDetailHeadcount} 人次）
+                    合計出工 <strong className="text-amber-200">{workReportDetailHeadcount}</strong> 人
+                    {workReportDetailTotalOvertime > 0 && (
+                      <>
+                        {' · 加班 '}
+                        <strong className="text-red-400">{formatWorkReportHours(workReportDetailTotalOvertime)}</strong>
+                        {' 小時'}
+                      </>
+                    )}
                   </p>
                   <table className="w-full text-sm border-collapse">
                     <thead>
@@ -4703,19 +4720,13 @@ function Calendar() {
                         <tr key={group.id} className="border-b border-gray-700/60">
                           <td className="py-2 pr-2 text-white">
                             {group.personName}
-                            {group.kind === 'contractor' && group.totalHeadcount > 0 && (
-                              <span className="block text-teal-300/80 text-xs mt-0.5">
-                                {group.totalHeadcount} 人次
-                                {group.batchCount > 1 ? ` · ${group.batchCount} 批` : ''}
-                              </span>
+                            {group.kind === 'contractor' && group.batchCount > 1 && (
+                              <span className="block text-teal-300/80 text-xs mt-0.5">{group.batchCount} 批</span>
                             )}
                           </td>
                           <td className="py-2 pr-2 text-cyan-200 tabular-nums text-xs">{group.timeLabel}</td>
                           <td className="py-2 pr-2 text-right font-medium">
-                            <WorkReportDuration
-                              hours={group.totalHours}
-                              className="text-amber-200/90 font-semibold"
-                            />
+                            <WorkReportShiftSummary summary={group.shiftSummary} />
                           </td>
                           <td className="py-2 text-gray-400 text-xs">
                             {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}

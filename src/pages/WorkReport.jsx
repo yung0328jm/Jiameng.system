@@ -10,44 +10,40 @@ import {
   calcWorkReportHours,
   addWorkReports,
   deleteWorkReport,
-  getWorkReportDurationDisplay,
   formatContractorPersonName,
   getWorkReportRowTotalHours,
   parseWorkReportHeadcount,
   getWorkReportStatsPersonKey,
   groupWorkReportRowsForDisplay,
-  isWorkReportContractorName
+  isWorkReportContractorName,
+  getWorkReportRowShiftSummary,
+  formatWorkReportHours
 } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import { getSupabaseClient } from '../utils/supabaseClient'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
-function WorkReportDuration({ hours, className, overtimeClassName }) {
-  const d = getWorkReportDurationDisplay(hours, { className, overtimeClassName })
-  return <span className={d.className}>{d.text}</span>
-}
-
-function WorkReportHoursDetail({ arrivalTime, departureTime, headcount = 1 }) {
-  const perHours = calcWorkReportHours(arrivalTime, departureTime)
-  if (perHours == null) return <span className="text-gray-500">—</span>
-
-  const n = Math.max(1, Math.floor(Number(headcount) || 1))
-  const totalHours = Math.round(perHours * n * 10) / 10
-
-  if (n <= 1) {
-    return <WorkReportDuration hours={perHours} className="text-amber-200/90 font-semibold" />
+function WorkReportShiftSummary({ summary, className = '' }) {
+  if (!summary || (summary.totalHeadcount == null && summary.headcount == null)) {
+    return <span className="text-gray-500">—</span>
   }
-
+  const n = summary.totalHeadcount ?? summary.headcount
+  const ot = summary.totalOvertimeHours ?? 0
   return (
-    <div className="text-right">
-      <div className="text-gray-500 text-[11px] mb-0.5">
-        每人 <WorkReportDuration hours={perHours} className="inline text-amber-200/80" />
-      </div>
-      <WorkReportDuration hours={totalHours} className="text-amber-200/90 font-semibold" />
+    <div className={`text-right tabular-nums ${className}`}>
+      <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>
+      {summary.hasOvertime ? (
+        <div className="text-red-400/90 text-xs mt-0.5 font-medium">
+          加班 {formatWorkReportHours(ot)} 小時
+        </div>
+      ) : (
+        <div className="text-gray-500 text-xs mt-0.5">無加班</div>
+      )}
     </div>
   )
 }
+
 
 
 const pad2 = (n) => String(n).padStart(2, '0')
@@ -307,10 +303,15 @@ function WorkReport() {
 
   const contractorPreviewHeadcount = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
 
-  const contractorTotalHours = useMemo(() => {
+  const contractorPreviewSummary = useMemo(() => {
     if (contractorPerHours == null) return null
-    return Math.round(contractorPerHours * contractorPreviewHeadcount * 10) / 10
-  }, [contractorPerHours, contractorPreviewHeadcount])
+    return getWorkReportRowShiftSummary({
+      arrivalTime: contractorArrival,
+      departureTime: contractorDeparture,
+      headcount: contractorPreviewHeadcount,
+      personName: formatContractorPersonName('_', contractorPreviewHeadcount)
+    })
+  }, [contractorPerHours, contractorArrival, contractorDeparture, contractorPreviewHeadcount])
 
   const dayContractorRecords = useMemo(() => {
     const d = String(date || '').slice(0, 10)
@@ -530,10 +531,19 @@ function WorkReport() {
       const dateKey = String(row?.date || '').slice(0, 10)
       const person = getWorkReportStatsPersonKey(row?.personName)
       if (!dateKey || !person) return
-      const hrs = getWorkReportRowTotalHours(row)
       const key = `${dateKey}\0${person}`
-      const prev = map.get(key) || { date: dateKey, personName: person, hours: 0, sites: new Set() }
-      if (hrs != null) prev.hours += hrs
+      const prev = map.get(key) || {
+        date: dateKey,
+        personName: person,
+        headcount: 0,
+        overtimeHours: 0,
+        sites: new Set()
+      }
+      const shift = getWorkReportRowShiftSummary(row)
+      if (shift) {
+        prev.headcount += shift.headcount
+        prev.overtimeHours += shift.totalOvertimeHours
+      }
       const site = String(row?.siteName || '').trim()
       if (site) prev.sites.add(site)
       map.set(key, prev)
@@ -542,7 +552,13 @@ function WorkReport() {
       .map((x) => ({
         date: x.date,
         personName: x.personName,
-        hours: Math.round(x.hours * 10) / 10,
+        headcount: x.headcount,
+        overtimeHours: Math.round(x.overtimeHours * 10) / 10,
+        shiftSummary: {
+          totalHeadcount: x.headcount,
+          totalOvertimeHours: Math.round(x.overtimeHours * 10) / 10,
+          hasOvertime: x.overtimeHours > 0
+        },
         sites: [...x.sites].join('、')
       }))
       .sort((a, b) => b.date.localeCompare(a.date) || a.personName.localeCompare(b.personName, 'zh-Hant'))
@@ -551,14 +567,25 @@ function WorkReport() {
   const personMonthTotals = useMemo(() => {
     const map = new Map()
     dailyPersonStats.forEach((row) => {
-      map.set(row.personName, (map.get(row.personName) || 0) + row.hours)
+      const prev = map.get(row.personName) || { headcount: 0, overtimeHours: 0 }
+      prev.headcount += row.headcount
+      prev.overtimeHours += row.overtimeHours
+      map.set(row.personName, prev)
     })
     return [...map.entries()]
-      .map(([personName, hours]) => ({
+      .map(([personName, agg]) => ({
         personName,
-        hours: Math.round(hours * 10) / 10
+        shiftSummary: {
+          totalHeadcount: agg.headcount,
+          totalOvertimeHours: Math.round(agg.overtimeHours * 10) / 10,
+          hasOvertime: agg.overtimeHours > 0
+        }
       }))
-      .sort((a, b) => b.hours - a.hours || a.personName.localeCompare(b.personName, 'zh-Hant'))
+      .sort(
+        (a, b) =>
+          b.shiftSummary.totalHeadcount - a.shiftSummary.totalHeadcount ||
+          a.personName.localeCompare(b.personName, 'zh-Hant')
+      )
   }, [dailyPersonStats])
 
   return (
@@ -566,7 +593,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          包商：填一筆按「登記」，立即寫入當日，可隨時再登記（臨時人員晚到也適用）。勞務承攬者(個人)勾選後按「送出」。8 小時＝1 天，超過 8 小時紅字；非下午抵達扣 1 小時午休。
+          包商：填一筆按「登記」，立即寫入當日。工時顯示「出工 N 人」與「加班 X 小時」（每人超過 8 小時起算，不換算成天）。勞務承攬者勾選後按「送出」。非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -743,7 +770,6 @@ function WorkReport() {
                 <tbody>
               {allNamesForSubmit.map((name) => {
                 const t = personTimes[name] || { arrivalTime: '', departureTime: '' }
-                const hrs = calcWorkReportHours(t.arrivalTime, t.departureTime)
                 return (
                   <tr key={name} className="border-b border-gray-700/50">
                     <td className="py-2 px-2 text-yellow-100 whitespace-nowrap">{name}</td>
@@ -764,9 +790,13 @@ function WorkReport() {
                       />
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <WorkReportHoursDetail
-                        arrivalTime={t.arrivalTime}
-                        departureTime={t.departureTime}
+                      <WorkReportShiftSummary
+                        summary={getWorkReportRowShiftSummary({
+                          arrivalTime: t.arrivalTime,
+                          departureTime: t.departureTime,
+                          headcount: 1,
+                          personName: name
+                        })}
                       />
                     </td>
                   </tr>
@@ -810,7 +840,6 @@ function WorkReport() {
                   </thead>
                   <tbody>
                     {dayContractorRecords.map((row) => {
-                      const hrs = getWorkReportRowTotalHours(row)
                       const canDelete =
                         userRole === 'admin' ||
                         String(row.submittedBy || '') === String(currentUser || '')
@@ -822,7 +851,10 @@ function WorkReport() {
                             {row.arrivalTime}–{row.departureTime}
                           </td>
                           <td className="py-2 px-2 text-right">
-                            <WorkReportDuration hours={hrs} className="text-amber-200/80 text-xs" />
+                            <WorkReportShiftSummary
+                              summary={getWorkReportRowShiftSummary(row)}
+                              className="text-xs"
+                            />
                           </td>
                           <td className="py-2 px-2">
                             {canDelete && (
@@ -870,13 +902,8 @@ function WorkReport() {
             <TimeInput24 label="抵達時間" value={contractorArrival} onChange={setContractorArrival} />
             <TimeInput24 label="離場時間" value={contractorDeparture} onChange={setContractorDeparture} />
           </div>
-          {contractorPerHours != null && (
-            <div className="text-sm text-gray-300 flex flex-wrap items-end justify-between gap-2">
-              <span className="text-gray-400">
-                × <span className="text-cyan-300">{contractorPreviewHeadcount}</span> 人
-              </span>
-              <WorkReportDuration hours={contractorTotalHours} className="text-amber-200/90 font-semibold" />
-            </div>
+          {contractorPreviewSummary && (
+            <WorkReportShiftSummary summary={contractorPreviewSummary} />
           )}
           <button
             type="button"
@@ -937,13 +964,13 @@ function WorkReport() {
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">當月個人總工時</h3>
             <div className="flex flex-wrap gap-2 text-sm">
-              {personMonthTotals.map(({ personName, hours }) => (
+              {personMonthTotals.map(({ personName, shiftSummary }) => (
                 <span
                   key={personName}
-                  className="rounded border border-cyan-700/50 bg-gray-900/50 px-2 py-1 text-gray-200"
+                  className="rounded border border-cyan-700/50 bg-gray-900/50 px-2 py-1 text-gray-200 inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
                 >
-                  {personName}{' '}
-                  <WorkReportDuration hours={hours} className="text-cyan-300 font-semibold" />
+                  <span>{personName}</span>
+                  <WorkReportShiftSummary summary={shiftSummary} className="inline-block text-left" />
                 </span>
               ))}
             </div>
@@ -968,7 +995,7 @@ function WorkReport() {
                     <td className="py-2 pr-3 text-white">{row.personName}</td>
                     <td className="py-2 pr-3 text-gray-400 text-xs">{row.sites || '—'}</td>
                     <td className="py-2 pr-3 text-right">
-                      <WorkReportDuration hours={row.hours} className="text-cyan-300 font-semibold" />
+                      <WorkReportShiftSummary summary={row.shiftSummary} />
                     </td>
                   </tr>
                 ))}
@@ -1010,10 +1037,9 @@ function WorkReport() {
                                 <td className="py-2.5 pr-3 text-gray-200">{group.siteName}</td>
                                 <td className="py-2.5 pr-3 text-white">
                                   {group.personName}
-                                  {isContractor && group.totalHeadcount > 0 && (
+                                  {isContractor && group.batchCount > 1 && (
                                     <span className="block text-teal-300/80 text-xs mt-0.5">
-                                      當日 {group.totalHeadcount} 人次
-                                      {group.batchCount > 1 ? ` · ${group.batchCount} 批` : ''}
+                                      {group.batchCount} 批
                                     </span>
                                   )}
                                 </td>
@@ -1021,10 +1047,7 @@ function WorkReport() {
                                   {group.timeLabel}
                                 </td>
                                 <td className="py-2.5 pr-3 text-right font-medium">
-                                  <WorkReportDuration
-                                    hours={group.totalHours}
-                                    className="text-amber-200/90 font-semibold"
-                                  />
+                                  <WorkReportShiftSummary summary={group.shiftSummary} />
                                 </td>
                                 <td className="py-2.5 pr-3 text-gray-400 text-xs">
                                   {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
