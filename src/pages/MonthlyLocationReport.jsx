@@ -14,6 +14,13 @@ import {
 } from '../utils/monthlyLocationReportStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
+import {
+  getWorkReportsForMonth,
+  getWorkReportStatsPersonKey,
+  isWorkReportContractorName,
+  parseWorkReportHeadcount,
+  getWorkReportRowShiftSummary
+} from '../utils/workReportStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { useSyncRevision } from '../contexts/SyncContext'
 import {
@@ -61,6 +68,8 @@ function buildScheduleMap(year, month) {
   const lastDay = new Date(year, month, 0).getDate()
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   const map = new Map()
+  /** 行事曆已涵蓋的 (姓名+日期) — 用於避免出工回報重複覆蓋 */
+  const coveredKeys = new Set()
 
   const addSiteWeight = (name, dateStr, siteName, weight) => {
     const n = String(name || '').trim()
@@ -124,11 +133,70 @@ function buildScheduleMap(year, month) {
     const dateStr = k.slice(sep + 1)
     const K = siteNames.length
     if (K === 0) return
+    coveredKeys.add(k)
     const w = 1 / K
     siteNames.forEach((site) => addSiteWeight(name, dateStr, site, w))
   })
 
-  return { map, lastDay }
+  return { map, lastDay, coveredKeys }
+}
+
+/**
+ * 出工回報補位：行事曆未涵蓋的 (姓名+日期) 從出工回報帶入。
+ * 包商批次依 headcount 計入；勞務承攬者單筆即 1 工。同一人同日多案場時 1/K 平均。
+ */
+function addWorkReportContributions(map, year, month, coveredKeys) {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+  const addSiteWeight = (name, dateStr, siteName, weight) => {
+    const n = String(name || '').trim()
+    if (!n || !dateStr) return
+    const w = Number(weight)
+    if (!w || w <= 0) return
+    const s = String(siteName || '').trim() || '（未填案場）'
+    if (!map.has(n)) map.set(n, new Map())
+    const byDate = map.get(n)
+    if (!byDate.has(dateStr)) byDate.set(dateStr, new Map())
+    const bySite = byDate.get(dateStr)
+    bySite.set(s, (bySite.get(s) || 0) + w)
+  }
+
+  const rows = []
+  ;(getWorkReportsForMonth(year, month) || []).forEach((r) => {
+    const dateStr = String(r?.date || '').slice(0, 10)
+    if (!dateStr || dateStr < startDate || dateStr > endDate) return
+    const person = getWorkReportStatsPersonKey(r?.personName)
+    if (!person) return
+    const k = `${person}\0${dateStr}`
+    if (coveredKeys && coveredKeys.has(k)) return
+    const siteName = String(r?.siteName || '').trim() || '（未填案場）'
+    const headcount = parseWorkReportHeadcount(r?.personName, r?.headcount) || 1
+    const isContractor = isWorkReportContractorName(r?.personName)
+    rows.push({ key: k, person, dateStr, siteName, headcount, isContractor, raw: r })
+  })
+
+  // 依 (person, date) 分組
+  const groups = new Map()
+  rows.forEach((row) => {
+    if (!groups.has(row.key)) groups.set(row.key, [])
+    groups.get(row.key).push(row)
+  })
+
+  groups.forEach((list) => {
+    const isContractor = list.some((x) => x.isContractor)
+    if (isContractor) {
+      // 包商：每筆 headcount 完整計入該案場
+      list.forEach((row) => addSiteWeight(row.person, row.dateStr, row.siteName, row.headcount))
+    } else {
+      // 勞務承攬者：同日多案場 1/K 平均
+      const K = list.length
+      if (K === 0) return
+      const w = 1 / K
+      list.forEach((row) => addSiteWeight(row.person, row.dateStr, row.siteName, w))
+    }
+  })
 }
 
 /** 與 buildScheduleMap 同規則：該 segment 內參與者＋工項人員 */
@@ -187,6 +255,7 @@ function buildOvertimeHoursMap(year, month) {
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   const schedules = getSchedules()
+  const workReportRows = getWorkReportsForMonth(year, month) || []
   const acc = new Map()
 
   const add = (person, dateStr, site, hrs) => {
@@ -203,6 +272,26 @@ function buildOvertimeHoursMap(year, month) {
     if (!dateStr || dateStr < startDate || dateStr > endDate) return
     const hours = computeOvertimeRecordHours(oa)
     if (hours == null || hours <= 0) return
+
+    /* === 出工回報來源的緊急追加服務費申報 === */
+    const wrRowId = String(oa?.workReportRowId || '').trim()
+    if (wrRowId) {
+      const row = workReportRows.find((r) => String(r?.id || '') === wrRowId)
+      if (!row) return
+      const siteName = String(row?.siteName || oa?.siteName || '').trim() || '（未填案場）'
+      const personnel = (Array.isArray(oa.overtimePersonnel) ? oa.overtimePersonnel : [])
+        .map((x) => String(x || '').trim())
+        .filter(Boolean)
+      const list =
+        personnel.length > 0
+          ? personnel
+          : [getWorkReportStatsPersonKey(row?.personName)].filter(Boolean)
+      if (list.length === 0) return
+      list.forEach((personName) => add(personName, dateStr, siteName, hours / list.length))
+      return
+    }
+
+    /* === 行事曆排程來源的加班申請（舊邏輯保留） === */
     const schedule = schedules.find((s) => String(s?.id || '') === String(oa?.scheduleId || ''))
     if (!schedule) return
     if (String(schedule?.tag || '').trim() === SCHEDULE_TAG_EXCLUDE_FROM_LOCATION_REPORT) return
@@ -702,7 +791,11 @@ export default function MonthlyLocationReport() {
   useEffect(() => {
     const onRt = (e) => {
       const k = e?.detail?.key
-      if (k === OVERTIME_APPLICATIONS_STORAGE_KEY || k === 'jiameng_engineering_schedules') {
+      if (
+        k === OVERTIME_APPLICATIONS_STORAGE_KEY ||
+        k === 'jiameng_engineering_schedules' ||
+        k === 'jiameng_work_reports'
+      ) {
         setRefreshKey((r) => r + 1)
       }
     }
@@ -710,10 +803,11 @@ export default function MonthlyLocationReport() {
     return () => window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
   }, [])
 
-  const { map: scheduleMap, lastDay } = useMemo(
-    () => buildScheduleMap(year, month),
-    [year, month, refreshKey, syncRevision]
-  )
+  const { map: scheduleMap, lastDay } = useMemo(() => {
+    const built = buildScheduleMap(year, month)
+    addWorkReportContributions(built.map, year, month, built.coveredKeys)
+    return built
+  }, [year, month, refreshKey, syncRevision])
 
   const overrides = useMemo(() => getMonthlyOverrides(year, month), [year, month, refreshKey])
 
