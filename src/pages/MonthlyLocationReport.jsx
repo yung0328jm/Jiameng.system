@@ -146,32 +146,38 @@ function makeUnderHoursKey(name, dateStr, siteName) {
 }
 
 /**
- * 出工回報補位：行事曆未涵蓋的 (姓名+日期) 從出工回報帶入。
- * 規則：當日 ≥ 8 小時 → weight 1 工（包商按 headcount）；未滿 → weight 0，未滿時數存到 underHoursMap（橘色顯示）；
- * 加班時數由另一張 overtimeHoursMap 計算（需先 申報緊急追加服務費 並核准）。
+ * 出工回報處理：規則「出工回報優先」—— 任何 (姓名, 日期) 只要當月有出工回報，
+ * 直接覆蓋同 (姓名, 日期) 之行事曆排程資料（不刪原始卡片資料，只覆蓋報表顯示）。
+ * 規則：當日 ≥ 8 小時 → 1 工（包商按 headcount 倍數）；未滿 → 不計工，存入 underHoursMap 橘色顯示；
+ * 加班時數由 overtimeHoursMap 計算（需先 申報緊急追加服務費 並核准）。
  * 回傳：Map<`name\0dateStr\0siteName`, underHoursNumber>
  */
-function addWorkReportContributions(map, year, month, coveredKeys) {
+function addWorkReportContributions(map, year, month /* , coveredKeys (deprecated) */) {
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`
   const lastDay = new Date(year, month, 0).getDate()
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
   const underHoursMap = new Map()
 
-  const addSiteWeight = (name, dateStr, siteName, weight) => {
+  const ensurePersonBucket = (name) => {
     const n = String(name || '').trim()
+    if (!n) return null
+    if (!map.has(n)) map.set(n, new Map())
+    return n
+  }
+  const addSiteWeight = (name, dateStr, siteName, weight) => {
+    const n = ensurePersonBucket(name)
     if (!n || !dateStr) return
     const w = Number(weight)
     if (!w || w <= 0) return
     const s = String(siteName || '').trim() || '（未填案場）'
-    if (!map.has(n)) map.set(n, new Map())
     const byDate = map.get(n)
     if (!byDate.has(dateStr)) byDate.set(dateStr, new Map())
     const bySite = byDate.get(dateStr)
     bySite.set(s, (bySite.get(s) || 0) + w)
   }
   const addUnderHours = (name, dateStr, siteName, hours) => {
-    const n = String(name || '').trim()
+    const n = ensurePersonBucket(name)
     if (!n || !dateStr) return
     const h = Number(hours)
     if (!h || h <= 0) return
@@ -180,13 +186,31 @@ function addWorkReportContributions(map, year, month, coveredKeys) {
     underHoursMap.set(k, (underHoursMap.get(k) || 0) + h)
   }
 
-  ;(getWorkReportsForMonth(year, month) || []).forEach((r) => {
+  const rows = getWorkReportsForMonth(year, month) || []
+  /** 1) 先彙整：哪些 (person, dateStr) 在當月有出工回報 → 這些日期由出工回報接管 */
+  const ownedPairs = new Set()
+  rows.forEach((r) => {
     const dateStr = String(r?.date || '').slice(0, 10)
     if (!dateStr || dateStr < startDate || dateStr > endDate) return
     const person = getWorkReportStatsPersonKey(r?.personName)
     if (!person) return
-    const k = `${person}\0${dateStr}`
-    if (coveredKeys && coveredKeys.has(k)) return
+    ownedPairs.add(`${person}\0${dateStr}`)
+  })
+  /** 2) 清掉行事曆對應 (person, date) 的權重（覆蓋顯示，不刪實際資料） */
+  ownedPairs.forEach((pair) => {
+    const idx = pair.indexOf('\0')
+    if (idx < 0) return
+    const person = pair.slice(0, idx)
+    const dateStr = pair.slice(idx + 1)
+    const byDate = map.get(person)
+    if (byDate && byDate.has(dateStr)) byDate.delete(dateStr)
+  })
+  /** 3) 套出工回報資料 */
+  rows.forEach((r) => {
+    const dateStr = String(r?.date || '').slice(0, 10)
+    if (!dateStr || dateStr < startDate || dateStr > endDate) return
+    const person = getWorkReportStatsPersonKey(r?.personName)
+    if (!person) return
     const siteName = String(r?.siteName || '').trim() || '（未填案場）'
     const headcount = parseWorkReportHeadcount(r?.personName, r?.headcount) || 1
     const shift = getWorkReportRowShiftSummary(r)
@@ -836,7 +860,7 @@ export default function MonthlyLocationReport() {
 
   const { map: scheduleMap, lastDay, workReportUnderHoursMap } = useMemo(() => {
     const built = buildScheduleMap(year, month)
-    const underHoursMap = addWorkReportContributions(built.map, year, month, built.coveredKeys)
+    const underHoursMap = addWorkReportContributions(built.map, year, month)
     return { ...built, workReportUnderHoursMap: underHoursMap }
   }, [year, month, refreshKey, syncRevision])
 
