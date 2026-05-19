@@ -1158,15 +1158,10 @@ export default function MonthlyLocationReport() {
         </div>
 
         {isAdmin && (
-          <div className="mb-3 flex flex-col gap-2 rounded border border-amber-600/50 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200/90">
-            <p>
-              編輯：點格開啟整格編輯；<strong className="text-amber-100">點案場名稱</strong>
-              可單獨改該案場加權天數（半天 0.5、全天 1）。多案場整格編輯可用「、」分隔，或每行「案場名 0.5」存成加權覆寫。清除覆寫恢復行事曆自動。
-              <strong className="text-amber-100"> 點左欄日期</strong>可設定該日<strong>平日／假日</strong>（預設週六、週日為假日），影響「週一至週五且為假日」出工 +8 小時（週六、週日不加）。
-            </p>
+          <div className="mb-3">
             <button
               type="button"
-              className="self-start rounded bg-amber-600/30 px-2 py-1 text-amber-100 hover:bg-amber-600/50"
+              className="rounded bg-amber-600/30 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-600/50"
               onClick={() => {
                 const name = window.prompt('要新增的姓名（會出現在表上）')
                 if (!name || !String(name).trim()) return
@@ -1187,12 +1182,7 @@ export default function MonthlyLocationReport() {
 
         {siteStatsSorted.length > 0 && (
           <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800/50 p-3 sm:p-4">
-            <h2 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">各案場出工統計（加權天數）</h2>
-            <p className="text-[10px] text-gray-500 mb-2">
-              同一人在同一天，所有排程的案場合計 K 筆時每筆計 1÷K 天（含單卡多案場或多張卡上／下午）；標籤「行政」之排程不列入。僅統計案場／工作地點；假別不計入。
-              <span className="text-gray-400"> 點案場卡片可查看各人出工加權明細。</span>
-              已核准<strong className="text-gray-400">加班申請</strong>併入紅字「+小時」。左欄標<strong className="text-gray-400">假日</strong>且為<strong className="text-gray-400">週一至週五</strong>、當日有出工加權者另計<strong className="text-gray-400"> 8 小時</strong>（多案場平分），再與加班單加總；<strong className="text-gray-400">週六、週日不加 8</strong>。預設週六、週日為假日。
-            </p>
+            <h2 className="text-sm sm:text-base font-semibold text-yellow-400 mb-2">各案場出工統計</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => {
                 const otH = siteOvertimeTotals.get(site) || 0
@@ -1258,32 +1248,6 @@ export default function MonthlyLocationReport() {
         <h2 className="text-yellow-400 font-bold mb-2 text-base sm:text-lg">
           每月份工時匯總報表 {year} 年 {month} 月
         </h2>
-        {siteStatsSorted.length > 0 && (
-          <div className="mb-3 text-xs sm:text-sm text-gray-200 leading-snug">
-            <strong>各案場出工：</strong>
-            {siteStatsSorted.map(([s, c]) => {
-              const oh = siteOvertimeTotals.get(s) || 0
-              const uh = siteUnderHoursTotals.get(s) || 0
-              const workPart = Number(c) > 0 ? `${formatSiteStatNumber(c)}工` : ''
-              const underPart = uh > 0 ? ` 未滿${formatUnderHoursText(uh)}` : ''
-              const otPart = oh > 0 ? ` 加班${formatOvertimePlusHours(oh)}h` : ''
-              return `${s} ${workPart}${underPart}${otPart}`.trim()
-            }).join(' ｜ ')}
-            <span className="block sm:inline sm:ml-1 mt-1 sm:mt-0 text-amber-200/90">
-              ｜ <strong>案場出勤基本工程款（工數）</strong> {formatSiteStatNumber(grandTotalWeightedDays)} 工
-            </span>
-            {grandTotalUnderHours > 0 && (
-              <span className="block text-orange-300/90 mt-1">
-                <strong>案場臨時調度費用（時數）</strong> {formatUnderHoursText(grandTotalUnderHours)}
-              </span>
-            )}
-            {grandTotalOvertimeHours > 0 && (
-              <span className="block text-red-300/90 mt-1">
-                <strong>緊急追加服務費</strong> {formatSiteStatNumber(grandTotalOvertimeHours)} 小時
-              </span>
-            )}
-          </div>
-        )}
         <div className="overflow-x-auto w-full">
           {/* 日期在左欄、姓名在表頭（直向閱讀為一天一列） */}
           <table className="w-full table-fixed border-collapse text-sm sm:text-base min-w-[560px]">
