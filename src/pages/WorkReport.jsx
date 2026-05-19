@@ -589,50 +589,77 @@ function WorkReport() {
         personName: person,
         headcount: 0,
         overtimeHours: 0,
+        underHeadcount: 0,
+        underActualHours: 0,
         sites: new Set()
       }
       const shift = getWorkReportRowShiftSummary(row)
       if (shift) {
         prev.headcount += shift.headcount
         prev.overtimeHours += shift.totalOvertimeHours
+        prev.underHeadcount += shift.underHeadcount || 0
+        prev.underActualHours += shift.underActualHours || 0
       }
       const site = String(row?.siteName || '').trim()
       if (site) prev.sites.add(site)
       map.set(key, prev)
     })
     return [...map.values()]
-      .map((x) => ({
-        date: x.date,
-        personName: x.personName,
-        headcount: x.headcount,
-        overtimeHours: Math.round(x.overtimeHours * 10) / 10,
-        shiftSummary: {
-          totalHeadcount: x.headcount,
-          totalOvertimeHours: Math.round(x.overtimeHours * 10) / 10,
-          hasOvertime: x.overtimeHours > 0
-        },
-        sites: [...x.sites].join('、')
-      }))
+      .map((x) => {
+        const ot = Math.round(x.overtimeHours * 10) / 10
+        const ua = Math.round(x.underActualHours * 10) / 10
+        return {
+          date: x.date,
+          personName: x.personName,
+          headcount: x.headcount,
+          overtimeHours: ot,
+          underHeadcount: x.underHeadcount,
+          underActualHours: ua,
+          shiftSummary: {
+            totalHeadcount: x.headcount,
+            totalOvertimeHours: ot,
+            hasOvertime: ot > 0,
+            underHeadcount: x.underHeadcount,
+            underActualHours: ua,
+            hasUnderHours: x.underHeadcount > 0
+          },
+          sites: [...x.sites].join('、')
+        }
+      })
       .sort((a, b) => b.date.localeCompare(a.date) || a.personName.localeCompare(b.personName, 'zh-Hant'))
   }, [monthRecords])
 
   const personMonthTotals = useMemo(() => {
     const map = new Map()
     dailyPersonStats.forEach((row) => {
-      const prev = map.get(row.personName) || { headcount: 0, overtimeHours: 0 }
+      const prev = map.get(row.personName) || {
+        headcount: 0,
+        overtimeHours: 0,
+        underHeadcount: 0,
+        underActualHours: 0
+      }
       prev.headcount += row.headcount
       prev.overtimeHours += row.overtimeHours
+      prev.underHeadcount += row.underHeadcount || 0
+      prev.underActualHours += row.underActualHours || 0
       map.set(row.personName, prev)
     })
     return [...map.entries()]
-      .map(([personName, agg]) => ({
-        personName,
-        shiftSummary: {
-          totalHeadcount: agg.headcount,
-          totalOvertimeHours: Math.round(agg.overtimeHours * 10) / 10,
-          hasOvertime: agg.overtimeHours > 0
+      .map(([personName, agg]) => {
+        const ot = Math.round(agg.overtimeHours * 10) / 10
+        const ua = Math.round(agg.underActualHours * 10) / 10
+        return {
+          personName,
+          shiftSummary: {
+            totalHeadcount: agg.headcount,
+            totalOvertimeHours: ot,
+            hasOvertime: ot > 0,
+            underHeadcount: agg.underHeadcount,
+            underActualHours: ua,
+            hasUnderHours: agg.underHeadcount > 0
+          }
         }
-      }))
+      })
       .sort(
         (a, b) =>
           b.shiftSummary.totalHeadcount - a.shiftSummary.totalHeadcount ||
