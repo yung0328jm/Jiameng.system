@@ -13,7 +13,7 @@ import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
+import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
@@ -4730,26 +4730,98 @@ function Calendar() {
                         <th className="py-2 pr-2 font-medium">時間</th>
                         <th className="py-2 pr-2 font-medium text-right">工時</th>
                         <th className="py-2 font-medium">填寫人</th>
+                        <th className="py-2 font-medium text-right">緊急追加服務費</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {workReportDetailGroups.map((group) => (
-                        <tr key={group.id} className="border-b border-gray-700/60">
-                          <td className="py-2 pr-2 text-white">
-                            {group.personName}
-                            {group.kind === 'contractor' && group.batchCount > 1 && (
-                              <span className="block text-teal-300/80 text-xs mt-0.5">{group.batchCount} 批</span>
-                            )}
-                          </td>
-                          <td className="py-2 pr-2 text-cyan-200 tabular-nums text-xs">{group.timeLabel}</td>
-                          <td className="py-2 pr-2 text-right font-medium">
-                            <WorkReportShiftSummary summary={group.shiftSummary} />
-                          </td>
-                          <td className="py-2 text-gray-400 text-xs">
-                            {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
-                          </td>
-                        </tr>
-                      ))}
+                      {workReportDetailGroups.map((group) => {
+                        const hasOvertime = (group.shiftSummary?.totalOvertimeHours || 0) > 0
+                        const otHours = group.shiftSummary?.totalOvertimeHours || 0
+                        const allApps = group.rows.flatMap((r) => getOvertimeApplicationsByWorkReportRowId(r.id))
+                        const anyApp = allApps[0]
+                        return (
+                          <tr key={group.id} className="border-b border-gray-700/60 align-top">
+                            <td className="py-2 pr-2 text-white">
+                              {group.personName}
+                              {group.kind === 'contractor' && group.batchCount > 1 && (
+                                <span className="block text-teal-300/80 text-xs mt-0.5">{group.batchCount} 批</span>
+                              )}
+                            </td>
+                            <td className="py-2 pr-2 text-cyan-200 tabular-nums text-xs">{group.timeLabel}</td>
+                            <td className="py-2 pr-2 text-right font-medium">
+                              <WorkReportShiftSummary summary={group.shiftSummary} />
+                            </td>
+                            <td className="py-2 text-gray-400 text-xs">
+                              {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
+                            </td>
+                            <td className="py-2 text-right">
+                              {!hasOvertime ? (
+                                <span className="text-gray-500 text-xs">—</span>
+                              ) : anyApp ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span
+                                    className={`text-xs px-1.5 py-0.5 rounded border ${
+                                      anyApp.status === 'approved'
+                                        ? 'border-emerald-600/50 bg-emerald-950/40 text-emerald-300'
+                                        : anyApp.status === 'rejected'
+                                          ? 'border-red-600/50 bg-red-950/40 text-red-300'
+                                          : 'border-amber-600/50 bg-amber-950/40 text-amber-300'
+                                    }`}
+                                  >
+                                    {anyApp.status === 'approved' ? '已核准' : anyApp.status === 'rejected' ? '已駁回' : '待審核'}
+                                  </span>
+                                  {currentRole === 'admin' && anyApp.status === 'pending' && (
+                                    <div className="flex gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const r = updateOvertimeApplicationStatus(anyApp.id, 'approved', currentUser || '')
+                                          if (r?.success) setWorkReportsRevision((v) => v + 1)
+                                        }}
+                                        className="text-emerald-300 hover:text-emerald-200 text-xs underline"
+                                      >
+                                        核准
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const reason = window.prompt('駁回原因（可空白）') || ''
+                                          const r = updateOvertimeApplicationStatus(anyApp.id, 'rejected', currentUser || '', reason)
+                                          if (r?.success) setWorkReportsRevision((v) => v + 1)
+                                        }}
+                                        className="text-red-300 hover:text-red-200 text-xs underline"
+                                      >
+                                        駁回
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const row = group.rows[0]
+                                    const r = addOvertimeApplication({
+                                      workReportRowId: row?.id,
+                                      applicant: currentUser || '',
+                                      siteName: row?.siteName || group.siteName,
+                                      date: row?.date,
+                                      startTime: row?.arrivalTime,
+                                      endTime: row?.departureTime,
+                                      hours: otHours,
+                                      overtimePersonnel: [group.personName]
+                                    })
+                                    if (r?.success) setWorkReportsRevision((v) => v + 1)
+                                  }}
+                                  className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white"
+                                >
+                                  申報 {formatWorkReportHours(otHours)} 小時
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </>
