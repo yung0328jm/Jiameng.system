@@ -46,17 +46,20 @@ function timeToMinutes(hhmm) {
   return h * 60 + min
 }
 
-/** 中午休息 1 小時；抵達時間為下午（12:00 起）則不扣 */
-const LUNCH_BREAK_HOURS = 1
-const AFTERNOON_START_MINUTES = 12 * 60
+/** 中午休息：工時跨越 12:00–13:00 才扣除（重疊區段，單位分鐘） */
+const LUNCH_START_MIN = 12 * 60
+const LUNCH_END_MIN = 13 * 60
 /** 當日累積超過 8 小時視為加班 */
 export const HOURS_PER_DAY = 8
 /** @deprecated 請改用 HOURS_PER_DAY */
 export const HOURS_PER_WORK_UNIT = HOURS_PER_DAY
 
-function isAfternoonArrival(arrivalTime) {
-  const a = timeToMinutes(arrivalTime)
-  return a != null && a >= AFTERNOON_START_MINUTES
+/** 工作時段與 12:00–13:00 的重疊分鐘數 */
+function calcLunchOverlapMin(arrivalMin, departureMin) {
+  let dep = departureMin
+  if (dep < arrivalMin) dep += 24 * 60
+  const overlap = Math.min(dep, LUNCH_END_MIN) - Math.max(arrivalMin, LUNCH_START_MIN)
+  return Math.max(0, overlap)
 }
 
 const roundHours = (hours) => Math.round(Number(hours) * 10) / 10
@@ -73,7 +76,7 @@ export function calcWorkReportHoursBreakdown(arrivalTime, departureTime) {
   let spanMin = d - a
   if (spanMin < 0) spanMin += 24 * 60
 
-  const lunchMin = isAfternoonArrival(arrivalTime) ? 0 : LUNCH_BREAK_HOURS * 60
+  const lunchMin = calcLunchOverlapMin(a, d)
   let workMin = spanMin - lunchMin
   if (workMin < 0) workMin = 0
 
