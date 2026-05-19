@@ -41,23 +41,29 @@ function WorkReportShiftSummary({ summary, className = '' }) {
   const underN = summary.underHeadcount ?? 0
   const underHours = summary.underActualHours ?? 0
   const underPer = summary.underPerPersonHours ?? 0
+  // 單人且未滿 8 小時：直接顯示時數，不顯示「出工 1 人」
+  if (n === 1 && summary.hasUnderHours) {
+    return (
+      <div className={`text-right tabular-nums ${className}`}>
+        <div className="text-orange-300/90 font-semibold">{formatWorkReportHours(underPer)} 小時</div>
+      </div>
+    )
+  }
   return (
     <div className={`text-right tabular-nums ${className}`}>
-      {n > 1 && <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>}
+      <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>
       {summary.hasOvertime && (
-        <div className={`text-red-400/90 font-semibold ${n > 1 ? 'text-xs mt-0.5' : ''}`}>
+        <div className="text-red-400/90 text-xs mt-0.5 font-medium">
           加班 {formatWorkReportHours(ot)} 小時
         </div>
       )}
-      {summary.hasUnderHours && (
-        <div className={`text-orange-300/90 font-semibold ${n > 1 ? 'text-xs mt-0.5' : ''}`}>
-          {n > 1
-            ? `${underN} 人未滿 8 小時（共 ${formatWorkReportHours(underHours)} 小時）`
-            : `${formatWorkReportHours(underPer)} 小時`}
+      {summary.hasUnderHours && !summary.hasOvertime && n > 1 && (
+        <div className="text-orange-300/90 text-xs mt-0.5 font-medium">
+          {underN} 人未滿 8 小時（共 {formatWorkReportHours(underHours)} 小時）
         </div>
       )}
-      {n === 1 && !summary.hasOvertime && !summary.hasUnderHours && (
-        <div className="text-amber-200/90 font-semibold">8 小時</div>
+      {!summary.hasOvertime && !summary.hasUnderHours && (
+        <div className="text-gray-500 text-xs mt-0.5">滿 8 小時</div>
       )}
     </div>
   )
