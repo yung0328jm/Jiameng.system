@@ -41,24 +41,23 @@ function WorkReportShiftSummary({ summary, className = '' }) {
   const underN = summary.underHeadcount ?? 0
   const underHours = summary.underActualHours ?? 0
   const underPer = summary.underPerPersonHours ?? 0
-  const isSinglePerson = (summary.headcount != null && summary.totalHeadcount == null) || n === 1
   return (
     <div className={`text-right tabular-nums ${className}`}>
-      <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>
+      {n > 1 && <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>}
       {summary.hasOvertime && (
-        <div className="text-red-400/90 text-xs mt-0.5 font-medium">
+        <div className={`text-red-400/90 font-semibold ${n > 1 ? 'text-xs mt-0.5' : ''}`}>
           加班 {formatWorkReportHours(ot)} 小時
         </div>
       )}
       {summary.hasUnderHours && (
-        <div className="text-orange-300/90 text-xs mt-0.5 font-medium">
-          {isSinglePerson || underN === 1
-            ? `未滿 8 小時（${formatWorkReportHours(underPer || underHours)} 小時）`
-            : `未滿 8 小時 ${underN} 人（共 ${formatWorkReportHours(underHours)} 小時）`}
+        <div className={`text-orange-300/90 font-semibold ${n > 1 ? 'text-xs mt-0.5' : ''}`}>
+          {n > 1
+            ? `${underN} 人未滿 8 小時（共 ${formatWorkReportHours(underHours)} 小時）`
+            : `${formatWorkReportHours(underPer)} 小時`}
         </div>
       )}
-      {!summary.hasOvertime && !summary.hasUnderHours && (
-        <div className="text-gray-500 text-xs mt-0.5">滿 8 小時</div>
+      {n === 1 && !summary.hasOvertime && !summary.hasUnderHours && (
+        <div className="text-amber-200/90 font-semibold">8 小時</div>
       )}
     </div>
   )
