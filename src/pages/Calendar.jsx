@@ -47,15 +47,27 @@ function WorkReportShiftSummary({ summary, className = '' }) {
   }
   const n = summary.totalHeadcount ?? summary.headcount
   const ot = summary.totalOvertimeHours ?? 0
+  const underN = summary.underHeadcount ?? 0
+  const underHours = summary.underActualHours ?? 0
+  const underPer = summary.underPerPersonHours ?? 0
+  const isSinglePerson = (summary.headcount != null && summary.totalHeadcount == null) || n === 1
   return (
     <div className={`text-right tabular-nums ${className}`}>
       <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>
-      {summary.hasOvertime ? (
+      {summary.hasOvertime && (
         <div className="text-red-400/90 text-xs mt-0.5 font-medium">
           加班 {formatWorkReportHours(ot)} 小時
         </div>
-      ) : (
-        <div className="text-gray-500 text-xs mt-0.5">無加班</div>
+      )}
+      {summary.hasUnderHours && (
+        <div className="text-orange-300/90 text-xs mt-0.5 font-medium">
+          {isSinglePerson || underN === 1
+            ? `未滿 8 小時（${formatWorkReportHours(underPer || underHours)} 小時）`
+            : `未滿 8 小時 ${underN} 人（共 ${formatWorkReportHours(underHours)} 小時）`}
+        </div>
+      )}
+      {!summary.hasOvertime && !summary.hasUnderHours && (
+        <div className="text-gray-500 text-xs mt-0.5">滿 8 小時</div>
       )}
     </div>
   )
