@@ -892,7 +892,7 @@ function WorkReport() {
           <div>
             <h2 className="text-lg font-semibold text-yellow-400">當月回報統計</h2>
             <p className="text-gray-500 text-xs mt-1">
-              出工天 = 當日滿 8 小時計 1 天；未滿時數累計每滿 8 小時補 1 天，剩餘為「未滿」；加班 = 超過 8 小時的時數。
+              出工天 = 當日滿 8 小時計 1 天；未滿 8 小時的時數累計每滿 8 小時補 1 天，剩餘以「出工 X 小時」列出；加班 = 超過 8 小時的時數。
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -949,7 +949,7 @@ function WorkReport() {
                       )}
                       {underHours > 0 && (
                         <div className="text-orange-300/90">
-                          未滿 <span className="font-semibold">{formatWorkReportHours(underHours)}</span> 小時
+                          出工 <span className="font-semibold">{formatWorkReportHours(underHours)}</span> 小時
                         </div>
                       )}
                       {overtimeHours === 0 && underHours === 0 && fullDays === 0 && (
