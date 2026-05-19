@@ -483,7 +483,7 @@ function PaySlip() {
                         <div className="text-amber-200 font-semibold">{stats.fullDays} 天</div>
                       </div>
                       <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
-                        <div className="text-gray-400 text-xs">加班時數</div>
+                        <div className="text-gray-400 text-xs">緊急入場時數</div>
                         <div className="text-red-300 font-semibold">
                           {formatWorkReportHours(stats.overtimeHours)} 小時
                         </div>
@@ -591,7 +591,7 @@ function PaySlip() {
                                 [personName]: { ...prev[personName], overtimeMultiplier: v }
                               }))
                             }
-                            hint="緊急追加服務費 = 出勤基本工程款 / 8 × 倍率 × 加班小時"
+                            hint="緊急追加服務費 = 出勤基本工程款 / 8 × 倍率 × 緊急入場小時"
                           />
                           <NumberField
                             label="誤餐雜支費（滿日）"
@@ -759,7 +759,7 @@ function PaySlip() {
                                   )}
                                   {ot > 0 && (
                                     <span className="text-red-300 ml-1">
-                                      ＋加班 {formatWorkReportHours(ot)} 小時
+                                      ＋緊急入場時數 {formatWorkReportHours(ot)} 小時
                                     </span>
                                   )}
                                   {!isFull && under > 0 && (
