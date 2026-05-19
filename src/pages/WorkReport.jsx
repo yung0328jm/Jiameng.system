@@ -583,95 +583,38 @@ function WorkReport() {
     [recordsByDate]
   )
 
-  const dailyPersonStats = useMemo(() => {
-    const map = new Map()
-    monthRecords.forEach((row) => {
-      const dateKey = String(row?.date || '').slice(0, 10)
-      const person = getWorkReportStatsPersonKey(row?.personName)
-      if (!dateKey || !person) return
-      const key = `${dateKey}\0${person}`
-      const prev = map.get(key) || {
-        date: dateKey,
-        personName: person,
-        headcount: 0,
-        overtimeHours: 0,
-        underHeadcount: 0,
-        underActualHours: 0,
-        sites: new Set()
-      }
-      const shift = getWorkReportRowShiftSummary(row)
-      if (shift) {
-        prev.headcount += shift.headcount
-        prev.overtimeHours += shift.totalOvertimeHours
-        prev.underHeadcount += shift.underHeadcount || 0
-        prev.underActualHours += shift.underActualHours || 0
-      }
-      const site = String(row?.siteName || '').trim()
-      if (site) prev.sites.add(site)
-      map.set(key, prev)
-    })
-    return [...map.values()]
-      .map((x) => {
-        const ot = Math.round(x.overtimeHours * 10) / 10
-        const ua = Math.round(x.underActualHours * 10) / 10
-        return {
-          date: x.date,
-          personName: x.personName,
-          headcount: x.headcount,
-          overtimeHours: ot,
-          underHeadcount: x.underHeadcount,
-          underActualHours: ua,
-          shiftSummary: {
-            totalHeadcount: x.headcount,
-            totalOvertimeHours: ot,
-            hasOvertime: ot > 0,
-            underHeadcount: x.underHeadcount,
-            underActualHours: ua,
-            hasUnderHours: x.underHeadcount > 0
-          },
-          sites: [...x.sites].join('、')
-        }
-      })
-      .sort((a, b) => b.date.localeCompare(a.date) || a.personName.localeCompare(b.personName, 'zh-Hant'))
-  }, [monthRecords])
-
   const personMonthTotals = useMemo(() => {
     const map = new Map()
-    dailyPersonStats.forEach((row) => {
-      const prev = map.get(row.personName) || {
-        headcount: 0,
+    monthRecords.forEach((row) => {
+      const person = getWorkReportStatsPersonKey(row?.personName)
+      if (!person) return
+      const shift = getWorkReportRowShiftSummary(row)
+      if (!shift) return
+      const prev = map.get(person) || {
+        fullDays: 0,
         overtimeHours: 0,
-        underHeadcount: 0,
-        underActualHours: 0
+        underHours: 0
       }
-      prev.headcount += row.headcount
-      prev.overtimeHours += row.overtimeHours
-      prev.underHeadcount += row.underHeadcount || 0
-      prev.underActualHours += row.underActualHours || 0
-      map.set(row.personName, prev)
+      prev.fullDays += shift.fullDayHeadcount || 0
+      prev.overtimeHours += shift.totalOvertimeHours || 0
+      prev.underHours += shift.underActualHours || 0
+      map.set(person, prev)
     })
+    const round = (x) => Math.round(x * 10) / 10
     return [...map.entries()]
-      .map(([personName, agg]) => {
-        const ot = Math.round(agg.overtimeHours * 10) / 10
-        const ua = Math.round(agg.underActualHours * 10) / 10
-        return {
-          personName,
-          shiftSummary: {
-            totalHeadcount: agg.headcount,
-            totalOvertimeHours: ot,
-            hasOvertime: ot > 0,
-            underHeadcount: agg.underHeadcount,
-            underActualHours: ua,
-            hasUnderHours: agg.underHeadcount > 0
-          }
-        }
-      })
+      .map(([personName, agg]) => ({
+        personName,
+        fullDays: agg.fullDays,
+        overtimeHours: round(agg.overtimeHours),
+        underHours: round(agg.underHours)
+      }))
       .sort(
         (a, b) =>
-          b.shiftSummary.totalHeadcount - a.shiftSummary.totalHeadcount ||
+          b.fullDays - a.fullDays ||
+          b.overtimeHours - a.overtimeHours ||
           a.personName.localeCompare(b.personName, 'zh-Hant')
       )
-  }, [dailyPersonStats])
+  }, [monthRecords])
 
   return (
     <div className="max-w-5xl mx-auto text-white">
@@ -941,7 +884,7 @@ function WorkReport() {
           <div>
             <h2 className="text-lg font-semibold text-yellow-400">當月回報統計</h2>
             <p className="text-gray-500 text-xs mt-1">
-              上方為當月各人彙總；下方為每筆登記明細，可刪除。
+              出工天 = 當日工時滿 8 小時計 1 天；加班 = 超過 8 小時的時數；未滿 = 不滿 8 小時的實際時數。
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -975,14 +918,31 @@ function WorkReport() {
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">當月個人總工時</h3>
             <div className="flex flex-wrap gap-2 text-sm">
-              {personMonthTotals.map(({ personName, shiftSummary }) => (
-                <span
+              {personMonthTotals.map(({ personName, fullDays, overtimeHours, underHours }) => (
+                <div
                   key={personName}
-                  className="rounded border border-cyan-700/50 bg-gray-900/50 px-2 py-1 text-gray-200 inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
+                  className="rounded border border-cyan-700/50 bg-gray-900/50 px-3 py-2 text-gray-200 min-w-[8rem]"
                 >
-                  <span>{personName}</span>
-                  <WorkReportShiftSummary summary={shiftSummary} className="inline-block text-left" />
-                </span>
+                  <div className="text-white font-semibold mb-1">{personName}</div>
+                  <div className="space-y-0.5 tabular-nums">
+                    <div className="text-amber-200/90">
+                      出工 <span className="font-semibold">{fullDays}</span> 天
+                    </div>
+                    {overtimeHours > 0 && (
+                      <div className="text-red-400/90">
+                        加班 <span className="font-semibold">{formatWorkReportHours(overtimeHours)}</span> 小時
+                      </div>
+                    )}
+                    {underHours > 0 && (
+                      <div className="text-orange-300/90">
+                        未滿 <span className="font-semibold">{formatWorkReportHours(underHours)}</span> 小時
+                      </div>
+                    )}
+                    {overtimeHours === 0 && underHours === 0 && fullDays === 0 && (
+                      <div className="text-gray-500 text-xs">—</div>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
