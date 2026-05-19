@@ -602,12 +602,20 @@ function WorkReport() {
     })
     const round = (x) => Math.round(x * 10) / 10
     return [...map.entries()]
-      .map(([personName, agg]) => ({
-        personName,
-        fullDays: agg.fullDays,
-        overtimeHours: round(agg.overtimeHours),
-        underHours: round(agg.underHours)
-      }))
+      .map(([personName, agg]) => {
+        const baseDays = agg.fullDays
+        const totalUnder = agg.underHours
+        const carryDays = Math.floor((totalUnder + 1e-9) / 8)
+        const remainUnder = round(Math.max(0, totalUnder - carryDays * 8))
+        return {
+          personName,
+          fullDays: baseDays + carryDays,
+          baseDays,
+          carryDays,
+          overtimeHours: round(agg.overtimeHours),
+          underHours: remainUnder
+        }
+      })
       .sort(
         (a, b) =>
           b.fullDays - a.fullDays ||
@@ -884,7 +892,7 @@ function WorkReport() {
           <div>
             <h2 className="text-lg font-semibold text-yellow-400">當月回報統計</h2>
             <p className="text-gray-500 text-xs mt-1">
-              出工天 = 當日工時滿 8 小時計 1 天；加班 = 超過 8 小時的時數；未滿 = 不滿 8 小時的實際時數。
+              出工天 = 當日滿 8 小時計 1 天；未滿時數累計每滿 8 小時補 1 天，剩餘為「未滿」；加班 = 超過 8 小時的時數。
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -918,32 +926,39 @@ function WorkReport() {
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">當月個人總工時</h3>
             <div className="flex flex-wrap gap-2 text-sm">
-              {personMonthTotals.map(({ personName, fullDays, overtimeHours, underHours }) => (
-                <div
-                  key={personName}
-                  className="rounded border border-cyan-700/50 bg-gray-900/50 px-3 py-2 text-gray-200 min-w-[8rem]"
-                >
-                  <div className="text-white font-semibold mb-1">{personName}</div>
-                  <div className="space-y-0.5 tabular-nums">
-                    <div className="text-amber-200/90">
-                      出工 <span className="font-semibold">{fullDays}</span> 天
+              {personMonthTotals.map(
+                ({ personName, fullDays, baseDays, carryDays, overtimeHours, underHours }) => (
+                  <div
+                    key={personName}
+                    className="rounded border border-cyan-700/50 bg-gray-900/50 px-3 py-2 text-gray-200 min-w-[8rem]"
+                  >
+                    <div className="text-white font-semibold mb-1">{personName}</div>
+                    <div className="space-y-0.5 tabular-nums">
+                      <div className="text-amber-200/90">
+                        出工 <span className="font-semibold">{fullDays}</span> 天
+                        {carryDays > 0 && (
+                          <span className="text-cyan-300/80 text-xs ml-1">
+                            （含未滿補 {carryDays} 天）
+                          </span>
+                        )}
+                      </div>
+                      {overtimeHours > 0 && (
+                        <div className="text-red-400/90">
+                          加班 <span className="font-semibold">{formatWorkReportHours(overtimeHours)}</span> 小時
+                        </div>
+                      )}
+                      {underHours > 0 && (
+                        <div className="text-orange-300/90">
+                          未滿 <span className="font-semibold">{formatWorkReportHours(underHours)}</span> 小時
+                        </div>
+                      )}
+                      {overtimeHours === 0 && underHours === 0 && fullDays === 0 && (
+                        <div className="text-gray-500 text-xs">—</div>
+                      )}
                     </div>
-                    {overtimeHours > 0 && (
-                      <div className="text-red-400/90">
-                        加班 <span className="font-semibold">{formatWorkReportHours(overtimeHours)}</span> 小時
-                      </div>
-                    )}
-                    {underHours > 0 && (
-                      <div className="text-orange-300/90">
-                        未滿 <span className="font-semibold">{formatWorkReportHours(underHours)}</span> 小時
-                      </div>
-                    )}
-                    {overtimeHours === 0 && underHours === 0 && fullDays === 0 && (
-                      <div className="text-gray-500 text-xs">—</div>
-                    )}
                   </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
           </div>
         )}
