@@ -93,10 +93,17 @@ function buildPersonStatsMap(monthRecords) {
     prev.rows.push({ row, shift })
     map.set(person, prev)
   })
-  // 四捨五入到 0.1
+  // 四捨五入＋未滿時數累計補日（每滿 8 小時 → 出工 +1 天）
   map.forEach((v) => {
     v.overtimeHours = round1(v.overtimeHours)
-    v.underHours = round1(v.underHours)
+    const totalUnder = round1(v.underHours)
+    const carryDays = Math.floor((totalUnder + 1e-9) / 8)
+    const remain = round1(Math.max(0, totalUnder - carryDays * 8))
+    v.baseDays = v.fullDays
+    v.carryDays = carryDays
+    v.fullDays = v.fullDays + carryDays
+    v.underHours = remain
+    v.rawUnderHours = totalUnder
   })
   return map
 }
