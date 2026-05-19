@@ -51,9 +51,10 @@ function WorkReportShiftSummary({ summary, className = '' }) {
   const underHours = summary.underActualHours ?? 0
   const underPer = summary.underPerPersonHours ?? 0
   if (n === 1 && summary.hasUnderHours) {
+    const hrs = underPer || underHours
     return (
       <div className={`text-right tabular-nums ${className}`}>
-        <div className="text-orange-300/90 font-semibold">{formatWorkReportHours(underPer)} 小時</div>
+        <div className="text-orange-300/90 font-semibold">{formatWorkReportHours(hrs)} 小時</div>
       </div>
     )
   }

@@ -43,9 +43,10 @@ function WorkReportShiftSummary({ summary, className = '' }) {
   const underPer = summary.underPerPersonHours ?? 0
   // 單人且未滿 8 小時：直接顯示時數，不顯示「出工 1 人」
   if (n === 1 && summary.hasUnderHours) {
+    const hrs = underPer || underHours
     return (
       <div className={`text-right tabular-nums ${className}`}>
-        <div className="text-orange-300/90 font-semibold">{formatWorkReportHours(underPer)} 小時</div>
+        <div className="text-orange-300/90 font-semibold">{formatWorkReportHours(hrs)} 小時</div>
       </div>
     )
   }
