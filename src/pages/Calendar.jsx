@@ -63,7 +63,7 @@ function WorkReportShiftSummary({ summary, className = '' }) {
       <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>
       {summary.hasOvertime && (
         <div className="text-red-400/90 text-xs mt-0.5 font-medium">
-          加班 {formatWorkReportHours(ot)} 小時
+          緊急入場時數 {formatWorkReportHours(ot)} 小時
         </div>
       )}
       {summary.hasUnderHours && !summary.hasOvertime && n > 1 && (
@@ -4717,7 +4717,7 @@ function Calendar() {
                     合計出工 <strong className="text-amber-200">{workReportDetailHeadcount}</strong> 人
                     {workReportDetailTotalOvertime > 0 && (
                       <>
-                        {' · 加班 '}
+                        {' · 緊急入場時數 '}
                         <strong className="text-red-400">{formatWorkReportHours(workReportDetailTotalOvertime)}</strong>
                         {' 小時'}
                       </>

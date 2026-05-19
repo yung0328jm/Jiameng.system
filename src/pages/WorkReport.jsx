@@ -55,7 +55,7 @@ function WorkReportShiftSummary({ summary, className = '' }) {
       <div className="text-amber-200/90 font-semibold">出工 {n} 人</div>
       {summary.hasOvertime && (
         <div className="text-red-400/90 text-xs mt-0.5 font-medium">
-          加班 {formatWorkReportHours(ot)} 小時
+          緊急入場時數 {formatWorkReportHours(ot)} 小時
         </div>
       )}
       {summary.hasUnderHours && !summary.hasOvertime && n > 1 && (
@@ -629,7 +629,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          選日期與案場後，包商或勞務承攬者填一筆按「登記」即寫入當日。顯示出工人數與加班時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
+          選日期與案場後，包商或勞務承攬者填一筆按「登記」即寫入當日。顯示出工人數與緊急入場時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -892,7 +892,7 @@ function WorkReport() {
           <div>
             <h2 className="text-lg font-semibold text-yellow-400">當月回報統計</h2>
             <p className="text-gray-500 text-xs mt-1">
-              出工天 = 當日滿 8 小時計 1 天；未滿 8 小時的時數累計每滿 8 小時補 1 天，剩餘以「出工 X 小時」列出；加班 = 超過 8 小時的時數。
+              出工天 = 當日滿 8 小時計 1 天；未滿 8 小時的時數累計每滿 8 小時補 1 天，剩餘以「出工 X 小時」列出；緊急入場時數 = 超過 8 小時的時數。
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -944,7 +944,7 @@ function WorkReport() {
                       </div>
                       {overtimeHours > 0 && (
                         <div className="text-red-400/90">
-                          加班 <span className="font-semibold">{formatWorkReportHours(overtimeHours)}</span> 小時
+                          緊急入場時數 <span className="font-semibold">{formatWorkReportHours(overtimeHours)}</span> 小時
                         </div>
                       )}
                       {underHours > 0 && (
@@ -1011,22 +1011,16 @@ function WorkReport() {
                                 </td>
                                 <td className="py-2.5">
                                   <div className="flex flex-col gap-1 items-end">
-                                    {group.rows.map((row) => {
-                                      const canDelete =
-                                        userRole === 'admin' ||
-                                        String(row.submittedBy || '') === String(currentUser || '')
-                                      if (!canDelete) return null
-                                      return (
-                                        <button
-                                          key={row.id}
-                                          type="button"
-                                          onClick={() => handleDelete(row)}
-                                          className="text-red-400 hover:text-red-300 text-xs whitespace-nowrap"
-                                        >
-                                          {group.rows.length > 1 ? '刪此批' : '刪除'}
-                                        </button>
-                                      )
-                                    })}
+                                    {userRole === 'admin' && group.rows.map((row) => (
+                                      <button
+                                        key={row.id}
+                                        type="button"
+                                        onClick={() => handleDelete(row)}
+                                        className="text-red-400 hover:text-red-300 text-xs whitespace-nowrap"
+                                      >
+                                        {group.rows.length > 1 ? '刪此批' : '刪除'}
+                                      </button>
+                                    ))}
                                   </div>
                                 </td>
                               </tr>
