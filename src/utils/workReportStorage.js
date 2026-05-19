@@ -153,12 +153,19 @@ export function getWorkReportRowShiftSummary(row) {
   if (!bd) return null
   const headcount = parseWorkReportHeadcount(row?.personName, row?.headcount)
   const totalOvertimeHours = roundHours(bd.overtimeHours * headcount)
+  const isUnderFull = bd.totalHours < HOURS_PER_DAY
+  const underHeadcount = isUnderFull ? headcount : 0
+  const underActualHours = isUnderFull ? roundHours(bd.totalHours * headcount) : 0
   return {
     headcount,
     perPersonHours: bd.totalHours,
     perPersonOvertimeHours: bd.overtimeHours,
     totalOvertimeHours,
-    hasOvertime: totalOvertimeHours > 0
+    hasOvertime: totalOvertimeHours > 0,
+    underHeadcount,
+    underActualHours,
+    underPerPersonHours: isUnderFull ? bd.totalHours : 0,
+    hasUnderHours: isUnderFull
   }
 }
 
@@ -167,17 +174,25 @@ export function aggregateWorkReportShiftSummary(rows) {
   const list = Array.isArray(rows) ? rows : []
   let totalHeadcount = 0
   let totalOvertimeHours = 0
+  let underHeadcount = 0
+  let underActualHours = 0
   list.forEach((row) => {
     const s = getWorkReportRowShiftSummary(row)
     if (!s) return
     totalHeadcount += s.headcount
     totalOvertimeHours += s.totalOvertimeHours
+    underHeadcount += s.underHeadcount
+    underActualHours += s.underActualHours
   })
   totalOvertimeHours = roundHours(totalOvertimeHours)
+  underActualHours = roundHours(underActualHours)
   return {
     totalHeadcount,
     totalOvertimeHours,
-    hasOvertime: totalOvertimeHours > 0
+    hasOvertime: totalOvertimeHours > 0,
+    underHeadcount,
+    underActualHours,
+    hasUnderHours: underHeadcount > 0
   }
 }
 
