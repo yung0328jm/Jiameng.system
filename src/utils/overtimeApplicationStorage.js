@@ -31,14 +31,24 @@ export const getOvertimeApplicationsByScheduleId = (scheduleId) => {
   return list.filter((r) => String(r?.scheduleId || '').trim() === id)
 }
 
+/** 依出工回報 row ID 取得申報紀錄（新流程：緊急追加服務費 申報） */
+export const getOvertimeApplicationsByWorkReportRowId = (rowId) => {
+  const list = getOvertimeApplications()
+  const id = String(rowId || '').trim()
+  if (!id) return []
+  return list.filter((r) => String(r?.workReportRowId || '').trim() === id)
+}
+
 /** 新增一筆加班申請（狀態：待審核 pending） */
-export const addOvertimeApplication = ({ scheduleId, applicant, date, startTime, endTime, hours, overtimePersonnel }) => {
+export const addOvertimeApplication = ({ scheduleId, workReportRowId, applicant, date, startTime, endTime, hours, overtimePersonnel, siteName }) => {
   try {
     const list = getOvertimeApplications()
     const id = `overtime-${Date.now()}`
     const rec = {
       id,
       scheduleId: String(scheduleId || '').trim(),
+      workReportRowId: String(workReportRowId || '').trim(),
+      siteName: String(siteName || '').trim(),
       applicant: String(applicant || '').trim(),
       date: String(date || '').trim(),
       startTime: String(startTime || '').trim(),
