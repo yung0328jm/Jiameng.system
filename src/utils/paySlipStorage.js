@@ -1,13 +1,20 @@
-// 勞務報酬單：每人薪資參數（日薪、加班時薪、未滿時薪）
+// 勞務報酬單儲存：每人薪資參數與每月獎金
 import { syncKeyToSupabase } from './supabaseSync'
 
 const PAY_RATES_STORAGE_KEY = 'jiameng_pay_rates'
+const PAY_BONUS_STORAGE_KEY = 'jiameng_pay_bonuses'
 
-/** @typedef {{ dailyRate: number, overtimeHourRate: number, underHourRate: number, updatedAt?: string }} PayRate */
+export const DEFAULT_PAY_RATE = {
+  dailyRate: 0,
+  overtimeMultiplier: 1.35,
+  mealAllowancePerDay: 130,
+  insuranceSubsidyPerDay: 60
+}
 
 const round2 = (x) => Math.round(Number(x) * 100) / 100
 
-/** 取得所有人員薪資設定 { [personName]: PayRate } */
+/* ===== 薪資參數 ===== */
+
 export function getAllPayRates() {
   try {
     const raw = localStorage.getItem(PAY_RATES_STORAGE_KEY)
@@ -19,28 +26,35 @@ export function getAllPayRates() {
   }
 }
 
-/** 取得單一人員薪資；找不到回傳預設值 */
 export function getPayRate(personName) {
   const all = getAllPayRates()
-  const r = all?.[String(personName || '').trim()]
-  if (!r) return { dailyRate: 0, overtimeHourRate: 0, underHourRate: 0 }
+  const name = String(personName || '').trim()
+  const r = all?.[name]
+  if (!r) return { ...DEFAULT_PAY_RATE }
   return {
-    dailyRate: Number(r.dailyRate) || 0,
-    overtimeHourRate: Number(r.overtimeHourRate) || 0,
-    underHourRate: Number(r.underHourRate) || 0,
+    dailyRate: Number.isFinite(Number(r.dailyRate)) ? Number(r.dailyRate) : DEFAULT_PAY_RATE.dailyRate,
+    overtimeMultiplier: Number.isFinite(Number(r.overtimeMultiplier))
+      ? Number(r.overtimeMultiplier)
+      : DEFAULT_PAY_RATE.overtimeMultiplier,
+    mealAllowancePerDay: Number.isFinite(Number(r.mealAllowancePerDay))
+      ? Number(r.mealAllowancePerDay)
+      : DEFAULT_PAY_RATE.mealAllowancePerDay,
+    insuranceSubsidyPerDay: Number.isFinite(Number(r.insuranceSubsidyPerDay))
+      ? Number(r.insuranceSubsidyPerDay)
+      : DEFAULT_PAY_RATE.insuranceSubsidyPerDay,
     updatedAt: r.updatedAt || ''
   }
 }
 
-/** 儲存單一人員薪資 */
 export function setPayRate(personName, rate) {
   const name = String(personName || '').trim()
   if (!name) return { success: false, message: '人員名稱不可空白' }
   const all = getAllPayRates()
   all[name] = {
     dailyRate: round2(rate?.dailyRate),
-    overtimeHourRate: round2(rate?.overtimeHourRate),
-    underHourRate: round2(rate?.underHourRate),
+    overtimeMultiplier: round2(rate?.overtimeMultiplier),
+    mealAllowancePerDay: round2(rate?.mealAllowancePerDay),
+    insuranceSubsidyPerDay: round2(rate?.insuranceSubsidyPerDay),
     updatedAt: new Date().toISOString()
   }
   try {
@@ -54,39 +68,86 @@ export function setPayRate(personName, rate) {
   }
 }
 
-/** 由日薪自動推算加班時薪（1.5 倍）與未滿時薪 */
-export function suggestRatesFromDaily(dailyRate) {
-  const d = Number(dailyRate) || 0
-  if (d <= 0) return { dailyRate: 0, overtimeHourRate: 0, underHourRate: 0 }
-  const hourly = d / 8
-  return {
-    dailyRate: round2(d),
-    overtimeHourRate: round2(hourly * 1.5),
-    underHourRate: round2(hourly)
+/* ===== 每月獎金 ===== */
+
+export function getAllBonuses() {
+  try {
+    const raw = localStorage.getItem(PAY_BONUS_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (e) {
+    console.error('Error reading bonuses:', e)
+    return {}
   }
 }
 
+export function getBonus(personName, yearMonth) {
+  const name = String(personName || '').trim()
+  const ym = String(yearMonth || '').trim()
+  if (!name || !ym) return 0
+  const all = getAllBonuses()
+  const v = Number(all?.[ym]?.[name])
+  return Number.isFinite(v) ? v : 0
+}
+
+export function setBonus(personName, yearMonth, amount) {
+  const name = String(personName || '').trim()
+  const ym = String(yearMonth || '').trim()
+  if (!name || !ym) return { success: false, message: '參數不正確' }
+  const all = getAllBonuses()
+  if (!all[ym] || typeof all[ym] !== 'object') all[ym] = {}
+  const n = Number(amount) || 0
+  if (n === 0) {
+    delete all[ym][name]
+    if (Object.keys(all[ym]).length === 0) delete all[ym]
+  } else {
+    all[ym][name] = round2(n)
+  }
+  try {
+    const val = JSON.stringify(all)
+    localStorage.setItem(PAY_BONUS_STORAGE_KEY, val)
+    syncKeyToSupabase(PAY_BONUS_STORAGE_KEY, val)
+    return { success: true }
+  } catch (e) {
+    console.error('Error saving bonus:', e)
+    return { success: false, message: '儲存失敗' }
+  }
+}
+
+/* ===== 計算 ===== */
+
 /**
- * 依出工統計與薪資設定計算薪資
  * @param {{ fullDays: number, overtimeHours: number, underHours: number }} stats
- * @param {{ dailyRate: number, overtimeHourRate: number, underHourRate: number }} rate
+ * @param {{ dailyRate: number, overtimeMultiplier: number, mealAllowancePerDay: number, insuranceSubsidyPerDay: number }} rate
+ * @param {number} [bonus=0]
  */
-export function calcPayAmount(stats, rate) {
+export function calcPayAmount(stats, rate, bonus = 0) {
   const days = Number(stats?.fullDays) || 0
   const ot = Number(stats?.overtimeHours) || 0
   const uh = Number(stats?.underHours) || 0
-  const dr = Number(rate?.dailyRate) || 0
-  const or = Number(rate?.overtimeHourRate) || 0
-  const ur = Number(rate?.underHourRate) || 0
-  const dayAmount = round2(days * dr)
-  const overtimeAmount = round2(ot * or)
-  const underAmount = round2(uh * ur)
+
+  const dailyRate = Number(rate?.dailyRate) || 0
+  const otMul = Number(rate?.overtimeMultiplier) || 0
+  const mealPerDay = Number(rate?.mealAllowancePerDay) || 0
+  const insurancePerDay = Number(rate?.insuranceSubsidyPerDay) || 0
+  const hourly = dailyRate / 8
+
+  const dayAmount = round2(days * dailyRate)
+  const underAmount = round2(uh * hourly)
+  const overtimeAmount = round2(ot * hourly * otMul)
+  const mealAmount = round2(days * mealPerDay + uh * (mealPerDay / 8))
+  const insuranceAmount = round2(days * insurancePerDay + uh * (insurancePerDay / 8))
+  const bonusAmount = round2(Number(bonus) || 0)
+
   return {
     dayAmount,
-    overtimeAmount,
     underAmount,
-    total: round2(dayAmount + overtimeAmount + underAmount)
+    overtimeAmount,
+    mealAmount,
+    insuranceAmount,
+    bonusAmount,
+    total: round2(
+      dayAmount + underAmount + overtimeAmount + mealAmount + insuranceAmount + bonusAmount
+    )
   }
 }
-
-export const PAY_RATES_STORAGE_KEYS = [PAY_RATES_STORAGE_KEY]
