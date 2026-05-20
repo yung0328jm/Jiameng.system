@@ -23,6 +23,7 @@ import {
   formatWorkReportTimeLabel,
   isWorkReportTimeFilled,
   formatContractorPersonName,
+  parseWorkReportBaseName,
   getWorkReportRowTotalHours,
   parseWorkReportHeadcount,
   getWorkReportStatsPersonKey,
@@ -35,6 +36,8 @@ import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import { getSupabaseClient } from '../utils/supabaseClient'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { addOvertimeApplication } from '../utils/overtimeApplicationStorage'
+import { getUnreportedOvertimeItems, formatUnreportedOvertimeLabel } from '../utils/unreportedOvertime'
 
 function WorkReportShiftSummary({ summary, className = '' }) {
   if (!summary || (summary.totalHeadcount == null && summary.headcount == null)) {
@@ -275,8 +278,9 @@ function getContractorNameOptions() {
   return names.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
 
-function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes }) {
+function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, unreportedRowIds, onReportOvertime }) {
   const isAdmin = userRole === 'admin'
+  const showOvertimeCol = !!onReportOvertime && rows.some((r) => unreportedRowIds?.has(r.id))
   const [editingId, setEditingId] = useState(null)
   const [editArrival, setEditArrival] = useState('')
   const [editDeparture, setEditDeparture] = useState('')
@@ -313,12 +317,15 @@ function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes }) 
               <th className="py-2 px-2 font-medium">{labelName}</th>
               <th className="py-2 px-2 font-medium">時間</th>
               <th className="py-2 px-2 font-medium text-right">工時</th>
+              {showOvertimeCol && <th className="py-2 px-2 font-medium text-right w-24">緊急入場</th>}
               {isAdmin && <th className="py-2 px-2 font-medium w-28">操作</th>}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
               const isEditing = editingId === row.id
+              const needsOvertimeReport = unreportedRowIds?.has(row.id)
+              const otSummary = getWorkReportRowShiftSummary(row)
               return (
                 <tr key={row.id} className="border-b border-gray-700/40 align-top">
                   <td className="py-2 px-2 text-gray-400 text-xs">{row.siteName}</td>
@@ -334,11 +341,23 @@ function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes }) 
                     )}
                   </td>
                   <td className="py-2 px-2 text-right">
-                    <WorkReportShiftSummary
-                      summary={getWorkReportRowShiftSummary(row)}
-                      className="text-xs"
-                    />
+                    <WorkReportShiftSummary summary={otSummary} className="text-xs" />
                   </td>
+                  {showOvertimeCol && (
+                    <td className="py-2 px-2 text-right">
+                      {needsOvertimeReport ? (
+                        <button
+                          type="button"
+                          onClick={() => onReportOvertime(row)}
+                          className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white font-medium whitespace-nowrap"
+                        >
+                          申報 {formatWorkReportHours(otSummary?.totalOvertimeHours ?? 0)}h
+                        </button>
+                      ) : (
+                        <span className="text-gray-600 text-xs">—</span>
+                      )}
+                    </td>
+                  )}
                   {isAdmin && (
                     <td className="py-2 px-2">
                       <div className="flex flex-col gap-1 items-end">
@@ -453,7 +472,13 @@ function WorkReport() {
   }, [filterYear, filterMonth])
 
   useRealtimeKeys(
-    ['jiameng_work_reports', 'jiameng_dropdown_options', 'jiameng_projects', 'jiameng_users'],
+    [
+      'jiameng_work_reports',
+      'jiameng_overtime_applications',
+      'jiameng_dropdown_options',
+      'jiameng_projects',
+      'jiameng_users'
+    ],
     refetch
   )
 
@@ -734,6 +759,44 @@ function WorkReport() {
     !!contractorName.trim() &&
     isWorkReportTimeFilled(contractorDeparture)
 
+  const unreportedOvertimeItems = useMemo(() => {
+    if (!currentUser) return []
+    return getUnreportedOvertimeItems(currentUser)
+  }, [currentUser, monthRecords])
+
+  const unreportedRowIds = useMemo(
+    () => new Set(unreportedOvertimeItems.map((i) => i.rowId)),
+    [unreportedOvertimeItems]
+  )
+
+  const handleReportOvertime = (row) => {
+    const summary = getWorkReportRowShiftSummary(row)
+    const otHours = summary?.totalOvertimeHours ?? 0
+    if (otHours <= 0) {
+      setMessage({ type: 'error', text: '此筆無須申報緊急入場時數' })
+      return
+    }
+    const result = addOvertimeApplication({
+      workReportRowId: row?.id,
+      applicant: currentUser || '',
+      siteName: row?.siteName || '',
+      date: row?.date,
+      startTime: row?.arrivalTime,
+      endTime: row?.departureTime,
+      hours: otHours,
+      overtimePersonnel: [parseWorkReportBaseName(row?.personName) || row?.personName].filter(Boolean)
+    })
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '申報失敗' })
+      return
+    }
+    refreshMonthForDate(row?.date || date)
+    setMessage({
+      type: 'success',
+      text: `已送出緊急入場申報（${formatWorkReportHours(otHours)} 小時），待管理員審核`
+    })
+  }
+
   const addSiteToList = () => {
     const v = newSiteName.trim()
     if (!v) return
@@ -836,6 +899,33 @@ function WorkReport() {
           選日期與案場後，包商或勞務承攬者填一筆按「登記」即寫入當日。顯示出工人數與緊急入場時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
         </p>
       </div>
+
+      {unreportedOvertimeItems.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-600/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-100">
+          <p className="font-medium text-amber-200">
+            您有 {unreportedOvertimeItems.length} 筆緊急入場待申報（近 14 日）
+          </p>
+          <p className="text-amber-200/70 text-xs mt-1">
+            請在下方當日登記表按「申報」送出；管理員審核通過後計入緊急追加服務費。導覽「入廠申請」上的數字為同一批待辦。
+          </p>
+          <ul className="mt-2 space-y-1 text-xs list-disc list-inside text-amber-100/90">
+            {unreportedOvertimeItems.slice(0, 8).map((item) => (
+              <li key={item.rowId}>
+                <button
+                  type="button"
+                  onClick={() => setDate(item.date)}
+                  className="text-left hover:text-amber-50 underline-offset-2 hover:underline"
+                >
+                  {formatUnreportedOvertimeLabel(item)}
+                </button>
+              </li>
+            ))}
+            {unreportedOvertimeItems.length > 8 && (
+              <li className="list-none text-amber-200/60">…另有 {unreportedOvertimeItems.length - 8} 筆</li>
+            )}
+          </ul>
+        </div>
+      )}
 
       {message && (
         <div
@@ -942,6 +1032,8 @@ function WorkReport() {
                     userRole={userRole}
                     onDelete={handleDelete}
                     onSaveTimes={handleSaveTimes}
+                    unreportedRowIds={unreportedRowIds}
+                    onReportOvertime={handleReportOvertime}
                   />
                 </div>
               )}
@@ -1054,6 +1146,8 @@ function WorkReport() {
                     userRole={userRole}
                     onDelete={handleDelete}
                     onSaveTimes={handleSaveTimes}
+                    unreportedRowIds={unreportedRowIds}
+                    onReportOvertime={handleReportOvertime}
                   />
                 </div>
               )}
