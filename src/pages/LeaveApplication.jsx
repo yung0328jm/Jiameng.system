@@ -16,7 +16,7 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { saveSchedule, deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
 import { touchLastSeen } from '../utils/lastSeenStorage'
 
-const DEFAULT_LEAVE_REASON = '當日未進廠'
+const DEFAULT_LEAVE_REASON = '當日不須申請入廠證及參加工具箱會議'
 
 function LeaveApplication() {
   const location = useLocation()
@@ -285,7 +285,7 @@ function LeaveApplication() {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">事由</label>
+                  <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">備註</label>
                   <input
                     type="text"
                     value={reason}
@@ -350,7 +350,7 @@ function LeaveApplication() {
         {userRole === 'admin' && (
           <div className="mt-6 sm:mt-8">
             <h2 className="text-lg sm:text-xl font-bold text-yellow-400 mb-2 sm:mb-3">所有異動紀錄</h2>
-            <p className="text-gray-400 text-xs sm:text-sm mb-3">可查看每位用戶的異動紀錄，並編輯日期、事由、狀態或刪除。</p>
+            <p className="text-gray-400 text-xs sm:text-sm mb-3">可查看每位用戶的異動紀錄，並編輯日期、備註、狀態或刪除。</p>
             <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden -mr-1 pr-1">
               {[...applications]
                 .sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''))
@@ -426,13 +426,12 @@ function LeaveApplication() {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">事由</label>
+                  <label className="block text-gray-400 text-sm mb-1">備註</label>
                   <input
                     type="text"
                     value={editForm.reason}
                     onChange={(e) => setEditForm((f) => ({ ...f, reason: e.target.value }))}
-                    placeholder="例：事假、病假"
-                    className="w-full bg-gray-700 border border-gray-500 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400"
+                    className="w-full bg-gray-700 border border-gray-500 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                   />
                 </div>
                 <div>
