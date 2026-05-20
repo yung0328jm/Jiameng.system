@@ -69,6 +69,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState(initialTab || getTabFromPath(location.pathname))
+
+  // 路由變更時同步分頁（行事曆內 navigate 不會經 handleTabClick，否則畫面不會切換）
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname))
+  }, [location.pathname])
+
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [currentUser, setCurrentUser] = useState('')
   const [walletBalance, setWalletBalance] = useState(0)
