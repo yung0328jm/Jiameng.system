@@ -17,8 +17,11 @@ import {
   getWorkReportsForMonth,
   groupWorkReportsByDate,
   calcWorkReportHours,
-  addWorkReports,
   deleteWorkReport,
+  updateWorkReport,
+  registerWorkReportTime,
+  formatWorkReportTimeLabel,
+  isWorkReportTimeFilled,
   formatContractorPersonName,
   getWorkReportRowTotalHours,
   parseWorkReportHeadcount,
@@ -272,31 +275,63 @@ function getContractorNameOptions() {
   return names.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
 
-function DayRegisterTable({ rows, labelName, currentUser, userRole, onDelete }) {
+function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes }) {
+  const isAdmin = userRole === 'admin'
+  const [editingId, setEditingId] = useState(null)
+  const [editArrival, setEditArrival] = useState('')
+  const [editDeparture, setEditDeparture] = useState('')
+
+  const startEdit = (row) => {
+    setEditingId(row.id)
+    setEditArrival(row.arrivalTime || '')
+    setEditDeparture(row.departureTime || '')
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditArrival('')
+    setEditDeparture('')
+  }
+
+  const saveEdit = (row) => {
+    if (!isWorkReportTimeFilled(editArrival) && !isWorkReportTimeFilled(editDeparture)) return
+    onSaveTimes(row.id, {
+      arrivalTime: editArrival,
+      departureTime: editDeparture
+    })
+    cancelEdit()
+  }
+
   if (!rows?.length) return null
   return (
     <div className="rounded-lg border border-gray-600/80 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse min-w-[480px]">
+        <table className="w-full text-sm border-collapse min-w-[520px]">
           <thead>
             <tr className="border-b border-gray-700/60 text-left text-gray-500 text-xs">
               <th className="py-2 px-2 font-medium">案場</th>
               <th className="py-2 px-2 font-medium">{labelName}</th>
               <th className="py-2 px-2 font-medium">時間</th>
               <th className="py-2 px-2 font-medium text-right">工時</th>
-              <th className="py-2 px-2 w-14" />
+              {isAdmin && <th className="py-2 px-2 font-medium w-28">操作</th>}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
-              const canDelete =
-                userRole === 'admin' || String(row.submittedBy || '') === String(currentUser || '')
+              const isEditing = editingId === row.id
               return (
-                <tr key={row.id} className="border-b border-gray-700/40">
+                <tr key={row.id} className="border-b border-gray-700/40 align-top">
                   <td className="py-2 px-2 text-gray-400 text-xs">{row.siteName}</td>
                   <td className="py-2 px-2 text-teal-100">{row.personName}</td>
-                  <td className="py-2 px-2 text-cyan-200 tabular-nums text-xs">
-                    {row.arrivalTime}–{row.departureTime}
+                  <td className="py-2 px-2 text-cyan-200 tabular-nums text-xs min-w-[10rem]">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <TimeInput24 label="進廠" value={editArrival} onChange={setEditArrival} compact />
+                        <TimeInput24 label="離廠" value={editDeparture} onChange={setEditDeparture} compact />
+                      </div>
+                    ) : (
+                      formatWorkReportTimeLabel(row.arrivalTime, row.departureTime)
+                    )}
                   </td>
                   <td className="py-2 px-2 text-right">
                     <WorkReportShiftSummary
@@ -304,17 +339,51 @@ function DayRegisterTable({ rows, labelName, currentUser, userRole, onDelete }) 
                       className="text-xs"
                     />
                   </td>
-                  <td className="py-2 px-2">
-                    {canDelete && (
-                      <button
-                        type="button"
-                        onClick={() => onDelete(row)}
-                        className="text-red-400 hover:text-red-300 text-xs"
-                      >
-                        刪
-                      </button>
-                    )}
-                  </td>
+                  {isAdmin && (
+                    <td className="py-2 px-2">
+                      <div className="flex flex-col gap-1 items-end">
+                        {isEditing ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => saveEdit(row)}
+                              disabled={
+                                !isWorkReportTimeFilled(editArrival) &&
+                                !isWorkReportTimeFilled(editDeparture)
+                              }
+                              className="text-yellow-400 hover:text-yellow-300 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              儲存
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              className="text-gray-400 hover:text-gray-200 text-xs"
+                            >
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => startEdit(row)}
+                              className="text-cyan-400 hover:text-cyan-300 text-xs"
+                            >
+                              編輯
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDelete(row)}
+                              className="text-red-400 hover:text-red-300 text-xs"
+                            >
+                              刪
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -351,6 +420,9 @@ function WorkReport() {
   const [newSiteName, setNewSiteName] = useState('')
   const [newContractorName, setNewContractorName] = useState('')
   const [message, setMessage] = useState(null)
+  const [adminEditRow, setAdminEditRow] = useState(null)
+  const [adminEditArrival, setAdminEditArrival] = useState('')
+  const [adminEditDeparture, setAdminEditDeparture] = useState('')
 
   const now = new Date()
   const [filterYear, setFilterYear] = useState(now.getFullYear())
@@ -458,45 +530,47 @@ function WorkReport() {
     setMonthRecords(getWorkReportsForMonth(y, m))
   }
 
-  const registerContractor = () => {
-    setMessage(null)
-    const siteName = resolvedSite
-    if (!siteName) {
-      setMessage({ type: 'error', text: '請選擇或輸入案場' })
-      return
-    }
-    const name = contractorName.trim()
-    if (!name || !contractorArrival || !contractorDeparture) {
-      setMessage({ type: 'error', text: '請填寫包商名稱、抵達與離場時間' })
-      return
-    }
-    const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
-    const result = addWorkReports([
-      {
-        date,
-        siteName,
-        personName: formatContractorPersonName(name, hc),
-        headcount: hc,
-        arrivalTime: contractorArrival,
-        departureTime: contractorDeparture,
-        submittedBy: currentUser,
-        submittedByName: getDisplayNameForAccount(currentUser) || currentUser
-      }
-    ])
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.message || '登記失敗' })
-      return
-    }
-    setContractorArrival('')
-    setContractorDeparture('')
-    refreshMonthForDate(date)
-    setMessage({
-      type: 'success',
-      text: `已登記 ${formatContractorPersonName(name, hc)}（${date}）`
-    })
+  const submitterMeta = {
+    submittedBy: currentUser,
+    submittedByName: getDisplayNameForAccount(currentUser) || currentUser
   }
 
-  const registerLabor = () => {
+  const handleSaveTimes = (id, times) => {
+    const result = updateWorkReport(id, times)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '儲存失敗' })
+      return
+    }
+    refreshMonthForDate(date)
+    setMessage({ type: 'success', text: '已更新時間' })
+  }
+
+  const openAdminEditRow = (row) => {
+    setAdminEditRow(row)
+    setAdminEditArrival(row?.arrivalTime || '')
+    setAdminEditDeparture(row?.departureTime || '')
+  }
+
+  const closeAdminEditRow = () => {
+    setAdminEditRow(null)
+    setAdminEditArrival('')
+    setAdminEditDeparture('')
+  }
+
+  const saveAdminEditRow = () => {
+    if (!adminEditRow?.id) return
+    if (!isWorkReportTimeFilled(adminEditArrival) && !isWorkReportTimeFilled(adminEditDeparture)) {
+      setMessage({ type: 'error', text: '請至少填寫進廠或離廠時間' })
+      return
+    }
+    handleSaveTimes(adminEditRow.id, {
+      arrivalTime: adminEditArrival,
+      departureTime: adminEditDeparture
+    })
+    closeAdminEditRow()
+  }
+
+  const registerLaborEntry = () => {
     setMessage(null)
     const siteName = resolvedSite
     if (!siteName) {
@@ -504,8 +578,12 @@ function WorkReport() {
       return
     }
     const names = (laborNames || []).map((n) => String(n).trim()).filter(Boolean)
-    if (names.length === 0 || !laborArrival || !laborDeparture) {
-      setMessage({ type: 'error', text: '請至少選擇一位承攬者並填寫抵達與離場時間' })
+    if (names.length === 0) {
+      setMessage({ type: 'error', text: '請至少選擇一位承攬者' })
+      return
+    }
+    if (!isWorkReportTimeFilled(laborArrival)) {
+      setMessage({ type: 'error', text: '請填寫進廠時間' })
       return
     }
     const resigned = names.filter((n) => isResignedPersonName(n, resignedSnapshot))
@@ -513,27 +591,148 @@ function WorkReport() {
       setMessage({ type: 'error', text: `不可填寫離職人員：${resigned.join('、')}` })
       return
     }
-    const result = addWorkReports(
-      names.map((name) => ({
+    for (const name of names) {
+      const result = registerWorkReportTime('entry', {
         date,
         siteName,
         personName: name,
         arrivalTime: laborArrival,
-        departureTime: laborDeparture,
-        submittedBy: currentUser,
-        submittedByName: getDisplayNameForAccount(currentUser) || currentUser
-      }))
-    )
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.message || '登記失敗' })
+        ...submitterMeta
+      })
+      if (!result.success) {
+        setMessage({ type: 'error', text: result.message || `「${name}」進廠登記失敗` })
+        return
+      }
+    }
+    setLaborArrival('')
+    refreshMonthForDate(date)
+    setMessage({ type: 'success', text: `已進廠登記：${names.join('、')}（${date}）` })
+  }
+
+  const registerLaborExit = () => {
+    setMessage(null)
+    const siteName = resolvedSite
+    if (!siteName) {
+      setMessage({ type: 'error', text: '請選擇案場' })
       return
     }
-    setLaborNames([])
-    setLaborArrival('')
+    const names = (laborNames || []).map((n) => String(n).trim()).filter(Boolean)
+    if (names.length === 0) {
+      setMessage({ type: 'error', text: '請至少選擇一位承攬者' })
+      return
+    }
+    if (!isWorkReportTimeFilled(laborDeparture)) {
+      setMessage({ type: 'error', text: '請填寫離廠時間' })
+      return
+    }
+    for (const name of names) {
+      const result = registerWorkReportTime('exit', {
+        date,
+        siteName,
+        personName: name,
+        departureTime: laborDeparture,
+        ...submitterMeta
+      })
+      if (!result.success) {
+        setMessage({ type: 'error', text: result.message || `「${name}」離廠登記失敗` })
+        return
+      }
+    }
     setLaborDeparture('')
     refreshMonthForDate(date)
-    setMessage({ type: 'success', text: `已登記 ${names.join('、')}（${date}）` })
+    setMessage({ type: 'success', text: `已離廠登記：${names.join('、')}（${date}）` })
   }
+
+  const registerContractorEntry = () => {
+    setMessage(null)
+    const siteName = resolvedSite
+    if (!siteName) {
+      setMessage({ type: 'error', text: '請選擇或輸入案場' })
+      return
+    }
+    const name = contractorName.trim()
+    if (!name) {
+      setMessage({ type: 'error', text: '請選擇承攬商' })
+      return
+    }
+    if (!isWorkReportTimeFilled(contractorArrival)) {
+      setMessage({ type: 'error', text: '請填寫進廠時間' })
+      return
+    }
+    const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
+    const result = registerWorkReportTime('entry', {
+      date,
+      siteName,
+      personName: formatContractorPersonName(name, hc),
+      headcount: hc,
+      arrivalTime: contractorArrival,
+      ...submitterMeta
+    })
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '進廠登記失敗' })
+      return
+    }
+    setContractorArrival('')
+    refreshMonthForDate(date)
+    setMessage({
+      type: 'success',
+      text: `已進廠登記 ${formatContractorPersonName(name, hc)}（${date}）`
+    })
+  }
+
+  const registerContractorExit = () => {
+    setMessage(null)
+    const siteName = resolvedSite
+    if (!siteName) {
+      setMessage({ type: 'error', text: '請選擇或輸入案場' })
+      return
+    }
+    const name = contractorName.trim()
+    if (!name) {
+      setMessage({ type: 'error', text: '請選擇承攬商' })
+      return
+    }
+    if (!isWorkReportTimeFilled(contractorDeparture)) {
+      setMessage({ type: 'error', text: '請填寫離廠時間' })
+      return
+    }
+    const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
+    const result = registerWorkReportTime('exit', {
+      date,
+      siteName,
+      personName: formatContractorPersonName(name, hc),
+      headcount: hc,
+      departureTime: contractorDeparture,
+      ...submitterMeta
+    })
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '離廠登記失敗' })
+      return
+    }
+    setContractorDeparture('')
+    refreshMonthForDate(date)
+    setMessage({
+      type: 'success',
+      text: `已離廠登記 ${formatContractorPersonName(name, hc)}（${date}）`
+    })
+  }
+
+  const laborCanEntry =
+    !!resolvedSite &&
+    laborNames.length > 0 &&
+    isWorkReportTimeFilled(laborArrival)
+  const laborCanExit =
+    !!resolvedSite &&
+    laborNames.length > 0 &&
+    isWorkReportTimeFilled(laborDeparture)
+  const contractorCanEntry =
+    !!resolvedSite &&
+    !!contractorName.trim() &&
+    isWorkReportTimeFilled(contractorArrival)
+  const contractorCanExit =
+    !!resolvedSite &&
+    !!contractorName.trim() &&
+    isWorkReportTimeFilled(contractorDeparture)
 
   const addSiteToList = () => {
     const v = newSiteName.trim()
@@ -740,9 +939,9 @@ function WorkReport() {
                   <DayRegisterTable
                     rows={dayLaborRecords}
                     labelName="姓名"
-                    currentUser={currentUser}
                     userRole={userRole}
                     onDelete={handleDelete}
+                    onSaveTimes={handleSaveTimes}
                   />
                 </div>
               )}
@@ -807,17 +1006,28 @@ function WorkReport() {
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TimeInput24 label="抵達時間" value={laborArrival} onChange={setLaborArrival} />
-                <TimeInput24 label="離場時間" value={laborDeparture} onChange={setLaborDeparture} />
+                <TimeInput24 label="進廠時間" value={laborArrival} onChange={setLaborArrival} />
+                <TimeInput24 label="離廠時間" value={laborDeparture} onChange={setLaborDeparture} />
               </div>
               {laborPreviewSummary && <WorkReportShiftSummary summary={laborPreviewSummary} />}
-              <button
-                type="button"
-                onClick={registerLabor}
-                className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-semibold transition-colors"
-              >
-                登記
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={registerLaborEntry}
+                  disabled={!laborCanEntry}
+                  className="flex-1 min-h-[44px] px-6 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  進廠登記
+                </button>
+                <button
+                  type="button"
+                  onClick={registerLaborExit}
+                  disabled={!laborCanExit}
+                  className="flex-1 min-h-[44px] px-6 py-2.5 rounded-lg bg-amber-800 hover:bg-amber-700 text-white font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  離廠登記
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -841,9 +1051,9 @@ function WorkReport() {
                   <DayRegisterTable
                     rows={dayContractorRecords}
                     labelName="承攬商"
-                    currentUser={currentUser}
                     userRole={userRole}
                     onDelete={handleDelete}
+                    onSaveTimes={handleSaveTimes}
                   />
                 </div>
               )}
@@ -874,17 +1084,28 @@ function WorkReport() {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TimeInput24 label="抵達時間" value={contractorArrival} onChange={setContractorArrival} />
-                <TimeInput24 label="離場時間" value={contractorDeparture} onChange={setContractorDeparture} />
+                <TimeInput24 label="進廠時間" value={contractorArrival} onChange={setContractorArrival} />
+                <TimeInput24 label="離廠時間" value={contractorDeparture} onChange={setContractorDeparture} />
               </div>
               {contractorPreviewSummary && <WorkReportShiftSummary summary={contractorPreviewSummary} />}
-              <button
-                type="button"
-                onClick={registerContractor}
-                className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors"
-              >
-                登記
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={registerContractorEntry}
+                  disabled={!contractorCanEntry}
+                  className="flex-1 min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  進廠登記
+                </button>
+                <button
+                  type="button"
+                  onClick={registerContractorExit}
+                  disabled={!contractorCanExit}
+                  className="flex-1 min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-900 hover:bg-teal-800 text-white font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  離廠登記
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1017,18 +1238,28 @@ function WorkReport() {
                                   {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
                                 </td>
                                 <td className="py-2.5">
-                                  <div className="flex flex-col gap-1 items-end">
-                                    {userRole === 'admin' && group.rows.map((row) => (
-                                      <button
-                                        key={row.id}
-                                        type="button"
-                                        onClick={() => handleDelete(row)}
-                                        className="text-red-400 hover:text-red-300 text-xs whitespace-nowrap"
-                                      >
-                                        {group.rows.length > 1 ? '刪此批' : '刪除'}
-                                      </button>
-                                    ))}
-                                  </div>
+                                  {userRole === 'admin' && (
+                                    <div className="flex flex-col gap-1 items-end">
+                                      {group.rows.map((row) => (
+                                        <div key={row.id} className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => openAdminEditRow(row)}
+                                            className="text-cyan-400 hover:text-cyan-300 text-xs whitespace-nowrap"
+                                          >
+                                            編輯
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDelete(row)}
+                                            className="text-red-400 hover:text-red-300 text-xs whitespace-nowrap"
+                                          >
+                                            {group.rows.length > 1 ? '刪此批' : '刪除'}
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             )
@@ -1043,6 +1274,39 @@ function WorkReport() {
           )}
         </div>
       </div>
+
+      {adminEditRow && userRole === 'admin' && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-600 rounded-xl p-5 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-semibold text-yellow-400">編輯登記時間</h3>
+            <p className="text-gray-400 text-sm">
+              {adminEditRow.date} · {adminEditRow.siteName} · {adminEditRow.personName}
+            </p>
+            <TimeInput24 label="進廠時間" value={adminEditArrival} onChange={setAdminEditArrival} />
+            <TimeInput24 label="離廠時間" value={adminEditDeparture} onChange={setAdminEditDeparture} />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={saveAdminEditRow}
+                disabled={
+                  !isWorkReportTimeFilled(adminEditArrival) &&
+                  !isWorkReportTimeFilled(adminEditDeparture)
+                }
+                className="flex-1 min-h-[44px] rounded-lg bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                儲存
+              </button>
+              <button
+                type="button"
+                onClick={closeAdminEditRow}
+                className="flex-1 min-h-[44px] rounded-lg bg-gray-600 hover:bg-gray-500 text-white font-semibold"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
