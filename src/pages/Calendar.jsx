@@ -89,6 +89,16 @@ function WorkReportShiftSummary({ summary, className = '' }) {
 /** 行事曆上已核准入廠異動之顯示狀態 */
 const LEAVE_CALENDAR_STATUS = '不需申請入廠證'
 
+/** 月曆格：手機加高、入廠／異動標籤直排，主文字較易讀 */
+const CAL_DAY_CELL_MIN_H = 'min-h-[118px] max-sm:min-h-[132px] sm:min-h-[100px]'
+const CAL_DAY_CELL_PAD = 'p-1 max-sm:p-1 sm:p-0.5'
+const CAL_DAY_CHIP_ROW =
+  'flex flex-col gap-0.5 max-sm:gap-0 max-sm:py-0.5 sm:flex-row sm:items-center sm:gap-1 min-w-0 rounded-md px-1 py-1 sm:px-1.5 sm:py-1 leading-tight cursor-pointer transition-colors'
+const CAL_DAY_CHIP_BADGE =
+  'shrink-0 self-start rounded px-0.5 py-0 font-medium text-[6px] max-sm:tracking-tight sm:px-1 sm:py-px sm:text-[8px] sm:font-semibold leading-none'
+const CAL_DAY_CHIP_LABEL =
+  'min-w-0 w-full text-[9px] max-sm:leading-[1.2] sm:text-[10px] text-left font-medium line-clamp-2 max-sm:line-clamp-3 sm:truncate sm:flex-1'
+
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
   const t = String(tag || '').trim()
@@ -3179,14 +3189,14 @@ function Calendar() {
             return (
               <div
                 key={`prev-${day}`}
-                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-0.5 text-gray-600 overflow-hidden min-w-0"
+                className={`${CAL_DAY_CELL_MIN_H} ${CAL_DAY_CELL_PAD} bg-gray-900 border border-gray-700 rounded text-gray-600 overflow-hidden min-w-0`}
               >
-                <div className="text-[10px] mb-0.5 font-medium">{day}</div>
+                <div className="text-[10px] max-sm:text-[11px] mb-0.5 font-medium">{day}</div>
                 <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] max-sm:text-[10px] px-0.5 py-0.5 rounded truncate`}
                       title={event.title}
                     >
                       {event.title}
@@ -3210,19 +3220,19 @@ function Calendar() {
               <div
                 key={day}
                 onClick={() => handleDateClick(day, true)}
-                className={`min-h-[100px] sm:min-h-[100px] bg-gray-800 border rounded p-0.5 cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
+                className={`${CAL_DAY_CELL_MIN_H} ${CAL_DAY_CELL_PAD} bg-gray-800 border rounded cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
                   today ? 'border-yellow-400 ring-2 ring-yellow-400' : 
                   holiday ? 'border-red-500' : 
                   'border-gray-700'
                 }`}
               >
-                <div className={`text-[10px] sm:text-xs mb-0.5 font-medium truncate ${today ? 'text-yellow-400 font-bold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
+                <div className={`text-[10px] max-sm:text-[11px] sm:text-xs mb-0.5 max-sm:mb-1 font-medium truncate ${today ? 'text-yellow-400 font-bold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
                   {day}
                   {day === 1 && month === 0 && (
                     <span className="ml-0.5 text-[10px]">元旦</span>
                   )}
                 </div>
-                <div className="space-y-1 overflow-hidden min-w-0">
+                <div className="space-y-1 max-sm:space-y-1.5 overflow-hidden min-w-0">
                   {/* 显示排程（案场名称） */}
                   {daySchedules.map((schedule) => {
                     if (isLeaveScheduleItem(schedule)) {
@@ -3234,14 +3244,14 @@ function Calendar() {
                       return (
                         <div
                           key={schedule.id}
-                          className="flex items-center gap-1 min-w-0 rounded-md border border-amber-600/50 bg-amber-950/70 px-1.5 py-1 text-[8px] sm:text-[9px] leading-snug cursor-pointer hover:bg-amber-900/55 hover:border-amber-500/70 transition-colors"
+                          className={`${CAL_DAY_CHIP_ROW} border border-amber-600/50 bg-amber-950/70 hover:bg-amber-900/55 hover:border-amber-500/70`}
                           onClick={(e) => handleScheduleClick(e, schedule)}
-                          title={`入廠異動：${getScheduleDisplayTitle(schedule)}`}
+                          title={`入廠異動：${personLabel}`}
                         >
-                          <span className="shrink-0 rounded px-1 py-px bg-amber-700/60 text-amber-100 font-semibold text-[7px] sm:text-[8px] leading-none">
+                          <span className={`${CAL_DAY_CHIP_BADGE} bg-amber-700/60 text-amber-100`}>
                             異動
                           </span>
-                          <span className="flex-1 min-w-0 truncate text-amber-50 font-medium">
+                          <span className={`${CAL_DAY_CHIP_LABEL} text-amber-50`}>
                             {personLabel}
                           </span>
                         </div>
@@ -3270,7 +3280,7 @@ function Calendar() {
                     return (
                       <div 
                         key={schedule.id} 
-                        className={`${displayClass} text-[8px] sm:text-[10px] px-0.5 py-0.5 rounded cursor-pointer hover:opacity-80 flex items-start justify-between gap-0.5 min-w-0 overflow-hidden leading-tight`}
+                        className={`${displayClass} text-[9px] max-sm:text-[10px] sm:text-[10px] px-0.5 max-sm:px-1 py-0.5 max-sm:py-1 rounded cursor-pointer hover:opacity-80 flex items-start justify-between gap-0.5 min-w-0 overflow-hidden leading-tight`}
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         title={`${getScheduleDisplayTitle(schedule)}${overtimeTitleSuffix}${timeDisplay} - 工程排程${docIncomplete ? '（施工照片未勾選）' : ''}`}
                       >
@@ -3345,7 +3355,7 @@ function Calendar() {
                       key={`wr-${cellDateStr}-${site}`}
                       role="button"
                       tabIndex={0}
-                      className="flex items-center gap-1 min-w-0 rounded-md border border-cyan-600/50 bg-cyan-950/70 px-1.5 py-1 text-[8px] sm:text-[9px] leading-snug cursor-pointer hover:bg-cyan-900/55 hover:border-cyan-500/70 transition-colors"
+                      className={`${CAL_DAY_CHIP_ROW} border border-cyan-600/50 bg-cyan-950/70 hover:bg-cyan-900/55 hover:border-cyan-500/70`}
                       title={`進廠管制表：${site}（點擊查看完整資訊）`}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -3359,10 +3369,10 @@ function Calendar() {
                         }
                       }}
                     >
-                      <span className="shrink-0 rounded px-1 py-px bg-cyan-700/60 text-cyan-100 font-semibold text-[7px] sm:text-[8px] leading-none">
+                      <span className={`${CAL_DAY_CHIP_BADGE} bg-cyan-700/60 text-cyan-100`}>
                         進廠
                       </span>
-                      <span className="flex-1 min-w-0 truncate text-cyan-50 font-medium">{site}</span>
+                      <span className={`${CAL_DAY_CHIP_LABEL} text-cyan-50`}>{site}</span>
                     </div>
                   ))}
                   {/* 显示其他事件 */}
@@ -3390,14 +3400,14 @@ function Calendar() {
             return (
               <div
                 key={`next-${day}`}
-                className="min-h-[100px] bg-gray-900 border border-gray-700 rounded p-0.5 text-gray-600 overflow-hidden min-w-0"
+                className={`${CAL_DAY_CELL_MIN_H} ${CAL_DAY_CELL_PAD} bg-gray-900 border border-gray-700 rounded text-gray-600 overflow-hidden min-w-0`}
               >
-                <div className="text-[10px] mb-0.5">{day}</div>
+                <div className="text-[10px] max-sm:text-[11px] mb-0.5">{day}</div>
                 <div className="space-y-0.5 overflow-hidden min-w-0">
                   {events.map((event) => (
                     <div
                       key={event.id}
-                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] px-0.5 py-0.5 rounded truncate`}
+                      className={`${typeColors[event.type] || 'bg-gray-500'} ${typeTextColors[event.type] || 'text-white'} text-[9px] max-sm:text-[10px] px-0.5 py-0.5 rounded truncate`}
                       title={event.title}
                     >
                       {event.title}
