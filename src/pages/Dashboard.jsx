@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import Home from './Home'
@@ -19,7 +19,6 @@ import LeaveApplication from './LeaveApplication'
 import Advance from './Advance'
 import Messages from './Messages'
 import MiniGames from './MiniGames'
-import CompensatoryLeave from './CompensatoryLeave'
 import ChangePassword from './ChangePassword'
 import WorkReport from './WorkReport'
 import PaySlip from './PaySlip'
@@ -41,11 +40,9 @@ import {
   LeaveIcon,
   AdvanceIcon,
   GameIcon,
-  PersonalServiceIcon,
-  CompensatoryLeaveIcon
+  PersonalServiceIcon
 } from '../components/ChineseIcons'
 
-const ProjectDeficiencyTracking = lazy(() => import('./ProjectDeficiencyTracking'))
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
 import { getUsers, getPendingAdvances, getAdvancesByAccount } from '../utils/storage'
@@ -615,7 +612,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('company-activities')) return 'activities'
     if (path.includes('dropdown-management')) return 'management'
     if (path.includes('user-management')) return 'user-management'
-    if (path.includes('project-deficiency')) return 'deficiency'
     if (path.includes('personal-performance')) return 'performance'
     if (path.includes('monthly-location-report')) return 'monthly-report'
     if (path.includes('exchange-shop')) return 'exchange-shop'
@@ -625,7 +621,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('daily-todo')) return 'daily-todo'
     if (path.includes('leave-application')) return 'leave-application'
     if (path.includes('advance')) return 'advance'
-    if (path.includes('compensatory-leave')) return 'compensatory-leave'
     if (path.includes('messages')) return 'messages'
     if (path.includes('change-password')) return 'change-password'
     if (path.includes('pay-slip')) return 'pay-slip'
@@ -664,7 +659,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       home: '首頁',
       calendar: '行事曆',
       messages: '站內信',
-      deficiency: '專案管理',
       vehicle: '車輛資訊',
       memo: '交流區',
       activities: '公司活動',
@@ -682,7 +676,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'developing': '開發中',
       'work-report': '出工回報',
       'pay-slip': '勞務報酬單',
-      'compensatory-leave': '補休系統',
       'change-password': '修改密碼'
     }
     return titles[tab] || '佳盟事業群'
@@ -726,20 +719,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <DropdownManagement userRole={userRole} />
       case 'user-management':
         return <UserManagement />
-      case 'deficiency':
-        return (
-          <div style={{ minHeight: '70vh', background: '#1a1512', padding: '1rem', color: '#f5ede0' }}>
-            <Suspense
-              fallback={
-                <p style={{ color: '#d4af37', fontSize: '1.25rem', margin: 0, fontFamily: 'Noto Serif TC, serif' }}>專案管理載入中…</p>
-              }
-            >
-              <ErrorBoundary>
-                <ProjectDeficiencyTracking />
-              </ErrorBoundary>
-            </Suspense>
-          </div>
-        )
       case 'performance':
         return <PersonalPerformance />
       case 'monthly-report':
@@ -758,8 +737,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <LeaveApplication />
       case 'advance':
         return <Advance />
-      case 'compensatory-leave':
-        return <CompensatoryLeave />
       case 'change-password':
         return <ChangePassword />
       case 'developing':
@@ -1256,12 +1233,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
           />
           <NavItem
-            icon={<CompensatoryLeaveIcon />}
-            label="補休系統"
-            isActive={activeTab === 'compensatory-leave'}
-            onClick={() => handleTabClick('compensatory-leave', '/compensatory-leave')}
-          />
-          <NavItem
             icon={<PeopleIcon />}
             label="公司活動"
             isActive={activeTab === 'activities'}
@@ -1384,8 +1355,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         className={`flex-1 min-h-0 overflow-auto py-4 sm:py-6 ${activeTab === 'calendar' ? 'px-0 sm:px-4 md:px-6' : 'px-4 sm:px-6'}`}
         style={{
           paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))',
-          minHeight: activeTab === 'deficiency' ? '60vh' : undefined,
-          backgroundColor: activeTab === 'deficiency' ? '#1a1512' : undefined
         }}
       >
         {renderContent()}
