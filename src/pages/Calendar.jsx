@@ -1694,7 +1694,7 @@ function Calendar() {
   const handleEditSchedule = () => {
     if (selectedDetailItem && selectedDetailType === 'schedule') {
       if (isLeaveScheduleItem(selectedDetailItem)) {
-        alert('請假排程為自動帶入紀錄，無需編輯。')
+        alert('入廠異動紀錄為自動帶入，無需編輯。')
         return
       }
       // 由 useEffect（編輯表單開啟時）從 schedules 同步表單資料，避免表單空白
@@ -1718,13 +1718,13 @@ function Calendar() {
       if (isLeaveScheduleItem(selectedDetailItem)) {
         const role = getCurrentUserRole()
         if (role !== 'admin') {
-          alert('請假排程為自動帶入紀錄，只有管理員可以刪除。')
+          alert('入廠異動紀錄僅管理員可以刪除。')
           return
         }
         const leaveId = String(selectedDetailItem?.leaveApplicationId || '').trim()
         const msg = leaveId
-          ? '確定要刪除此「請假」紀錄嗎？\n（將同時刪除這筆請假申請與所有請假排程天數）'
-          : '確定要刪除此「請假」排程嗎？'
+          ? '確定要刪除此入廠異動紀錄嗎？\n（將同時刪除異動申請與行事曆上所有相關天數）'
+          : '確定要刪除此入廠異動排程嗎？'
         if (!window.confirm(msg)) return
 
         if (leaveId) {
@@ -1816,7 +1816,7 @@ function Calendar() {
       return
     }
     if (isLeaveScheduleItem(target)) {
-      alert('請假排程不支援複製')
+      alert('入廠異動紀錄不支援複製')
       return
     }
     const copy = duplicateScheduleWithNewDate(target, newDate)
@@ -3762,18 +3762,12 @@ function Calendar() {
                   : '全天'
                 return (
                   <div className="space-y-3 text-white">
-                    {isLeave && (
-                      <div className="bg-teal-600/20 border border-teal-400/40 rounded-lg p-3 text-teal-100 text-sm">
-                        此為「請假」紀錄（由請假申請自動帶入），僅供查看狀態，不提供編輯；管理員可刪除。
-                      </div>
-                    )}
-
                     {isLeave ? (
                       <div className="bg-blue-950/30 border border-blue-700 rounded-lg p-4">
-                        <div className="text-3xl font-extrabold text-white mb-3">請假</div>
+                        <div className="text-3xl font-extrabold text-white mb-3">入廠異動名單</div>
                         <div className="space-y-2 text-base">
                           <div>
-                            <span className="text-blue-300">請假人員:</span>
+                            <span className="text-blue-300">人員:</span>
                             <span className="ml-2 text-white font-semibold">{leaveInfo?.person || '—'}</span>
                           </div>
                           <div>
@@ -3782,7 +3776,7 @@ function Calendar() {
                             <span className="ml-2 text-gray-300">{timeText}</span>
                           </div>
                           <div>
-                            <span className="text-blue-300">假別:</span>
+                            <span className="text-blue-300">狀態:</span>
                             <span className="ml-2">{leaveInfo?.leaveType || '—'}</span>
                           </div>
                         </div>
