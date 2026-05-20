@@ -3055,7 +3055,7 @@ function Calendar() {
                     const siteLabel = sch
                       ? getScheduleDisplayTitle(sch)
                       : (String(oa?.siteName || '').trim()
-                          ? `${oa.siteName}（出工回報）`
+                          ? `${oa.siteName}（進廠管制表）`
                           : '（找不到對應排程，可能已刪除）')
                     const timeStr = oa.startTime && oa.endTime ? `${oa.startTime}～${oa.endTime}` : ''
                     return (
@@ -3082,7 +3082,7 @@ function Calendar() {
                           )}
                           {fromWorkReport && (
                             <span className="px-2 py-1 rounded bg-teal-700/40 text-teal-100 text-[11px]">
-                              來自出工回報
+                              來自進廠管制表
                             </span>
                           )}
                           <button
@@ -3281,7 +3281,7 @@ function Calendar() {
                       role="button"
                       tabIndex={0}
                       className="bg-teal-900/90 border border-teal-500/70 text-teal-100 text-[8px] sm:text-[9px] px-0.5 py-0.5 rounded truncate leading-tight cursor-pointer hover:bg-teal-800 hover:border-teal-400"
-                      title={`出工回報：${site}（點擊查看完整資訊）`}
+                      title={`進廠管制表：${site}（點擊查看完整資訊）`}
                       onClick={(e) => {
                         e.stopPropagation()
                         setWorkReportDetail({ dateStr: cellDateStr, siteName: site })
@@ -3294,7 +3294,7 @@ function Calendar() {
                         }
                       }}
                     >
-                      出工 {site}
+                      管制 {site}
                     </div>
                   ))}
                   {/* 显示其他事件 */}
@@ -4698,7 +4698,7 @@ function Calendar() {
             <div className="flex items-start justify-between gap-3 p-4 border-b border-gray-700 shrink-0">
               <div>
                 <h3 id="work-report-detail-title" className="text-lg font-semibold text-teal-300">
-                  出工回報
+                  進廠管制表
                 </h3>
                 <p className="text-gray-300 text-sm mt-1 tabular-nums">{workReportDetail.dateStr}</p>
                 <p className="text-white font-medium">{workReportDetail.siteName}</p>
