@@ -181,7 +181,6 @@ function App() {
         <Route path="/developing" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="developing" />) : <Navigate to="/login" replace />} />
         <Route path="/dropdown-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/user-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="user-management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
-        <Route path="/project-deficiency" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="deficiency" />) : <Navigate to="/login" replace />} />
         <Route path="/personal-performance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="performance" />) : <Navigate to="/login" replace />} />
         <Route path="/monthly-location-report" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="monthly-report" />) : <Navigate to="/login" replace />} />
         <Route path="/exchange-shop" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange-shop" />) : <Navigate to="/login" replace />} />
@@ -193,7 +192,6 @@ function App() {
         <Route path="/messages" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="messages" />) : <Navigate to="/login" replace />} />
         <Route path="/leave-application" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="leave-application" />) : <Navigate to="/login" replace />} />
         <Route path="/advance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="advance" />) : <Navigate to="/login" replace />} />
-        <Route path="/compensatory-leave" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="compensatory-leave" />) : <Navigate to="/login" replace />} />
         <Route path="/change-password" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="change-password" />) : <Navigate to="/login" replace />} />
       </Routes>
       </SyncProvider>
