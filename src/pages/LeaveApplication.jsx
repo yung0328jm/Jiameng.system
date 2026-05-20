@@ -17,6 +17,7 @@ import { saveSchedule, deleteSchedulesByLeaveApplicationId } from '../utils/sche
 import { touchLastSeen } from '../utils/lastSeenStorage'
 
 const DEFAULT_LEAVE_REASON = '當日不須申請入廠證及參加工具箱會議'
+const LEAVE_CALENDAR_STATUS = '不需申請入廠證'
 
 function LeaveApplication() {
   const location = useLocation()
@@ -106,7 +107,7 @@ function LeaveApplication() {
 
   const writeLeaveToCalendar = (rec) => {
     const displayName = rec.userName || rec.userId || ''
-    const siteName = `請假 - ${displayName} - 未進廠`
+    const siteName = `${displayName} - ${LEAVE_CALENDAR_STATUS}`
     const start = new Date(rec.startDate)
     const end = new Date(rec.endDate)
     let count = 0

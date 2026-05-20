@@ -79,6 +79,9 @@ function WorkReportShiftSummary({ summary, className = '' }) {
   )
 }
 
+/** 行事曆上已核准入廠異動之顯示狀態 */
+const LEAVE_CALENDAR_STATUS = '不需申請入廠證'
+
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
 function tagUsesParticipantWorkEntries(tag) {
   const t = String(tag || '').trim()
@@ -1408,8 +1411,13 @@ function Calendar() {
   const isLeaveScheduleItem = (schedule) => {
     const tag = String(schedule?.tag || '').trim()
     const siteName = String(schedule?.siteName || '').trim()
-    // 兼容不同資料來源：tag=leave 或 siteName 以「請假」開頭（例如：請假 - account - 事假）
-    return tag === 'leave' || /^請假(\s|[-—])/u.test(siteName) || siteName === '請假'
+    // 兼容：tag=leave、舊「請假 - …」、新「姓名 - 不需申請入廠證」
+    return (
+      tag === 'leave' ||
+      /^請假(\s|[-—])/u.test(siteName) ||
+      siteName === '請假' ||
+      siteName.endsWith(LEAVE_CALENDAR_STATUS)
+    )
   }
 
   // 藍／黃標排程詳情：依參與人員產生／同步每人工作列草稿（含舊資料尚未寫入 participantWorkEntries 者）
@@ -1469,11 +1477,21 @@ function Calendar() {
 
   const parseLeaveSiteName = (siteName) => {
     const s = String(siteName || '').trim()
-    const m = s.match(/^請假\s*(?:-|—)\s*(.+?)(?:\s*(?:-|—)\s*(.+))?$/u)
-    return {
-      personRaw: String(m?.[1] || '').trim(),
-      typeRaw: String(m?.[2] || '').trim()
+    const oldM = s.match(/^請假\s*(?:-|—)\s*(.+?)(?:\s*(?:-|—)\s*(.+))?$/u)
+    if (oldM) {
+      return {
+        personRaw: String(oldM[1] || '').trim(),
+        typeRaw: String(oldM[2] || '').trim()
+      }
     }
+    const newM = s.match(/^(.+?)\s*(?:-|—)\s*(.+)$/u)
+    if (newM) {
+      return {
+        personRaw: String(newM[1] || '').trim(),
+        typeRaw: String(newM[2] || '').trim()
+      }
+    }
+    return { personRaw: '', typeRaw: '' }
   }
 
   const resolveDisplayName = (raw) => {
@@ -1498,13 +1516,13 @@ function Calendar() {
     const acc = String(app?.userId || '').trim()
     const appName = String(app?.userName || '').trim()
     const person = resolveDisplayName(acc) || resolveDisplayName(appName) || resolveDisplayName(parsed.personRaw) || appName || parsed.personRaw || acc || '—'
-    return { person, leaveType: '未進廠' }
+    return { person, leaveType: LEAVE_CALENDAR_STATUS }
   }
 
   const getScheduleDisplayTitle = (schedule) => {
     if (isLeaveScheduleItem(schedule)) {
       const info = getLeaveInfoForSchedule(schedule)
-      return `請假 - ${info.person} - 未進廠`
+      return `${info.person} - ${LEAVE_CALENDAR_STATUS}`
     }
     return String(schedule?.siteName || '').trim()
   }
@@ -3294,7 +3312,7 @@ function Calendar() {
                         }
                       }}
                     >
-                      管制 {site}
+                      {site}
                     </div>
                   ))}
                   {/* 显示其他事件 */}
