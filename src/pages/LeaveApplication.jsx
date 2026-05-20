@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getDisplayNameForAccount } from '../utils/displayName'
@@ -16,16 +17,19 @@ import { saveSchedule, deleteSchedulesByLeaveApplicationId } from '../utils/sche
 import { touchLastSeen } from '../utils/lastSeenStorage'
 
 function LeaveApplication() {
+  const location = useLocation()
+  const calendarDate =
+    typeof location.state?.date === 'string' && location.state.date ? location.state.date : ''
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
   const [userName, setUserName] = useState('')
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState(calendarDate)
+  const [endDate, setEndDate] = useState(calendarDate)
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState(null)
   const [applications, setApplications] = useState([])
   const [pendingList, setPendingList] = useState([])
-  const [showApplyForm, setShowApplyForm] = useState(false)
+  const [showApplyForm, setShowApplyForm] = useState(!!calendarDate)
   const [editingLeaveId, setEditingLeaveId] = useState(null) // 管理員編輯請假紀錄
   const [editForm, setEditForm] = useState({ startDate: '', endDate: '', reason: '', status: 'pending' })
 

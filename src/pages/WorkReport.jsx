@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import {
@@ -325,13 +326,17 @@ function DayRegisterTable({ rows, labelName, currentUser, userRole, onDelete }) 
 }
 
 function WorkReport() {
+  const location = useLocation()
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
   const [participantNames, setParticipantNames] = useState([])
   const [siteOptions, setSiteOptions] = useState([])
   const [contractorOptions, setContractorOptions] = useState([])
 
-  const [date, setDate] = useState(todayStr)
+  const [date, setDate] = useState(() => {
+    const fromCalendar = location.state?.date
+    return typeof fromCalendar === 'string' && fromCalendar ? fromCalendar : todayStr
+  })
   const [siteSelect, setSiteSelect] = useState('')
   const [contractorName, setContractorName] = useState('')
   const [contractorHeadcount, setContractorHeadcount] = useState(1)
@@ -887,14 +892,15 @@ function WorkReport() {
       </div>
 
 
-      {userRole === 'admin' && (
       <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4 sm:p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-yellow-400">當月回報統計</h2>
-            <p className="text-gray-500 text-xs mt-1">
-              出工天 = 當日滿 8 小時計 1 天；未滿 8 小時的時數累計每滿 8 小時補 1 天，剩餘以「出工 X 小時」列出；緊急入場時數 = 超過 8 小時的時數。
-            </p>
+            {userRole === 'admin' && (
+              <p className="text-gray-500 text-xs mt-1">
+                出工天 = 當日滿 8 小時計 1 天；未滿 8 小時的時數累計每滿 8 小時補 1 天，剩餘以「出工 X 小時」列出；緊急入場時數 = 超過 8 小時的時數。
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <div>
@@ -923,7 +929,7 @@ function WorkReport() {
           </div>
         </div>
 
-        {personMonthTotals.length > 0 && (
+        {userRole === 'admin' && personMonthTotals.length > 0 && (
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">當月個人總工時</h3>
             <div className="flex flex-wrap gap-2 text-sm">
@@ -964,7 +970,7 @@ function WorkReport() {
           </div>
         )}
 
-        <div className={personMonthTotals.length > 0 ? 'border-t border-gray-700 pt-4' : ''}>
+        <div className={userRole === 'admin' && personMonthTotals.length > 0 ? 'border-t border-gray-700 pt-4' : ''}>
           <h3 className="text-base font-semibold text-yellow-400/90 mb-3">當月明細</h3>
           {sortedDateKeys.length === 0 ? (
             <p className="text-gray-500 text-sm">尚無紀錄。</p>
@@ -1037,7 +1043,6 @@ function WorkReport() {
           )}
         </div>
       </div>
-      )}
     </div>
   )
 }

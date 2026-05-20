@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
 import { getSchedules, saveSchedule, updateSchedule, deleteSchedule, getLastReturnMileageByVehicle } from '../utils/scheduleStorage'
 import { deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
@@ -85,12 +86,14 @@ function tagUsesParticipantWorkEntries(tag) {
 }
 
 function Calendar() {
+  const navigate = useNavigate()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
   const [showEventModal, setShowEventModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showScheduleForm, setShowScheduleForm] = useState(false) // 显示排程表单
   const [showDateDetailModal, setShowDateDetailModal] = useState(false) // 显示日期详情弹窗
+  const [showEntryChoiceModal, setShowEntryChoiceModal] = useState(false) // 點日期：入廠申請 / 入廠異動申請
   const [showTopicForm, setShowTopicForm] = useState(false) // 显示新增主題表单
   const [showDetailModal, setShowDetailModal] = useState(false) // 显示详情弹窗
   const [selectedDetailItem, setSelectedDetailItem] = useState(null) // 选中的详情项（主题或排程）
@@ -1263,31 +1266,24 @@ function Calendar() {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
       setSelectedDate({ year, month, day })
       setSelectedDateForSchedule(dateStr)
-      // 初始化排程表单数据
-      setScheduleFormData({
-        siteName: '',
-        date: dateStr,
-        isAllDay: true,
-        startTime: '',
-        endTime: '',
-        participants: '',
-        mobilePersonnel: '',
-        vehicle: '',
-        vehicleEntries: [],
-        departureDriver: '',
-        returnDriver: '',
-        departureMileage: '',
-        returnMileage: '',
-        needRefuel: false,
-        fuelCost: '',
-        invoiceReturned: false,
-        workItems: [],
-        participantWorkEntries: [],
-        tag: 'blue'
-      })
-      // 显示新增工程排程表单
-      setShowScheduleForm(true)
+      setShowEntryChoiceModal(true)
     }
+  }
+
+  const closeEntryChoiceModal = () => {
+    setShowEntryChoiceModal(false)
+  }
+
+  const goToWorkReportFromCalendar = () => {
+    const dateStr = selectedDateForSchedule
+    closeEntryChoiceModal()
+    navigate('/work-report', dateStr ? { state: { date: dateStr } } : undefined)
+  }
+
+  const goToLeaveApplicationFromCalendar = () => {
+    const dateStr = selectedDateForSchedule
+    closeEntryChoiceModal()
+    navigate('/leave-application', dateStr ? { state: { date: dateStr } } : undefined)
   }
 
   const handleShowAddSchedule = () => {
@@ -4842,6 +4838,48 @@ function Calendar() {
                 className="px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm"
               >
                 關閉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 點日期：入廠申請 / 入廠異動申請 */}
+      {showEntryChoiceModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-gray-900 border border-yellow-500/50 rounded-xl shadow-2xl max-w-sm w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-yellow-400">選擇功能</h3>
+              <button
+                type="button"
+                onClick={closeEntryChoiceModal}
+                className="text-gray-400 hover:text-white p-1"
+                aria-label="關閉"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {selectedDateForSchedule && (
+              <p className="text-gray-400 text-sm mb-4 tabular-nums">
+                日期：{selectedDateForSchedule.replace(/-/g, '/')}
+              </p>
+            )}
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={goToWorkReportFromCalendar}
+                className="w-full min-h-[48px] py-3 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 transition-colors"
+              >
+                入廠申請
+              </button>
+              <button
+                type="button"
+                onClick={goToLeaveApplicationFromCalendar}
+                className="w-full min-h-[48px] py-3 rounded-xl font-semibold bg-teal-600 text-white hover:bg-teal-500 transition-colors"
+              >
+                入廠異動申請
               </button>
             </div>
           </div>
