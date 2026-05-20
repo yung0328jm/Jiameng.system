@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
-import { getSchedules, saveSchedule, updateSchedule, deleteSchedule, getLastReturnMileageByVehicle } from '../utils/scheduleStorage'
-import { deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
+import {
+  getSchedules,
+  saveSchedule,
+  updateSchedule,
+  deleteSchedule,
+  getLastReturnMileageByVehicle,
+  deleteSchedulesByLeaveApplicationId,
+  parseLeavePersonFromSiteName
+} from '../utils/scheduleStorage'
 import { getDropdownOptionsByCategory, addDropdownOption, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
@@ -2922,10 +2929,31 @@ function Calendar() {
     return events
   }
 
+  const dedupeLeaveSchedulesForDay = (dayList) => {
+    const seen = new Map()
+    const out = []
+    for (const s of dayList) {
+      if (!isLeaveScheduleItem(s)) {
+        out.push(s)
+        continue
+      }
+      const person =
+        parseLeavePersonFromSiteName(s?.siteName) ||
+        String(s?.leaveApplicationId || '').trim() ||
+        getScheduleDisplayTitle(s)
+      const key = person.toLowerCase()
+      if (seen.has(key)) continue
+      seen.set(key, true)
+      out.push(s)
+    }
+    return out
+  }
+
   const getSchedulesForDay = (day, isCurrentMonth = true) => {
     if (!isCurrentMonth) return []
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    return schedules.filter(schedule => schedule.date === dateStr)
+    const dayList = schedules.filter((schedule) => schedule.date === dateStr)
+    return dedupeLeaveSchedulesForDay(dayList)
   }
 
   const handleAddScheduleToCalendar = (scheduleId) => {

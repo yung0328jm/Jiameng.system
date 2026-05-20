@@ -13,7 +13,11 @@ import {
   deleteLeaveApplication
 } from '../utils/leaveApplicationStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { saveSchedule, deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
+import {
+  saveSchedule,
+  deleteSchedulesByLeaveApplicationId,
+  deleteLeaveSchedulesForPersonOnDate
+} from '../utils/scheduleStorage'
 import { touchLastSeen } from '../utils/lastSeenStorage'
 
 const DEFAULT_LEAVE_REASON = '當日不須申請入廠證及參加工具箱會議'
@@ -108,12 +112,17 @@ function LeaveApplication() {
   const writeLeaveToCalendar = (rec) => {
     const displayName = rec.userName || rec.userId || ''
     const siteName = `${displayName} - ${LEAVE_CALENDAR_STATUS}`
+    const personKeys = [displayName, rec.userId, rec.userName].filter(Boolean)
+
+    deleteSchedulesByLeaveApplicationId(rec.id)
+
     const start = new Date(rec.startDate)
     const end = new Date(rec.endDate)
     let count = 0
     const cur = new Date(start)
     while (cur <= end) {
       const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
+      deleteLeaveSchedulesForPersonOnDate(dateStr, personKeys)
       const saveResult = saveSchedule({
         siteName,
         date: dateStr,
@@ -139,6 +148,7 @@ function LeaveApplication() {
       setMessage({ type: 'error', text: updateResult.message || '更新失敗' })
       return
     }
+    deleteSchedulesByLeaveApplicationId(id)
     const count = writeLeaveToCalendar(rec)
     loadApplications()
     setMessage({ type: 'success', text: `已核准請假，已寫入行事曆 ${count} 天。` })
