@@ -296,7 +296,7 @@ export function groupWorkReportRowsForDisplay(rows) {
       arrivalTime: sameTime ? times[0]?.arrivalTime : '',
       departureTime: sameTime ? times[0]?.departureTime : '',
       timeLabel: sameTime
-        ? `${times[0]?.arrivalTime || ''}–${times[0]?.departureTime || ''}`
+        ? formatWorkReportTimeLabel(times[0]?.arrivalTime, times[0]?.departureTime)
         : `共 ${g.rows.length} 批`
     }
   })
@@ -316,13 +316,41 @@ export function groupWorkReportRowsForDisplay(rows) {
       batchCount: 1,
       arrivalTime: row.arrivalTime,
       departureTime: row.departureTime,
-      timeLabel: `${row.arrivalTime || ''}–${row.departureTime || ''}`
+      timeLabel: formatWorkReportTimeLabel(row.arrivalTime, row.departureTime)
     }
   })
 
   return [...contractorGroups, ...singleGroups].sort((a, b) =>
     String(a.personName || '').localeCompare(String(b.personName || ''), 'zh-Hant')
   )
+}
+
+/** 進廠／離廠時間顯示（可僅填一側） */
+export function formatWorkReportTimeLabel(arrivalTime, departureTime) {
+  const a = String(arrivalTime || '').trim()
+  const d = String(departureTime || '').trim()
+  if (a && d) return `${a}–${d}`
+  if (a) return `${a}–（待離廠）`
+  if (d) return `（待進廠）–${d}`
+  return '—'
+}
+
+export function isWorkReportTimeFilled(hhmm) {
+  return timeToMinutes(hhmm) != null
+}
+
+/** 同日、同案場、同姓名找既有紀錄 */
+export function findWorkReportByKey(date, siteName, personName) {
+  const d = String(date || '').trim().slice(0, 10)
+  const site = String(siteName || '').trim()
+  const person = String(personName || '').trim()
+  if (!d || !site || !person) return null
+  return loadAll().find(
+    (r) =>
+      String(r?.date || '').slice(0, 10) === d &&
+      String(r?.siteName || '').trim() === site &&
+      String(r?.personName || '').trim() === person
+  ) || null
 }
 
 /** 包商顯示名：人數 > 1 時為「名稱*人數」 */
@@ -432,8 +460,11 @@ export function addWorkReports(entries) {
     const headcountRaw = Number(row?.headcount)
     const headcount =
       Number.isFinite(headcountRaw) && headcountRaw >= 1 ? Math.floor(headcountRaw) : undefined
-    if (!date || !siteName || !personName || !arrivalTime || !departureTime) {
-      return { success: false, message: '請填寫完整：日期、案場、姓名、抵達時間、離場時間' }
+    if (!date || !siteName || !personName) {
+      return { success: false, message: '請填寫日期、案場與姓名' }
+    }
+    if (!arrivalTime && !departureTime) {
+      return { success: false, message: '請至少填寫進廠或離廠時間' }
     }
     const rec = {
       id: `wr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -441,8 +472,8 @@ export function addWorkReports(entries) {
       siteName,
       personName,
       ...(headcount != null && headcount > 1 ? { headcount } : {}),
-      arrivalTime,
-      departureTime,
+      arrivalTime: arrivalTime || '',
+      departureTime: departureTime || '',
       submittedBy: String(row?.submittedBy || '').trim(),
       submittedByName: String(row?.submittedByName || '').trim(),
       createdAt: now,
@@ -454,6 +485,99 @@ export function addWorkReports(entries) {
 
   if (!saveAll(list)) return { success: false, message: '寫入失敗' }
   return { success: true, records: created }
+}
+
+export function updateWorkReport(id, patch) {
+  const rid = String(id || '').trim()
+  if (!rid) return { success: false, message: '無效的紀錄' }
+  const list = loadAllIncludingDeleted()
+  const idx = list.findIndex((r) => String(r?.id || '') === rid)
+  if (idx === -1) return { success: false, message: '找不到該紀錄' }
+  const prev = list[idx]
+  const next = { ...prev, ...patch, updatedAt: new Date().toISOString() }
+  if (patch.arrivalTime !== undefined) {
+    next.arrivalTime = String(patch.arrivalTime || '').trim()
+  }
+  if (patch.departureTime !== undefined) {
+    next.departureTime = String(patch.departureTime || '').trim()
+  }
+  if (!next.arrivalTime && !next.departureTime) {
+    return { success: false, message: '進廠與離廠時間不可皆為空' }
+  }
+  list[idx] = next
+  if (!saveAll(list)) return { success: false, message: '儲存失敗' }
+  return { success: true, record: next }
+}
+
+/**
+ * 進廠或離廠登記（合併同日同案場同姓名）
+ * @param {'entry'|'exit'} mode
+ */
+export function registerWorkReportTime(mode, row) {
+  const date = String(row?.date || '').trim().slice(0, 10)
+  const siteName = String(row?.siteName || '').trim()
+  const personName = String(row?.personName || '').trim()
+  const arrivalTime = String(row?.arrivalTime || '').trim()
+  const departureTime = String(row?.departureTime || '').trim()
+  const headcountRaw = Number(row?.headcount)
+  const headcount =
+    Number.isFinite(headcountRaw) && headcountRaw >= 1 ? Math.floor(headcountRaw) : undefined
+
+  if (!date || !siteName || !personName) {
+    return { success: false, message: '請填寫日期、案場與姓名' }
+  }
+
+  const existing = findWorkReportByKey(date, siteName, personName)
+
+  if (mode === 'entry') {
+    if (!isWorkReportTimeFilled(arrivalTime)) {
+      return { success: false, message: '請填寫進廠時間' }
+    }
+    if (existing) {
+      return updateWorkReport(existing.id, {
+        arrivalTime,
+        departureTime: existing.departureTime || departureTime || ''
+      })
+    }
+    return addWorkReports([
+      {
+        date,
+        siteName,
+        personName,
+        headcount,
+        arrivalTime,
+        departureTime: '',
+        submittedBy: row?.submittedBy,
+        submittedByName: row?.submittedByName
+      }
+    ])
+  }
+
+  if (mode === 'exit') {
+    if (!isWorkReportTimeFilled(departureTime)) {
+      return { success: false, message: '請填寫離廠時間' }
+    }
+    if (existing) {
+      return updateWorkReport(existing.id, {
+        departureTime,
+        arrivalTime: existing.arrivalTime || arrivalTime || ''
+      })
+    }
+    return addWorkReports([
+      {
+        date,
+        siteName,
+        personName,
+        headcount,
+        arrivalTime: '',
+        departureTime,
+        submittedBy: row?.submittedBy,
+        submittedByName: row?.submittedByName
+      }
+    ])
+  }
+
+  return { success: false, message: '無效的登記類型' }
 }
 
 export function deleteWorkReport(id) {
