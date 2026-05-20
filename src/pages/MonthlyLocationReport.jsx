@@ -494,7 +494,7 @@ function sortNamesByPreferredOrder(names) {
 
 /** 常見假別／請假預設字不計入「案場出工人次」 */
 const LEAVE_LABELS = new Set([
-  '休假', '請假', '—', '事假', '病假', '特休', '公假', '喪假', '產假', '陪產假', '生理假', '婚假', '補休', '曠職'
+  '休假', '請假', '—', '未進廠', '事假', '病假', '特休', '公假', '喪假', '產假', '陪產假', '生理假', '婚假', '補休', '曠職'
 ])
 
 function isLeaveLabel(s) {
@@ -737,7 +737,7 @@ function buildPerUserSiteDayStats(userNames, days, year, month, overrides, sched
 
 /**
  * 已核准請假 → Map<"name|dateStr", 假別顯示文字>
- * 假別來自請假單 reason（事由）；空白則顯示「請假」。
+ * 已核准請假一律顯示「未進廠」。
  * 同日多筆不同假別以「、」合併。
  */
 function buildLeaveCellTextMap(year, month) {
@@ -747,10 +747,7 @@ function buildLeaveCellTextMap(year, month) {
   const map = new Map()
   const leaves = getLeaveApplications().filter((la) => (la.status || '') === 'approved')
 
-  const labelFromReason = (la) => {
-    const r = String(la?.reason || '').trim()
-    return r || '請假'
-  }
+  const labelFromReason = () => '未進廠'
 
   const mergeCell = (ck, label) => {
     const prev = map.get(ck)
@@ -1111,8 +1108,8 @@ export default function MonthlyLocationReport() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
-              已核准請假之日期：顯示請假單<strong>事由（假別）</strong>，且<strong className="text-gray-300">不計入</strong>當日行事曆案場加權（避免與藍標排程重複）；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
-              僅在無請假紀錄時才帶入行事曆案場。未填事由則顯示「請假」。
+              已核准請假之日期：顯示<strong>未進廠</strong>，且<strong className="text-gray-300">不計入</strong>當日行事曆案場加權（避免與藍標排程重複）；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
+              僅在無請假紀錄時才帶入行事曆案場。
               行事曆排程標籤為<strong className="text-gray-300">「行政」</strong>者不列入本表與下方統計。
               {isAdmin
                 ? ' 管理員可點格編輯、點左欄日期設定平日／假日，有案場時可點案場名稱調整加權（0.5／1）。'

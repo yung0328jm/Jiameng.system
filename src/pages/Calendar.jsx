@@ -1502,15 +1502,13 @@ function Calendar() {
     const acc = String(app?.userId || '').trim()
     const appName = String(app?.userName || '').trim()
     const person = resolveDisplayName(acc) || resolveDisplayName(appName) || resolveDisplayName(parsed.personRaw) || appName || parsed.personRaw || acc || '—'
-    const leaveType = String(app?.reason || '').trim() || parsed.typeRaw || ''
-    return { person, leaveType }
+    return { person, leaveType: '未進廠' }
   }
 
   const getScheduleDisplayTitle = (schedule) => {
     if (isLeaveScheduleItem(schedule)) {
       const info = getLeaveInfoForSchedule(schedule)
-      const type = info.leaveType ? ` - ${info.leaveType}` : ''
-      return `請假 - ${info.person}${type}`
+      return `請假 - ${info.person} - 未進廠`
     }
     return String(schedule?.siteName || '').trim()
   }

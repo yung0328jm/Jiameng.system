@@ -100,8 +100,7 @@ function LeaveApplication() {
 
   const writeLeaveToCalendar = (rec) => {
     const displayName = rec.userName || rec.userId || ''
-    const siteNameSuffix = (rec.reason || '').trim() ? ` - ${(rec.reason || '').trim()}` : ''
-    const siteName = `請假 - ${displayName}${siteNameSuffix}`
+    const siteName = `請假 - ${displayName} - 未進廠`
     const start = new Date(rec.startDate)
     const end = new Date(rec.endDate)
     let count = 0
