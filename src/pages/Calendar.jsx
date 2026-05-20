@@ -791,7 +791,7 @@ function Calendar() {
     purple: 'bg-purple-500',
     yellow: 'bg-yellow-400',
     行政: 'bg-slate-600',
-    leave: 'bg-teal-500' // 請假（由請假申請自動帶入）
+    leave: 'bg-amber-900/60' // 入廠異動（月曆格內另用專用 chip 樣式）
   }
 
   const typeTextColors = {
@@ -3222,9 +3222,32 @@ function Calendar() {
                     <span className="ml-0.5 text-[10px]">元旦</span>
                   )}
                 </div>
-                <div className="space-y-0.5 overflow-hidden min-w-0">
+                <div className="space-y-1 overflow-hidden min-w-0">
                   {/* 显示排程（案场名称） */}
                   {daySchedules.map((schedule) => {
+                    if (isLeaveScheduleItem(schedule)) {
+                      const leaveInfo = getLeaveInfoForSchedule(schedule)
+                      const personLabel =
+                        leaveInfo?.person ||
+                        parseLeavePersonFromSiteName(schedule?.siteName) ||
+                        '—'
+                      return (
+                        <div
+                          key={schedule.id}
+                          className="flex items-center gap-1 min-w-0 rounded-md border border-amber-600/50 bg-amber-950/70 px-1.5 py-1 text-[8px] sm:text-[9px] leading-snug cursor-pointer hover:bg-amber-900/55 hover:border-amber-500/70 transition-colors"
+                          onClick={(e) => handleScheduleClick(e, schedule)}
+                          title={`入廠異動：${getScheduleDisplayTitle(schedule)}`}
+                        >
+                          <span className="shrink-0 rounded px-1 py-px bg-amber-700/60 text-amber-100 font-semibold text-[7px] sm:text-[8px] leading-none">
+                            異動
+                          </span>
+                          <span className="flex-1 min-w-0 truncate text-amber-50 font-medium">
+                            {personLabel}
+                          </span>
+                        </div>
+                      )
+                    }
+
                     const scheduleTag = schedule.tag || 'blue'
                     const isAllDay = schedule.isAllDay !== undefined ? schedule.isAllDay : true
                     // 施工照片未勾選：活動框內字體周遭紅框描邊閃爍（請假排程不套用）
@@ -3290,12 +3313,8 @@ function Calendar() {
                               </div>
                             ) : null
                           })()}
-                          {/* 請假卡片無燈號：右側留與燈號同寬佔位，避免卡片縮小、手機板內容看不完整 */}
-                          {isLeaveScheduleItem(schedule) && (
-                            <div className="w-2.5 min-h-[1.25rem] sm:w-3 sm:min-h-[1.75rem] flex-shrink-0" aria-hidden="true" />
-                          )}
-                          {/* 卡片燈號：僅工程排程顯示；請假卡片不顯示燈號。上方＝加油紅／發票綠；下方＝施工照片 */}
-                          {!isLeaveScheduleItem(schedule) && (() => {
+                          {/* 卡片燈號：僅工程排程顯示。上方＝加油紅／發票綠；下方＝施工照片 */}
+                          {(() => {
                             const toBool = (v) => v === true || v === 'true'
                             const entries = Array.isArray(schedule.vehicleEntries) && schedule.vehicleEntries.length > 0
                             const refuelFromEntries = entries && schedule.vehicleEntries.some((e) => toBool(e.needRefuel))
@@ -3320,13 +3339,13 @@ function Calendar() {
                       </div>
                     )
                   })}
-                  {/* 出工回報案場（僅顯示，不寫入排程） */}
+                  {/* 進廠管制表案場（入廠申請登記） */}
                   {workReportSites.map((site) => (
                     <div
                       key={`wr-${cellDateStr}-${site}`}
                       role="button"
                       tabIndex={0}
-                      className="bg-teal-900/90 border border-teal-500/70 text-teal-100 text-[8px] sm:text-[9px] px-0.5 py-0.5 rounded truncate leading-tight cursor-pointer hover:bg-teal-800 hover:border-teal-400"
+                      className="flex items-center gap-1 min-w-0 rounded-md border border-cyan-600/50 bg-cyan-950/70 px-1.5 py-1 text-[8px] sm:text-[9px] leading-snug cursor-pointer hover:bg-cyan-900/55 hover:border-cyan-500/70 transition-colors"
                       title={`進廠管制表：${site}（點擊查看完整資訊）`}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -3340,7 +3359,10 @@ function Calendar() {
                         }
                       }}
                     >
-                      {site}
+                      <span className="shrink-0 rounded px-1 py-px bg-cyan-700/60 text-cyan-100 font-semibold text-[7px] sm:text-[8px] leading-none">
+                        進廠
+                      </span>
+                      <span className="flex-1 min-w-0 truncate text-cyan-50 font-medium">{site}</span>
                     </div>
                   ))}
                   {/* 显示其他事件 */}
