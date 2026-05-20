@@ -44,7 +44,7 @@ function DailyTodo() {
     const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     return {
       date: ymd,
-      title: `${ymd} 溫馨提醒`,
+      title: `${ymd} 工程聯絡單`,
       viewerAccounts: [],
       password: ''
     }
@@ -206,19 +206,19 @@ function DailyTodo() {
           addAdminToUserMessage({
             fromAdminAccount: me,
             to: toAcc,
-            subject: `【溫馨提醒】${createForm.title || result?.board?.title || ''}`.trim(),
+            subject: `【工程聯絡單】${createForm.title || result?.board?.title || ''}`.trim(),
             body: [
-              '您有一則新的溫馨提醒，已啟用密碼保護。',
+              '您有一則新的工程聯絡單，已啟用密碼保護。',
               `日期：${createForm.date || result?.board?.date || ''}`,
               `標題：${createForm.title || result?.board?.title || ''}`,
               `閱讀密碼：${plainPassword}`,
               '',
-              '請至「溫馨提醒」頁面閱讀。'
+              '請至「工程聯絡單」頁面閱讀。'
             ].join('\n')
           })
         })
     }
-    alert('溫馨提醒建立成功')
+    alert('工程聯絡單建立成功')
     setCreateForm((prev) => ({ ...prev, viewerAccounts: [], password: '' }))
     setRefreshKey((x) => x + 1)
   }
@@ -277,7 +277,7 @@ function DailyTodo() {
 
   const handleDeleteBoard = () => {
     if (!selectedBoard) return
-    if (!window.confirm('確定要刪除整張溫馨提醒嗎？此動作無法復原。')) return
+    if (!window.confirm('確定要刪除整張工程聯絡單嗎？此動作無法復原。')) return
     const result = deleteDailyTodoBoard(selectedBoard.id, currentUser, { allowManager: isDailyTodoManager })
     if (!result.success) {
       alert(result.message || '刪除失敗')
@@ -298,11 +298,11 @@ function DailyTodo() {
 
   return (
     <div className="bg-charcoal rounded-lg p-4 sm:p-6 min-h-screen text-white">
-      <h2 className="text-xl font-bold text-yellow-400 mb-4">溫馨提醒</h2>
+      <h2 className="text-xl font-bold text-yellow-400 mb-4">工程聯絡單</h2>
 
       {isDailyTodoManager && (
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-5">
-          <h3 className="text-yellow-400 font-semibold mb-3">建立溫馨提醒（管理者）</h3>
+          <h3 className="text-yellow-400 font-semibold mb-3">建立工程聯絡單（管理者）</h3>
           {userRole === 'admin' && (
             <div className="mb-3">
               <label className="block text-xs text-gray-400 mb-1">指定代辦管理者（全域 1 位）</label>
@@ -353,7 +353,7 @@ function DailyTodo() {
                 type="text"
                 value={createForm.title}
                 onChange={(e) => setCreateForm((prev) => ({ ...prev, title: e.target.value }))}
-                placeholder="例如：2026-03-30 溫馨提醒"
+                placeholder="例如：2026-03-30 工程聯絡單"
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
               />
             </div>
@@ -388,14 +388,14 @@ function DailyTodo() {
             onClick={handleCreateBoard}
             className="mt-3 bg-yellow-400 text-black font-semibold px-4 py-2 rounded hover:bg-yellow-300"
           >
-            建立溫馨提醒
+            建立工程聯絡單
           </button>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
-          <h3 className="text-yellow-400 font-semibold mb-2">我的溫馨提醒</h3>
+          <h3 className="text-yellow-400 font-semibold mb-2">我的工程聯絡單</h3>
           <div className="mb-2 grid grid-cols-1 gap-2">
             <input
               type="date"
@@ -450,7 +450,7 @@ function DailyTodo() {
         </div>
 
         <div className="lg:col-span-2 bg-gray-800 border border-gray-700 rounded-lg p-4">
-          {!selectedBoard && <p className="text-gray-400">請先選擇一筆溫馨提醒</p>}
+          {!selectedBoard && <p className="text-gray-400">請先選擇一筆工程聯絡單</p>}
           {selectedBoard && (
             <>
               <div className="mb-3">
@@ -488,7 +488,7 @@ function DailyTodo() {
                     onClick={handleDeleteBoard}
                     className="mt-2 text-xs text-red-300 hover:text-red-200 border border-red-500/50 rounded px-2 py-1"
                   >
-                    刪除此溫馨提醒
+                    刪除此工程聯絡單
                   </button>
                 )}
               </div>

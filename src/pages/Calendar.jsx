@@ -131,10 +131,10 @@ function Calendar() {
     proposedReturnMileage: '',
     reason: ''
   })
-  const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「加班申請」是否展開
+  const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「緊急入場申報申請」是否展開
   const [detailPweDraft, setDetailPweDraft] = useState(null) // 排程詳情內：藍/黃標每人工作內容編輯草稿
   const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪已送出的申請列表
-  const [overtimePendingBannerOpen, setOvertimePendingBannerOpen] = useState(true) // 管理員：待審加班清單是否展開
+  const [overtimePendingBannerOpen, setOvertimePendingBannerOpen] = useState(true) // 管理員：待審緊急入場申報清單是否展開
   const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
   const [copyScheduleTarget, setCopyScheduleTarget] = useState(null) // 要複製的排程
   const [copyScheduleNewDate, setCopyScheduleNewDate] = useState('') // 複製後的新日期 YYYY-MM-DD
@@ -145,7 +145,7 @@ function Calendar() {
     date: '',
     startTime: '',
     endTime: '',
-    overtimePersonnel: [] // 勾選的加班人員名稱陣列
+    overtimePersonnel: [] // 勾選的緊急入場人員名稱陣列
   })
   const [topicFormData, setTopicFormData] = useState({
     title: '',
@@ -1454,7 +1454,7 @@ function Calendar() {
     setDetailPweDraft(merged.length ? merged.map((e) => ({ ...e })) : [])
   }, [showDetailModal, selectedDetailType, selectedDetailItem])
 
-  /** 月曆上該排程列：凡有此排程之加班申請（同一 scheduleId）即顯示，不依賴申請單「申請日期」是否等於排程日（避免預設成今天導致不顯示） */
+  /** 月曆上該排程列：凡有此排程之緊急入場申報申請（同一 scheduleId）即顯示，不依賴申請單「申請日期」是否等於排程日（避免預設成今天導致不顯示） */
   const getOvertimeStatusLabelForCell = (schedule, cellDateStr) => {
     if (!schedule || isLeaveScheduleItem(schedule)) return ''
     const sid = String(schedule?.id || '').trim()
@@ -1466,8 +1466,8 @@ function Calendar() {
     const list = getOvertimeApplicationsByScheduleId(sid)
     if (list.length === 0) return ''
     const hasPending = list.some((oa) => String(oa?.status || 'pending').trim() === 'pending')
-    if (hasPending) return '加班待審核'
-    if (list.some((oa) => String(oa?.status || '').trim() === 'approved')) return '當日有加班'
+    if (hasPending) return '緊急入場待審核'
+    if (list.some((oa) => String(oa?.status || '').trim() === 'approved')) return '當日有緊急入場'
     return ''
   }
 
@@ -1568,7 +1568,7 @@ function Calendar() {
       if (accountSeen.has(acc)) return
       accountSeen.add(acc)
       const body =
-        `您的加班申請已被駁回。\n\n` +
+        `您的緊急入場申報申請已被駁回。\n\n` +
         `案場：${siteLabel}\n` +
         `日期：${oa.date || '—'}${timeSpan ? ` ${timeSpan}` : ''}\n` +
         (oa.hours != null && oa.hours !== '' ? `時數：${oa.hours} 小時\n` : '') +
@@ -1576,7 +1576,7 @@ function Calendar() {
       addAdminToUserMessage({
         fromAdminAccount: adminAcc,
         to: acc,
-        subject: '加班申請駁回通知',
+        subject: '緊急入場申報申請駁回通知',
         body
       })
     })
@@ -1721,7 +1721,7 @@ function Calendar() {
           // 2) 刪除請假申請
           deleteLeaveApplication(leaveId)
         } else {
-          // fallback：只刪單天排程，一併刪除該排程的加班申請
+          // fallback：只刪單天排程，一併刪除該排程的緊急入場申報申請
           const scheduleId = selectedDetailItem.id
           getOvertimeApplicationsByScheduleId(scheduleId).forEach((oa) => deleteOvertimeApplication(oa.id))
           deleteSchedule(scheduleId)
@@ -1735,7 +1735,7 @@ function Calendar() {
       }
       if (window.confirm('確定要刪除此工程排程嗎？')) {
         const scheduleId = selectedDetailItem.id
-        // 一併刪除該排程的所有加班申請，讓「加班時數明細」同步消失
+        // 一併刪除該排程的所有緊急入場申報申請，讓「加班時數明細」同步消失
         getOvertimeApplicationsByScheduleId(scheduleId).forEach((oa) => deleteOvertimeApplication(oa.id))
         const result = deleteSchedule(scheduleId)
         if (result.success) {
@@ -1976,13 +1976,13 @@ function Calendar() {
       }
       const overtimeList = getOvertimeApplicationsByScheduleId(item.id)
       if (overtimeList.length > 0) {
-        body += '<h3 style="margin:16px 0 8px 0;font-size:1rem;">加班申請</h3>'
+        body += '<h3 style="margin:16px 0 8px 0;font-size:1rem;">緊急入場申報申請</h3>'
         overtimeList.forEach((oa) => {
           const status = (oa.status || 'pending').trim()
           const statusText = status === 'approved' ? '已核准' : status === 'rejected' ? '已駁回' : '待審核'
           const timeRange = oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : ''
           const hoursStr = oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''
-          const personnelStr = oa.overtimePersonnel && oa.overtimePersonnel.length > 0 ? ` | 加班人員: ${oa.overtimePersonnel.join(', ')}` : ''
+          const personnelStr = oa.overtimePersonnel && oa.overtimePersonnel.length > 0 ? ` | 緊急入場人員: ${oa.overtimePersonnel.join(', ')}` : ''
           const rejectStr =
             status === 'rejected' && String(oa.rejectionReason || '').trim() !== ''
               ? ` | 駁回原因: ${escapeHtml(String(oa.rejectionReason).trim())}`
@@ -2940,7 +2940,7 @@ function Calendar() {
   const handleRemoveScheduleFromCalendar = (eventId, scheduleId) => {
     if (window.confirm('確定要從行事曆中移除此排程嗎？')) {
       deleteEvent(eventId)
-      // 一併刪除實際排程與該排程的加班申請，績效頁加班時數明細會同步移除
+      // 一併刪除實際排程與該排程的緊急入場申報申請，績效頁加班時數明細會同步移除
       const sid = String(scheduleId || '').trim()
       if (sid) {
         getOvertimeApplicationsByScheduleId(sid).forEach((oa) => deleteOvertimeApplication(oa.id))
@@ -2959,7 +2959,7 @@ function Calendar() {
     }
     if (!window.confirm(`確定要刪除以下 ${toDelete.length} 個工成項目嗎？\n${toDelete.map(s => `・${s.siteName}（${s.date || '未設日期'}）`).join('\n')}`)) return
     
-    // 刪除排程（並一併刪除該排程的加班申請）
+    // 刪除排程（並一併刪除該排程的緊急入場申報申請）
     toDelete.forEach(s => {
       getOvertimeApplicationsByScheduleId(s.id).forEach((oa) => deleteOvertimeApplication(oa.id))
       deleteSchedule(s.id)
@@ -3034,7 +3034,7 @@ function Calendar() {
           </button>
         </div>
 
-        {/* 管理員：待審核加班集中清單（審核按鈕原僅在「點開排程詳情」內，易被忽略） */}
+        {/* 管理員：待審核緊急入場申報申請集中清單（審核按鈕原僅在「點開排程詳情」內，易被忽略） */}
         {currentRole === 'admin' && (() => {
           void overtimeReviewRevision
           const pendingOt = getPendingOvertimeApplications().slice().sort((a, b) => {
@@ -3050,14 +3050,19 @@ function Calendar() {
                 onClick={() => setOvertimePendingBannerOpen((o) => !o)}
                 className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-amber-200 text-sm font-semibold hover:bg-amber-900/30"
               >
-                <span>待審核加班（{pendingOt.length}）— 點此{overtimePendingBannerOpen ? '收合' : '展開'}</span>
+                <span>待審核緊急入場申報申請（{pendingOt.length}）— 點此{overtimePendingBannerOpen ? '收合' : '展開'}</span>
                 <span className="text-amber-400/90">{overtimePendingBannerOpen ? '▼' : '▶'}</span>
               </button>
               {overtimePendingBannerOpen && (
                 <div className="px-3 pb-3 space-y-2 max-h-56 overflow-y-auto border-t border-amber-600/30">
                   {pendingOt.map((oa) => {
                     const sch = schedules.find((s) => String(s?.id) === String(oa?.scheduleId))
-                    const siteLabel = sch ? getScheduleDisplayTitle(sch) : '（找不到對應排程，可能已刪除）'
+                    const fromWorkReport = !sch && !!String(oa?.workReportRowId || '').trim()
+                    const siteLabel = sch
+                      ? getScheduleDisplayTitle(sch)
+                      : (String(oa?.siteName || '').trim()
+                          ? `${oa.siteName}（出工回報）`
+                          : '（找不到對應排程，可能已刪除）')
                     const timeStr = oa.startTime && oa.endTime ? `${oa.startTime}～${oa.endTime}` : ''
                     return (
                       <div key={oa.id} className="rounded-md bg-gray-900/80 border border-amber-700/40 p-2 text-xs text-gray-200">
@@ -3069,7 +3074,7 @@ function Calendar() {
                         </div>
                         <div>申請人：{oa.applicant || '—'}</div>
                         {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
-                          <div className="text-gray-400">加班人員：{oa.overtimePersonnel.join(', ')}</div>
+                          <div className="text-gray-400">緊急入場人員：{oa.overtimePersonnel.join(', ')}</div>
                         )}
                         <div className="flex flex-wrap gap-2 mt-2">
                           {sch && (
@@ -3080,6 +3085,11 @@ function Calendar() {
                             >
                               開啟排程詳情
                             </button>
+                          )}
+                          {fromWorkReport && (
+                            <span className="px-2 py-1 rounded bg-teal-700/40 text-teal-100 text-[11px]">
+                              來自出工回報
+                            </span>
                           )}
                           <button
                             type="button"
@@ -3203,11 +3213,11 @@ function Calendar() {
                       >
                         <span className="flex-1 min-w-0 line-clamp-2 break-words overflow-hidden">
                           {getScheduleDisplayTitle(schedule)}
-                          {overtimeCellLabel === '加班待審核' && (
-                            <span className="text-amber-200 font-bold"> · 加班待審核</span>
+                          {overtimeCellLabel === '緊急入場待審核' && (
+                            <span className="text-amber-200 font-bold"> · 緊急入場待審核</span>
                           )}
-                          {overtimeCellLabel === '當日有加班' && (
-                            <span className="text-emerald-200 font-bold"> · 當日有加班</span>
+                          {overtimeCellLabel === '當日有緊急入場' && (
+                            <span className="text-emerald-200 font-bold"> · 當日有緊急入場</span>
                           )}
                           {timeDisplay}
                         </span>
@@ -3541,7 +3551,7 @@ function Calendar() {
                     }}
                     className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showOvertimeForm ? 'bg-blue-600 text-white' : 'bg-blue-700/80 text-blue-200 hover:bg-blue-600'}`}
                   >
-                    加班申請 {showOvertimeForm ? '▼' : '▶'}
+                    緊急入場申報申請 {showOvertimeForm ? '▼' : '▶'}
                   </button>
                 )}
               </div>
@@ -3770,8 +3780,8 @@ function Calendar() {
                         {(() => {
                           // 工程排程詳情中「案場」切換按鈕旁顯示加班狀態（所有用戶可見）
                           const overtimeDetailLabel = getOvertimeStatusLabelForCell(selectedDetailItem, selectedDetailItem?.date)
-                          const showPending = overtimeDetailLabel === '加班待審核'
-                          const showApproved = overtimeDetailLabel === '當日有加班'
+                          const showPending = overtimeDetailLabel === '緊急入場待審核'
+                          const showApproved = overtimeDetailLabel === '當日有緊急入場'
                           return (
                             <span className="hidden">
                               {showPending ? 'pending' : showApproved ? 'approved' : ''}
@@ -3798,14 +3808,14 @@ function Calendar() {
                                     }`}
                                   >
                                     {seg.siteName || `案場 ${idx + 1}`}
-                                    {overtimeDetailLabel === '加班待審核' && (
+                                    {overtimeDetailLabel === '緊急入場待審核' && (
                                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/40 text-[11px] font-bold">
-                                        加班待審核
+                                        緊急入場待審核
                                       </span>
                                     )}
-                                    {overtimeDetailLabel === '當日有加班' && (
+                                    {overtimeDetailLabel === '當日有緊急入場' && (
                                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 text-[11px] font-bold">
-                                        當日有加班
+                                        當日有緊急入場
                                       </span>
                                     )}
                                   </button>
@@ -4007,7 +4017,7 @@ function Calendar() {
                           )
                         })()}
 
-                  {/* 加班申請表單與已送出的申請（按鈕已移至標題列「工程排程詳情」旁） */}
+                  {/* 緊急入場申報申請表單與已送出的申請（按鈕已移至標題列「工程排程詳情」旁） */}
                   {!isLeaveScheduleItem(selectedDetailItem) && (
                     <div className="mt-2">
                       {/* 已送出的申請：直接顯示，點開卡片即可看到今天有無加班，不需展開 */}
@@ -4030,7 +4040,7 @@ function Calendar() {
                                         {oa.hours != null && oa.hours !== '' ? `（${oa.hours}小時）` : ''}
                                       </div>
                                       {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
-                                        <div>加班人員：{oa.overtimePersonnel.join(', ')}</div>
+                                        <div>緊急入場人員：{oa.overtimePersonnel.join(', ')}</div>
                                       )}
                                       {status === 'rejected' && String(oa.rejectionReason || '').trim() !== '' && (
                                         <div className="text-red-300 mt-1.5 whitespace-pre-wrap break-words">
@@ -4063,7 +4073,7 @@ function Calendar() {
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          if (!window.confirm('確定要刪除此筆加班申請？')) return
+                                          if (!window.confirm('確定要刪除此筆緊急入場申報申請？')) return
                                           const res = deleteOvertimeApplication(oa.id)
                                           if (res.success) setOvertimeReviewRevision((r) => r + 1)
                                           else alert(res.message || '刪除失敗')
@@ -4079,7 +4089,7 @@ function Calendar() {
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          if (!window.confirm('確定要刪除此筆加班申請？')) return
+                                          if (!window.confirm('確定要刪除此筆緊急入場申報申請？')) return
                                           const res = deleteOvertimeApplication(oa.id)
                                           if (res.success) setOvertimeReviewRevision((r) => r + 1)
                                           else alert(res.message || '刪除失敗')
@@ -4155,7 +4165,7 @@ function Calendar() {
                             ) : null
                           })()}
                           <div>
-                            <label className="block text-blue-300 text-sm mb-1">加班人員（選填）</label>
+                            <label className="block text-blue-300 text-sm mb-1">緊急入場人員（選填）</label>
                             <div className="max-h-32 overflow-y-auto border border-gray-600 rounded bg-gray-800 p-2 space-y-1">
                               {(() => {
                                 const names = mergeSchedulePersonNames(
@@ -4602,7 +4612,7 @@ function Calendar() {
         </div>
       )}
 
-      {/* 駁回加班申請：填寫原因並發站內信 */}
+      {/* 駁回緊急入場申報申請：填寫原因並發站內信 */}
       {overtimeRejectModal.open && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
@@ -4615,8 +4625,8 @@ function Calendar() {
             role="dialog"
             aria-labelledby="overtime-reject-title"
           >
-            <h3 id="overtime-reject-title" className="text-lg font-semibold text-white mb-2">駁回加班申請</h3>
-            <p className="text-blue-200 text-sm mb-3">請填寫駁回原因。原因會顯示在申請卡片上，並以站內信通知申請人與加班人員（需能對應到系統帳號）。</p>
+            <h3 id="overtime-reject-title" className="text-lg font-semibold text-white mb-2">駁回緊急入場申報申請</h3>
+            <p className="text-blue-200 text-sm mb-3">請填寫駁回原因。原因會顯示在申請卡片上，並以站內信通知申請人與緊急入場人員（需能對應到系統帳號）。</p>
             <label className="block text-gray-300 text-sm mb-1">駁回原因</label>
             <textarea
               value={overtimeRejectReasonDraft}
@@ -6842,7 +6852,7 @@ function Calendar() {
                   <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                   </svg>
-                  <span className="text-white">公司活動</span>
+                  <span className="text-white">活動區</span>
                 </div>
                 <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

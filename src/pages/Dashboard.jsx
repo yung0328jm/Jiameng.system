@@ -661,7 +661,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       messages: '站內信',
       vehicle: '車輛資訊',
       memo: '交流區',
-      activities: '公司活動',
+      activities: '活動區',
       management: '下拉選單管理',
       performance: '個人績效',
       'monthly-report': '整月去處報表',
@@ -669,12 +669,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       exchange: '交易所',
       'my-backpack': '我的背包',
       'check-in': '每日簽到',
-      'daily-todo': '溫馨提醒',
-      'leave-application': '請假申請',
-      'advance': '預支',
+      'daily-todo': '工程聯絡單',
+      'leave-application': '入廠人員異動申請',
+      'advance': '工程款借貸',
       'user-management': '用戶管理',
       'developing': '開發中',
-      'work-report': '出工回報',
+      'work-report': '入廠申請',
       'pay-slip': '勞務報酬單',
       'change-password': '修改密碼'
     }
@@ -1202,7 +1202,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           />
           <NavItem
             icon={<DocumentIcon />}
-            label="出工回報"
+            label="入廠申請"
             isActive={activeTab === 'work-report'}
             onClick={() => handleTabClick('work-report', '/work-report')}
           />
@@ -1227,14 +1227,14 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           />
           <NavItem
             icon={<DocumentIcon />}
-            label="溫馨提醒"
+            label="工程聯絡單"
             isActive={activeTab === 'daily-todo'}
             onClick={() => handleTabClick('daily-todo', '/daily-todo')}
             badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
           />
           <NavItem
             icon={<PeopleIcon />}
-            label="公司活動"
+            label="活動區"
             isActive={activeTab === 'activities'}
             onClick={() => handleTabClick('activities', '/company-activities')}
             badge={activeTab === 'activities' ? null : (navBadges.activities > 0 ? navBadges.activities : null)}
@@ -1317,11 +1317,11 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                     <ExchangeIcon /> 交易所
                   </button>
                   <button type="button" onClick={() => { handleTabClick('leave-application', '/leave-application'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
-                    <LeaveIcon /> 請假申請
+                    <LeaveIcon /> 入廠人員異動申請
                     {navBadges.leave > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.leave}</span>}
                   </button>
                   <button type="button" onClick={() => { handleTabClick('advance', '/advance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
-                    <AdvanceIcon /> 預支
+                    <AdvanceIcon /> 工程款借貸
                     {navBadges.advance > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.advance}</span>}
                   </button>
                   <button type="button" onClick={() => { handleTabClick('messages', '/messages'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">

@@ -627,7 +627,7 @@ function WorkReport() {
   return (
     <div className="max-w-5xl mx-auto text-white">
       <div className="mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">出工回報表單</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">入廠申請</h1>
         <p className="text-gray-400 text-sm mt-1">
           選日期與案場後，包商或勞務承攬者填一筆按「登記」即寫入當日。顯示出工人數與緊急入場時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
         </p>

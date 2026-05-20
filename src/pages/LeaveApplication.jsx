@@ -373,7 +373,7 @@ function LeaveApplication() {
     >
       <div className="max-w-xl mx-auto w-full">
         <div className="mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-1">請假申請</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-1">入廠人員異動申請</h1>
           <p className="text-gray-400 text-sm sm:text-base">
             {userRole === 'admin'
               ? '指派一位代填人代為填寫請假；審核通過後會顯示於行事曆。'

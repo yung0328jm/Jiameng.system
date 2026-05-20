@@ -251,7 +251,7 @@ function Advance() {
 
   return (
     <div className="bg-charcoal rounded-lg p-4 sm:p-6 max-w-4xl mx-auto" suppressHydrationWarning>
-      <h2 className="text-2xl font-bold text-yellow-400 mb-4">預支申請</h2>
+      <h2 className="text-2xl font-bold text-yellow-400 mb-4">工程款借貸</h2>
 
       {/* 使用者：申請表單 */}
       {currentUser && userRole !== 'admin' && (
