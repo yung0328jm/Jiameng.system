@@ -337,11 +337,11 @@ function WorkReport() {
   const [contractorHeadcount, setContractorHeadcount] = useState(1)
   const [contractorArrival, setContractorArrival] = useState('')
   const [contractorDeparture, setContractorDeparture] = useState('')
-  const [contractorOpen, setContractorOpen] = useState(true)
+  const [contractorOpen, setContractorOpen] = useState(false)
   const [laborNames, setLaborNames] = useState([])
   const [laborArrival, setLaborArrival] = useState('')
   const [laborDeparture, setLaborDeparture] = useState('')
-  const [laborOpen, setLaborOpen] = useState(true)
+  const [laborOpen, setLaborOpen] = useState(false)
   const [listsOpen, setListsOpen] = useState(false)
   const [newSiteName, setNewSiteName] = useState('')
   const [newContractorName, setNewContractorName] = useState('')
@@ -822,7 +822,7 @@ function WorkReport() {
             onClick={() => setContractorOpen((v) => !v)}
             className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-teal-950/30 transition-colors"
           >
-            <span className="text-teal-300 text-sm font-medium">包商出工（登記即存當日）</span>
+            <span className="text-teal-300 text-sm font-medium">承攬商登記（登記即存當日）</span>
             <span className="text-gray-500 text-xs shrink-0">
               {contractorOpen ? '收合 ▲' : '展開 ▼'}
               {dayContractorRecords.length > 0 ? ` · 本日 ${dayContractorRecords.length} 筆` : ''}
@@ -832,10 +832,10 @@ function WorkReport() {
             <div className="px-4 pb-4 pt-2 space-y-4 border-t border-teal-700/30">
               {dayContractorRecords.length > 0 && (
                 <div>
-                  <p className="text-xs text-gray-400 mb-2">{date} 已登記包商 {dayContractorRecords.length} 筆</p>
+                  <p className="text-xs text-gray-400 mb-2">{date} 已登記承攬商 {dayContractorRecords.length} 筆</p>
                   <DayRegisterTable
                     rows={dayContractorRecords}
-                    labelName="包商"
+                    labelName="承攬商"
                     currentUser={currentUser}
                     userRole={userRole}
                     onDelete={handleDelete}
@@ -844,13 +844,13 @@ function WorkReport() {
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-400 text-xs mb-1">包商名稱</label>
+                  <label className="block text-gray-400 text-xs mb-1">承攬商名稱</label>
                   <select
                     value={contractorName}
                     onChange={(e) => setContractorName(e.target.value)}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   >
-                    <option value="">— 請選擇包商 —</option>
+                    <option value="">— 請選擇承攬商 —</option>
                     {contractorOptions.map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
@@ -887,6 +887,7 @@ function WorkReport() {
       </div>
 
 
+      {userRole === 'admin' && (
       <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4 sm:p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
@@ -1036,6 +1037,7 @@ function WorkReport() {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }
