@@ -229,6 +229,67 @@ const deleteScheduleFromSupabase = async (scheduleId) => {
   }
 }
 
+/** 是否為入廠異動（請假）排程 */
+export function isLeaveScheduleRecord(schedule) {
+  const tag = String(schedule?.tag || '').trim()
+  const siteName = String(schedule?.siteName || '').trim()
+  return (
+    tag === 'leave' ||
+    /^請假(\s|[-—])/u.test(siteName) ||
+    siteName === '請假' ||
+    siteName.endsWith('不需申請入廠證')
+  )
+}
+
+/** 從 siteName 解析人員名稱（新舊格式） */
+export function parseLeavePersonFromSiteName(siteName) {
+  const s = String(siteName || '').trim()
+  const oldM = s.match(/^請假\s*(?:-|—)\s*(.+?)(?:\s*(?:-|—)\s*.+)?$/u)
+  if (oldM) return String(oldM[1] || '').trim()
+  const newM = s.match(/^(.+?)\s*(?:-|—)\s*.+$/u)
+  if (newM) return String(newM[1] || '').trim()
+  return ''
+}
+
+/**
+ * 刪除指定日期、指定人員的入廠異動排程（避免核准重複寫入或舊格式殘留）
+ */
+export function deleteLeaveSchedulesForPersonOnDate(dateStr, personIdentifiers) {
+  try {
+    const d = String(dateStr || '').slice(0, 10)
+    const raw = Array.isArray(personIdentifiers) ? personIdentifiers : [personIdentifiers]
+    const ids = new Set(
+      raw.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean)
+    )
+    if (!d || ids.size === 0) return { success: true, count: 0 }
+
+    const schedules = getSchedules()
+    const toDelete = []
+    const keep = schedules.filter((s) => {
+      if (String(s?.date || '').slice(0, 10) !== d) return true
+      if (!isLeaveScheduleRecord(s)) return true
+      const person = parseLeavePersonFromSiteName(s.siteName).toLowerCase()
+      const siteLower = String(s.siteName || '').trim().toLowerCase()
+      const match = [...ids].some((id) => person === id || (id && siteLower.includes(id)))
+      if (match) {
+        toDelete.push(s)
+        return false
+      }
+      return true
+    })
+    localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(keep))
+    toDelete.forEach((s) => {
+      try {
+        deleteScheduleFromSupabase(s.id)
+      } catch (_) {}
+    })
+    return { success: true, count: toDelete.length }
+  } catch (e) {
+    console.error('deleteLeaveSchedulesForPersonOnDate:', e)
+    return { success: false, message: '刪除失敗' }
+  }
+}
+
 /** 刪除同一筆請假申請寫入的所有請假排程（多天） */
 export const deleteSchedulesByLeaveApplicationId = (leaveApplicationId) => {
   try {
