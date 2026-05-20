@@ -16,6 +16,8 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { saveSchedule, deleteSchedulesByLeaveApplicationId } from '../utils/scheduleStorage'
 import { touchLastSeen } from '../utils/lastSeenStorage'
 
+const DEFAULT_LEAVE_REASON = '當日未進廠'
+
 function LeaveApplication() {
   const location = useLocation()
   const calendarDate =
@@ -25,7 +27,7 @@ function LeaveApplication() {
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [startDate, setStartDate] = useState(calendarDate)
   const [endDate, setEndDate] = useState(calendarDate)
-  const [reason, setReason] = useState('')
+  const [reason, setReason] = useState(DEFAULT_LEAVE_REASON)
   const [message, setMessage] = useState(null)
   const [applications, setApplications] = useState([])
   const [pendingList, setPendingList] = useState([])
@@ -82,7 +84,7 @@ function LeaveApplication() {
       setMessage({ type: 'error', text: '結束日不得早於起始日' })
       return
     }
-    const reasonTrim = reason.trim()
+    const reasonTrim = reason.trim() || DEFAULT_LEAVE_REASON
     const result = addLeaveApplication({
       userId: targetUserId,
       userName: targetUserName,
@@ -98,7 +100,7 @@ function LeaveApplication() {
     setMessage({ type: 'success', text: '異動申請已送出，待管理員審核通過後將顯示於行事曆。' })
     setStartDate('')
     setEndDate('')
-    setReason('')
+    setReason(DEFAULT_LEAVE_REASON)
     setShowApplyForm(false)
   }
 
@@ -241,7 +243,10 @@ function LeaveApplication() {
             {!showApplyForm ? (
               <button
                 type="button"
-                onClick={() => setShowApplyForm(true)}
+                onClick={() => {
+                  setReason(DEFAULT_LEAVE_REASON)
+                  setShowApplyForm(true)
+                }}
                 className="w-full min-h-[48px] py-3.5 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 active:bg-yellow-400 transition-colors text-base touch-manipulation"
               >
                 申請異動
@@ -280,20 +285,19 @@ function LeaveApplication() {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">事由（選填）</label>
+                  <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">事由</label>
                   <input
                     type="text"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="例：事假、病假"
-                    className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base placeholder-gray-500 focus:outline-none focus:border-yellow-400 touch-manipulation"
+                    className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base focus:outline-none focus:border-yellow-400 touch-manipulation"
                   />
                 </div>
                 <button
                   type="submit"
                   className="w-full min-h-[48px] py-3.5 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 active:bg-yellow-400 transition-colors text-base touch-manipulation"
                 >
-                  送出異動申請（待管理員審核）
+                  申報
                 </button>
               </form>
             )}
