@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useCallback } from 'react'
+﻿import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
@@ -448,6 +448,8 @@ function WorkReport() {
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1)
   const [monthRecords, setMonthRecords] = useState([])
   const [resignedSnapshot, setResignedSnapshot] = useState({ accounts: [], names: [] })
+  const [flashDateKey, setFlashDateKey] = useState(null)
+  const pendingJumpRef = useRef(null)
 
   const refetch = useCallback(async () => {
     const role = getCurrentUserRole()
@@ -769,6 +771,23 @@ function WorkReport() {
     [unreportedOvertimeItems]
   )
 
+  const jumpToUnreportedItem = (item) => {
+    const dateStr = String(item?.date || '').slice(0, 10)
+    if (!dateStr) return
+    const d = new Date(`${dateStr}T12:00:00`)
+    if (!Number.isNaN(d.getTime())) {
+      setFilterYear(d.getFullYear())
+      setFilterMonth(d.getMonth() + 1)
+    }
+    setDate(dateStr)
+    const site = String(item?.siteName || '').trim()
+    if (site) {
+      setSiteSelect((prev) => (siteOptions.includes(site) ? site : prev || site))
+    }
+    pendingJumpRef.current = { date: dateStr, siteName: site, rowId: item?.rowId }
+    setFlashDateKey(dateStr)
+  }
+
   const handleReportOvertime = (row) => {
     const summary = getWorkReportRowShiftSummary(row)
     const otHours = summary?.totalOvertimeHours ?? 0
@@ -850,6 +869,32 @@ function WorkReport() {
     [recordsByDate]
   )
 
+  useEffect(() => {
+    const pending = pendingJumpRef.current
+    if (!pending?.date) return
+    if (!sortedDateKeys.includes(pending.date)) return
+    const el = document.getElementById(`work-report-day-${pending.date}`)
+    if (!el) return
+
+    pendingJumpRef.current = null
+    const scrollTimer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (pending.siteName) {
+        const siteEl = el.querySelector(`[data-site-key="${pending.siteName}"]`)
+        siteEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+      if (pending.rowId) {
+        const rowEl = el.querySelector(`[data-row-id="${pending.rowId}"]`)
+        rowEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    }, 100)
+    const flashTimer = window.setTimeout(() => setFlashDateKey(null), 3500)
+    return () => {
+      window.clearTimeout(scrollTimer)
+      window.clearTimeout(flashTimer)
+    }
+  }, [sortedDateKeys, monthRecords, filterYear, filterMonth, flashDateKey])
+
   const personMonthTotals = useMemo(() => {
     const map = new Map()
     monthRecords.forEach((row) => {
@@ -906,14 +951,14 @@ function WorkReport() {
             您有 {unreportedOvertimeItems.length} 筆緊急入場待申報（近 14 日）
           </p>
           <p className="text-amber-200/70 text-xs mt-1">
-            請在下方當日登記表按「申報」送出；管理員審核通過後計入緊急追加服務費。導覽「入廠申請」上的數字為同一批待辦。
+            點下方項目可跳到「當月明細」該日卡片；在當日登記表或明細中按「申報」送出。導覽「入廠申請」上的數字為同一批待辦。
           </p>
           <ul className="mt-2 space-y-1 text-xs list-disc list-inside text-amber-100/90">
             {unreportedOvertimeItems.slice(0, 8).map((item) => (
               <li key={item.rowId}>
                 <button
                   type="button"
-                  onClick={() => setDate(item.date)}
+                  onClick={() => jumpToUnreportedItem(item)}
                   className="text-left hover:text-amber-50 underline-offset-2 hover:underline"
                 >
                   {formatUnreportedOvertimeLabel(item)}
@@ -1285,17 +1330,29 @@ function WorkReport() {
           </div>
         )}
 
-        <div className={userRole === 'admin' && personMonthTotals.length > 0 ? 'border-t border-gray-700 pt-4' : ''}>
+        <div
+          id="work-report-month-detail"
+          className={userRole === 'admin' && personMonthTotals.length > 0 ? 'border-t border-gray-700 pt-4' : ''}
+        >
           <h3 className="text-base font-semibold text-yellow-400/90 mb-3">當月明細</h3>
           {sortedDateKeys.length === 0 ? (
             <p className="text-gray-500 text-sm">尚無紀錄。</p>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {sortedDateKeys.map((dateKey) => {
                 const dayGroups = groupWorkReportRowsForDisplay(recordsByDate.get(dateKey) || [])
+                const isFlashing = flashDateKey === dateKey
                 return (
-                  <div key={dateKey}>
-                    <h4 className="text-sm font-medium text-gray-200 mb-2 tabular-nums">{dateKey}</h4>
+                  <div
+                    key={dateKey}
+                    id={`work-report-day-${dateKey}`}
+                    className={`scroll-mt-24 rounded-xl border p-4 transition-colors duration-300 ${
+                      isFlashing
+                        ? 'border-amber-500/80 bg-amber-950/25 ring-2 ring-amber-500/50'
+                        : 'border-gray-700/80 bg-gray-900/30'
+                    }`}
+                  >
+                    <h4 className="text-sm font-semibold text-gray-100 mb-3 tabular-nums">{dateKey}</h4>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm border-collapse min-w-[560px]">
                         <thead>
@@ -1305,14 +1362,23 @@ function WorkReport() {
                             <th className="py-2 pr-3 font-medium" colSpan={2}>時間</th>
                             <th className="py-2 pr-3 font-medium text-right">工時</th>
                             <th className="py-2 pr-3 font-medium">填寫人</th>
-                            <th className="py-2 font-medium w-16" />
+                            <th className="py-2 font-medium text-right min-w-[5.5rem]">操作</th>
                           </tr>
                         </thead>
                         <tbody>
                           {dayGroups.map((group) => {
                             const isContractor = group.kind === 'contractor'
+                            const primaryRowId = group.rows[0]?.id
+                            const needsOvertimeReport = group.rows.some((r) => unreportedRowIds.has(r.id))
                             return (
-                              <tr key={group.id} className="border-b border-gray-700/60">
+                              <tr
+                                key={group.id}
+                                data-site-key={group.siteName}
+                                data-row-id={primaryRowId || undefined}
+                                className={`border-b border-gray-700/60 ${
+                                  needsOvertimeReport ? 'bg-amber-950/20' : ''
+                                }`}
+                              >
                                 <td className="py-2.5 pr-3 text-gray-200">{group.siteName}</td>
                                 <td className="py-2.5 pr-3 text-white">
                                   {group.personName}
@@ -1332,28 +1398,43 @@ function WorkReport() {
                                   {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
                                 </td>
                                 <td className="py-2.5">
-                                  {userRole === 'admin' && (
-                                    <div className="flex flex-col gap-1 items-end">
-                                      {group.rows.map((row) => (
-                                        <div key={row.id} className="flex gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => openAdminEditRow(row)}
-                                            className="text-cyan-400 hover:text-cyan-300 text-xs whitespace-nowrap"
-                                          >
-                                            編輯
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDelete(row)}
-                                            className="text-red-400 hover:text-red-300 text-xs whitespace-nowrap"
-                                          >
-                                            {group.rows.length > 1 ? '刪此批' : '刪除'}
-                                          </button>
+                                  <div className="flex flex-col gap-1 items-end">
+                                    {group.rows.map((row) => {
+                                      const ot = getWorkReportRowShiftSummary(row)?.totalOvertimeHours ?? 0
+                                      const showReport = unreportedRowIds.has(row.id)
+                                      return (
+                                        <div key={row.id} className="flex flex-wrap gap-2 justify-end">
+                                          {showReport && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleReportOvertime(row)}
+                                              className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white font-medium whitespace-nowrap"
+                                            >
+                                              申報 {formatWorkReportHours(ot)}h
+                                            </button>
+                                          )}
+                                          {userRole === 'admin' && (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => openAdminEditRow(row)}
+                                                className="text-cyan-400 hover:text-cyan-300 text-xs whitespace-nowrap"
+                                              >
+                                                編輯
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDelete(row)}
+                                                className="text-red-400 hover:text-red-300 text-xs whitespace-nowrap"
+                                              >
+                                                {group.rows.length > 1 ? '刪此批' : '刪除'}
+                                              </button>
+                                            </>
+                                          )}
                                         </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                      )
+                                    })}
+                                  </div>
                                 </td>
                               </tr>
                             )
