@@ -14,7 +14,8 @@ import {
   calcPayAmount,
   getAllPayRates,
   getAllBonuses,
-  DEFAULT_PAY_RATE
+  DEFAULT_PAY_RATE,
+  NIGHT_MEAL_OT_THRESHOLD_HOURS
 } from '../utils/paySlipStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
@@ -101,17 +102,31 @@ function buildPersonStatsMap(monthRecords) {
       fullDays: 0,
       overtimeHours: 0,
       underHours: 0,
+      otHoursByDate: new Map(),
       rows: []
     }
     prev.fullDays += shift.fullDayHeadcount || 0
     prev.overtimeHours += approvedOvertimeHours
     prev.underHours += shift.underActualHours || 0
+    const dateStr = String(row?.date || '').slice(0, 10)
+    if (dateStr && approvedOvertimeHours > 0) {
+      prev.otHoursByDate.set(
+        dateStr,
+        round1((prev.otHoursByDate.get(dateStr) || 0) + approvedOvertimeHours)
+      )
+    }
     prev.rows.push({ row, shift, approvedOvertimeHours })
     map.set(person, prev)
   })
   // 四捨五入＋未滿時數累計補日（每滿 8 小時 → 出工 +1 天）
   map.forEach((v) => {
     v.overtimeHours = round1(v.overtimeHours)
+    let nightMealQualifyingDays = 0
+    ;(v.otHoursByDate || new Map()).forEach((hrs) => {
+      if (hrs >= NIGHT_MEAL_OT_THRESHOLD_HOURS) nightMealQualifyingDays += 1
+    })
+    v.nightMealQualifyingDays = nightMealQualifyingDays
+    delete v.otHoursByDate
     const totalUnder = round1(v.underHours)
     const carryDays = Math.floor((totalUnder + 1e-9) / 8)
     const remain = round1(Math.max(0, totalUnder - carryDays * 8))
@@ -231,10 +246,18 @@ function PaySlip() {
               fullDays: s.fullDays,
               overtimeHours: s.overtimeHours,
               underHours: s.underHours,
+              nightMealQualifyingDays: s.nightMealQualifyingDays || 0,
               rows: s.rows,
               isContractor: s.isContractor
             }
-          : { fullDays: 0, overtimeHours: 0, underHours: 0, rows: [], isContractor: false }
+          : {
+              fullDays: 0,
+              overtimeHours: 0,
+              underHours: 0,
+              nightMealQualifyingDays: 0,
+              rows: [],
+              isContractor: false
+            }
         const rate = getPayRate(name)
         const bonus = getBonus(name, yearMonth)
         const amounts = calcPayAmount(stats, rate, bonus)
@@ -253,6 +276,7 @@ function PaySlip() {
     let under = 0
     let ot = 0
     let meal = 0
+    let nightMeal = 0
     let insur = 0
     let bonus = 0
     personRows.forEach((p) => {
@@ -260,11 +284,12 @@ function PaySlip() {
       under += p.amounts.underAmount
       ot += p.amounts.overtimeAmount
       meal += p.amounts.mealAmount
+      nightMeal += p.amounts.nightMealAmount
       insur += p.amounts.insuranceAmount
       bonus += p.amounts.bonusAmount
     })
-    const total = day + under + ot + meal + insur + bonus
-    return { day, under, ot, meal, insur, bonus, total }
+    const total = day + under + ot + meal + nightMeal + insur + bonus
+    return { day, under, ot, meal, nightMeal, insur, bonus, total }
   }, [personRows])
 
   const startEditRate = (name) => {
@@ -275,6 +300,9 @@ function PaySlip() {
         dailyRate: String(r.dailyRate || ''),
         overtimeMultiplier: String(r.overtimeMultiplier ?? DEFAULT_PAY_RATE.overtimeMultiplier),
         mealAllowancePerDay: String(r.mealAllowancePerDay ?? DEFAULT_PAY_RATE.mealAllowancePerDay),
+        nightMealAllowancePerDay: String(
+          r.nightMealAllowancePerDay ?? DEFAULT_PAY_RATE.nightMealAllowancePerDay
+        ),
         insuranceSubsidyPerDay: String(r.insuranceSubsidyPerDay ?? DEFAULT_PAY_RATE.insuranceSubsidyPerDay)
       }
     }))
@@ -294,6 +322,7 @@ function PaySlip() {
       dailyRate: Number(d.dailyRate) || 0,
       overtimeMultiplier: Number(d.overtimeMultiplier) || 0,
       mealAllowancePerDay: Number(d.mealAllowancePerDay) || 0,
+      nightMealAllowancePerDay: Number(d.nightMealAllowancePerDay) || 0,
       insuranceSubsidyPerDay: Number(d.insuranceSubsidyPerDay) || 0
     })
     if (!result.success) {
@@ -335,7 +364,8 @@ function PaySlip() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">勞務報酬單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          依出工回報統計＋每人費用參數計算月度勞務報酬。所有數字可由管理員自行設定。
+          依出工回報統計＋每人費用參數計算月度勞務報酬。夜間誤餐雜支費：當日已核准緊急入場達{' '}
+          {NIGHT_MEAL_OT_THRESHOLD_HOURS} 小時以上計 1 日。所有數字可由管理員自行設定。
           {!isAdmin && '（一般使用者僅顯示自己的紀錄）'}
         </p>
       </div>
@@ -415,7 +445,7 @@ function PaySlip() {
         {isAdmin && personRows.length > 0 && (
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">{yearMonth} 全部人員合計</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 tabular-nums">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 tabular-nums">
               <div>
                 <div className="text-gray-400 text-xs">出勤基本工程款</div>
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.day)}</div>
@@ -431,6 +461,10 @@ function PaySlip() {
               <div>
                 <div className="text-gray-400 text-xs">誤餐雜支費</div>
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.meal)}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">夜間誤餐雜支費</div>
+                <div className="text-violet-300 font-semibold">${formatMoney(grandTotal.nightMeal)}</div>
               </div>
               <div>
                 <div className="text-gray-400 text-xs">風險管理補貼</div>
@@ -549,6 +583,16 @@ function PaySlip() {
                           <span className="ml-1 font-semibold">${formatMoney(amounts.mealAmount)}</span>
                         </span>
                       </div>
+                      {(stats.nightMealQualifyingDays > 0 || amounts.nightMealAmount > 0) && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">夜間誤餐雜支費</span>
+                          <span className="text-violet-200">
+                            {stats.nightMealQualifyingDays} 日（當日核准緊急入場 ≥
+                            {NIGHT_MEAL_OT_THRESHOLD_HOURS}h）× ${formatMoney(rate.nightMealAllowancePerDay)} =
+                            <span className="ml-1 font-semibold">${formatMoney(amounts.nightMealAmount)}</span>
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-gray-300">外包商風險管理補貼</span>
                         <span className="text-amber-200">
@@ -623,6 +667,18 @@ function PaySlip() {
                             hint="未滿日按比例 X/8 × 時數"
                           />
                           <NumberField
+                            label="夜間誤餐雜支費"
+                            suffix="元/日"
+                            value={editingRate[personName]?.nightMealAllowancePerDay || ''}
+                            onChange={(v) =>
+                              setEditingRate((prev) => ({
+                                ...prev,
+                                [personName]: { ...prev[personName], nightMealAllowancePerDay: v }
+                              }))
+                            }
+                            hint={`當日已核准緊急入場 ≥ ${NIGHT_MEAL_OT_THRESHOLD_HOURS} 小時計 1 日`}
+                          />
+                          <NumberField
                             label="風險管理補貼（滿日）"
                             suffix="元/天"
                             value={editingRate[personName]?.insuranceSubsidyPerDay || ''}
@@ -664,6 +720,13 @@ function PaySlip() {
                           <div>
                             <div className="text-gray-400">誤餐雜支（滿日）</div>
                             <div className="text-white">${formatMoney(rate.mealAllowancePerDay)} / 天</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">夜間誤餐雜支</div>
+                            <div className="text-white">${formatMoney(rate.nightMealAllowancePerDay)} / 日</div>
+                            <div className="text-gray-500 text-[10px] mt-0.5">
+                              當日核准緊急入場 ≥ {NIGHT_MEAL_OT_THRESHOLD_HOURS}h
+                            </div>
                           </div>
                           <div>
                             <div className="text-gray-400">風險管理（滿日）</div>
