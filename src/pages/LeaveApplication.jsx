@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
-import { getDisplayNameForAccount } from '../utils/displayName'
+import { getDisplayNameForAccount, resolveDisplayNameToAccount } from '../utils/displayName'
+import { getDropdownOptionsByCategory } from '../utils/dropdownStorage'
 import {
   addLeaveApplication,
   getLeaveApplications,
@@ -10,7 +11,8 @@ import {
   updateLeaveApplicationStatus,
   updateLeaveApplication,
   getLeaveApplicationById,
-  deleteLeaveApplication
+  deleteLeaveApplication,
+  getLeaveFillerAccount
 } from '../utils/leaveApplicationStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import {
@@ -22,6 +24,32 @@ import { touchLastSeen } from '../utils/lastSeenStorage'
 
 const DEFAULT_LEAVE_REASON = '當日不須申請入廠證及參加工具箱會議'
 const LEAVE_CALENDAR_STATUS = '不需申請入廠證'
+
+/** 可選異動人員（參與人員＋負責人，排除離職） */
+function getSelectableMemberNames() {
+  const users = getUsers() || []
+  const resignedAccounts = new Set(
+    users.filter((u) => u?.role === 'resigned').map((u) => String(u?.account || '').trim()).filter(Boolean)
+  )
+  const resignedNames = new Set(
+    users.filter((u) => u?.role === 'resigned').map((u) => String(u?.name || '').trim()).filter(Boolean)
+  )
+
+  const seen = new Set()
+  const out = []
+  const add = (n) => {
+    const t = String(n || '').trim()
+    if (!t || seen.has(t) || resignedNames.has(t)) return
+    const acc = resolveDisplayNameToAccount(t)
+    if (acc && resignedAccounts.has(acc)) return
+    seen.add(t)
+    out.push(t)
+  }
+  ;(getDropdownOptionsByCategory('participants') || []).forEach((opt) => add(opt?.value))
+  ;(getDropdownOptionsByCategory('responsible_persons') || []).forEach((opt) => add(opt?.value))
+  out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+  return out
+}
 
 function LeaveApplication() {
   const location = useLocation()
@@ -37,15 +65,32 @@ function LeaveApplication() {
   const [applications, setApplications] = useState([])
   const [pendingList, setPendingList] = useState([])
   const [showApplyForm, setShowApplyForm] = useState(!!calendarDate)
+  const [applyForName, setApplyForName] = useState('')
+  const [memberNames, setMemberNames] = useState([])
   const [editingLeaveId, setEditingLeaveId] = useState(null) // 管理員編輯請假紀錄
   const [editForm, setEditForm] = useState({ startDate: '', endDate: '', reason: '', status: 'pending' })
+
+  const selfDisplayName = useMemo(() => {
+    if (!currentUser) return ''
+    const u = getUsers().find((x) => x.account === currentUser)
+    if (u?.name) return u.name
+    return getDisplayNameForAccount(currentUser) || currentUser
+  }, [currentUser, userName])
+
+  const canApplyForOthers = useMemo(() => {
+    if (!currentUser) return false
+    if (userRole === 'admin') return true
+    const filler = getLeaveFillerAccount()
+    return filler && filler === currentUser
+  }, [currentUser, userRole])
 
   const loadApplications = () => {
     setApplications(getLeaveApplications())
     setPendingList(getPendingLeaveApplications())
   }
-  useRealtimeKeys(['jiameng_leave_applications'], () => {
+  useRealtimeKeys(['jiameng_leave_applications', 'jiameng_leave_filler_account', 'jiameng_dropdown_options'], () => {
     loadApplications()
+    setMemberNames(getSelectableMemberNames())
   })
 
   useEffect(() => {
@@ -55,10 +100,17 @@ function LeaveApplication() {
     setUserRole(role)
     if (user) {
       const u = getUsers().find((x) => x.account === user)
-      setUserName(u ? u.name || user : user)
+      const name = u ? u.name || user : user
+      setUserName(name)
+      setApplyForName(name)
     }
+    setMemberNames(getSelectableMemberNames())
     loadApplications()
   }, [])
+
+  useEffect(() => {
+    if (selfDisplayName && !applyForName) setApplyForName(selfDisplayName)
+  }, [selfDisplayName, applyForName])
 
   // 使用者端：進入請假申請頁就視為「已查看自己的審核更新」
   useEffect(() => {
@@ -73,8 +125,13 @@ function LeaveApplication() {
       setMessage({ type: 'error', text: '請先登入' })
       return
     }
-    const targetUserId = currentUser
-    const targetUserName = userName || currentUser
+    const targetUserName = (canApplyForOthers ? applyForName : selfDisplayName || userName || currentUser).trim()
+    if (!targetUserName) {
+      setMessage({ type: 'error', text: '請選擇異動人員' })
+      return
+    }
+    const targetUserId = resolveDisplayNameToAccount(targetUserName) || targetUserName
+    const isProxy = targetUserName !== (selfDisplayName || userName || currentUser)
     if (!startDate || !endDate) {
       setMessage({ type: 'error', text: '請填寫請假起始日與結束日' })
       return
@@ -95,17 +152,24 @@ function LeaveApplication() {
       userName: targetUserName,
       startDate,
       endDate,
-      reason: reasonTrim
+      reason: reasonTrim,
+      submittedBy: isProxy ? currentUser : ''
     })
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '申請失敗' })
       return
     }
     loadApplications()
-    setMessage({ type: 'success', text: '異動申請已送出，待管理員審核通過後將顯示於行事曆。' })
+    setMessage({
+      type: 'success',
+      text: isProxy
+        ? `已代「${targetUserName}」送出異動申請，待管理員審核通過後將顯示於行事曆。`
+        : '異動申請已送出，待管理員審核通過後將顯示於行事曆。'
+    })
     setStartDate('')
     setEndDate('')
     setReason(DEFAULT_LEAVE_REASON)
+    setApplyForName(selfDisplayName || userName || currentUser)
     setShowApplyForm(false)
   }
 
@@ -256,6 +320,8 @@ function LeaveApplication() {
                 type="button"
                 onClick={() => {
                   setReason(DEFAULT_LEAVE_REASON)
+                  setApplyForName(selfDisplayName || userName || currentUser)
+                  setMemberNames(getSelectableMemberNames())
                   setShowApplyForm(true)
                 }}
                 className="w-full min-h-[48px] py-3.5 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 active:bg-yellow-400 transition-colors text-base touch-manipulation"
@@ -274,7 +340,40 @@ function LeaveApplication() {
                     取消
                   </button>
                 </div>
-                <p className="text-gray-400 text-xs">申請人：{userName || currentUser}</p>
+                {canApplyForOthers ? (
+                  <div>
+                    <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">
+                      異動人員 <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      value={applyForName}
+                      onChange={(e) => setApplyForName(e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-500 rounded-lg px-4 py-3 sm:py-2 text-white text-base focus:outline-none focus:border-yellow-400 touch-manipulation"
+                      required
+                    >
+                      <option value="">— 請選擇 —</option>
+                      {(() => {
+                        const names = [...memberNames]
+                        const self = selfDisplayName || userName || currentUser
+                        if (self && !names.includes(self)) names.unshift(self)
+                        return names.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                            {n === self ? '（本人）' : ''}
+                          </option>
+                        ))
+                      })()}
+                    </select>
+                    <p className="text-gray-500 text-xs mt-1">
+                      送件人：{selfDisplayName || userName || currentUser}
+                      {applyForName && applyForName !== (selfDisplayName || userName) && (
+                        <span className="text-amber-200/90"> · 代「{applyForName}」申請</span>
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-xs">異動人員：{selfDisplayName || userName || currentUser}</p>
+                )}
                 <div>
                   <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">起始日 <span className="text-red-400">*</span></label>
                   <input
@@ -334,6 +433,11 @@ function LeaveApplication() {
                     <span className="text-gray-400 hidden sm:inline mx-2">｜</span>
                     <span className="text-gray-300 block sm:inline mt-0.5 sm:mt-0">{r.startDate} ~ {r.endDate}</span>
                     {r.reason && <span className="text-gray-500 block sm:inline sm:ml-2 mt-0.5 sm:mt-0">（{r.reason}）</span>}
+                    {r.submittedBy && r.submittedBy !== r.userId && (
+                      <span className="text-amber-200/80 block sm:inline sm:ml-2 mt-0.5 sm:mt-0 text-[11px]">
+                        代填：{getDisplayNameForAccount(r.submittedBy)}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button
@@ -375,6 +479,11 @@ function LeaveApplication() {
                       <span className="text-gray-400 mx-2">｜</span>
                       <span className="text-gray-300">{r.startDate} ~ {r.endDate}</span>
                       {r.reason && <span className="text-gray-500 sm:ml-2">（{r.reason}）</span>}
+                      {r.submittedBy && r.submittedBy !== r.userId && (
+                        <span className="text-amber-200/70 block sm:inline sm:ml-2 text-[11px]">
+                          代填：{getDisplayNameForAccount(r.submittedBy)}
+                        </span>
+                      )}
                     </div>
                     <span
                       className={`px-2.5 py-1 rounded text-xs font-medium shrink-0 ${
