@@ -15,7 +15,8 @@ const toRow = (r) => ({
   status: r.status ?? 'pending',
   created_at: r.createdAt ?? new Date().toISOString(),
   approved_by: r.approvedBy ?? '',
-  approved_at: r.approvedAt ?? null
+  approved_at: r.approvedAt ?? null,
+  submitted_by: r.submittedBy ?? ''
 })
 
 const syncLeaveToSupabase = async (rec) => {
@@ -44,7 +45,7 @@ export const getPendingLeaveApplications = () => {
 }
 
 /** 新增一筆請假申請（status: pending），不寫入行事曆 */
-export const addLeaveApplication = ({ userId, userName, startDate, endDate, reason }) => {
+export const addLeaveApplication = ({ userId, userName, startDate, endDate, reason, submittedBy }) => {
   try {
     const list = getLeaveApplications()
     const id = `leave-${Date.now()}`
@@ -56,7 +57,8 @@ export const addLeaveApplication = ({ userId, userName, startDate, endDate, reas
       endDate: endDate || '',
       reason: reason || '',
       status: 'pending',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      submittedBy: submittedBy ? String(submittedBy).trim() : ''
     }
     list.push(rec)
     localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(list))
