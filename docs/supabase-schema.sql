@@ -19,7 +19,8 @@ create table if not exists public.leave_applications (
   status text not null default 'pending',
   created_at timestamptz not null default now(),
   approved_by text default '',
-  approved_at timestamptz
+  approved_at timestamptz,
+  submitted_by text default ''
 );
 
 -- 特休可休天數（依帳號）
@@ -90,3 +91,6 @@ begin
   alter publication supabase_realtime add table public.app_data;
 exception when duplicate_object then null;
 end $$;
+
+-- 既有資料庫補欄位（可重複執行）
+alter table public.leave_applications add column if not exists submitted_by text default '';
