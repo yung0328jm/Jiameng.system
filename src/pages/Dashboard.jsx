@@ -22,6 +22,7 @@ import MiniGames from './MiniGames'
 import ChangePassword from './ChangePassword'
 import WorkReport from './WorkReport'
 import PaySlip from './PaySlip'
+import ContractorRegistration from './ContractorRegistration'
 import ErrorBoundary from '../components/ErrorBoundary'
 import {
   HomeIcon,
@@ -638,6 +639,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('company-activities')) return 'activities'
     if (path.includes('dropdown-management')) return 'management'
     if (path.includes('user-management')) return 'user-management'
+    if (path.includes('contractor-registration')) return 'contractor-registration'
     if (path.includes('personal-performance')) return 'performance'
     if (path.includes('monthly-location-report')) return 'monthly-report'
     if (path.includes('exchange-shop')) return 'exchange-shop'
@@ -699,6 +701,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'leave-application': '入廠人員異動申請',
       'advance': '工程款借貸',
       'user-management': '用戶管理',
+      'contractor-registration': '承攬商資料登記',
       'developing': '開發中',
       'work-report': '入廠申請',
       'pay-slip': '勞務報酬單',
@@ -745,6 +748,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <DropdownManagement userRole={userRole} />
       case 'user-management':
         return <UserManagement />
+      case 'contractor-registration':
+        if (userRole != null && userRole !== 'admin') return <Navigate to="/home" replace />
+        return <ContractorRegistration />
       case 'performance':
         return <PersonalPerformance />
       case 'monthly-report':
@@ -1284,6 +1290,14 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             isActive={activeTab === 'monthly-report'}
             onClick={() => handleTabClick('monthly-report', '/monthly-location-report')}
           />
+          {userRole === 'admin' && (
+            <NavItem
+              icon={<DocumentIcon />}
+              label="承攬商資料登記"
+              isActive={activeTab === 'contractor-registration'}
+              onClick={() => handleTabClick('contractor-registration', '/contractor-registration')}
+            />
+          )}
           {userRole === 'admin' && (
             <NavItem
               icon={<GearIcon />}
