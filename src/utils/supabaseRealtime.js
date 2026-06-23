@@ -1,6 +1,6 @@
 // 即時同步：訂閱 Supabase Realtime，有人改資料時更新本地並通知 UI 重讀
 import { getSupabaseClient } from './supabaseClient'
-import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationStorage'
+import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationMerge'
 
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'

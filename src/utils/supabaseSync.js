@@ -1,7 +1,7 @@
 // 從 Supabase 拉一輪資料寫入 localStorage；全站同步（排程／請假／特休＋其餘經 app_data）
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
-import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationStorage'
+import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationMerge'
 
 const MEMOS_KEY = 'jiameng_memos'
 

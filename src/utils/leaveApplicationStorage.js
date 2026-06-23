@@ -1,29 +1,59 @@
 // 請假申請儲存：記錄請假申請；僅在管理員核准後才由頁面呼叫 saveSchedule 寫入行事曆
 import { getSupabaseClient } from './supabaseClient'
 import { syncKeyToSupabase } from './supabaseSync'
+import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
+import { formatNoLeaveBlockedMessage, hasNoLeaveDateInRange } from './noLeaveDateStorage'
+import { LEAVE_APPLICATION_KEY } from './leaveApplicationMerge'
 
-const LEAVE_APPLICATION_KEY = 'jiameng_leave_applications'
+export { LEAVE_APPLICATION_KEY } from './leaveApplicationMerge'
 const LEAVE_FILLER_KEY = 'jiameng_leave_filler_account'
+const LEAVE_LAST_WRITE_KEY = 'jiameng_leave_applications_last_write'
 
-const toRow = (r) => ({
-  id: r.id,
-  user_id: r.userId ?? '',
-  user_name: r.userName ?? '',
-  start_date: r.startDate ?? '',
-  end_date: r.endDate ?? '',
-  reason: r.reason ?? '',
-  status: r.status ?? 'pending',
-  created_at: r.createdAt ?? new Date().toISOString(),
-  approved_by: r.approvedBy ?? '',
-  approved_at: r.approvedAt ?? null,
-  submitted_by: r.submittedBy ?? ''
-})
+const toRow = (r, { includeSubmittedBy = true } = {}) => {
+  const row = {
+    id: r.id,
+    user_id: r.userId ?? '',
+    user_name: r.userName ?? '',
+    start_date: r.startDate ?? '',
+    end_date: r.endDate ?? '',
+    reason: r.reason ?? '',
+    status: r.status ?? 'pending',
+    created_at: r.createdAt ?? new Date().toISOString(),
+    approved_by: r.approvedBy ?? '',
+    approved_at: r.approvedAt ?? null
+  }
+  if (includeSubmittedBy) row.submitted_by = r.submittedBy ?? ''
+  return row
+}
+
+const markLeaveLastWrite = () => {
+  try { localStorage.setItem(LEAVE_LAST_WRITE_KEY, String(Date.now())) } catch (_) {}
+}
+
+const notifyLeaveChanged = () => {
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: LEAVE_APPLICATION_KEY } }))
+    }
+  } catch (_) {}
+}
+
+const persistLeaveList = (list, { notify = true } = {}) => {
+  localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(list))
+  markLeaveLastWrite()
+  if (notify) notifyLeaveChanged()
+}
 
 const syncLeaveToSupabase = async (rec) => {
   const sb = getSupabaseClient()
   if (!sb || !rec?.id) return
   try {
-    await sb.from('leave_applications').upsert(toRow(rec), { onConflict: 'id' })
+    const { error } = await sb.from('leave_applications').upsert(toRow(rec), { onConflict: 'id' })
+    if (error && /submitted_by/i.test(error.message || '')) {
+      await sb.from('leave_applications').upsert(toRow(rec, { includeSubmittedBy: false }), { onConflict: 'id' })
+    } else if (error) {
+      throw error
+    }
   } catch (e) {
     console.warn('syncLeaveToSupabase:', e)
   }
@@ -47,6 +77,9 @@ export const getPendingLeaveApplications = () => {
 /** 新增一筆請假申請（status: pending），不寫入行事曆 */
 export const addLeaveApplication = ({ userId, userName, startDate, endDate, reason, submittedBy }) => {
   try {
+    if (hasNoLeaveDateInRange(startDate, endDate)) {
+      return { success: false, message: formatNoLeaveBlockedMessage(startDate, endDate) || '所選日期含禁休日，無法申請異動' }
+    }
     const list = getLeaveApplications()
     const id = `leave-${Date.now()}`
     const rec = {
@@ -61,7 +94,7 @@ export const addLeaveApplication = ({ userId, userName, startDate, endDate, reas
       submittedBy: submittedBy ? String(submittedBy).trim() : ''
     }
     list.push(rec)
-    localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(list))
+    persistLeaveList(list)
     syncLeaveToSupabase(rec)
     return { success: true, id, record: rec }
   } catch (e) {
@@ -76,13 +109,18 @@ export const updateLeaveApplicationStatus = (id, status, approvedBy = '') => {
     const list = getLeaveApplications()
     const idx = list.findIndex((r) => r.id === id)
     if (idx === -1) return { success: false, message: '找不到該申請' }
+    const nextStart = list[idx].startDate
+    const nextEnd = list[idx].endDate
+    if (status === 'approved' && hasNoLeaveDateInRange(nextStart, nextEnd)) {
+      return { success: false, message: formatNoLeaveBlockedMessage(nextStart, nextEnd) || '所選日期含禁休日，無法核准異動' }
+    }
     list[idx] = {
       ...list[idx],
       status: status === 'approved' || status === 'rejected' ? status : list[idx].status,
       approvedBy: approvedBy || list[idx].approvedBy,
       approvedAt: (status === 'approved' || status === 'rejected') ? new Date().toISOString() : list[idx].approvedAt
     }
-    localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(list))
+    persistLeaveList(list)
     syncLeaveToSupabase(list[idx])
     return { success: true, record: list[idx] }
   } catch (e) {
@@ -107,8 +145,11 @@ export const updateLeaveApplication = (id, updates) => {
       next.approvedBy = updates.approvedBy != null ? String(updates.approvedBy).trim() : (prev.approvedBy || '')
       next.approvedAt = new Date().toISOString()
     }
+    if (next.status === 'approved' && hasNoLeaveDateInRange(next.startDate, next.endDate)) {
+      return { success: false, message: formatNoLeaveBlockedMessage(next.startDate, next.endDate) || '所選日期含禁休日，無法核准異動' }
+    }
     list[idx] = next
-    localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(list))
+    persistLeaveList(list)
     syncLeaveToSupabase(next)
     return { success: true, record: next }
   } catch (e) {
@@ -129,7 +170,7 @@ export const deleteLeaveApplication = (id) => {
     if (!leaveId) return { success: false, message: '缺少 id' }
     const list = getLeaveApplications()
     const next = (Array.isArray(list) ? list : []).filter((r) => String(r?.id || '').trim() !== leaveId)
-    localStorage.setItem(LEAVE_APPLICATION_KEY, JSON.stringify(next))
+    persistLeaveList(next)
 
     const sb = getSupabaseClient()
     if (sb) {
