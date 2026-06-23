@@ -71,8 +71,7 @@ export const addOvertimeApplication = ({ scheduleId, workReportRowId, applicant,
 }
 
 /** 管理員審核：更新加班申請狀態；駁回時可傳 rejectionReason */
-export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '', rejectionReason = '') => {
-  try {
+export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '', rejectionReason = '') => {  try {
     const list = getOvertimeApplications()
     const idx = list.findIndex((r) => String(r?.id || '') === String(id || ''))
     if (idx < 0) return { success: false, message: '找不到該申請' }
@@ -99,8 +98,32 @@ export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '', rej
   }
 }
 
-/** 待審核的加班申請（管理員用） */
-export const getPendingOvertimeApplications = () => getOvertimeApplications().filter((r) => (r.status || '') === 'pending')
+/** 更新加班申請欄位（例如管理員更正申請人） */
+export const updateOvertimeApplication = (id, updates = {}) => {
+  try {
+    const list = getOvertimeApplications()
+    const idx = list.findIndex((r) => String(r?.id || '') === String(id || ''))
+    if (idx < 0) return { success: false, message: '找不到該申請' }
+    const next = list.slice()
+    const rec = { ...next[idx] }
+    if (updates.applicant != null) rec.applicant = String(updates.applicant || '').trim()
+    if (updates.overtimePersonnel != null) {
+      rec.overtimePersonnel = Array.isArray(updates.overtimePersonnel)
+        ? updates.overtimePersonnel
+        : String(updates.overtimePersonnel || '').split(',').map((s) => s.trim()).filter(Boolean)
+    }
+    next[idx] = rec
+    localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(next))
+    syncKeyToSupabase(OVERTIME_APPLICATION_KEY, next).catch(() => {})
+    notifyOvertimeKeyChanged()
+    return { success: true, record: rec }
+  } catch (e) {
+    console.error('updateOvertimeApplication:', e)
+    return { success: false, message: '更新失敗' }
+  }
+}
+
+/** 待審核的加班申請（管理員用） */export const getPendingOvertimeApplications = () => getOvertimeApplications().filter((r) => (r.status || '') === 'pending')
 
 /** 刪除一筆加班申請 */
 export const deleteOvertimeApplication = (id) => {

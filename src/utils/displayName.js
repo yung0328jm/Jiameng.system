@@ -1,4 +1,4 @@
-import { getDisplayNamesForAccount, findBoundAccountForDisplayName } from './dropdownStorage'
+import { getDisplayNamesForAccount, findBoundAccountForDisplayName, getDropdownOptionsByCategory } from './dropdownStorage'
 import { getUsers } from './storage'
 
 /**
@@ -44,5 +44,56 @@ export const resolveDisplayNameToAccount = (displayName) => {
     if (fromDropdown) return fromDropdown
   } catch (_) {}
   return ''
+}
+
+/** 申請人欄位：帳號轉顯示名，已是姓名則原樣回傳 */
+export const resolveApplicantLabel = (applicant) => {
+  const raw = String(applicant || '').trim()
+  if (!raw) return ''
+  if (resolveDisplayNameToAccount(raw)) return raw
+  return getDisplayNameForAccount(raw)
+}
+
+/** 可選人員（參與人員＋負責人，排除離職）— 申請人／異動人員下拉用 */
+export const getSelectablePersonnelNames = () => {
+  const users = getUsers() || []
+  const resignedAccounts = new Set(
+    users.filter((u) => u?.role === 'resigned').map((u) => String(u?.account || '').trim()).filter(Boolean)
+  )
+  const resignedNames = new Set(
+    users.filter((u) => u?.role === 'resigned').map((u) => String(u?.name || '').trim()).filter(Boolean)
+  )
+
+  const seen = new Set()
+  const out = []
+  const add = (n) => {
+    const t = String(n || '').trim()
+    if (!t || seen.has(t) || resignedNames.has(t)) return
+    const acc = resolveDisplayNameToAccount(t)
+    if (acc && resignedAccounts.has(acc)) return
+    seen.add(t)
+    out.push(t)
+  }
+  ;(getDropdownOptionsByCategory('participants') || []).forEach((opt) => add(opt?.value))
+  ;(getDropdownOptionsByCategory('responsible_persons') || []).forEach((opt) => add(opt?.value))
+  out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+  return out
+}
+
+/** 緊急入場申請人下拉選項（含現有申請人與緊急入場人員） */
+export const buildOvertimeApplicantOptions = ({ applicant, overtimePersonnel } = {}) => {
+  const seen = new Set()
+  const out = []
+  const add = (n) => {
+    const t = String(n || '').trim()
+    if (!t || seen.has(t)) return
+    seen.add(t)
+    out.push(t)
+  }
+  add(resolveApplicantLabel(applicant))
+  add(applicant)
+  getSelectablePersonnelNames().forEach(add)
+  ;(Array.isArray(overtimePersonnel) ? overtimePersonnel : []).forEach(add)
+  return out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
 
