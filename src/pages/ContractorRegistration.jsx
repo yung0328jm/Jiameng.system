@@ -12,6 +12,11 @@ import {
   deleteContractorPersonnel,
   CONTRACTOR_REGISTRATION_KEY
 } from '../utils/contractorRegistrationStorage'
+import {
+  getContractorAttendanceByMonth,
+  formatContractorTimeLabel,
+  CONTRACTOR_WORK_LOG_KEY
+} from '../utils/contractorWorkCheckInStorage'
 
 const EMPTY_FORM = {
   name: '',
@@ -41,10 +46,17 @@ function ContractorRegistration() {
   const [personnelCompany, setPersonnelCompany] = useState(null)
   const [personForm, setPersonForm] = useState(EMPTY_PERSON_FORM)
   const [editingPersonId, setEditingPersonId] = useState(null)
+  const [attendanceCompany, setAttendanceCompany] = useState(null)
+  const [attendanceMonth, setAttendanceMonth] = useState(() => {
+    const n = new Date()
+    return { year: n.getFullYear(), month: n.getMonth() + 1 }
+  })
+  const [workLogRevision, setWorkLogRevision] = useState(0)
 
   const loadList = () => setList(getContractorRegistrations())
 
   useRealtimeKeys([CONTRACTOR_REGISTRATION_KEY], loadList)
+  useRealtimeKeys([CONTRACTOR_WORK_LOG_KEY], () => setWorkLogRevision((r) => r + 1))
 
   useEffect(() => {
     setUserRole(getCurrentUserRole())
@@ -110,6 +122,36 @@ function ContractorRegistration() {
     setPersonForm(EMPTY_PERSON_FORM)
   }
 
+  const openAttendance = (rec) => {
+    const n = new Date()
+    setAttendanceCompany(rec)
+    setAttendanceMonth({ year: n.getFullYear(), month: n.getMonth() + 1 })
+    setMessage(null)
+  }
+
+  const closeAttendance = () => setAttendanceCompany(null)
+
+  const shiftAttendanceMonth = (delta) => {
+    setAttendanceMonth((prev) => {
+      let y = prev.year
+      let m = prev.month + delta
+      while (m < 1) { m += 12; y -= 1 }
+      while (m > 12) { m -= 12; y += 1 }
+      return { year: y, month: m }
+    })
+  }
+
+  const attendanceDays = useMemo(() => {
+    void workLogRevision
+    if (!attendanceCompany?.id) return []
+    return getContractorAttendanceByMonth(attendanceCompany.id, attendanceMonth.year, attendanceMonth.month)
+  }, [attendanceCompany?.id, attendanceMonth.year, attendanceMonth.month, workLogRevision])
+
+  const attendanceMonthTotal = useMemo(
+    () => attendanceDays.reduce((sum, d) => sum + (d.totalHeadcount || 0), 0),
+    [attendanceDays]
+  )
+
   const startEditPerson = (person) => {
     setEditingPersonId(person.id)
     setPersonForm({
@@ -146,6 +188,7 @@ function ContractorRegistration() {
     }
     if (editingId === rec.id) closeForm()
     if (personnelCompany?.id === rec.id) closePersonnel()
+    if (attendanceCompany?.id === rec.id) closeAttendance()
     loadList()
     setMessage({ type: 'success', text: '已刪除承攬商資料。' })
   }
@@ -270,6 +313,13 @@ function ContractorRegistration() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => openAttendance(rec)}
+                    className="min-h-[36px] px-3 py-1.5 rounded-lg bg-violet-700 hover:bg-violet-600 text-white text-sm"
+                  >
+                    出勤紀錄
+                  </button>
                   <button
                     type="button"
                     onClick={() => openPersonnel(rec)}
@@ -514,6 +564,108 @@ function ContractorRegistration() {
                     </div>
                   ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {attendanceCompany && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-gray-800 border border-violet-600/50 rounded-xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-violet-300">出勤紀錄</h3>
+                <p className="text-white font-medium mt-1">{attendanceCompany.name}</p>
+                <p className="text-gray-400 text-xs mt-1">同步承攬商出工登記系統之進離廠資料</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeAttendance}
+                className="text-gray-400 hover:text-white shrink-0 self-end sm:self-start p-1"
+                aria-label="關閉"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg bg-gray-900/60 border border-gray-600">
+              <button
+                type="button"
+                onClick={() => shiftAttendanceMonth(-1)}
+                className="min-h-[36px] px-3 py-1.5 rounded-lg bg-gray-600 hover:bg-gray-500 text-white text-sm"
+              >
+                上月
+              </button>
+              <div className="text-center">
+                <p className="text-yellow-400 font-semibold tabular-nums">
+                  {attendanceMonth.year} 年 {attendanceMonth.month} 月
+                </p>
+                <p className="text-gray-400 text-xs mt-0.5">
+                  本月合計 <span className="text-amber-200 font-medium">{attendanceMonthTotal}</span> 人次
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => shiftAttendanceMonth(1)}
+                className="min-h-[36px] px-3 py-1.5 rounded-lg bg-gray-600 hover:bg-gray-500 text-white text-sm"
+              >
+                下月
+              </button>
+            </div>
+
+            {attendanceDays.length === 0 ? (
+              <p className="text-gray-500 text-sm py-8 text-center">本月尚無進廠紀錄。</p>
+            ) : (
+              <div className="space-y-4">
+                {attendanceDays.map((day) => (
+                  <div key={day.date} className="rounded-lg border border-gray-600 bg-gray-900/50 overflow-hidden">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-gray-900/80 border-b border-gray-700">
+                      <span className="text-white font-medium tabular-nums">{day.date.replace(/-/g, '/')}</span>
+                      <span className="text-violet-300 text-sm">
+                        出工 <strong className="text-amber-200">{day.totalHeadcount}</strong> 人
+                      </span>
+                    </div>
+                    <div className="divide-y divide-gray-700/60">
+                      {day.sites.map((site) => (
+                        <div key={`${day.date}-${site.siteName}`} className="p-3">
+                          <p className="text-teal-300 text-sm mb-2">
+                            案場：{site.siteName}
+                            <span className="text-gray-400 ml-2">（{site.headcount} 人）</span>
+                          </p>
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-gray-500 text-xs">
+                                <th className="pb-1 pr-2 font-medium">姓名</th>
+                                <th className="pb-1 font-medium">時間</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {site.rows.map((row) => (
+                                <tr key={row.id} className="border-t border-gray-700/40">
+                                  <td className="py-1.5 pr-2 text-white">{row.personName}</td>
+                                  <td className="py-1.5 text-violet-200 tabular-nums text-xs">
+                                    {formatContractorTimeLabel(row)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={closeAttendance}
+                className="min-h-[40px] px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-500 text-white text-sm"
+              >
+                關閉
+              </button>
             </div>
           </div>
         </div>
