@@ -7,7 +7,8 @@ import {
   findBoundAccountForDisplayName,
   getDisplayNamesForAccount,
   addDropdownOption,
-  deleteDropdownOption
+  deleteDropdownOption,
+  setDropdownSiteContractorCheckIn
 } from '../utils/dropdownStorage'
 
 const WORK_REPORT_SITE_CATEGORY = 'work_report_sites'
@@ -851,10 +852,29 @@ function WorkReport() {
   const siteDropdownRecords = useMemo(() => {
     void siteOptions
     return (getDropdownOptionsByCategory(WORK_REPORT_SITE_CATEGORY) || [])
-      .map((o) => ({ id: o.id, value: String(o?.value || '').trim() }))
+      .map((o) => ({
+        id: o.id,
+        value: String(o?.value || '').trim(),
+        contractorCheckIn: o?.contractorCheckIn === true
+      }))
       .filter((o) => o.value)
       .sort((a, b) => a.value.localeCompare(b.value, 'zh-Hant'))
   }, [siteOptions])
+
+  const toggleSiteContractorCheckIn = (opt, checked) => {
+    const result = setDropdownSiteContractorCheckIn(opt.id, checked)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '更新失敗' })
+      return
+    }
+    setSiteOptions(getSiteNameOptions())
+    setMessage({
+      type: 'success',
+      text: checked
+        ? `「${opt.value}」已加入承攬商出工登記案場`
+        : `「${opt.value}」已從承攬商出工登記移除`
+    })
+  }
 
   const addContractorToList = () => {
     const v = newContractorName.trim()
@@ -1046,14 +1066,22 @@ function WorkReport() {
                   </button>
                 </div>
                 {siteDropdownRecords.length > 0 && (
-                  <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
-                    <p className="text-gray-500 text-xs">已登記案場</p>
+                  <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                    <p className="text-gray-500 text-xs">已登記案場 · 勾選「承攬商出工登記」才會出現在承攬商簽到頁</p>
                     {siteDropdownRecords.map((opt) => (
                       <div
                         key={opt.id}
                         className="flex items-center justify-between gap-2 py-1.5 px-2 rounded bg-gray-800/70 border border-gray-700/60"
                       >
-                        <span className="text-gray-200 text-sm truncate min-w-0">{opt.value}</span>
+                        <label className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={opt.contractorCheckIn}
+                            onChange={(e) => toggleSiteContractorCheckIn(opt, e.target.checked)}
+                            className="shrink-0 rounded border-gray-500 bg-gray-700 text-teal-500 focus:ring-teal-500/40"
+                          />
+                          <span className="text-gray-200 text-sm truncate">{opt.value}</span>
+                        </label>
                         <button
                           type="button"
                           onClick={() => removeSiteFromList(opt)}

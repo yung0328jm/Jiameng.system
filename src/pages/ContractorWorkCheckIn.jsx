@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { getContractorRegistrations } from '../utils/contractorRegistrationStorage'
-import { getDropdownOptionsByCategory } from '../utils/dropdownStorage'
+import { getContractorCheckInSiteNames } from '../utils/dropdownStorage'
 import {
   pullPublicContractorData,
   getWorkLogsForDate,
@@ -13,8 +13,6 @@ import {
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
-
-const SITE_CATEGORY = 'work_report_sites'
 
 function ContractorWorkCheckIn() {
   const [loading, setLoading] = useState(true)
@@ -53,14 +51,12 @@ function ContractorWorkCheckIn() {
 
   const siteOptions = useMemo(() => {
     void revision
-    const seen = new Set()
-    const out = []
-    ;(getDropdownOptionsByCategory(SITE_CATEGORY) || []).forEach((o) => {
-      const v = String(o?.value || '').trim()
-      if (v && !seen.has(v)) { seen.add(v); out.push(v) }
-    })
-    return out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+    return getContractorCheckInSiteNames()
   }, [revision])
+
+  useEffect(() => {
+    if (siteName && !siteOptions.includes(siteName)) setSiteName('')
+  }, [siteOptions, siteName])
 
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === companyId) || null,
@@ -204,6 +200,9 @@ function ContractorWorkCheckIn() {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+            {siteOptions.length === 0 && !loading && (
+              <p className="text-gray-500 text-xs mt-1">尚無案場，請至入廠申請「常用清單」勾選要開放給承攬商登記的案場。</p>
+            )}
           </div>
 
           <div>
