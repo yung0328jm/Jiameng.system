@@ -132,6 +132,15 @@ function Login({ onLogin }) {
             </button>
           </form>
 
+          <div className="mt-4">
+            <Link
+              to="/contractor-work"
+              className="flex items-center justify-center w-full min-h-[48px] py-3 rounded-md border-2 border-teal-500/70 bg-teal-950/40 text-teal-200 hover:bg-teal-900/50 active:bg-teal-900/60 transition-colors text-base font-serif touch-manipulation"
+            >
+              承攬商出工登記（免登入）
+            </Link>
+          </div>
+
           <div className="mt-5 sm:mt-6 text-center">
             <span className="text-cn-mist text-sm">還沒有帳號? </span>
             <Link to="/register" className="text-cn-gold text-sm hover:text-amber-200 active:text-amber-200 transition-colors touch-manipulation inline-block py-2 font-serif">
