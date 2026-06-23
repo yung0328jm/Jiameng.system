@@ -149,6 +149,8 @@ export const APP_DATA_KEYS = [
   'jiameng_no_leave_dates',
   // 承攬商資料登記（管理員）
   'jiameng_contractor_registrations',
+  // 承攬商出工登記紀錄（免登入頁面）
+  'jiameng_contractor_work_logs',
   // 個人績效：指定「一人」可檢視全員（唯讀）
   'jiameng_performance_viewer_account',
   'jiameng_compensatory_leave_manager_account',
