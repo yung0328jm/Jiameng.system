@@ -395,6 +395,38 @@ async function _doUpsert(sb, key, value) {
     } catch (_) {}
   }
 
+  // 承攬商出工登記：多裝置合併，避免離廠登記後被舊雲端資料蓋回
+  if (key === 'jiameng_contractor_work_logs') {
+    try {
+      const incoming = Array.isArray(data) ? data : []
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      const cloudRaw = cloudRow?.data
+      const cloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      const logKeyOf = (r) =>
+        `${String(r?.date || '').slice(0, 10)}|${String(r?.siteName || '').trim()}|${String(r?.companyId || '').trim()}|${String(r?.personId || '').trim()}`
+      const updatedAtOf = (r) => Math.max(Date.parse(r?.updatedAt || '') || 0, Date.parse(r?.createdAt || '') || 0)
+      const byId = new Map()
+      ;[...cloud, ...incoming].forEach((r) => {
+        const id = String(r?.id || '').trim() || logKeyOf(r)
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, r); return }
+        const keep = updatedAtOf(r) >= updatedAtOf(prev) ? r : prev
+        const other = keep === r ? prev : r
+        byId.set(id, {
+          ...other,
+          ...keep,
+          arrivalTime: String(keep.arrivalTime || other.arrivalTime || '').trim(),
+          departureTime: String(keep.departureTime || other.departureTime || '').trim()
+        })
+      })
+      data = Array.from(byId.values()).sort((a, b) => updatedAtOf(b) - updatedAtOf(a)).slice(-5000)
+    } catch (_) {}
+  }
+
   // 專案清單：先拉雲端再合併（以 id + updatedAt），避免其他裝置的舊本地覆蓋雲端、導致某裝置新增的專案被刷不見
   if (key === 'jiameng_projects') {
     try {
@@ -617,6 +649,42 @@ export async function syncFromSupabase() {
           })
           const val = JSON.stringify(filtered)
           localStorage.setItem(key, val)
+          try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
+          return
+        }
+        // 承攬商出工：合併本機與雲端，避免離廠後被舊資料蓋回
+        if (key === 'jiameng_contractor_work_logs') {
+          const incoming = Array.isArray(r.data)
+            ? r.data
+            : (typeof r.data === 'string' ? (() => { try { return JSON.parse(r.data || '[]') } catch (_) { return [] } })() : [])
+          const existing = (() => {
+            try {
+              const raw = localStorage.getItem(key)
+              return raw ? JSON.parse(raw) : []
+            } catch (_) {
+              return []
+            }
+          })()
+          const logKeyOf = (row) =>
+            `${String(row?.date || '').slice(0, 10)}|${String(row?.siteName || '').trim()}|${String(row?.companyId || '').trim()}|${String(row?.personId || '').trim()}`
+          const updatedAtOf = (row) => Math.max(Date.parse(row?.updatedAt || '') || 0, Date.parse(row?.createdAt || '') || 0)
+          const byId = new Map()
+          ;[...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])].forEach((row) => {
+            const id = String(row?.id || '').trim() || logKeyOf(row)
+            if (!id) return
+            const prev = byId.get(id)
+            if (!prev) { byId.set(id, row); return }
+            const keep = updatedAtOf(row) >= updatedAtOf(prev) ? row : prev
+            const other = keep === row ? prev : row
+            byId.set(id, {
+              ...other,
+              ...keep,
+              arrivalTime: String(keep.arrivalTime || other.arrivalTime || '').trim(),
+              departureTime: String(keep.departureTime || other.departureTime || '').trim()
+            })
+          })
+          const merged = Array.from(byId.values())
+          localStorage.setItem(key, JSON.stringify(merged))
           try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
           return
         }

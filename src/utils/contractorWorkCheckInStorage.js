@@ -59,6 +59,38 @@ export const getWorkLogsForDate = (date, { companyId, siteName } = {}) => {
   })
 }
 
+const updatedAtOfLog = (r) =>
+  Math.max(Date.parse(r?.updatedAt || '') || 0, Date.parse(r?.createdAt || '') || 0)
+
+/** 合併本機與雲端出工紀錄（以 id 為準，保留較新 updatedAt；欄位聯集避免進離廠被蓋掉） */
+export const mergeContractorWorkLogs = (existing, incoming) => {
+  const byId = new Map()
+  const rows = [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]
+  rows.forEach((r) => {
+    const id = String(r?.id || '').trim() || logKey(r.date, r.siteName, r.companyId, r.personId)
+    if (!id) return
+    const prev = byId.get(id)
+    if (!prev) {
+      byId.set(id, r)
+      return
+    }
+    const keep = updatedAtOfLog(r) >= updatedAtOfLog(prev) ? r : prev
+    const other = keep === r ? prev : r
+    byId.set(id, {
+      ...other,
+      ...keep,
+      arrivalTime: String(keep.arrivalTime || other.arrivalTime || '').trim(),
+      departureTime: String(keep.departureTime || other.departureTime || '').trim(),
+      personName: String(keep.personName || other.personName || '').trim(),
+      companyName: String(keep.companyName || other.companyName || '').trim(),
+      siteName: String(keep.siteName || other.siteName || '').trim()
+    })
+  })
+  return Array.from(byId.values()).sort(
+    (a, b) => updatedAtOfLog(b) - updatedAtOfLog(a)
+  )
+}
+
 /** 免登入頁面：從雲端拉承攬商名單與出工紀錄 */
 export async function pullPublicContractorData() {
   const sb = getSupabaseClient()
@@ -70,8 +102,16 @@ export async function pullPublicContractorData() {
     ;(data || []).forEach((row) => {
       const key = String(row?.key || '').trim()
       if (!key) return
-      const val = typeof row?.data === 'string' ? row.data : JSON.stringify(row?.data ?? [])
-      localStorage.setItem(key, val)
+      if (key === CONTRACTOR_WORK_LOG_KEY) {
+        const incoming = Array.isArray(row?.data)
+          ? row.data
+          : (typeof row?.data === 'string' ? (() => { try { return JSON.parse(row.data || '[]') } catch (_) { return [] } })() : [])
+        const merged = mergeContractorWorkLogs(getContractorWorkLogs(), incoming)
+        localStorage.setItem(key, JSON.stringify(merged))
+      } else {
+        const val = typeof row?.data === 'string' ? row.data : JSON.stringify(row?.data ?? [])
+        localStorage.setItem(key, val)
+      }
       try {
         window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
       } catch (_) {}
@@ -208,8 +248,8 @@ export const getContractorWorkChipsForMonth = (year, month) => {
   return byDate
 }
 
-export const getContractorWorkLogsForChip = ({ date, siteName, companyId }) =>
-  getWorkLogsForDate(date, { companyId, siteName }).filter((r) => String(r?.arrivalTime || '').trim())
+export const getContractorWorkLogsForChip = ({ date, dateStr, siteName, companyId }) =>
+  getWorkLogsForDate(date || dateStr, { companyId, siteName }).filter((r) => String(r?.arrivalTime || '').trim())
 
 export const formatContractorTimeLabel = (log) => {
   const arr = String(log?.arrivalTime || '').trim()

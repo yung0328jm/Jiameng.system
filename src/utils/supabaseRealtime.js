@@ -737,6 +737,40 @@ export function subscribeRealtime(onUpdate) {
                 const val = JSON.stringify(incoming)
                 localStorage.setItem(key, val)
                 notifyKey(key)
+              } else if (key === 'jiameng_contractor_work_logs') {
+                try {
+                  const incoming = Array.isArray(payload.new.data)
+                    ? payload.new.data
+                    : (typeof payload.new.data === 'string' ? JSON.parse(payload.new.data || '[]') : [])
+                  const existing = (() => {
+                    try { return JSON.parse(localStorage.getItem(key) || '[]') } catch (_) { return [] }
+                  })()
+                  const logKeyOf = (row) =>
+                    `${String(row?.date || '').slice(0, 10)}|${String(row?.siteName || '').trim()}|${String(row?.companyId || '').trim()}|${String(row?.personId || '').trim()}`
+                  const updatedAtOf = (row) => Math.max(Date.parse(row?.updatedAt || '') || 0, Date.parse(row?.createdAt || '') || 0)
+                  const byId = new Map()
+                  ;[...existing, ...incoming].forEach((row) => {
+                    const id = String(row?.id || '').trim() || logKeyOf(row)
+                    if (!id) return
+                    const prev = byId.get(id)
+                    if (!prev) { byId.set(id, row); return }
+                    const keep = updatedAtOf(row) >= updatedAtOf(prev) ? row : prev
+                    const other = keep === row ? prev : row
+                    byId.set(id, {
+                      ...other,
+                      ...keep,
+                      arrivalTime: String(keep.arrivalTime || other.arrivalTime || '').trim(),
+                      departureTime: String(keep.departureTime || other.departureTime || '').trim()
+                    })
+                  })
+                  const merged = Array.from(byId.values())
+                  localStorage.setItem(key, JSON.stringify(merged))
+                  notifyKey(key)
+                } catch (_) {
+                  const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
+                  localStorage.setItem(key, val)
+                  notifyKey(key)
+                }
               } else if (key === 'jiameng_projects') {
                 // 專案：若雲端筆數比本機多且本機剛寫入（8 秒內，例如剛刪除），不覆寫，避免專案刪除後被舊雲端資料蓋回
                 const incoming = Array.isArray(payload.new.data) ? payload.new.data : (typeof payload.new.data === 'string' ? (() => { try { return JSON.parse(payload.new.data || '[]') } catch (_) { return [] } })() : [])
