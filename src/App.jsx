@@ -181,6 +181,7 @@ function App() {
         <Route path="/developing" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="developing" />) : <Navigate to="/login" replace />} />
         <Route path="/dropdown-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/user-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="user-management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
+        <Route path="/contractor-registration" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="contractor-registration" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/personal-performance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="performance" />) : <Navigate to="/login" replace />} />
         <Route path="/monthly-location-report" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="monthly-report" />) : <Navigate to="/login" replace />} />
         <Route path="/exchange-shop" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange-shop" />) : <Navigate to="/login" replace />} />
