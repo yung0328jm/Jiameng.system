@@ -6,7 +6,8 @@ import {
   getDropdownOptionsByCategory,
   findBoundAccountForDisplayName,
   getDisplayNamesForAccount,
-  addDropdownOption
+  addDropdownOption,
+  deleteDropdownOption
 } from '../utils/dropdownStorage'
 
 const WORK_REPORT_SITE_CATEGORY = 'work_report_sites'
@@ -831,6 +832,30 @@ function WorkReport() {
     setMessage({ type: 'success', text: `已新增案場「${v}」` })
   }
 
+  const removeSiteFromList = (opt) => {
+    const name = String(opt?.value || '').trim()
+    const id = String(opt?.id || '').trim()
+    if (!name || !id) return
+    if (!window.confirm(`確定要刪除案場「${name}」嗎？\n（選單將不再顯示此案場，既有出工紀錄不受影響）`)) return
+    const result = deleteDropdownOption(id)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '刪除案場失敗' })
+      return
+    }
+    const sites = getSiteNameOptions()
+    setSiteOptions(sites)
+    if (siteSelect === name) setSiteSelect('')
+    setMessage({ type: 'success', text: `已刪除案場「${name}」` })
+  }
+
+  const siteDropdownRecords = useMemo(() => {
+    void siteOptions
+    return (getDropdownOptionsByCategory(WORK_REPORT_SITE_CATEGORY) || [])
+      .map((o) => ({ id: o.id, value: String(o?.value || '').trim() }))
+      .filter((o) => o.value)
+      .sort((a, b) => a.value.localeCompare(b.value, 'zh-Hant'))
+  }, [siteOptions])
+
   const addContractorToList = () => {
     const v = newContractorName.trim()
     if (!v) return
@@ -1020,6 +1045,26 @@ function WorkReport() {
                     加入
                   </button>
                 </div>
+                {siteDropdownRecords.length > 0 && (
+                  <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                    <p className="text-gray-500 text-xs">已登記案場</p>
+                    {siteDropdownRecords.map((opt) => (
+                      <div
+                        key={opt.id}
+                        className="flex items-center justify-between gap-2 py-1.5 px-2 rounded bg-gray-800/70 border border-gray-700/60"
+                      >
+                        <span className="text-gray-200 text-sm truncate min-w-0">{opt.value}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSiteFromList(opt)}
+                          className="shrink-0 text-xs px-2 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700/50 hover:bg-red-800/60"
+                        >
+                          刪除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-gray-400 text-xs mb-1">新增包商名稱</label>
