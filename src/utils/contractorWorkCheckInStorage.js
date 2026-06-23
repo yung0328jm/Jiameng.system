@@ -3,6 +3,7 @@ import { getSupabaseClient } from './supabaseClient'
 import { syncKeyToSupabase } from './supabaseSync'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
 import { CONTRACTOR_REGISTRATION_KEY } from './contractorRegistrationStorage'
+import { aggregateWorkReportShiftSummary, getWorkReportRowShiftSummary } from './workReportStorage'
 
 export const CONTRACTOR_WORK_LOG_KEY = 'jiameng_contractor_work_logs'
 
@@ -287,6 +288,20 @@ export const formatContractorTimeLabel = (log) => {
   if (!dep) return `${arr}~ (待離廠)`
   return `${arr}~${dep}`
 }
+
+const toWorkReportRow = (log) => ({
+  arrivalTime: log?.arrivalTime,
+  departureTime: log?.departureTime,
+  personName: log?.personName,
+  headcount: 1
+})
+
+/** 單人出工摘要（1 工 / 緊急入場時數） */
+export const getContractorWorkLogShiftSummary = (log) => getWorkReportRowShiftSummary(toWorkReportRow(log))
+
+/** 多人合計摘要 */
+export const aggregateContractorWorkLogsSummary = (logs) =>
+  aggregateWorkReportShiftSummary((Array.isArray(logs) ? logs : []).map(toWorkReportRow))
 
 /** 承攬商出勤紀錄：依月份彙整每日各案場人員與人數 */
 export const getContractorAttendanceByMonth = (companyId, year, month) => {
