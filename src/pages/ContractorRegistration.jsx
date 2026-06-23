@@ -7,6 +7,9 @@ import {
   addContractorRegistration,
   updateContractorRegistration,
   deleteContractorRegistration,
+  addContractorPersonnel,
+  updateContractorPersonnel,
+  deleteContractorPersonnel,
   CONTRACTOR_REGISTRATION_KEY
 } from '../utils/contractorRegistrationStorage'
 
@@ -19,6 +22,14 @@ const EMPTY_FORM = {
   notes: ''
 }
 
+const EMPTY_PERSON_FORM = {
+  name: '',
+  employeeNo: '',
+  phone: '',
+  notes: '',
+  active: true
+}
+
 function ContractorRegistration() {
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [list, setList] = useState([])
@@ -27,6 +38,9 @@ function ContractorRegistration() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [personnelCompany, setPersonnelCompany] = useState(null)
+  const [personForm, setPersonForm] = useState(EMPTY_PERSON_FORM)
+  const [editingPersonId, setEditingPersonId] = useState(null)
 
   const loadList = () => setList(getContractorRegistrations())
 
@@ -37,12 +51,19 @@ function ContractorRegistration() {
     loadList()
   }, [])
 
+  useEffect(() => {
+    if (!personnelCompany?.id) return
+    const fresh = getContractorRegistrations().find((r) => r.id === personnelCompany.id)
+    if (fresh) setPersonnelCompany(fresh)
+  }, [list, personnelCompany?.id])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const sorted = [...list].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant'))
     if (!q) return sorted
     return sorted.filter((r) => {
-      const hay = [r.name, r.contactPerson, r.phone, r.taxId, r.address, r.notes]
+      const personNames = (r.personnel || []).map((p) => p?.name).join(' ')
+      const hay = [r.name, r.contactPerson, r.phone, r.taxId, r.address, r.notes, personNames]
         .map((v) => String(v || '').toLowerCase())
         .join(' ')
       return hay.includes(q)
@@ -76,6 +97,30 @@ function ContractorRegistration() {
     setForm(EMPTY_FORM)
   }
 
+  const openPersonnel = (rec) => {
+    setPersonnelCompany(rec)
+    setEditingPersonId(null)
+    setPersonForm(EMPTY_PERSON_FORM)
+    setMessage(null)
+  }
+
+  const closePersonnel = () => {
+    setPersonnelCompany(null)
+    setEditingPersonId(null)
+    setPersonForm(EMPTY_PERSON_FORM)
+  }
+
+  const startEditPerson = (person) => {
+    setEditingPersonId(person.id)
+    setPersonForm({
+      name: person.name || '',
+      employeeNo: person.employeeNo || '',
+      phone: person.phone || '',
+      notes: person.notes || '',
+      active: person.active !== false
+    })
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     setMessage(null)
@@ -93,27 +138,65 @@ function ContractorRegistration() {
   }
 
   const handleDelete = (rec) => {
-    if (!window.confirm(`確定要刪除承攬商「${rec.name || ''}」嗎？`)) return
+    if (!window.confirm(`確定要刪除承攬商「${rec.name || ''}」嗎？（含所有人員名單）`)) return
     const res = deleteContractorRegistration(rec.id)
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '刪除失敗' })
       return
     }
     if (editingId === rec.id) closeForm()
+    if (personnelCompany?.id === rec.id) closePersonnel()
     loadList()
     setMessage({ type: 'success', text: '已刪除承攬商資料。' })
+  }
+
+  const handlePersonSubmit = (e) => {
+    e.preventDefault()
+    if (!personnelCompany?.id) return
+    setMessage(null)
+    const res = editingPersonId
+      ? updateContractorPersonnel(personnelCompany.id, editingPersonId, personForm)
+      : addContractorPersonnel(personnelCompany.id, personForm)
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '儲存失敗' })
+      return
+    }
+    loadList()
+    setEditingPersonId(null)
+    setPersonForm(EMPTY_PERSON_FORM)
+    setMessage({ type: 'success', text: editingPersonId ? '已更新人員資料。' : '已新增人員。' })
+  }
+
+  const handleDeletePerson = (person) => {
+    if (!personnelCompany?.id) return
+    if (!window.confirm(`確定要刪除人員「${person.name || ''}」嗎？`)) return
+    const res = deleteContractorPersonnel(personnelCompany.id, person.id)
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '刪除失敗' })
+      return
+    }
+    if (editingPersonId === person.id) {
+      setEditingPersonId(null)
+      setPersonForm(EMPTY_PERSON_FORM)
+    }
+    loadList()
+    setMessage({ type: 'success', text: '已刪除人員。' })
   }
 
   if (userRole !== 'admin') {
     return <Navigate to="/home" replace />
   }
 
+  const activePersonnelCount = (rec) => (rec.personnel || []).filter((p) => p?.active !== false).length
+
   return (
     <div className="max-w-4xl mx-auto w-full text-white px-1 sm:px-0">
       <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-yellow-400">承攬商資料登記</h2>
-          <p className="text-gray-400 text-sm mt-1">管理員維護承攬商基本資料；名稱會同步至入廠申請的承攬商選單。</p>
+          <p className="text-gray-400 text-sm mt-1">
+            管理承攬商基本資料與旗下人員名單，供承攬包簽到系統使用；公司名稱會同步至入廠申請選單。
+          </p>
         </div>
         <button
           type="button"
@@ -141,7 +224,7 @@ function ContractorRegistration() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜尋承攬商名稱、聯絡人、電話…"
+          placeholder="搜尋承攬商、聯絡人、人員姓名…"
           className="w-full px-4 py-2.5 rounded-lg bg-gray-800 border border-gray-600 text-white text-sm focus:outline-none focus:border-yellow-400"
         />
       </div>
@@ -160,8 +243,40 @@ function ContractorRegistration() {
                   {rec.taxId && <div className="text-gray-300">統一編號：{rec.taxId}</div>}
                   {rec.address && <div className="text-gray-300">地址：{rec.address}</div>}
                   {rec.notes && <div className="text-gray-500">備註：{rec.notes}</div>}
+                  <div className="text-teal-300/90 text-xs pt-1">
+                    人員名單：{activePersonnelCount(rec)} 人
+                    {(rec.personnel || []).length > activePersonnelCount(rec) && (
+                      <span className="text-gray-500">（含停用 {(rec.personnel || []).length - activePersonnelCount(rec)} 人）</span>
+                    )}
+                  </div>
+                  {(rec.personnel || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {(rec.personnel || []).slice(0, 8).map((p) => (
+                        <span
+                          key={p.id}
+                          className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                            p.active === false
+                              ? 'border-gray-600 text-gray-500 bg-gray-900/50'
+                              : 'border-teal-700/50 text-teal-100 bg-teal-950/40'
+                          }`}
+                        >
+                          {p.name}
+                        </span>
+                      ))}
+                      {(rec.personnel || []).length > 8 && (
+                        <span className="text-[11px] text-gray-500">+{(rec.personnel || []).length - 8}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => openPersonnel(rec)}
+                    className="min-h-[36px] px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm"
+                  >
+                    人員名單
+                  </button>
                   <button
                     type="button"
                     onClick={() => openEdit(rec)}
@@ -261,6 +376,145 @@ function ContractorRegistration() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {personnelCompany && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-gray-800 border border-teal-600/50 rounded-xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-teal-300">人員名單</h3>
+                <p className="text-gray-400 text-sm mt-0.5">{personnelCompany.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closePersonnel}
+                className="text-gray-400 hover:text-white text-sm shrink-0"
+              >
+                關閉
+              </button>
+            </div>
+
+            <form onSubmit={handlePersonSubmit} className="mb-4 p-3 rounded-lg bg-gray-900/60 border border-gray-600 space-y-3">
+              <p className="text-yellow-400 text-sm font-medium">{editingPersonId ? '編輯人員' : '新增人員'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-300 text-xs mb-1">姓名 <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={personForm.name}
+                    onChange={(e) => setPersonForm((f) => ({ ...f, name: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-500 text-white text-sm focus:outline-none focus:border-yellow-400"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 text-xs mb-1">編號（簽到用，選填）</label>
+                  <input
+                    type="text"
+                    value={personForm.employeeNo}
+                    onChange={(e) => setPersonForm((f) => ({ ...f, employeeNo: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-500 text-white text-sm focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 text-xs mb-1">電話</label>
+                  <input
+                    type="tel"
+                    value={personForm.phone}
+                    onChange={(e) => setPersonForm((f) => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-500 text-white text-sm focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-gray-300 text-sm cursor-pointer pb-2">
+                    <input
+                      type="checkbox"
+                      checked={personForm.active !== false}
+                      onChange={(e) => setPersonForm((f) => ({ ...f, active: e.target.checked }))}
+                      className="rounded border-gray-500 bg-gray-700 text-yellow-400"
+                    />
+                    啟用（可簽到）
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-300 text-xs mb-1">備註</label>
+                <input
+                  type="text"
+                  value={personForm.notes}
+                  onChange={(e) => setPersonForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-500 text-white text-sm focus:outline-none focus:border-yellow-400"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="min-h-[40px] px-4 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold text-sm"
+                >
+                  {editingPersonId ? '儲存變更' : '加入名單'}
+                </button>
+                {editingPersonId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPersonId(null)
+                      setPersonForm(EMPTY_PERSON_FORM)
+                    }}
+                    className="min-h-[40px] px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-500 text-white text-sm"
+                  >
+                    取消編輯
+                  </button>
+                )}
+              </div>
+            </form>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {(personnelCompany.personnel || []).length === 0 ? (
+                <p className="text-gray-500 text-sm py-4 text-center">尚無人員，請於上方新增。</p>
+              ) : (
+                [...(personnelCompany.personnel || [])]
+                  .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant'))
+                  .map((person) => (
+                    <div
+                      key={person.id}
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg border ${
+                        person.active === false ? 'border-gray-700 bg-gray-900/40' : 'border-gray-600 bg-gray-900/70'
+                      }`}
+                    >
+                      <div className="text-sm min-w-0">
+                        <div className={`font-medium ${person.active === false ? 'text-gray-500 line-through' : 'text-white'}`}>
+                          {person.name}
+                          {person.active === false && <span className="ml-2 text-xs text-gray-500 no-underline">（已停用）</span>}
+                        </div>
+                        <div className="text-gray-400 text-xs mt-0.5 space-x-2">
+                          {person.employeeNo && <span>編號：{person.employeeNo}</span>}
+                          {person.phone && <span>電話：{person.phone}</span>}
+                          {person.notes && <span>備註：{person.notes}</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEditPerson(person)}
+                          className="px-2.5 py-1 rounded bg-gray-600 hover:bg-gray-500 text-white text-xs"
+                        >
+                          編輯
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePerson(person)}
+                          className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-xs"
+                        >
+                          刪除
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
           </div>
         </div>
       )}
