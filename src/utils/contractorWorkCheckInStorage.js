@@ -21,7 +21,7 @@ const persist = (list) => {
   notifyChanged()
 }
 
-export const getContractorWorkLogs = () => {
+const readAllContractorWorkLogs = () => {
   try {
     const raw = localStorage.getItem(CONTRACTOR_WORK_LOG_KEY)
     const parsed = raw ? JSON.parse(raw) : []
@@ -30,6 +30,10 @@ export const getContractorWorkLogs = () => {
     return []
   }
 }
+
+/** 有效出工紀錄（排除已刪除） */
+export const getContractorWorkLogs = () =>
+  readAllContractorWorkLogs().filter((r) => !r?.deleted)
 
 export const getTodayDateStr = () => {
   const n = new Date()
@@ -76,7 +80,7 @@ export const mergeContractorWorkLogs = (existing, incoming) => {
     }
     const keep = updatedAtOfLog(r) >= updatedAtOfLog(prev) ? r : prev
     const other = keep === r ? prev : r
-    byId.set(id, {
+    const merged = {
       ...other,
       ...keep,
       arrivalTime: String(keep.arrivalTime || other.arrivalTime || '').trim(),
@@ -84,7 +88,13 @@ export const mergeContractorWorkLogs = (existing, incoming) => {
       personName: String(keep.personName || other.personName || '').trim(),
       companyName: String(keep.companyName || other.companyName || '').trim(),
       siteName: String(keep.siteName || other.siteName || '').trim()
-    })
+    }
+    if (keep.deleted || other.deleted) {
+      const delKeep = keep.deleted ? keep : other
+      const delOther = keep.deleted ? other : keep
+      merged.deleted = updatedAtOfLog(delKeep) >= updatedAtOfLog(delOther) ? !!delKeep.deleted : !!delOther.deleted
+    }
+    byId.set(id, merged)
   })
   return Array.from(byId.values()).sort(
     (a, b) => updatedAtOfLog(b) - updatedAtOfLog(a)
@@ -106,7 +116,7 @@ export async function pullPublicContractorData() {
         const incoming = Array.isArray(row?.data)
           ? row.data
           : (typeof row?.data === 'string' ? (() => { try { return JSON.parse(row.data || '[]') } catch (_) { return [] } })() : [])
-        const merged = mergeContractorWorkLogs(getContractorWorkLogs(), incoming)
+        const merged = mergeContractorWorkLogs(readAllContractorWorkLogs(), incoming)
         localStorage.setItem(key, JSON.stringify(merged))
       } else {
         const val = typeof row?.data === 'string' ? row.data : JSON.stringify(row?.data ?? [])
@@ -142,9 +152,9 @@ export const registerContractorArrival = ({
     const at = String(arrivalTime || '').trim()
     if (!d || !site || !cid || !pid || !name) return { success: false, message: '資料不完整' }
     if (!at) return { success: false, message: '請填寫進廠時間' }
-    const list = getContractorWorkLogs()
+    const list = readAllContractorWorkLogs()
     const idx = list.findIndex((r) => logKey(r.date, r.siteName, r.companyId, r.personId) === logKey(d, site, cid, pid))
-    if (idx >= 0 && list[idx]?.arrivalTime) {
+    if (idx >= 0 && list[idx]?.arrivalTime && !list[idx]?.deleted) {
       return { success: false, message: '此人今日此案場已登記進廠' }
     }
     const now = new Date().toISOString()
@@ -158,8 +168,9 @@ export const registerContractorArrival = ({
       personName: name,
       employeeNo: String(employeeNo || '').trim(),
       arrivalTime: at,
-      departureTime: idx >= 0 ? (list[idx].departureTime || '') : '',
-      createdAt: idx >= 0 ? (list[idx].createdAt || now) : now,
+      departureTime: idx >= 0 && !list[idx]?.deleted ? (list[idx].departureTime || '') : '',
+      deleted: false,
+      createdAt: idx >= 0 && !list[idx]?.deleted ? (list[idx].createdAt || now) : now,
       updatedAt: now
     }
     if (idx >= 0) list[idx] = rec
@@ -187,9 +198,9 @@ export const registerContractorDeparture = ({
     const dt = String(departureTime || '').trim()
     if (!d || !site || !cid || !pid) return { success: false, message: '資料不完整' }
     if (!dt) return { success: false, message: '請填寫離廠時間' }
-    const list = getContractorWorkLogs()
+    const list = readAllContractorWorkLogs()
     const idx = list.findIndex((r) => logKey(r.date, r.siteName, r.companyId, r.personId) === logKey(d, site, cid, pid))
-    if (idx < 0 || !list[idx]?.arrivalTime) {
+    if (idx < 0 || !list[idx]?.arrivalTime || list[idx]?.deleted) {
       return { success: false, message: '請先登記進廠' }
     }
     if (list[idx]?.departureTime) {
@@ -202,6 +213,24 @@ export const registerContractorDeparture = ({
   } catch (e) {
     console.error('registerContractorDeparture:', e)
     return { success: false, message: '離廠登記失敗' }
+  }
+}
+
+/** 刪除出工紀錄（軟刪除，同步雲端後行事曆與出勤紀錄會一併移除） */
+export const deleteContractorWorkLog = (id) => {
+  try {
+    const rid = String(id || '').trim()
+    if (!rid) return { success: false, message: '紀錄不存在' }
+    const list = readAllContractorWorkLogs()
+    const idx = list.findIndex((r) => String(r?.id || '').trim() === rid)
+    if (idx < 0 || list[idx]?.deleted) return { success: false, message: '找不到紀錄' }
+    const now = new Date().toISOString()
+    list[idx] = { ...list[idx], deleted: true, updatedAt: now }
+    persist(list)
+    return { success: true }
+  } catch (e) {
+    console.error('deleteContractorWorkLog:', e)
+    return { success: false, message: '刪除失敗' }
   }
 }
 
