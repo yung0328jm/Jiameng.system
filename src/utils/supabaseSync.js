@@ -147,6 +147,8 @@ export const APP_DATA_KEYS = [
   'jiameng_leave_filler_account',
   // 禁休日（管理員設定，當日不可申請異動）
   'jiameng_no_leave_dates',
+  // 承攬商資料登記（管理員）
+  'jiameng_contractor_registrations',
   // 個人績效：指定「一人」可檢視全員（唯讀）
   'jiameng_performance_viewer_account',
   'jiameng_compensatory_leave_manager_account',
