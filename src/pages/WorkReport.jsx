@@ -797,7 +797,7 @@ function WorkReport() {
     }
     const result = addOvertimeApplication({
       workReportRowId: row?.id,
-      applicant: currentUser || '',
+      applicant: getDisplayNameForAccount(currentUser) || currentUser || '',
       siteName: row?.siteName || '',
       date: row?.date,
       startTime: row?.arrivalTime,
