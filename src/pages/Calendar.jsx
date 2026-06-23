@@ -58,10 +58,11 @@ import {
 import {
   getContractorWorkChipsForMonth,
   getContractorWorkLogsForChip,
-  formatContractorTimeLabel,
   deleteContractorWorkLog,
+  aggregateContractorWorkLogsSummary,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
+import { ContractorWorkHoursDetail, ContractorWorkHoursSummaryLine } from '../components/ContractorWorkHoursDetail'
 
 function WorkReportShiftSummary({ summary, className = '' }) {
   if (!summary || (summary.totalHeadcount == null && summary.headcount == null)) {
@@ -298,6 +299,11 @@ function Calendar() {
   }, [contractorWorkDetail, contractorWorkRevision])
 
   const contractorWorkDetailHeadcount = contractorWorkDetailRows.length
+
+  const contractorWorkDetailSummary = useMemo(
+    () => aggregateContractorWorkLogsSummary(contractorWorkDetailRows),
+    [contractorWorkDetailRows]
+  )
 
   const workReportDetailRows = useMemo(() => {
     if (!workReportDetail) return []
@@ -4897,22 +4903,28 @@ function Calendar() {
                 <p className="text-gray-500 text-sm">尚無紀錄。</p>
               ) : (
                 <>
-                  <p className="text-sm text-violet-300/90 mb-3">
+                  <p className="text-sm text-violet-300/90 mb-2">
                     合計出工 <strong className="text-amber-200">{contractorWorkDetailHeadcount}</strong> 人
                   </p>
+                  <div className="mb-3 p-2.5 rounded-lg bg-violet-950/40 border border-violet-800/40">
+                    <p className="text-violet-200/80 text-xs mb-1">工時規則：扣午休 · 滿 8 小時＝1 工 · 超過為緊急入場</p>
+                    <ContractorWorkHoursSummaryLine summary={contractorWorkDetailSummary} />
+                  </div>
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b border-gray-600 text-left text-gray-400">
                         <th className="py-2 pr-2 font-medium">姓名</th>
-                        <th className="py-2 pr-2 font-medium">時間</th>
+                        <th className="py-2 pr-2 font-medium">工時明細</th>
                         {currentRole === 'admin' && <th className="py-2 font-medium text-right">操作</th>}
                       </tr>
                     </thead>
                     <tbody>
                       {contractorWorkDetailRows.map((row) => (
-                        <tr key={row.id} className="border-b border-gray-700/60">
+                        <tr key={row.id} className="border-b border-gray-700/60 align-top">
                           <td className="py-2 pr-2 text-white">{row.personName}</td>
-                          <td className="py-2 pr-2 text-violet-200 tabular-nums text-xs">{formatContractorTimeLabel(row)}</td>
+                          <td className="py-2 pr-2">
+                            <ContractorWorkHoursDetail log={row} />
+                          </td>
                           {currentRole === 'admin' && (
                             <td className="py-2 text-right">
                               <button

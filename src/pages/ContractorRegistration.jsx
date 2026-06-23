@@ -14,10 +14,12 @@ import {
 } from '../utils/contractorRegistrationStorage'
 import {
   getContractorAttendanceByMonth,
-  formatContractorTimeLabel,
   deleteContractorWorkLog,
+  aggregateContractorWorkLogsSummary,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
+import { ContractorWorkHoursDetail, ContractorWorkHoursSummaryLine } from '../components/ContractorWorkHoursDetail'
+import { formatWorkReportHours } from '../utils/workReportStorage'
 
 const EMPTY_FORM = {
   name: '',
@@ -152,6 +154,21 @@ function ContractorRegistration() {
     () => attendanceDays.reduce((sum, d) => sum + (d.totalHeadcount || 0), 0),
     [attendanceDays]
   )
+
+  const attendanceMonthStats = useMemo(() => {
+    let fullDayCount = 0
+    let underHours = 0
+    let overtimeHours = 0
+    attendanceDays.forEach((day) => {
+      day.sites.forEach((site) => {
+        const s = aggregateContractorWorkLogsSummary(site.rows)
+        fullDayCount += s.fullDayHeadcount || 0
+        underHours += s.underActualHours || 0
+        overtimeHours += s.totalOvertimeHours || 0
+      })
+    })
+    return { fullDayCount, underHours, overtimeHours }
+  }, [attendanceDays])
 
   const startEditPerson = (person) => {
     setEditingPersonId(person.id)
@@ -614,6 +631,16 @@ function ContractorRegistration() {
                 </p>
                 <p className="text-gray-400 text-xs mt-0.5">
                   本月合計 <span className="text-amber-200 font-medium">{attendanceMonthTotal}</span> 人次
+                  {attendanceMonthStats.fullDayCount > 0 && (
+                    <span className="ml-2">
+                      · 滿 8 小時（1 工）<span className="text-amber-200">{attendanceMonthStats.fullDayCount}</span> 人次
+                    </span>
+                  )}
+                  {attendanceMonthStats.overtimeHours > 0 && (
+                    <span className="ml-2 text-red-400">
+                      · 緊急入場合計 {formatWorkReportHours(attendanceMonthStats.overtimeHours)} 小時
+                    </span>
+                  )}
                 </p>
               </div>
               <button
@@ -633,31 +660,43 @@ function ContractorRegistration() {
                   <div key={day.date} className="rounded-lg border border-gray-600 bg-gray-900/50 overflow-hidden">
                     <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-gray-900/80 border-b border-gray-700">
                       <span className="text-white font-medium tabular-nums">{day.date.replace(/-/g, '/')}</span>
-                      <span className="text-violet-300 text-sm">
-                        出工 <strong className="text-amber-200">{day.totalHeadcount}</strong> 人
-                      </span>
+                      <div className="text-right">
+                        <span className="text-violet-300 text-sm">
+                          出工 <strong className="text-amber-200">{day.totalHeadcount}</strong> 人
+                        </span>
+                        <ContractorWorkHoursSummaryLine
+                          summary={aggregateContractorWorkLogsSummary(day.sites.flatMap((s) => s.rows))}
+                          className="mt-0.5"
+                        />
+                      </div>
                     </div>
                     <div className="divide-y divide-gray-700/60">
                       {day.sites.map((site) => (
                         <div key={`${day.date}-${site.siteName}`} className="p-3">
-                          <p className="text-teal-300 text-sm mb-2">
-                            案場：{site.siteName}
-                            <span className="text-gray-400 ml-2">（{site.headcount} 人）</span>
-                          </p>
+                          <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                            <p className="text-teal-300 text-sm">
+                              案場：{site.siteName}
+                              <span className="text-gray-400 ml-2">（{site.headcount} 人）</span>
+                            </p>
+                            <ContractorWorkHoursSummaryLine
+                              summary={aggregateContractorWorkLogsSummary(site.rows)}
+                              className="text-right shrink-0"
+                            />
+                          </div>
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="text-left text-gray-500 text-xs">
                                 <th className="pb-1 pr-2 font-medium">姓名</th>
-                                <th className="pb-1 pr-2 font-medium">時間</th>
+                                <th className="pb-1 pr-2 font-medium">工時明細</th>
                                 <th className="pb-1 font-medium text-right">操作</th>
                               </tr>
                             </thead>
                             <tbody>
                               {site.rows.map((row) => (
-                                <tr key={row.id} className="border-t border-gray-700/40">
-                                  <td className="py-1.5 pr-2 text-white">{row.personName}</td>
-                                  <td className="py-1.5 pr-2 text-violet-200 tabular-nums text-xs">
-                                    {formatContractorTimeLabel(row)}
+                                <tr key={row.id} className="border-t border-gray-700/40 align-top">
+                                  <td className="py-2 pr-2 text-white">{row.personName}</td>
+                                  <td className="py-2 pr-2">
+                                    <ContractorWorkHoursDetail log={row} />
                                   </td>
                                   <td className="py-1.5 text-right">
                                     <button
