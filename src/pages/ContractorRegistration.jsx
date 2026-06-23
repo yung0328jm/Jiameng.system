@@ -15,6 +15,7 @@ import {
 import {
   getContractorAttendanceByMonth,
   formatContractorTimeLabel,
+  deleteContractorWorkLog,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 
@@ -224,6 +225,17 @@ function ContractorRegistration() {
     }
     loadList()
     setMessage({ type: 'success', text: '已刪除人員。' })
+  }
+
+  const handleDeleteWorkLog = (row) => {
+    if (!window.confirm(`確定要刪除「${row.personName}」${row.date ? `（${String(row.date).replace(/-/g, '/')}）` : ''}的出工紀錄嗎？`)) return
+    const res = deleteContractorWorkLog(row.id)
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '刪除失敗' })
+      return
+    }
+    setWorkLogRevision((r) => r + 1)
+    setMessage({ type: 'success', text: '已刪除出工紀錄。' })
   }
 
   if (userRole !== 'admin') {
@@ -636,15 +648,25 @@ function ContractorRegistration() {
                             <thead>
                               <tr className="text-left text-gray-500 text-xs">
                                 <th className="pb-1 pr-2 font-medium">姓名</th>
-                                <th className="pb-1 font-medium">時間</th>
+                                <th className="pb-1 pr-2 font-medium">時間</th>
+                                <th className="pb-1 font-medium text-right">操作</th>
                               </tr>
                             </thead>
                             <tbody>
                               {site.rows.map((row) => (
                                 <tr key={row.id} className="border-t border-gray-700/40">
                                   <td className="py-1.5 pr-2 text-white">{row.personName}</td>
-                                  <td className="py-1.5 text-violet-200 tabular-nums text-xs">
+                                  <td className="py-1.5 pr-2 text-violet-200 tabular-nums text-xs">
                                     {formatContractorTimeLabel(row)}
+                                  </td>
+                                  <td className="py-1.5 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteWorkLog({ ...row, date: day.date })}
+                                      className="text-xs px-2 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700/50 hover:bg-red-800/60"
+                                    >
+                                      刪除
+                                    </button>
                                   </td>
                                 </tr>
                               ))}

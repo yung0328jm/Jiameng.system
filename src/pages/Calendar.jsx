@@ -59,6 +59,7 @@ import {
   getContractorWorkChipsForMonth,
   getContractorWorkLogsForChip,
   formatContractorTimeLabel,
+  deleteContractorWorkLog,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 
@@ -4903,14 +4904,35 @@ function Calendar() {
                     <thead>
                       <tr className="border-b border-gray-600 text-left text-gray-400">
                         <th className="py-2 pr-2 font-medium">姓名</th>
-                        <th className="py-2 font-medium">時間</th>
+                        <th className="py-2 pr-2 font-medium">時間</th>
+                        {currentRole === 'admin' && <th className="py-2 font-medium text-right">操作</th>}
                       </tr>
                     </thead>
                     <tbody>
                       {contractorWorkDetailRows.map((row) => (
                         <tr key={row.id} className="border-b border-gray-700/60">
                           <td className="py-2 pr-2 text-white">{row.personName}</td>
-                          <td className="py-2 text-violet-200 tabular-nums text-xs">{formatContractorTimeLabel(row)}</td>
+                          <td className="py-2 pr-2 text-violet-200 tabular-nums text-xs">{formatContractorTimeLabel(row)}</td>
+                          {currentRole === 'admin' && (
+                            <td className="py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!window.confirm(`確定要刪除「${row.personName}」的出工紀錄嗎？`)) return
+                                  const res = deleteContractorWorkLog(row.id)
+                                  if (!res.success) {
+                                    alert(res.message || '刪除失敗')
+                                    return
+                                  }
+                                  setContractorWorkRevision((v) => v + 1)
+                                  if (contractorWorkDetailRows.length <= 1) setContractorWorkDetail(null)
+                                }}
+                                className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-300 border border-red-700/50 hover:bg-red-800/60"
+                              >
+                                刪除
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
