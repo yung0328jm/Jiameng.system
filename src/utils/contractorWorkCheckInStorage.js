@@ -164,3 +164,95 @@ export const registerContractorDeparture = ({
     return { success: false, message: '離廠登記失敗' }
   }
 }
+
+const chipKey = (date, siteName, companyId) =>
+  `${String(date || '').slice(0, 10)}|${String(siteName || '').trim()}|${String(companyId || '').trim()}`
+
+/** 當月有進廠紀錄的承攬商出工（僅含已登記進廠者） */
+export const getContractorWorkLogsForMonth = (year, month) => {
+  const m = String(month).padStart(2, '0')
+  const prefix = `${year}-${m}`
+  return getContractorWorkLogs().filter((r) => {
+    const d = String(r?.date || '').slice(0, 10)
+    return d.startsWith(prefix) && String(r?.arrivalTime || '').trim()
+  })
+}
+
+/** 月曆用：date → [{ siteName, companyId, companyName }] */
+export const getContractorWorkChipsForMonth = (year, month) => {
+  const map = new Map()
+  getContractorWorkLogsForMonth(year, month).forEach((r) => {
+    const d = String(r.date || '').slice(0, 10)
+    const site = String(r.siteName || '').trim()
+    const cid = String(r.companyId || '').trim()
+    const cname = String(r.companyName || '').trim()
+    if (!d || !site || !cid) return
+    const key = chipKey(d, site, cid)
+    if (!map.has(key)) {
+      map.set(key, { date: d, siteName: site, companyId: cid, companyName: cname })
+    }
+  })
+  const byDate = new Map()
+  map.forEach((chip) => {
+    if (!byDate.has(chip.date)) byDate.set(chip.date, [])
+    byDate.get(chip.date).push(chip)
+  })
+  byDate.forEach((chips, date) => {
+    chips.sort((a, b) => {
+      const s = String(a.siteName || '').localeCompare(String(b.siteName || ''), 'zh-Hant')
+      if (s !== 0) return s
+      return String(a.companyName || '').localeCompare(String(b.companyName || ''), 'zh-Hant')
+    })
+    byDate.set(date, chips)
+  })
+  return byDate
+}
+
+export const getContractorWorkLogsForChip = ({ date, siteName, companyId }) =>
+  getWorkLogsForDate(date, { companyId, siteName }).filter((r) => String(r?.arrivalTime || '').trim())
+
+export const formatContractorTimeLabel = (log) => {
+  const arr = String(log?.arrivalTime || '').trim()
+  const dep = String(log?.departureTime || '').trim()
+  if (!arr) return '—'
+  if (!dep) return `${arr}~ (待離廠)`
+  return `${arr}~${dep}`
+}
+
+/** 承攬商出勤紀錄：依月份彙整每日各案場人員與人數 */
+export const getContractorAttendanceByMonth = (companyId, year, month) => {
+  const cid = String(companyId || '').trim()
+  if (!cid) return []
+  const logs = getContractorWorkLogsForMonth(year, month).filter(
+    (r) => String(r?.companyId || '').trim() === cid
+  )
+  const byDate = new Map()
+  logs.forEach((r) => {
+    const d = String(r.date || '').slice(0, 10)
+    if (!byDate.has(d)) byDate.set(d, [])
+    byDate.get(d).push(r)
+  })
+  return [...byDate.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, dayLogs]) => {
+      const sites = new Map()
+      dayLogs.forEach((r) => {
+        const site = String(r.siteName || '').trim() || '—'
+        if (!sites.has(site)) sites.set(site, [])
+        sites.get(site).push(r)
+      })
+      return {
+        date,
+        totalHeadcount: dayLogs.length,
+        sites: [...sites.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant'))
+          .map(([siteName, rows]) => ({
+            siteName,
+            headcount: rows.length,
+            rows: [...rows].sort((a, b) =>
+              String(a?.personName || '').localeCompare(String(b?.personName || ''), 'zh-Hant')
+            )
+          }))
+      }
+    })
+}
