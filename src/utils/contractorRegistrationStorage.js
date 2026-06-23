@@ -25,11 +25,63 @@ export const getContractorRegistrations = () => {
   try {
     const raw = localStorage.getItem(CONTRACTOR_REGISTRATION_KEY)
     const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
+    const list = Array.isArray(parsed) ? parsed : []
+    return list.map((r) => ({
+      ...r,
+      personnel: Array.isArray(r?.personnel) ? r.personnel : []
+    }))
   } catch (_) {
     return []
   }
 }
+
+export const getContractorById = (id) => {
+  const cid = String(id || '').trim()
+  if (!cid) return null
+  return getContractorRegistrations().find((r) => String(r?.id || '').trim() === cid) || null
+}
+
+/** 供承攬簽到系統：扁平列出所有啟用中人員 */
+export const getActiveContractorPersonnelFlat = () => {
+  const out = []
+  getContractorRegistrations().forEach((company) => {
+    const companyId = String(company?.id || '').trim()
+    const companyName = String(company?.name || '').trim()
+    if (!companyId || !companyName) return
+    ;(company.personnel || []).forEach((p) => {
+      if (p?.active === false) return
+      const name = String(p?.name || '').trim()
+      if (!name) return
+      out.push({
+        companyId,
+        companyName,
+        personId: String(p?.id || '').trim(),
+        name,
+        employeeNo: String(p?.employeeNo || '').trim(),
+        phone: String(p?.phone || '').trim(),
+        notes: String(p?.notes || '').trim(),
+        displayLabel: `${companyName} · ${name}`
+      })
+    })
+  })
+  return out.sort((a, b) => a.displayLabel.localeCompare(b.displayLabel, 'zh-Hant'))
+}
+
+const normalizePerson = (data, existing) => {
+  const now = new Date().toISOString()
+  return {
+    id: existing?.id || `cp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: String(data?.name || '').trim(),
+    employeeNo: String(data?.employeeNo || '').trim(),
+    phone: String(data?.phone || '').trim(),
+    notes: String(data?.notes || '').trim(),
+    active: data?.active !== false,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now
+  }
+}
+
+const findCompanyIndex = (list, contractorId) => list.findIndex((r) => String(r?.id || '').trim() === String(contractorId || '').trim())
 
 const syncNameToWorkReportDropdown = (name, prevName = '') => {
   const next = String(name || '').trim()
@@ -61,6 +113,7 @@ export const addContractorRegistration = (data) => {
       taxId: String(data?.taxId || '').trim(),
       address: String(data?.address || '').trim(),
       notes: String(data?.notes || '').trim(),
+      personnel: Array.isArray(data?.personnel) ? data.personnel : [],
       createdAt: now,
       updatedAt: now
     }
@@ -94,6 +147,7 @@ export const updateContractorRegistration = (id, updates = {}) => {
       taxId: updates.taxId != null ? String(updates.taxId || '').trim() : (prev.taxId || ''),
       address: updates.address != null ? String(updates.address || '').trim() : (prev.address || ''),
       notes: updates.notes != null ? String(updates.notes || '').trim() : (prev.notes || ''),
+      personnel: Array.isArray(prev.personnel) ? prev.personnel : [],
       updatedAt: new Date().toISOString()
     }
     list[idx] = next
@@ -117,5 +171,73 @@ export const deleteContractorRegistration = (id) => {
   } catch (e) {
     console.error('deleteContractorRegistration:', e)
     return { success: false, message: '刪除失敗' }
+  }
+}
+
+export const addContractorPersonnel = (contractorId, data) => {
+  try {
+    const name = String(data?.name || '').trim()
+    if (!name) return { success: false, message: '請填寫人員姓名' }
+    const list = getContractorRegistrations()
+    const idx = findCompanyIndex(list, contractorId)
+    if (idx < 0) return { success: false, message: '找不到該承攬商' }
+    const company = list[idx]
+    const personnel = Array.isArray(company.personnel) ? [...company.personnel] : []
+    if (personnel.some((p) => String(p?.name || '').trim() === name)) {
+      return { success: false, message: '此人員姓名已存在於此承攬商' }
+    }
+    const person = normalizePerson(data)
+    personnel.push(person)
+    list[idx] = { ...company, personnel, updatedAt: new Date().toISOString() }
+    persist(list)
+    return { success: true, record: person, company: list[idx] }
+  } catch (e) {
+    console.error('addContractorPersonnel:', e)
+    return { success: false, message: '新增人員失敗' }
+  }
+}
+
+export const updateContractorPersonnel = (contractorId, personId, updates = {}) => {
+  try {
+    const list = getContractorRegistrations()
+    const idx = findCompanyIndex(list, contractorId)
+    if (idx < 0) return { success: false, message: '找不到該承攬商' }
+    const company = list[idx]
+    const personnel = Array.isArray(company.personnel) ? [...company.personnel] : []
+    const pIdx = personnel.findIndex((p) => String(p?.id || '').trim() === String(personId || '').trim())
+    if (pIdx < 0) return { success: false, message: '找不到該人員' }
+    const prev = personnel[pIdx]
+    const name = updates.name != null ? String(updates.name || '').trim() : String(prev.name || '').trim()
+    if (!name) return { success: false, message: '請填寫人員姓名' }
+    if (personnel.some((p, i) => i !== pIdx && String(p?.name || '').trim() === name)) {
+      return { success: false, message: '此人員姓名已存在於此承攬商' }
+    }
+    const next = normalizePerson({ ...prev, ...updates, name }, prev)
+    if (updates.active === false) next.active = false
+    else if (updates.active === true) next.active = true
+    personnel[pIdx] = next
+    list[idx] = { ...company, personnel, updatedAt: new Date().toISOString() }
+    persist(list)
+    return { success: true, record: next, company: list[idx] }
+  } catch (e) {
+    console.error('updateContractorPersonnel:', e)
+    return { success: false, message: '更新人員失敗' }
+  }
+}
+
+export const deleteContractorPersonnel = (contractorId, personId) => {
+  try {
+    const list = getContractorRegistrations()
+    const idx = findCompanyIndex(list, contractorId)
+    if (idx < 0) return { success: false, message: '找不到該承攬商' }
+    const company = list[idx]
+    const personnel = (Array.isArray(company.personnel) ? company.personnel : [])
+      .filter((p) => String(p?.id || '').trim() !== String(personId || '').trim())
+    list[idx] = { ...company, personnel, updatedAt: new Date().toISOString() }
+    persist(list)
+    return { success: true, company: list[idx] }
+  } catch (e) {
+    console.error('deleteContractorPersonnel:', e)
+    return { success: false, message: '刪除人員失敗' }
   }
 }
