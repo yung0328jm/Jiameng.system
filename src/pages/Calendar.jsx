@@ -15,13 +15,13 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { getTripReportsBySchedule, addTripReport, actionTypes as tripReportActionTypes } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
-import { getDisplayNameForAccount, resolveDisplayNameToAccount, buildOvertimeApplicantOptions, resolveApplicantLabel, getSelectablePersonnelNames } from '../utils/displayName'
+import { getDisplayNameForAccount, resolveDisplayNameToAccount, resolveApplicantLabel } from '../utils/displayName'
 import { addAdminToUserMessage } from '../utils/messageStorage'
 import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
 import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, updateOvertimeApplication, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
+import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   getNoLeaveDates,
@@ -305,36 +305,6 @@ function Calendar() {
   const currentUser = getCurrentUser()
   const currentRole = getCurrentUserRole()
   const myDisplayNames = getDisplayNamesForAccount(currentUser || '') || []
-
-  const handleOvertimeApplicantChange = (oaId, value) => {
-    const res = updateOvertimeApplication(oaId, { applicant: value })
-    if (res.success) setOvertimeReviewRevision((r) => r + 1)
-    else alert(res.message || '更新申請人失敗')
-  }
-
-  const renderOvertimeApplicantField = (oa, { editable = false, selectClassName = '' } = {}) => {
-    const label = resolveApplicantLabel(oa?.applicant) || oa?.applicant || ''
-    const options = buildOvertimeApplicantOptions(oa)
-    const value = label && options.includes(label) ? label : (options[0] || label || '')
-    if (!editable) {
-      return <div>申請人：{label || '—'}</div>
-    }
-    return (
-      <div className="flex items-center gap-2 flex-wrap mt-0.5">
-        <span className="shrink-0">申請人：</span>
-        <select
-          value={value}
-          onChange={(e) => handleOvertimeApplicantChange(oa.id, e.target.value)}
-          className={selectClassName || 'min-w-[8rem] max-w-full px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs'}
-        >
-          <option value="">— 請選擇 —</option>
-          {options.map((n) => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
-      </div>
-    )
-  }
 
   const canEditForName = (displayName) => {
     if (currentRole === 'admin') return true
@@ -2075,7 +2045,7 @@ function Calendar() {
             status === 'rejected' && String(oa.rejectionReason || '').trim() !== ''
               ? ` | 駁回原因: ${escapeHtml(String(oa.rejectionReason).trim())}`
               : ''
-          body += `<p style="margin:4px 0;"><strong>申請人:</strong> ${escapeHtml(oa.applicant || '—')} | ${escapeHtml(oa.date || '—')}${timeRange}${hoursStr}${personnelStr} | <strong>${statusText}</strong>${rejectStr}</p>`
+          body += `<p style="margin:4px 0;"><strong>申請人:</strong> ${escapeHtml(resolveApplicantLabel(oa.applicant) || oa.applicant || '—')} | ${escapeHtml(oa.date || '—')}${timeRange}${hoursStr}${personnelStr} | <strong>${statusText}</strong>${rejectStr}</p>`
         })
       }
       const workItems = Array.isArray(seg.workItems) ? seg.workItems : []
@@ -3189,7 +3159,7 @@ function Calendar() {
                           {timeStr ? ` ${timeStr}` : ''}
                           {oa.hours != null && oa.hours !== '' ? ` · ${oa.hours} 小時` : ''}
                         </div>
-                        {renderOvertimeApplicantField(oa, { editable: currentRole === 'admin' })}
+                        <div>申請人：{resolveApplicantLabel(oa.applicant) || oa.applicant || '—'}</div>
                         {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
                           <div className="text-gray-400">緊急入場人員：{oa.overtimePersonnel.join(', ')}</div>
                         )}
@@ -4173,7 +4143,7 @@ function Calendar() {
                                 <div key={oa.id} className="text-blue-200 text-xs bg-blue-800/50 rounded p-2">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex-1 min-w-0">
-                                      {renderOvertimeApplicantField(oa, { editable: currentRole === 'admin' && status === 'pending' })}
+                                      <div>申請人：{resolveApplicantLabel(oa.applicant) || oa.applicant || '—'}</div>
                                       <div>
                                         {oa.date || (oa.applicationTime ? new Date(oa.applicationTime).toLocaleDateString('zh-TW') : '—')}
                                         {oa.startTime && oa.endTime ? ` ${oa.startTime}～${oa.endTime}` : (oa.applicationTime ? ` ${new Date(oa.applicationTime).toLocaleTimeString('zh-TW')}` : '')}
@@ -4250,21 +4220,12 @@ function Calendar() {
                         <div className="mt-2 p-3 bg-blue-900/50 border border-blue-700 rounded-lg space-y-3">
                           <div>
                             <label className="block text-blue-300 text-sm mb-1">申請人</label>
-                            <select
-                              value={overtimeFormData.applicant || getDisplayNameForAccount(getCurrentUser()) || ''}
-                              onChange={(e) => setOvertimeFormData((p) => ({ ...p, applicant: e.target.value }))}
-                              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white text-sm"
-                            >
-                              <option value="">— 請選擇 —</option>
-                              {(() => {
-                                const self = getDisplayNameForAccount(getCurrentUser()) || ''
-                                const names = [...getSelectablePersonnelNames()]
-                                if (self && !names.includes(self)) names.unshift(self)
-                                return names.map((n) => (
-                                  <option key={n} value={n}>{n}{n === self ? '（本人）' : ''}</option>
-                                ))
-                              })()}
-                            </select>
+                            <input
+                              type="text"
+                              readOnly
+                              value={resolveApplicantLabel(overtimeFormData.applicant) || overtimeFormData.applicant || getDisplayNameForAccount(getCurrentUser()) || ''}
+                              className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-300 text-sm"
+                            />
                           </div>
                           <div>
                             <label className="block text-blue-300 text-sm mb-1">申請日期</label>
