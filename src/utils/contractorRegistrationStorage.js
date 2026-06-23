@@ -41,6 +41,32 @@ export const getContractorById = (id) => {
   return getContractorRegistrations().find((r) => String(r?.id || '').trim() === cid) || null
 }
 
+/** 出工登記代碼（不分大小寫比對） */
+export const normalizeContractorCheckInCode = (code) =>
+  String(code || '').trim().toUpperCase()
+
+/** 依管理員設定的代碼查找承攬商 */
+export const findContractorByCheckInCode = (code) => {
+  const key = normalizeContractorCheckInCode(code)
+  if (!key) return null
+  return (
+    getContractorRegistrations().find(
+      (r) => normalizeContractorCheckInCode(r?.checkInCode) === key
+    ) || null
+  )
+}
+
+const isCheckInCodeTaken = (list, code, excludeId = '') => {
+  const key = normalizeContractorCheckInCode(code)
+  if (!key) return false
+  const eid = String(excludeId || '').trim()
+  return list.some(
+    (r) =>
+      normalizeContractorCheckInCode(r?.checkInCode) === key &&
+      String(r?.id || '').trim() !== eid
+  )
+}
+
 /** 供承攬簽到系統：扁平列出所有啟用中人員 */
 export const getActiveContractorPersonnelFlat = () => {
   const out = []
@@ -104,10 +130,16 @@ export const addContractorRegistration = (data) => {
     if (list.some((r) => String(r?.name || '').trim() === name)) {
       return { success: false, message: '此承攬商名稱已存在' }
     }
+    const checkInCode = String(data?.checkInCode || '').trim()
+    if (!checkInCode) return { success: false, message: '請填寫出工登記代碼' }
+    if (isCheckInCodeTaken(list, checkInCode)) {
+      return { success: false, message: '此出工登記代碼已被使用' }
+    }
     const now = new Date().toISOString()
     const rec = {
       id: `contractor-${Date.now()}`,
       name,
+      checkInCode,
       contactPerson: String(data?.contactPerson || '').trim(),
       phone: String(data?.phone || '').trim(),
       taxId: String(data?.taxId || '').trim(),
@@ -139,9 +171,16 @@ export const updateContractorRegistration = (id, updates = {}) => {
     if (!name) return { success: false, message: '請填寫承攬商名稱' }
     const dup = list.find((r) => String(r?.id || '').trim() !== cid && String(r?.name || '').trim() === name)
     if (dup) return { success: false, message: '此承攬商名稱已存在' }
+    const checkInCode =
+      updates.checkInCode != null ? String(updates.checkInCode || '').trim() : String(prev.checkInCode || '').trim()
+    if (!checkInCode) return { success: false, message: '請填寫出工登記代碼' }
+    if (isCheckInCodeTaken(list, checkInCode, cid)) {
+      return { success: false, message: '此出工登記代碼已被使用' }
+    }
     const next = {
       ...prev,
       name,
+      checkInCode,
       contactPerson: updates.contactPerson != null ? String(updates.contactPerson || '').trim() : (prev.contactPerson || ''),
       phone: updates.phone != null ? String(updates.phone || '').trim() : (prev.phone || ''),
       taxId: updates.taxId != null ? String(updates.taxId || '').trim() : (prev.taxId || ''),
