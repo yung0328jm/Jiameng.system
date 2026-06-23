@@ -20,6 +20,7 @@ import MyBackpack from './pages/MyBackpack'
 import CheckIn from './pages/CheckIn'
 import LeaveApplication from './pages/LeaveApplication'
 import Advance from './pages/Advance'
+import ContractorWorkCheckIn from './pages/ContractorWorkCheckIn'
 import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole, getCurrentUser } from './utils/authStorage'
 import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
@@ -158,6 +159,7 @@ function App() {
             <Register onLogin={handleLogin} />
           } 
         />
+        <Route path="/contractor-work" element={<ContractorWorkCheckIn />} />
         <Route 
           path="/dashboard" 
           element={
