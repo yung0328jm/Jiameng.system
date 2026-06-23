@@ -96,6 +96,37 @@ export const deleteDropdownOption = (id) => {
   }
 }
 
+/** 案場是否顯示於承攬商出工登記（須明確勾選） */
+export const isContractorCheckInSite = (option) => option?.contractorCheckIn === true
+
+export const setDropdownSiteContractorCheckIn = (id, enabled) => {
+  try {
+    const options = getDropdownOptions()
+    const index = options.findIndex((opt) => opt.id === id)
+    if (index === -1) return { success: false, message: '選項不存在' }
+    options[index] = { ...options[index], contractorCheckIn: !!enabled }
+    saveDropdownOptions(options)
+    return { success: true }
+  } catch (error) {
+    console.error('Error setting contractor check-in site:', error)
+    return { success: false, message: '更新失敗' }
+  }
+}
+
+/** 承攬商出工登記用案場（僅含已勾選者） */
+export const getContractorCheckInSiteNames = () => {
+  const seen = new Set()
+  const out = []
+  ;(getDropdownOptionsByCategory('work_report_sites') || []).forEach((o) => {
+    if (!isContractorCheckInSite(o)) return
+    const v = String(o?.value || '').trim()
+    if (!v || seen.has(v)) return
+    seen.add(v)
+    out.push(v)
+  })
+  return out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+}
+
 // 調整某分類內的選項順序（依照 orderedIds 排列）
 // 會保留其他分類的相對位置，只替換該分類在全量陣列中的順序
 export const reorderDropdownOptionsByCategory = (category, orderedIds = []) => {
