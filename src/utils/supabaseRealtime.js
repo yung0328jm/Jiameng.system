@@ -1,5 +1,6 @@
 // 即時同步：訂閱 Supabase Realtime，有人改資料時更新本地並通知 UI 重讀
 import { getSupabaseClient } from './supabaseClient'
+import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationStorage'
 
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'
@@ -246,7 +247,24 @@ export function subscribeRealtime(onUpdate) {
         byId.set(id, newer)
       }
     })
-    return Array.from(byId.values()).sort((x, y) => (Date.parse(y?.updatedAt || y?.createdAt || '') || 0) - (Date.parse(x?.updatedAt || x?.createdAt || '') || 0))
+    const merged = Array.from(byId.values())
+    const deletedMap = new Map() // boardId -> deletedAt
+    merged.forEach((x) => {
+      if (String(x?.kind || '') !== 'daily_board_deleted') return
+      const boardId = String(x?.boardId || '').trim()
+      if (!boardId) return
+      const t = Date.parse(x?.deletedAt || x?.createdAt || '') || 0
+      const prev = deletedMap.get(boardId) || 0
+      if (t >= prev) deletedMap.set(boardId, t)
+    })
+    return merged.filter((x) => {
+      if (String(x?.kind || '') !== 'daily_board') return true
+      const boardId = String(x?.id || '').trim()
+      const del = deletedMap.get(boardId) || 0
+      if (!del) return true
+      const ts = Date.parse(x?.updatedAt || x?.createdAt || '') || 0
+      return ts > del
+    }).sort((x, y) => (Date.parse(y?.updatedAt || y?.createdAt || '') || 0) - (Date.parse(x?.updatedAt || x?.createdAt || '') || 0))
   }
 
   // 道具清單合併去重：避免多裝置覆蓋造成「背包有 itemId 但道具定義不在 → 未知道具」
@@ -760,19 +778,7 @@ export function subscribeRealtime(onUpdate) {
   async function refetchLeave() {
     try {
       const { data } = await sb.from('leave_applications').select('*').order('created_at', { ascending: true })
-      const list = (data || []).map((r) => ({
-        id: r.id,
-        userId: r.user_id ?? '',
-        userName: r.user_name ?? '',
-        startDate: r.start_date ?? '',
-        endDate: r.end_date ?? '',
-        reason: r.reason ?? '',
-        status: r.status ?? 'pending',
-        createdAt: r.created_at ? (typeof r.created_at === 'string' ? r.created_at : new Date(r.created_at).toISOString()) : '',
-        approvedBy: r.approved_by ?? '',
-        approvedAt: r.approved_at ?? undefined
-      }))
-      localStorage.setItem(LEAVE_KEY, JSON.stringify(list))
+      applyLeaveApplicationsFromCloud((data || []).map(rowToLeaveRecord))
       notifyKey(LEAVE_KEY)
     } catch (_) {}
   }

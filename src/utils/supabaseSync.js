@@ -1,6 +1,7 @@
 // 從 Supabase 拉一輪資料寫入 localStorage；全站同步（排程／請假／特休＋其餘經 app_data）
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
+import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationStorage'
 
 const MEMOS_KEY = 'jiameng_memos'
 
@@ -144,6 +145,8 @@ export const APP_DATA_KEYS = [
   'jiameng_last_seen_v1',
   // 請假代填人（管理員指派一人可代他人填寫請假）
   'jiameng_leave_filler_account',
+  // 禁休日（管理員設定，當日不可申請異動）
+  'jiameng_no_leave_dates',
   // 個人績效：指定「一人」可檢視全員（唯讀）
   'jiameng_performance_viewer_account',
   'jiameng_compensatory_leave_manager_account',
@@ -548,23 +551,12 @@ export async function syncFromSupabase() {
     ])
 
     const schedules = (schedRes.data || []).map((r) => ({ ...(r.data || {}), id: r.id, createdAt: r.created_at }))
-    const leaveList = (leaveRes.data || []).map((r) => ({
-      id: r.id,
-      userId: r.user_id ?? '',
-      userName: r.user_name ?? '',
-      startDate: r.start_date ?? '',
-      endDate: r.end_date ?? '',
-      reason: r.reason ?? '',
-      status: r.status ?? 'pending',
-      createdAt: r.created_at ? (typeof r.created_at === 'string' ? r.created_at : new Date(r.created_at).toISOString()) : '',
-      approvedBy: r.approved_by ?? '',
-      approvedAt: r.approved_at ?? undefined
-    }))
+    const leaveList = (leaveRes.data || []).map(rowToLeaveRecord)
     const quotaMap = {}
     ;(quotaRes.data || []).forEach((r) => { quotaMap[r.account] = Number(r.days) || 0 })
 
     localStorage.setItem(SCHEDULE_KEY, JSON.stringify(schedules))
-    localStorage.setItem(LEAVE_KEY, JSON.stringify(leaveList))
+    applyLeaveApplicationsFromCloud(leaveList)
     localStorage.setItem(QUOTA_KEY, JSON.stringify(quotaMap))
     ;[SCHEDULE_KEY, LEAVE_KEY, QUOTA_KEY].forEach((key) => {
       try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
