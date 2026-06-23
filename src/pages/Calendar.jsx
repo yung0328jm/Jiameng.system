@@ -24,6 +24,13 @@ import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
+  getNoLeaveDates,
+  isNoLeaveDate,
+  setNoLeaveDate,
+  formatNoLeaveBlockedMessage,
+  NO_LEAVE_DATES_KEY
+} from '../utils/noLeaveDateStorage'
+import {
   normalizeWorkItem,
   getWorkItemCollaborators,
   getWorkItemCollabMode,
@@ -114,6 +121,7 @@ function Calendar() {
   const [showScheduleForm, setShowScheduleForm] = useState(false) // 显示排程表单
   const [showDateDetailModal, setShowDateDetailModal] = useState(false) // 显示日期详情弹窗
   const [showEntryChoiceModal, setShowEntryChoiceModal] = useState(false) // 點日期：入廠申請 / 入廠異動申請
+  const [noLeaveRevision, setNoLeaveRevision] = useState(0) // 禁休日設定變更時重繪月曆
   const [showTopicForm, setShowTopicForm] = useState(false) // 显示新增主題表单
   const [showDetailModal, setShowDetailModal] = useState(false) // 显示详情弹窗
   const [selectedDetailItem, setSelectedDetailItem] = useState(null) // 选中的详情项（主题或排程）
@@ -895,8 +903,9 @@ function Calendar() {
   const refetchForRealtime = () => {
     setSchedules(getSchedules())
     loadDropdownOptions()
+    setNoLeaveRevision((r) => r + 1)
   }
-  useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects'], refetchForRealtime)
+  useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects', NO_LEAVE_DATES_KEY], refetchForRealtime)
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
   useRealtimeKeys(['jiameng_overtime_applications'], () => setOvertimeReviewRevision((r) => r + 1))
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
@@ -1302,8 +1311,28 @@ function Calendar() {
 
   const goToLeaveApplicationFromCalendar = () => {
     const dateStr = selectedDateForSchedule
+    if (dateStr && isNoLeaveDate(dateStr)) {
+      alert(formatNoLeaveBlockedMessage(dateStr, dateStr) || '此日為禁休，無法申請異動。')
+      return
+    }
     closeEntryChoiceModal()
     navigate('/leave-application', dateStr ? { state: { date: dateStr } } : undefined)
+  }
+
+  const handleToggleNoLeaveForSelectedDate = () => {
+    if (currentRole !== 'admin' || !selectedDateForSchedule) return
+    const blocked = isNoLeaveDate(selectedDateForSchedule)
+    const next = !blocked
+    const msg = next
+      ? `確定將 ${selectedDateForSchedule.replace(/-/g, '/')} 設為禁休？\n當日所有人員將無法申請異動。`
+      : `確定取消 ${selectedDateForSchedule.replace(/-/g, '/')} 的禁休設定？`
+    if (!window.confirm(msg)) return
+    const res = setNoLeaveDate(selectedDateForSchedule, next, getCurrentUser() || '')
+    if (!res.success) {
+      alert(res.message || '設定失敗')
+      return
+    }
+    setNoLeaveRevision((r) => r + 1)
   }
 
   const handleShowAddSchedule = () => {
@@ -3042,6 +3071,14 @@ function Calendar() {
     return false
   }
 
+  const noLeaveDateSet = useMemo(() => new Set(getNoLeaveDates()), [noLeaveRevision, year, month])
+
+  const isNoLeaveDay = (day, isCurrentMonth = true) => {
+    if (!isCurrentMonth) return false
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return noLeaveDateSet.has(dateStr)
+  }
+
   const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', 
                      '七月', '八月', '九月', '十月', '十一月', '十二月']
 
@@ -3215,6 +3252,7 @@ function Calendar() {
             const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             const today = isToday(day)
             const holiday = isHoliday(day)
+            const noLeave = isNoLeaveDay(day, true)
             
             return (
               <div
@@ -3222,12 +3260,18 @@ function Calendar() {
                 onClick={() => handleDateClick(day, true)}
                 className={`${CAL_DAY_CELL_MIN_H} ${CAL_DAY_CELL_PAD} bg-gray-800 border rounded cursor-pointer hover:bg-gray-750 transition-colors overflow-hidden min-w-0 ${
                   today ? 'border-yellow-400 ring-2 ring-yellow-400' : 
+                  noLeave ? 'border-rose-500 ring-1 ring-rose-500/70' :
                   holiday ? 'border-red-500' : 
                   'border-gray-700'
                 }`}
               >
-                <div className={`text-[10px] max-sm:text-[11px] sm:text-xs mb-0.5 max-sm:mb-1 font-medium truncate ${today ? 'text-yellow-400 font-bold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
-                  {day}
+                <div className={`text-[10px] max-sm:text-[11px] sm:text-xs mb-0.5 max-sm:mb-1 font-medium truncate flex items-center gap-1 min-w-0 ${today ? 'text-yellow-400 font-bold' : noLeave ? 'text-rose-300 font-semibold' : holiday ? 'text-red-400 font-semibold' : 'text-white'}`}>
+                  <span>{day}</span>
+                  {noLeave && (
+                    <span className="text-[8px] max-sm:text-[9px] px-1 py-0 rounded bg-rose-900/80 text-rose-100 shrink-0">
+                      禁休
+                    </span>
+                  )}
                   {day === 1 && month === 0 && (
                     <span className="ml-0.5 text-[10px]">元旦</span>
                   )}
@@ -4936,6 +4980,16 @@ function Calendar() {
             {selectedDateForSchedule && (
               <p className="text-gray-400 text-sm mb-4 tabular-nums">
                 日期：{selectedDateForSchedule.replace(/-/g, '/')}
+                {isNoLeaveDate(selectedDateForSchedule) && (
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-900/70 text-rose-100 border border-rose-600/50">
+                    禁休
+                  </span>
+                )}
+              </p>
+            )}
+            {selectedDateForSchedule && isNoLeaveDate(selectedDateForSchedule) && (
+              <p className="text-rose-300 text-xs mb-4 bg-rose-950/40 border border-rose-700/50 rounded-lg px-3 py-2">
+                此日為禁休，所有人員無法申請異動。
               </p>
             )}
             <div className="space-y-3">
@@ -4949,10 +5003,24 @@ function Calendar() {
               <button
                 type="button"
                 onClick={goToLeaveApplicationFromCalendar}
-                className="w-full min-h-[48px] py-3 rounded-xl font-semibold bg-teal-600 text-white hover:bg-teal-500 transition-colors"
+                disabled={!!selectedDateForSchedule && isNoLeaveDate(selectedDateForSchedule)}
+                className="w-full min-h-[48px] py-3 rounded-xl font-semibold bg-teal-600 text-white hover:bg-teal-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 入廠異動申請
               </button>
+              {currentRole === 'admin' && selectedDateForSchedule && (
+                <button
+                  type="button"
+                  onClick={handleToggleNoLeaveForSelectedDate}
+                  className={`w-full min-h-[44px] py-2.5 rounded-xl font-semibold text-sm border transition-colors ${
+                    isNoLeaveDate(selectedDateForSchedule)
+                      ? 'bg-gray-700 border-gray-500 text-gray-200 hover:bg-gray-600'
+                      : 'bg-rose-900/50 border-rose-600 text-rose-100 hover:bg-rose-900/70'
+                  }`}
+                >
+                  {isNoLeaveDate(selectedDateForSchedule) ? '取消禁休' : '設為禁休'}
+                </button>
+              )}
             </div>
           </div>
         </div>

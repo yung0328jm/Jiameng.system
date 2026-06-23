@@ -21,6 +21,12 @@ import {
   deleteLeaveSchedulesForPersonOnDate
 } from '../utils/scheduleStorage'
 import { touchLastSeen } from '../utils/lastSeenStorage'
+import {
+  getNoLeaveDatesInRange,
+  formatNoLeaveBlockedMessage,
+  hasNoLeaveDateInRange,
+  NO_LEAVE_DATES_KEY
+} from '../utils/noLeaveDateStorage'
 
 const DEFAULT_LEAVE_REASON = '當日不須申請入廠證及參加工具箱會議'
 const LEAVE_CALENDAR_STATUS = '不需申請入廠證'
@@ -69,6 +75,12 @@ function LeaveApplication() {
   const [memberNames, setMemberNames] = useState([])
   const [editingLeaveId, setEditingLeaveId] = useState(null) // 管理員編輯請假紀錄
   const [editForm, setEditForm] = useState({ startDate: '', endDate: '', reason: '', status: 'pending' })
+  const [noLeaveRevision, setNoLeaveRevision] = useState(0)
+
+  const blockedDatesPreview = useMemo(() => {
+    if (!startDate || !endDate) return []
+    return getNoLeaveDatesInRange(startDate, endDate)
+  }, [startDate, endDate, noLeaveRevision])
 
   const selfDisplayName = useMemo(() => {
     if (!currentUser) return ''
@@ -88,9 +100,10 @@ function LeaveApplication() {
     setApplications(getLeaveApplications())
     setPendingList(getPendingLeaveApplications())
   }
-  useRealtimeKeys(['jiameng_leave_applications', 'jiameng_leave_filler_account', 'jiameng_dropdown_options'], () => {
+  useRealtimeKeys(['jiameng_leave_applications', 'jiameng_leave_filler_account', 'jiameng_dropdown_options', NO_LEAVE_DATES_KEY], () => {
     loadApplications()
     setMemberNames(getSelectableMemberNames())
+    setNoLeaveRevision((r) => r + 1)
   })
 
   useEffect(() => {
@@ -144,6 +157,10 @@ function LeaveApplication() {
     }
     if (start > end) {
       setMessage({ type: 'error', text: '結束日不得早於起始日' })
+      return
+    }
+    if (hasNoLeaveDateInRange(startDate, endDate)) {
+      setMessage({ type: 'error', text: formatNoLeaveBlockedMessage(startDate, endDate) })
       return
     }
     const reasonTrim = reason.trim() || DEFAULT_LEAVE_REASON
@@ -394,6 +411,11 @@ function LeaveApplication() {
                     required
                   />
                 </div>
+                {blockedDatesPreview.length > 0 && (
+                  <p className="text-rose-300 text-xs sm:text-sm bg-rose-950/40 border border-rose-700/50 rounded-lg px-3 py-2">
+                    {formatNoLeaveBlockedMessage(startDate, endDate)}
+                  </p>
+                )}
                 <div>
                   <label className="block text-gray-300 text-sm mb-1.5 sm:mb-2">備註</label>
                   <input
@@ -405,7 +427,8 @@ function LeaveApplication() {
                 </div>
                 <button
                   type="submit"
-                  className="w-full min-h-[48px] py-3.5 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 active:bg-yellow-400 transition-colors text-base touch-manipulation"
+                  disabled={blockedDatesPreview.length > 0}
+                  className="w-full min-h-[48px] py-3.5 rounded-xl font-semibold bg-yellow-500 text-gray-900 hover:bg-yellow-400 active:bg-yellow-400 transition-colors text-base touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   申報
                 </button>
@@ -590,8 +613,18 @@ function LeaveApplication() {
         {/* 今年請假紀錄（自己的） */}
         {currentUser && (() => {
           const currentYear = new Date().getFullYear()
+          const selfKeys = new Set(
+            [currentUser, selfDisplayName, userName, resolveDisplayNameToAccount(selfDisplayName || userName)]
+              .map((v) => String(v || '').trim())
+              .filter(Boolean)
+          )
           const myRecords = applications
-            .filter((a) => a.userId === currentUser)
+            .filter((a) => {
+              const keys = [a.userId, a.userName, resolveDisplayNameToAccount(a.userName || a.userId)]
+                .map((v) => String(v || '').trim())
+                .filter(Boolean)
+              return keys.some((k) => selfKeys.has(k))
+            })
             .filter((a) => {
               const y = a.startDate ? new Date(a.startDate).getFullYear() : (a.createdAt ? new Date(a.createdAt).getFullYear() : 0)
               return y === currentYear
