@@ -55,6 +55,12 @@ import {
   groupWorkReportRowsForDisplay,
   formatWorkReportHours
 } from '../utils/workReportStorage'
+import {
+  getContractorWorkChipsForMonth,
+  getContractorWorkLogsForChip,
+  formatContractorTimeLabel,
+  CONTRACTOR_WORK_LOG_KEY
+} from '../utils/contractorWorkCheckInStorage'
 
 function WorkReportShiftSummary({ summary, className = '' }) {
   if (!summary || (summary.totalHeadcount == null && summary.headcount == null)) {
@@ -128,7 +134,9 @@ function Calendar() {
   const [selectedDetailType, setSelectedDetailType] = useState(null) // 'topic' 或 'schedule'
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
   const [workReportsRevision, setWorkReportsRevision] = useState(0) // 出工回報同步至月曆
+  const [contractorWorkRevision, setContractorWorkRevision] = useState(0) // 承攬商出工同步至月曆
   const [workReportDetail, setWorkReportDetail] = useState(null) // { dateStr, siteName } 點擊月曆「出工」標籤
+  const [contractorWorkDetail, setContractorWorkDetail] = useState(null) // { dateStr, siteName, companyId, companyName }
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const [exportingPdf, setExportingPdf] = useState(false) // 匯出 PDF 中，避免重複點擊與無反應
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
@@ -272,6 +280,23 @@ function Calendar() {
     if (!set) return []
     return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant'))
   }
+
+  const contractorWorkChipsByDate = useMemo(() => {
+    void contractorWorkRevision
+    return getContractorWorkChipsForMonth(year, month + 1)
+  }, [year, month, contractorWorkRevision])
+
+  const getContractorWorkChipsForDay = (day) => {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return contractorWorkChipsByDate.get(dateStr) || []
+  }
+
+  const contractorWorkDetailRows = useMemo(() => {
+    if (!contractorWorkDetail) return []
+    return getContractorWorkLogsForChip(contractorWorkDetail)
+  }, [contractorWorkDetail, contractorWorkRevision])
+
+  const contractorWorkDetailHeadcount = contractorWorkDetailRows.length
 
   const workReportDetailRows = useMemo(() => {
     if (!workReportDetail) return []
@@ -910,6 +935,7 @@ function Calendar() {
   useRealtimeKeys(['jiameng_overtime_applications'], () => setOvertimeReviewRevision((r) => r + 1))
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
   useRealtimeKeys(['jiameng_work_reports'], () => setWorkReportsRevision((r) => r + 1))
+  useRealtimeKeys([CONTRACTOR_WORK_LOG_KEY], () => setContractorWorkRevision((r) => r + 1))
 
   // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
   useEffect(() => {
@@ -3249,6 +3275,7 @@ function Calendar() {
             const events = getEventsForDay(day, true)
             const daySchedules = getSchedulesForDay(day, true)
             const workReportSites = getWorkReportSitesForDay(day)
+            const contractorWorkChips = getContractorWorkChipsForDay(day)
             const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             const today = isToday(day)
             const holiday = isHoliday(day)
@@ -3417,6 +3444,41 @@ function Calendar() {
                         進廠
                       </span>
                       <span className={`${CAL_DAY_CHIP_LABEL} text-cyan-50`}>{site}</span>
+                    </div>
+                  ))}
+                  {contractorWorkChips.map((chip) => (
+                    <div
+                      key={`cw-${cellDateStr}-${chip.siteName}-${chip.companyId}`}
+                      role="button"
+                      tabIndex={0}
+                      className={`${CAL_DAY_CHIP_ROW} border border-violet-600/50 bg-violet-950/70 hover:bg-violet-900/55 hover:border-violet-500/70`}
+                      title={`承攬商進廠：${chip.companyName} · ${chip.siteName}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setContractorWorkDetail({
+                          dateStr: cellDateStr,
+                          siteName: chip.siteName,
+                          companyId: chip.companyId,
+                          companyName: chip.companyName
+                        })
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setContractorWorkDetail({
+                            dateStr: cellDateStr,
+                            siteName: chip.siteName,
+                            companyId: chip.companyId,
+                            companyName: chip.companyName
+                          })
+                        }
+                      }}
+                    >
+                      <span className={`${CAL_DAY_CHIP_BADGE} bg-violet-700/60 text-violet-100`}>
+                        承攬
+                      </span>
+                      <span className={`${CAL_DAY_CHIP_LABEL} text-violet-50`}>{chip.companyName}</span>
                     </div>
                   ))}
                   {/* 显示其他事件 */}
@@ -4792,6 +4854,77 @@ function Calendar() {
                 className="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400"
               >
                 確定複製
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 承攬商出工詳情（點擊月曆紫色標籤） */}
+      {contractorWorkDetail && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[55] p-4"
+          onClick={() => setContractorWorkDetail(null)}
+          role="presentation"
+        >
+          <div
+            className="bg-gray-900 border border-violet-600/60 rounded-lg shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="contractor-work-detail-title"
+          >
+            <div className="flex items-start justify-between gap-3 p-4 border-b border-gray-700 shrink-0">
+              <div>
+                <h3 id="contractor-work-detail-title" className="text-lg font-semibold text-violet-300">
+                  承攬商進廠管制表
+                </h3>
+                <p className="text-gray-300 text-sm mt-1 tabular-nums">{contractorWorkDetail.dateStr}</p>
+                <p className="text-white font-medium">{contractorWorkDetail.companyName}</p>
+                <p className="text-gray-400 text-sm">{contractorWorkDetail.siteName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setContractorWorkDetail(null)}
+                className="text-gray-400 hover:text-white shrink-0 p-1"
+                aria-label="關閉"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              {contractorWorkDetailRows.length === 0 ? (
+                <p className="text-gray-500 text-sm">尚無紀錄。</p>
+              ) : (
+                <>
+                  <p className="text-sm text-violet-300/90 mb-3">
+                    合計出工 <strong className="text-amber-200">{contractorWorkDetailHeadcount}</strong> 人
+                  </p>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-600 text-left text-gray-400">
+                        <th className="py-2 pr-2 font-medium">姓名</th>
+                        <th className="py-2 font-medium">時間</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contractorWorkDetailRows.map((row) => (
+                        <tr key={row.id} className="border-b border-gray-700/60">
+                          <td className="py-2 pr-2 text-white">{row.personName}</td>
+                          <td className="py-2 text-violet-200 tabular-nums text-xs">{formatContractorTimeLabel(row)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-700 shrink-0 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setContractorWorkDetail(null)}
+                className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium"
+              >
+                關閉
               </button>
             </div>
           </div>
