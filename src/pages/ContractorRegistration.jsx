@@ -23,6 +23,7 @@ import { formatWorkReportHours } from '../utils/workReportStorage'
 
 const EMPTY_FORM = {
   name: '',
+  checkInCode: '',
   contactPerson: '',
   phone: '',
   taxId: '',
@@ -78,7 +79,7 @@ function ContractorRegistration() {
     if (!q) return sorted
     return sorted.filter((r) => {
       const personNames = (r.personnel || []).map((p) => p?.name).join(' ')
-      const hay = [r.name, r.contactPerson, r.phone, r.taxId, r.address, r.notes, personNames]
+      const hay = [r.name, r.checkInCode, r.contactPerson, r.phone, r.taxId, r.address, r.notes, personNames]
         .map((v) => String(v || '').toLowerCase())
         .join(' ')
       return hay.includes(q)
@@ -96,6 +97,7 @@ function ContractorRegistration() {
     setEditingId(rec.id)
     setForm({
       name: rec.name || '',
+      checkInCode: rec.checkInCode || '',
       contactPerson: rec.contactPerson || '',
       phone: rec.phone || '',
       taxId: rec.taxId || '',
@@ -310,6 +312,9 @@ function ContractorRegistration() {
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-1 text-sm">
                   <div className="text-lg font-semibold text-yellow-300">{rec.name}</div>
+                  {rec.checkInCode && (
+                    <div className="text-violet-300/90 text-sm">出工登記代碼：{rec.checkInCode}</div>
+                  )}
                   {rec.contactPerson && <div className="text-gray-300">聯絡人：{rec.contactPerson}</div>}
                   {rec.phone && <div className="text-gray-300">電話：{rec.phone}</div>}
                   {rec.taxId && <div className="text-gray-300">統一編號：{rec.taxId}</div>}
@@ -393,6 +398,20 @@ function ContractorRegistration() {
                   className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-500 text-white focus:outline-none focus:border-yellow-400"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">
+                  出工登記代碼 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.checkInCode}
+                  onChange={(e) => setForm((f) => ({ ...f, checkInCode: e.target.value }))}
+                  placeholder="承攬商出工登記時輸入此代碼"
+                  className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-500 text-white focus:outline-none focus:border-yellow-400"
+                  required
+                />
+                <p className="text-gray-500 text-xs mt-1">請提供給承攬商，代碼對應此公司名稱（不可與其他承攬商重複）</p>
               </div>
               <div>
                 <label className="block text-gray-300 text-sm mb-1">聯絡人</label>

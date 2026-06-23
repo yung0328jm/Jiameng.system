@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { getContractorRegistrations } from '../utils/contractorRegistrationStorage'
+import {
+  findContractorByCheckInCode,
+  getContractorById
+} from '../utils/contractorRegistrationStorage'
 import { getContractorCheckInSiteNames } from '../utils/dropdownStorage'
 import {
   pullPublicContractorData,
@@ -14,11 +17,21 @@ import {
 } from '../utils/contractorWorkCheckInStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
+const CHECKIN_SESSION_KEY = 'jiameng_contractor_checkin_auth'
+
 function ContractorWorkCheckIn() {
   const [loading, setLoading] = useState(true)
   const [date, setDate] = useState(getTodayDateStr)
   const [siteName, setSiteName] = useState('')
-  const [companyId, setCompanyId] = useState('')
+  const [codeInput, setCodeInput] = useState('')
+  const [codeError, setCodeError] = useState('')
+  const [authenticatedCompanyId, setAuthenticatedCompanyId] = useState(() => {
+    try {
+      return sessionStorage.getItem(CHECKIN_SESSION_KEY) || ''
+    } catch (_) {
+      return ''
+    }
+  })
   const [message, setMessage] = useState(null)
   const [revision, setRevision] = useState(0)
   const [timeModal, setTimeModal] = useState(null) // { person, mode: 'in'|'out' }
@@ -42,12 +55,22 @@ function ContractorWorkCheckIn() {
     return () => window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
   }, [])
 
-  const companies = useMemo(() => {
+  const authenticatedCompany = useMemo(() => {
     void revision
-    return getContractorRegistrations()
-      .filter((c) => (c.personnel || []).some((p) => p?.active !== false))
-      .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant'))
-  }, [revision])
+    if (!authenticatedCompanyId) return null
+    return getContractorById(authenticatedCompanyId)
+  }, [authenticatedCompanyId, revision])
+
+  useEffect(() => {
+    if (!authenticatedCompanyId) return
+    const company = getContractorById(authenticatedCompanyId)
+    if (!company?.checkInCode) {
+      setAuthenticatedCompanyId('')
+      try {
+        sessionStorage.removeItem(CHECKIN_SESSION_KEY)
+      } catch (_) {}
+    }
+  }, [revision, authenticatedCompanyId])
 
   const siteOptions = useMemo(() => {
     void revision
@@ -58,31 +81,59 @@ function ContractorWorkCheckIn() {
     if (siteName && !siteOptions.includes(siteName)) setSiteName('')
   }, [siteOptions, siteName])
 
-  const selectedCompany = useMemo(
-    () => companies.find((c) => c.id === companyId) || null,
-    [companies, companyId]
-  )
-
   const activePersonnel = useMemo(() => {
-    if (!selectedCompany) return []
-    return (selectedCompany.personnel || [])
+    if (!authenticatedCompany) return []
+    return (authenticatedCompany.personnel || [])
       .filter((p) => p?.active !== false && String(p?.name || '').trim())
       .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant'))
-  }, [selectedCompany])
+  }, [authenticatedCompany])
 
   const todayLogs = useMemo(() => {
     void revision
-    if (!companyId || !siteName) return []
-    return getWorkLogsForDate(date, { companyId, siteName })
+    if (!authenticatedCompanyId || !siteName) return []
+    return getWorkLogsForDate(date, { companyId: authenticatedCompanyId, siteName })
       .sort((a, b) => String(a?.personName || '').localeCompare(String(b?.personName || ''), 'zh-Hant'))
-  }, [revision, date, companyId, siteName])
+  }, [revision, date, authenticatedCompanyId, siteName])
 
   const getPersonStatus = (person) => {
-    if (!siteName || !companyId) return null
-    const log = findWorkLog({ date, siteName, companyId, personId: person.id })
+    if (!siteName || !authenticatedCompanyId) return null
+    const log = findWorkLog({ date, siteName, companyId: authenticatedCompanyId, personId: person.id })
     if (!log?.arrivalTime) return { label: '未進廠', tone: 'pending' }
     if (!log?.departureTime) return { label: `進廠 ${log.arrivalTime}`, tone: 'in' }
     return { label: `${log.arrivalTime}～${log.departureTime}`, tone: 'done' }
+  }
+
+  const submitCode = (e) => {
+    e.preventDefault()
+    setCodeError('')
+    setMessage(null)
+    const company = findContractorByCheckInCode(codeInput)
+    if (!company) {
+      setCodeError('代碼錯誤，請確認後再試或聯絡管理員')
+      return
+    }
+    const hasActive = (company.personnel || []).some((p) => p?.active !== false && String(p?.name || '').trim())
+    if (!hasActive) {
+      setCodeError('此承攬商尚無可登記人員，請聯絡管理員')
+      return
+    }
+    setAuthenticatedCompanyId(company.id)
+    try {
+      sessionStorage.setItem(CHECKIN_SESSION_KEY, company.id)
+    } catch (_) {}
+    setCodeInput('')
+    setMessage({ type: 'success', text: `已驗證承攬商：${company.name}` })
+  }
+
+  const logoutCode = () => {
+    setAuthenticatedCompanyId('')
+    setSiteName('')
+    setCodeInput('')
+    setCodeError('')
+    setMessage(null)
+    try {
+      sessionStorage.removeItem(CHECKIN_SESSION_KEY)
+    } catch (_) {}
   }
 
   const openTimeModal = (person, mode) => {
@@ -90,8 +141,8 @@ function ContractorWorkCheckIn() {
       setMessage({ type: 'error', text: '請先選擇案場' })
       return
     }
-    if (!companyId) {
-      setMessage({ type: 'error', text: '請先選擇承攬商' })
+    if (!authenticatedCompany) {
+      setMessage({ type: 'error', text: '請先輸入承攬商代碼' })
       return
     }
     setTimeModal({
@@ -103,14 +154,14 @@ function ContractorWorkCheckIn() {
   }
 
   const submitTimeModal = () => {
-    if (!timeModal || !selectedCompany) return
+    if (!timeModal || !authenticatedCompany) return
     const { person, mode, time } = timeModal
     const res = mode === 'in'
       ? registerContractorArrival({
           date,
           siteName,
-          companyId: selectedCompany.id,
-          companyName: selectedCompany.name,
+          companyId: authenticatedCompany.id,
+          companyName: authenticatedCompany.name,
           personId: person.id,
           personName: person.name,
           employeeNo: person.employeeNo,
@@ -119,7 +170,7 @@ function ContractorWorkCheckIn() {
       : registerContractorDeparture({
           date,
           siteName,
-          companyId: selectedCompany.id,
+          companyId: authenticatedCompany.id,
           personId: person.id,
           departureTime: time
         })
@@ -137,6 +188,52 @@ function ContractorWorkCheckIn() {
     })
   }
 
+  if (!authenticatedCompanyId || !authenticatedCompany) {
+    return (
+      <div
+        className="min-h-screen min-h-[100dvh] bg-gradient-to-b from-cn-ink via-cn-lacquer to-cn-ink text-cn-parchment p-4 flex items-center justify-center"
+        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <div className="max-w-sm w-full">
+          <div className="flex items-center justify-between gap-2 mb-6">
+            <h1 className="text-xl font-bold text-teal-300 font-serif">承攬商出工登記</h1>
+            <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif">
+              回登入
+            </Link>
+          </div>
+          <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border border-cn-gold/40 p-5 shadow-xl">
+            <p className="text-cn-mist text-sm mb-4">請輸入管理員提供的承攬商代碼</p>
+            <form onSubmit={submitCode} className="space-y-4">
+              <div>
+                <label className="block text-cn-mist text-sm mb-1.5">承攬商代碼</label>
+                <input
+                  type="text"
+                  value={codeInput}
+                  onChange={(e) => {
+                    setCodeInput(e.target.value)
+                    setCodeError('')
+                  }}
+                  placeholder="請輸入代碼"
+                  autoComplete="off"
+                  className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-3 text-cn-parchment text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                  disabled={loading}
+                />
+                {codeError && <p className="text-red-400 text-sm mt-2">{codeError}</p>}
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !codeInput.trim()}
+                className="w-full min-h-[48px] rounded-md bg-gradient-to-r from-cn-gold to-amber-500 text-cn-ink font-semibold disabled:opacity-50"
+              >
+                {loading ? '同步中…' : '確認進入'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className="min-h-screen min-h-[100dvh] bg-gradient-to-b from-cn-ink via-cn-lacquer to-cn-ink text-cn-parchment p-4"
@@ -146,7 +243,7 @@ function ContractorWorkCheckIn() {
         <div className="flex items-center justify-between gap-2 mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-teal-300 font-serif">承攬商出工登記</h1>
-            <p className="text-cn-mist text-xs sm:text-sm mt-0.5">免登入 · 選擇案場與人員登記進離廠</p>
+            <p className="text-cn-mist text-xs sm:text-sm mt-0.5">選擇案場與人員登記進離廠</p>
           </div>
           <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif">
             回登入
@@ -178,6 +275,20 @@ function ContractorWorkCheckIn() {
             </button>
           </div>
 
+          <div className="p-3 rounded-lg bg-teal-950/40 border border-teal-700/50 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-teal-300/80 text-xs">承攬商</p>
+              <p className="text-white font-semibold text-lg">{authenticatedCompany.name}</p>
+            </div>
+            <button
+              type="button"
+              onClick={logoutCode}
+              className="text-xs px-3 py-1.5 rounded-md border border-gray-500 text-gray-300 hover:bg-black/30"
+            >
+              重新輸入代碼
+            </button>
+          </div>
+
           <div>
             <label className="block text-cn-mist text-sm mb-1.5">日期</label>
             <input
@@ -205,31 +316,14 @@ function ContractorWorkCheckIn() {
             )}
           </div>
 
-          <div>
-            <label className="block text-cn-mist text-sm mb-1.5">承攬商 <span className="text-red-400">*</span></label>
-            <select
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-2.5 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-teal-500/40"
-            >
-              <option value="">— 請選擇承攬商 —</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            {companies.length === 0 && !loading && (
-              <p className="text-gray-500 text-xs mt-1">尚無可登記的承攬商或人員，請聯絡管理員建立名單。</p>
-            )}
-          </div>
-
-          {selectedCompany && activePersonnel.length > 0 && (
+          {activePersonnel.length > 0 && (
             <div>
               <p className="text-teal-300 text-sm font-medium mb-2">人員登記</p>
               <div className="space-y-2">
                 {activePersonnel.map((person) => {
                   const status = getPersonStatus(person)
-                  const log = siteName && companyId
-                    ? findWorkLog({ date, siteName, companyId, personId: person.id })
+                  const log = siteName && authenticatedCompanyId
+                    ? findWorkLog({ date, siteName, companyId: authenticatedCompanyId, personId: person.id })
                     : null
                   const canIn = !log?.arrivalTime
                   const canOut = !!log?.arrivalTime && !log?.departureTime
@@ -272,6 +366,10 @@ function ContractorWorkCheckIn() {
                 })}
               </div>
             </div>
+          )}
+
+          {activePersonnel.length === 0 && !loading && (
+            <p className="text-gray-500 text-sm">尚無可登記人員，請聯絡管理員建立人員名單。</p>
           )}
 
           {todayLogs.length > 0 && (
