@@ -5,6 +5,8 @@ import { getContractorRegistrations } from './contractorRegistrationStorage'
 import { getProjects } from './projectStorage'
 import { getSchedules } from './scheduleStorage'
 import { LEAVE_APPLICATION_KEY } from './leaveApplicationMerge'
+import { getAllPayRates, getAllBonuses } from './paySlipStorage'
+import { MONTHLY_LOCATION_OVERRIDES_KEY } from './monthlyLocationReportStorage'
 
 const INDEX_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -119,6 +121,36 @@ const buildMaskPairs = () => {
       addEntry(contractor, r?.companyName)
       addEntry(site, r?.siteName)
     })
+  })
+
+  Object.keys(getAllPayRates() || {}).forEach((name) => addEntry(person, name))
+  Object.values(getAllBonuses() || {}).forEach((monthMap) => {
+    if (monthMap && typeof monthMap === 'object') {
+      Object.keys(monthMap).forEach((name) => addEntry(person, name))
+    }
+  })
+
+  collectFromJsonKey(person, MONTHLY_LOCATION_OVERRIDES_KEY, (all) => {
+    if (!all || typeof all !== 'object') return
+    Object.values(all).forEach((monthData) => {
+      if (!monthData || typeof monthData !== 'object') return
+      Object.entries(monthData).forEach(([ck]) => {
+        const pipe = String(ck).indexOf('|')
+        if (pipe > 0) addEntry(person, ck.slice(0, pipe))
+      })
+    })
+  })
+
+  collectFromJsonKey(person, 'jiameng_memos', (data) => {
+    const topics = Array.isArray(data) ? data : []
+    topics.forEach((t) => {
+      ;(t?.messages || []).forEach((msg) => addEntry(account, msg?.author))
+    })
+  })
+
+  collectFromJsonKey(person, 'jiameng_danmus', (list) => {
+    if (!Array.isArray(list)) return
+    list.forEach((d) => addEntry(account, d?.author))
   })
 
   const prefixByCategory = [

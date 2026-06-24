@@ -23,6 +23,8 @@ import {
 } from '../utils/workReportStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { useSyncRevision } from '../contexts/SyncContext'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 import {
   getDayNature,
   getAllDayNatureStorage,
@@ -808,6 +810,7 @@ async function exportPdf(el, filename) {
 }
 
 export default function MonthlyLocationReport() {
+  useRecordingMode()
   const syncRevision = useSyncRevision()
   const role = getCurrentUserRole()
   const isAdmin = role === 'admin'
@@ -1190,7 +1193,7 @@ export default function MonthlyLocationReport() {
                     className="flex justify-between gap-2 rounded border border-gray-600 bg-gray-900/50 px-2 py-1.5 text-left w-full cursor-pointer hover:bg-gray-800/80 hover:border-yellow-500/40 transition-colors"
                     title="查看此案場人員明細"
                   >
-                    <span className="text-gray-200 truncate min-w-0">{site}</span>
+                    <span className="text-gray-200 truncate min-w-0">{m(site)}</span>
                     <span className="shrink-0 flex flex-col items-end font-mono tabular-nums leading-tight">
                       {Number(count) > 0 && (
                         <span className="text-yellow-400">{formatSiteStatNumber(count)} 工</span>
@@ -1264,9 +1267,9 @@ export default function MonthlyLocationReport() {
                   <th
                     key={name}
                     className="px-1 py-1.5 text-center text-yellow-400 font-semibold border border-gray-700 align-bottom leading-snug min-w-0"
-                    title={name}
+                    title={m(name)}
                   >
-                    <span className="block text-sm sm:text-base break-words hyphens-none">{name}</span>
+                    <span className="block text-sm sm:text-base break-words hyphens-none">{m(name)}</span>
                   </th>
                 ))}
               </tr>
@@ -1410,14 +1413,14 @@ export default function MonthlyLocationReport() {
                                             })
                                           }}
                                         >
-                                          {s.name}
+                                          {m(s.name)}
                                           {decorations}
                                         </button>
                                       )
                                     }
                                     return (
                                       <span>
-                                        {s.name}
+                                        {m(s.name)}
                                         {decorations}
                                       </span>
                                     )
@@ -1429,7 +1432,7 @@ export default function MonthlyLocationReport() {
                             <span
                               className={isLeaveOnlyCell(text) ? 'text-red-400 font-medium leave-red-print' : ''}
                             >
-                              {text}
+                              {m(text)}
                             </span>
                           ) : (
                             '—'
@@ -1476,7 +1479,7 @@ export default function MonthlyLocationReport() {
                   className="rounded-lg border border-gray-600 bg-gray-900/40 px-3 py-2.5 sm:px-4 sm:py-3"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2 gap-y-1 mb-2">
-                    <span className="text-white font-semibold text-sm sm:text-base">{name}</span>
+                    <span className="text-white font-semibold text-sm sm:text-base">{m(name)}</span>
                     <span className="text-[11px] sm:text-sm text-gray-400 tabular-nums text-right max-w-[min(100%,20rem)] leading-snug">
                       <span className="block sm:inline" title="當月日曆上，表格裡至少有一格案場（非假別）的天數">
                         出工日數 <span className="text-cyan-300/90 font-semibold">{calendarDaysWithWork}</span> 日
@@ -1509,8 +1512,8 @@ export default function MonthlyLocationReport() {
                           key={site}
                           className="flex justify-between gap-2 border-b border-gray-700/50 last:border-0 pb-1 last:pb-0"
                         >
-                          <span className="truncate" title={site}>
-                            {site}
+                          <span className="truncate" title={m(site)}>
+                            {m(site)}
                           </span>
                           <span className="shrink-0 tabular-nums text-right">
                             <span className="text-yellow-400/90">{formatSiteStatNumber(dayCount)} 天</span>
@@ -1624,7 +1627,7 @@ export default function MonthlyLocationReport() {
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md rounded-lg border border-gray-600 bg-gray-900 p-4 shadow-xl">
             <h3 className="text-yellow-400 font-semibold mb-2">編輯格子</h3>
-            <p className="text-gray-400 text-xs mb-2">{editCell.name}　{editCell.dateStr}</p>
+            <p className="text-gray-400 text-xs mb-2">{m(editCell.name)}　{editCell.dateStr}</p>
             <textarea
               className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm min-h-[100px]"
               value={editCell.value}
@@ -1659,9 +1662,9 @@ export default function MonthlyLocationReport() {
             <h3 id="site-weight-title" className="text-yellow-400 font-semibold mb-1">
               案場加權天數
             </h3>
-            <p className="text-gray-300 text-sm mb-1 break-words">{siteWeightModal.siteName}</p>
+            <p className="text-gray-300 text-sm mb-1 break-words">{m(siteWeightModal.siteName)}</p>
             <p className="text-gray-500 text-[11px] mb-3">
-              {siteWeightModal.personName}　{siteWeightModal.dateStr}
+              {m(siteWeightModal.personName)}　{siteWeightModal.dateStr}
             </p>
             <label className="block text-gray-400 text-xs mb-1">加權天數（人天）</label>
             <input
@@ -1709,7 +1712,7 @@ export default function MonthlyLocationReport() {
           >
             <div className="border-b border-gray-700 px-4 py-3 shrink-0">
               <h3 id="site-breakdown-title" className="text-yellow-400 font-semibold text-base break-words">
-                {siteBreakdownModal}
+                {m(siteBreakdownModal)}
               </h3>
               <p className="text-gray-500 text-xs mt-1">
                 {year} 年 {month} 月　加權出工明細（與上方卡片數字同源）
@@ -1750,7 +1753,7 @@ export default function MonthlyLocationReport() {
                       key={personName}
                       className="flex justify-between gap-3 py-2 border-b border-gray-700/60 last:border-0"
                     >
-                      <span className="text-gray-200 break-words min-w-0">{personName}</span>
+                      <span className="text-gray-200 break-words min-w-0">{m(personName)}</span>
                       <span className="shrink-0 font-mono text-right tabular-nums">
                         <span className="text-yellow-400/95 block">{formatSiteStatNumber(wt)} 天</span>
                         {pOt > 0 && (

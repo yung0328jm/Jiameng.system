@@ -10,7 +10,9 @@ import { getEquippedEffects } from '../utils/effectStorage'
 import { getEffectDisplayConfig, getStyleForPreset, getDecorationForPreset, getDecorationById } from '../utils/effectDisplayStorage'
 import { getLeaderboardItems } from '../utils/leaderboardStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { getDisplayNamesForAccount } from '../utils/dropdownStorage'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
+import { getDisplayNameForAccount } from '../utils/displayName'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 import { addWalletBalance, addTransaction } from '../utils/walletStorage'
 import { touchLastSeen } from '../utils/lastSeenStorage'
 import {
@@ -25,6 +27,7 @@ import {
   matchKeywordReward
 } from '../utils/keywordRewardStorage'
 function Memo() {
+  useRecordingMode()
   const [userRole, setUserRole] = useState(null)
   const [currentUser, setCurrentUser] = useState('')
   
@@ -84,19 +87,6 @@ function Memo() {
   const [inventory, setInventory] = useState([])
   // 排行榜項目（用於名子／發話／稱號特效）：切回此頁或取得焦點時重讀，確保編輯排行榜後的設定會反映
   const [leaderboardItems, setLeaderboardItems] = useState(() => getLeaderboardItems())
-
-  // 交流區顯示名稱：優先使用「下拉選單綁定帳號的姓名」，其次 users.name，最後才顯示帳號
-  const getDisplayNameForAccount = (account) => {
-    const acc = String(account || '').trim()
-    if (!acc) return '使用者'
-    const boundNames = getDisplayNamesForAccount(acc) || []
-    const preferred = boundNames.find((n) => n && n !== acc)
-    if (preferred) return preferred
-    const u = (getUsers() || []).find((x) => x?.account === acc)
-    return (u?.name || acc)
-  }
-
-
 
   const loadKeywordRewardRules = () => {
     try {
@@ -1070,7 +1060,7 @@ function Memo() {
                     lineHeight: '1.2'
                   }}
                 >
-                  {danmu.content}
+                  {m(danmu.content)}
                 </span>
               </div>
             )
@@ -1490,9 +1480,9 @@ function Memo() {
                       style={messageEffectStyle ? { color: '#F5F1E8', background: 'linear-gradient(135deg, rgba(127,29,29,0.25) 0%, rgba(55,65,81,0.9) 100%)', border: '1px solid rgba(220,38,38,0.2)' } : { color: '#FFFFFF', background: 'linear-gradient(135deg, rgba(127,29,29,0.2) 0%, rgba(55,65,81,0.85) 100%)', border: '1px solid rgba(220,38,38,0.15)' }}
                     >
                       {messageEffectStyle ? (
-                        <span style={messageEffectStyle}>{String(message.content || '')}</span>
+                        <span style={messageEffectStyle}>{m(String(message.content || ''))}</span>
                       ) : (
-                        String(message.content || '')
+                        m(String(message.content || ''))
                       )}
                     </div>
                   </div>

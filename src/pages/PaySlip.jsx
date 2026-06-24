@@ -25,6 +25,8 @@ import {
 } from '../utils/dropdownStorage'
 import { getUsers } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 
 const round1 = (x) => Math.round(Number(x) * 10) / 10
@@ -160,6 +162,7 @@ function NumberField({ label, value, onChange, suffix, step = 1, hint }) {
 }
 
 function PaySlip() {
+  useRecordingMode()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -503,7 +506,7 @@ function PaySlip() {
               >
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-lg font-semibold text-white">{personName}</h2>
+                    <h2 className="text-lg font-semibold text-white">{m(personName)}</h2>
                     {stats.isContractor && (
                       <span className="text-teal-300 text-xs bg-teal-900/40 border border-teal-700/50 px-1.5 py-0.5 rounded">
                         包商
@@ -824,7 +827,7 @@ function PaySlip() {
                                 <td className="py-1.5 pr-3 text-gray-300 tabular-nums">
                                   {String(row?.date || '').slice(0, 10)}
                                 </td>
-                                <td className="py-1.5 pr-3 text-gray-200">{row?.siteName || '—'}</td>
+                                <td className="py-1.5 pr-3 text-gray-200">{m(row?.siteName) || '—'}</td>
                                 <td className="py-1.5 pr-3 text-cyan-200 tabular-nums text-xs">
                                   {row?.arrivalTime || ''}–{row?.departureTime || ''}
                                   {headcount > 1 && (
