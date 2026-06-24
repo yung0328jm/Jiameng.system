@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  /* 手機安全區域：避免瀏海／虛擬按鈕遮擋 */
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+body {
+  font-family: 'Noto Serif TC', STSong, SimSun, -apple-system, BlinkMacSystemFont, 'Segoe UI', serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0f0c0a;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(184, 50, 38, 0.12) 0%, transparent 55%),
+    linear-gradient(180deg, #120f0c 0%, #0f0c0a 45%, #0a0807 100%);
+  color: #f5ede0;
+  /* 防止手機橫向縮放導致版面錯亂 */
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh; /* 動態視口高度，手機更準 */
+  width: 100%;
+}
+
+/* 手機觸控友善：按鈕／可點區至少 44px，建議 48px */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+/* 手機：表單輸入/選單加大點擊區、字體 16px 避免 iOS 縮放 */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 48px;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    font-size: 16px;
+  }
+}
+
+/* 橫向捲動導覽（隱藏捲軸仍可滑動） */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.scroll-touch::-webkit-scrollbar {
+  height: 0;
+  display: none;
+}
+.scroll-touch {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* 指示灯闪烁动画 */
+@keyframes gentle-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-gentle-blink {
+  animation: gentle-blink 2s ease-in-out infinite;
+}
+
+/* 卡片燈號閃爍 */
+@keyframes light-blink {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.6;
+    filter: brightness(0.85);
+  }
+}
+
+.animate-light-blink {
+  animation: light-blink 1.5s ease-in-out infinite;
+}
+
+/* 預支說明文字：明顯閃爍提醒 */
+@keyframes advance-notice-blink {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1.1);
+  }
+  50% {
+    opacity: 0.65;
+    filter: brightness(0.9);
+  }
+}
+
+.animate-advance-notice-blink {
+  animation: advance-notice-blink 1.4s ease-in-out infinite;
+}
+
+/* 行程回報按鈕：點擊時火焰閃光 */
+@keyframes trip-report-flame-burst {
+  0% {
+    transform: scale(0.35);
+    opacity: 1;
+  }
+  45% {
+    transform: scale(1.15);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+.trip-report-flame-burst {
+  background: radial-gradient(circle at center, rgba(255, 255, 200, 0.95) 0%, rgba(255, 180, 80, 0.85) 30%, rgba(255, 100, 50, 0.7) 55%, rgba(220, 60, 30, 0.4) 80%, transparent 100%);
+  animation: trip-report-flame-burst 0.55s ease-out forwards;
+}
+
+/* 點擊星星噴出效果（白金色） */
+@keyframes click-star-burst {
+  0% {
+    transform: translate(-50%, -50%) translate(0, 0) scale(0.6);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(-50%, -50%) translate(
+        calc(var(--tx) * 0.4 * 1px),
+        calc(var(--ty) * 0.4 * 1px)
+      )
+      scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) translate(
+        calc(var(--tx) * 1px),
+        calc(var(--ty) * 1px)
+      )
+      scale(0.15);
+    opacity: 0;
+  }
+}
+
+.click-star-particle {
+  position: fixed;
+  width: var(--size);
+  height: var(--size);
+  margin-left: 0;
+  margin-top: 0;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: click-star-burst 0.65s ease-out var(--delay) forwards;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.click-star-char {
+  font-size: var(--size);
+  line-height: 1;
+  color: hsl(var(--hue, 50), 85%, 92%);
+  text-shadow:
+    0 0 4px rgba(255, 255, 255, 0.9),
+    0 0 8px rgba(255, 230, 150, 0.7),
+    0 0 12px rgba(255, 220, 120, 0.4);
+  display: block;
+}

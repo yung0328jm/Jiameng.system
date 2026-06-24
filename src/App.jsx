@@ -1,0 +1,205 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import Dashboard from './pages/Dashboard'
+import Home from './pages/Home'
+import EngineeringSchedule from './pages/EngineeringSchedule'
+import Calendar from './pages/Calendar'
+import VehicleInfo from './pages/VehicleInfo'
+import Memo from './pages/Memo'
+import CompanyActivities from './pages/CompanyActivities'
+import DropdownManagement from './pages/DropdownManagement'
+import UserManagement from './pages/UserManagement'
+import ProjectDeficiencyTracking from './pages/ProjectDeficiencyTracking'
+import PersonalPerformance from './pages/PersonalPerformance'
+import MonthlyLocationReport from './pages/MonthlyLocationReport'
+import ExchangeShop from './pages/ExchangeShop'
+import Exchange from './pages/Exchange'
+import MyBackpack from './pages/MyBackpack'
+import CheckIn from './pages/CheckIn'
+import LeaveApplication from './pages/LeaveApplication'
+import Advance from './pages/Advance'
+import ContractorWorkCheckIn from './pages/ContractorWorkCheckIn'
+import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole, getCurrentUser } from './utils/authStorage'
+import { initializeAdminUser } from './utils/storage'
+import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
+import { SyncProvider } from './contexts/SyncContext'
+import ClickStarsEffect from './components/ClickStarsEffect'
+import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange, logout } from './utils/authSupabase'
+import { getSupabaseClient } from './utils/supabaseClient'
+
+function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => getAuthStatus())
+  const [syncReady, setSyncReady] = useState(() => !isSupabaseEnabled())
+
+  useEffect(() => {
+    setIsAuthenticated(getAuthStatus())
+    // 僅在「未使用 Supabase Auth」時建立預設 admin，避免兩套用戶邏輯衝突
+    if (!isAuthSupabase()) initializeAdminUser()
+  }, [])
+
+  // 帳號管理邏輯：Supabase Auth 時還原 session 並同步 profile 到本地（確保登入狀態與 is_admin 正確）
+  useEffect(() => {
+    if (!isAuthSupabase()) return
+    let mounted = true
+    const restore = async () => {
+      const session = await getSession()
+      if (session?.user && mounted) {
+        const profile = await getProfile()
+        if (profile) {
+          if (profile.is_resigned) {
+            await logout()
+            if (mounted) setIsAuthenticated(false)
+            return
+          }
+          saveCurrentUser(profile.account, profile.is_admin ? 'admin' : 'user')
+          saveAuthStatus(true)
+          setIsAuthenticated(true)
+        }
+      }
+    }
+    restore()
+    const unsub = subscribeAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') setIsAuthenticated(false)
+    })
+    return () => { mounted = false; unsub?.() }
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated && isSupabaseEnabled()) {
+      setSyncReady(false)
+      syncFromSupabase().finally(() => setSyncReady(true))
+    } else {
+      setSyncReady(true)
+    }
+  }, [isAuthenticated])
+
+  // 後端推播：在 Android/iOS 上註冊 FCM token 並寫入 Supabase（僅 native，需 Firebase google-services.json）
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+    const account = getCurrentUser()
+    if (!account) return
+    const initPush = async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core')
+        if (Capacitor.getPlatform() === 'web') return
+        const { PushNotifications } = await import('@capacitor/push-notifications')
+        const perm = await PushNotifications.requestPermissions()
+        if (perm.receive !== 'granted') return
+        PushNotifications.addListener('registration', async (token) => {
+          if (cancelled) return
+          const sb = getSupabaseClient()
+          if (sb && account && token?.value) {
+            await sb.from('push_tokens').upsert(
+              { account: account.trim(), token: String(token.value).trim(), platform: 'android', updated_at: new Date().toISOString() },
+              { onConflict: 'account,platform' }
+            )
+          }
+        })
+        PushNotifications.addListener('registrationError', (err) => console.warn('Push registration error', err))
+        await PushNotifications.register()
+      } catch (e) {
+        console.warn('Push init failed', e)
+      }
+    }
+    initPush()
+    return () => { cancelled = true }
+  }, [isAuthenticated])
+
+  const syncLoading = (
+    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center bg-gradient-to-b from-cn-ink to-cn-lacquer">
+      <p className="text-cn-gold font-serif tracking-wide">正在同步…</p>
+    </div>
+  )
+  const withSync = (el) => (syncReady ? el : syncLoading)
+
+  const handleLogin = () => {
+    setIsAuthenticated(true)
+    saveAuthStatus(true)
+  }
+
+  const handleLogout = async () => {
+    setIsAuthenticated(false)
+    if (isAuthSupabase()) {
+      const { logout } = await import('./utils/authSupabase')
+      await logout()
+    } else {
+      clearAuthStatus()
+    }
+    window.location.href = '/login'
+  }
+
+  // ProtectedRoute：要 profiles.is_admin === true 才可進入
+  const ProtectedRoute = ({ children }) => {
+    const role = getCurrentUserRole()
+    if (role !== 'admin') return <Navigate to="/dashboard" replace />
+    return children
+  }
+
+  return (
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ClickStarsEffect />
+      <SyncProvider syncReady={syncReady}>
+      <Routes>
+        <Route 
+          path="/login" 
+          element={
+            isAuthenticated ? 
+            <Navigate to="/dashboard" replace /> : 
+            <Login onLogin={handleLogin} />
+          } 
+        />
+        <Route 
+          path="/register" 
+          element={
+            isAuthenticated ? 
+            <Navigate to="/dashboard" replace /> : 
+            <Register onLogin={handleLogin} />
+          } 
+        />
+        <Route path="/contractor-work" element={<ContractorWorkCheckIn />} />
+        <Route 
+          path="/dashboard" 
+          element={
+            isAuthenticated ? 
+            withSync(<Dashboard onLogout={handleLogout} />) : 
+            <Navigate to="/login" replace />
+          } 
+        />
+        <Route 
+          path="/" 
+          element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} 
+        />
+        <Route path="/home" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="home" />) : <Navigate to="/login" replace />} />
+        <Route path="/engineering-schedule" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="engineering" />) : <Navigate to="/login" replace />} />
+        <Route path="/calendar" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="calendar" />) : <Navigate to="/login" replace />} />
+        <Route path="/vehicle-info" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="vehicle" />) : <Navigate to="/login" replace />} />
+        <Route path="/memo" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="memo" />) : <Navigate to="/login" replace />} />
+        <Route path="/company-activities" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="activities" />) : <Navigate to="/login" replace />} />
+        <Route path="/work-report" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="work-report" />) : <Navigate to="/login" replace />} />
+        <Route path="/pay-slip" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="pay-slip" />) : <Navigate to="/login" replace />} />
+        <Route path="/developing" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="developing" />) : <Navigate to="/login" replace />} />
+        <Route path="/dropdown-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
+        <Route path="/user-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="user-management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
+        <Route path="/contractor-registration" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="contractor-registration" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
+        <Route path="/personal-performance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="performance" />) : <Navigate to="/login" replace />} />
+        <Route path="/monthly-location-report" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="monthly-report" />) : <Navigate to="/login" replace />} />
+        <Route path="/exchange-shop" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange-shop" />) : <Navigate to="/login" replace />} />
+        <Route path="/exchange" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange" />) : <Navigate to="/login" replace />} />
+        <Route path="/my-backpack" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="my-backpack" />) : <Navigate to="/login" replace />} />
+        <Route path="/check-in" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="check-in" />) : <Navigate to="/login" replace />} />
+        <Route path="/daily-todo" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="daily-todo" />) : <Navigate to="/login" replace />} />
+        <Route path="/trip-report" element={<Navigate to="/calendar" replace />} />
+        <Route path="/messages" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="messages" />) : <Navigate to="/login" replace />} />
+        <Route path="/leave-application" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="leave-application" />) : <Navigate to="/login" replace />} />
+        <Route path="/advance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="advance" />) : <Navigate to="/login" replace />} />
+        <Route path="/change-password" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="change-password" />) : <Navigate to="/login" replace />} />
+      </Routes>
+      </SyncProvider>
+    </Router>
+  )
+}
+
+export default App

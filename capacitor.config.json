@@ -1,0 +1,9 @@
+{
+  "appId": "com.jiameng.app",
+  "appName": "毓承事業群",
+  "webDir": "dist",
+  "server": {
+    "url": "https://jiameng-system.vercel.app",
+    "androidScheme": "https"
+  }
+}

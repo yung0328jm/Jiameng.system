@@ -1,0 +1,169 @@
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
+import { isSupabaseEnabled, flushSyncOutbox, pullLatestFromCloud } from '../utils/supabaseSync'
+import { subscribeRealtime, REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
+import { getSupabaseClient } from '../utils/supabaseClient'
+
+const SyncContext = createContext({ revision: 0, refreshFromCloud: async () => ({ ok: false }) })
+
+export function SyncProvider({ children, syncReady = false }) {
+  const [revision, setRevision] = useState(0)
+  const unsubRef = useRef(null)
+  const pollRef = useRef(null)
+  const lastLbUpdatedAtRef = useRef('')
+  const lastAnnouncementsUpdatedAtRef = useRef('')
+  const lastProjectsUpdatedAtRef = useRef('')
+  const resumeRefreshInFlightRef = useRef(false)
+
+  const refreshAppDataKey = async (sb, key, lastUpdatedAtRef, defaultValue) => {
+    if (key === 'jiameng_announcements') {
+      const lastWrite = parseInt(typeof localStorage !== 'undefined' && localStorage.getItem('jiameng_announcements_last_write') || '', 10)
+      if (lastWrite && (Date.now() - lastWrite < 8000)) return false
+    }
+    const { data } = await sb
+      .from('app_data')
+      .select('data, updated_at')
+      .eq('key', key)
+      .maybeSingle()
+    const updatedAt = String(data?.updated_at || '')
+    if (!updatedAt || updatedAt === lastUpdatedAtRef.current) return false
+    lastUpdatedAtRef.current = updatedAt
+    // 專案清單：不可整包覆寫本機，否則剛軟刪除尚未上雲時，會被舊雲端資料蓋回
+    if (key === 'jiameng_projects') {
+      const cloudRaw = data?.data
+      const fromCloud = Array.isArray(cloudRaw)
+        ? cloudRaw
+        : (typeof cloudRaw === 'string' ? (() => { try { return JSON.parse(cloudRaw || '[]') } catch (_) { return [] } })() : [])
+      let existing = []
+      try {
+        const raw = typeof localStorage !== 'undefined' && localStorage.getItem(key)
+        const parsed = raw ? JSON.parse(raw) : []
+        existing = Array.isArray(parsed) ? parsed : []
+      } catch (_) {
+        existing = []
+      }
+      const projectUpdatedAt = (p) => Math.max(Date.parse(p?.updatedAt || '') || 0, Date.parse(p?.createdAt || '') || 0)
+      const byId = new Map()
+      ;[...fromCloud, ...existing].forEach((p) => {
+        const id = String(p?.id || '').trim()
+        if (!id) return
+        const prev = byId.get(id)
+        if (!prev) { byId.set(id, p); return }
+        const keep = projectUpdatedAt(p) >= projectUpdatedAt(prev) ? p : prev
+        byId.set(id, keep)
+      })
+      const merged = Array.from(byId.values()).sort(
+        (a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0)
+      )
+      localStorage.setItem(key, JSON.stringify(merged))
+    } else {
+      const val = typeof data?.data === 'string' ? data.data : JSON.stringify(data?.data ?? defaultValue)
+      localStorage.setItem(key, val)
+    }
+    window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } }))
+    setRevision((r) => r + 1)
+    return true
+  }
+
+  useEffect(() => {
+    if (!syncReady || !isSupabaseEnabled()) return
+    unsubRef.current = subscribeRealtime(() => setRevision((r) => r + 1))
+
+    // 備援：有些環境可能收不到 app_data 的 Realtime（RLS/網路/裝置省電等）
+    // 全站層級只保留輕量輪詢（排行榜/待辦）；缺失表改由頁面針對「當前專案」用 per-project key 輪詢。
+    const sb = getSupabaseClient()
+    if (sb) {
+      pollRef.current = setInterval(async () => {
+        try {
+          await flushSyncOutbox()
+          await refreshAppDataKey(sb, 'jiameng_leaderboard_items', lastLbUpdatedAtRef, [])
+          await refreshAppDataKey(sb, 'jiameng_announcements', lastAnnouncementsUpdatedAtRef, [])
+        } catch (_) {}
+      }, 8000)
+    }
+
+    // 背景->前景：主動從雲端拉專案等關鍵資料，避免手機掛背景時電腦新增的專案回來後看不到
+    const onResume = async () => {
+      if (!isSupabaseEnabled()) return
+      if (document.visibilityState && document.visibilityState !== 'visible') return
+      if (resumeRefreshInFlightRef.current) return
+      resumeRefreshInFlightRef.current = true
+      try {
+        await flushSyncOutbox()
+        const sb = getSupabaseClient()
+        if (sb) {
+          await refreshAppDataKey(sb, 'jiameng_projects', lastProjectsUpdatedAtRef, [])
+        }
+      } catch (_) {
+      } finally {
+        resumeRefreshInFlightRef.current = false
+      }
+    }
+    window.addEventListener('focus', onResume)
+    document.addEventListener('visibilitychange', onResume)
+
+    return () => {
+      window.removeEventListener('focus', onResume)
+      document.removeEventListener('visibilitychange', onResume)
+      if (unsubRef.current) {
+        try { unsubRef.current() } catch (_) {}
+        unsubRef.current = null
+      }
+      if (pollRef.current) {
+        try { clearInterval(pollRef.current) } catch (_) {}
+        pollRef.current = null
+      }
+    }
+  }, [syncReady])
+
+  const refreshFromCloud = useCallback(async () => {
+    const result = await pullLatestFromCloud()
+    setRevision((r) => r + 1)
+    return result
+  }, [])
+
+  return (
+    <SyncContext.Provider value={{ revision, refreshFromCloud }}>
+      {children}
+    </SyncContext.Provider>
+  )
+}
+
+export function useSyncRevision() {
+  return useContext(SyncContext).revision ?? 0
+}
+
+export function useSync() {
+  const ctx = useContext(SyncContext)
+  return {
+    revision: ctx.revision ?? 0,
+    refreshFromCloud: ctx.refreshFromCloud ?? (async () => ({ ok: false }))
+  }
+}
+
+/** 當指定的 localStorage key 被即時更新時，執行 refetch（例如交流區、待辦、使用者列表） */
+export function useRealtimeKeys(keys, refetch) {
+  const keysRef = useRef(keys)
+  const refetchRef = useRef(refetch)
+  keysRef.current = keys
+  refetchRef.current = refetch
+  useEffect(() => {
+    const fn = (e) => {
+      const k = e.detail?.key
+      const wants = Array.isArray(keysRef.current) ? keysRef.current : []
+      const hit = k === '__ALL__' || (!!k && wants.some((want) => {
+        if (!want) return false
+        if (want === k) return true
+        if (typeof want !== 'string') return false
+        // prefix match：允許用 'foo:*' 或 'foo:' 來監聽一整類 key（例如 per-project keys）
+        if (want.endsWith('*')) return String(k).startsWith(want.slice(0, -1))
+        if (want.endsWith(':')) return String(k).startsWith(want)
+        return false
+      }))
+      if (hit && typeof refetchRef.current === 'function') {
+        refetchRef.current()
+      }
+    }
+    window.addEventListener(REALTIME_UPDATE_EVENT, fn)
+    return () => window.removeEventListener(REALTIME_UPDATE_EVENT, fn)
+  }, [])
+}

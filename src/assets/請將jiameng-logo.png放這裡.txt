@@ -1,0 +1,2 @@
+請將「佳盟系統科技有限公司」LOGO 圖檔（512×512 或任意尺寸）命名為 jiameng-logo.png，放在此 src/assets 資料夾內。
+可從 public/jiameng-logo.png 複製到這裡。放好後行程回報的案場卡片會顯示 LOGO。
