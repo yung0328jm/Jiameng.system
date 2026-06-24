@@ -16,10 +16,13 @@ import {
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 
 const CHECKIN_SESSION_KEY = 'jiameng_contractor_checkin_auth'
 
 function ContractorWorkCheckIn() {
+  useRecordingMode()
   const [loading, setLoading] = useState(true)
   const [date, setDate] = useState(getTodayDateStr)
   const [siteName, setSiteName] = useState('')
@@ -122,7 +125,7 @@ function ContractorWorkCheckIn() {
       sessionStorage.setItem(CHECKIN_SESSION_KEY, company.id)
     } catch (_) {}
     setCodeInput('')
-    setMessage({ type: 'success', text: `已驗證承攬商：${company.name}` })
+    setMessage({ type: 'success', text: `已驗證承攬商：${m(company.name)}` })
   }
 
   const logoutCode = () => {
@@ -183,8 +186,8 @@ function ContractorWorkCheckIn() {
     setMessage({
       type: 'success',
       text: mode === 'in'
-        ? `已登記進廠：${person.name} ${time}`
-        : `已登記離廠：${person.name} ${time}`
+        ? `已登記進廠：${m(person.name)} ${time}`
+        : `已登記離廠：${m(person.name)} ${time}`
     })
   }
 
@@ -278,7 +281,7 @@ function ContractorWorkCheckIn() {
           <div className="p-3 rounded-lg bg-teal-950/40 border border-teal-700/50 flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-teal-300/80 text-xs">承攬商</p>
-              <p className="text-white font-semibold text-lg">{authenticatedCompany.name}</p>
+              <p className="text-white font-semibold text-lg">{m(authenticatedCompany.name)}</p>
             </div>
             <button
               type="button"
@@ -308,7 +311,7 @@ function ContractorWorkCheckIn() {
             >
               <option value="">— 請選擇案場 —</option>
               {siteOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{m(s)}</option>
               ))}
             </select>
             {siteOptions.length === 0 && !loading && (
@@ -333,7 +336,7 @@ function ContractorWorkCheckIn() {
                       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-black/25 border border-gray-600/60"
                     >
                       <div className="min-w-0">
-                        <div className="font-medium text-white">{person.name}</div>
+                        <div className="font-medium text-white">{m(person.name)}</div>
                         {person.employeeNo && <div className="text-xs text-gray-400">編號 {person.employeeNo}</div>}
                         {status && (
                           <div className={`text-xs mt-0.5 ${
@@ -378,7 +381,7 @@ function ContractorWorkCheckIn() {
               <div className="space-y-1.5 max-h-48 overflow-y-auto text-sm">
                 {todayLogs.map((log) => (
                   <div key={log.id} className="flex justify-between gap-2 text-gray-300 bg-black/20 rounded px-2 py-1.5">
-                    <span>{log.personName}</span>
+                    <span>{m(log.personName)}</span>
                     <span className="text-teal-300 tabular-nums shrink-0">
                       {log.arrivalTime || '—'}{log.departureTime ? `～${log.departureTime}` : '（在廠）'}
                     </span>
@@ -396,7 +399,7 @@ function ContractorWorkCheckIn() {
             <h3 className="text-lg font-bold text-teal-300 mb-1">
               {timeModal.mode === 'in' ? '進廠登記' : '離廠登記'}
             </h3>
-            <p className="text-gray-400 text-sm mb-4">{timeModal.person?.name}</p>
+            <p className="text-gray-400 text-sm mb-4">{m(timeModal.person?.name)}</p>
             <label className="block text-gray-300 text-sm mb-1">時間</label>
             <input
               type="time"

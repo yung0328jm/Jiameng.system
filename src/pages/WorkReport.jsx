@@ -2,6 +2,8 @@
 import { useLocation } from 'react-router-dom'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 import {
   getDropdownOptionsByCategory,
   findBoundAccountForDisplayName,
@@ -330,8 +332,8 @@ function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, un
               const otSummary = getWorkReportRowShiftSummary(row)
               return (
                 <tr key={row.id} className="border-b border-gray-700/40 align-top">
-                  <td className="py-2 px-2 text-gray-400 text-xs">{row.siteName}</td>
-                  <td className="py-2 px-2 text-teal-100">{row.personName}</td>
+                  <td className="py-2 px-2 text-gray-400 text-xs">{m(row.siteName)}</td>
+                  <td className="py-2 px-2 text-teal-100">{m(row.personName)}</td>
                   <td className="py-2 px-2 text-cyan-200 tabular-nums text-xs min-w-[10rem]">
                     {isEditing ? (
                       <div className="space-y-2">
@@ -416,6 +418,7 @@ function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, un
 }
 
 function WorkReport() {
+  useRecordingMode()
   const location = useLocation()
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
@@ -1205,14 +1208,14 @@ function WorkReport() {
                               )
                             }}
                           />
-                          <span>{n}</span>
+                          <span>{m(n)}</span>
                         </label>
                       )
                     })}
                   </div>
                 )}
                 {laborNames.length > 0 && (
-                  <p className="text-yellow-300/80 text-xs mt-2">已選 {laborNames.length} 人：{laborNames.join('、')}</p>
+                  <p className="text-yellow-300/80 text-xs mt-2">已選 {laborNames.length} 人：{laborNames.map((x) => m(x)).join('、')}</p>
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1452,7 +1455,7 @@ function WorkReport() {
                                   needsOvertimeReport ? 'bg-amber-950/20' : ''
                                 }`}
                               >
-                                <td className="py-2.5 pr-3 text-gray-200">{group.siteName}</td>
+                                <td className="py-2.5 pr-3 text-gray-200">{m(group.siteName)}</td>
                                 <td className="py-2.5 pr-3 text-white">
                                   {group.personName}
                                   {isContractor && group.batchCount > 1 && (

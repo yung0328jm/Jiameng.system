@@ -48,6 +48,7 @@ import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getWalletBalance, addWalletBalance, getAllWallets, getUserTransactions, addTransaction } from '../utils/walletStorage'
 import { getUsers, getPendingAdvances, getAdvancesByAccount } from '../utils/storage'
 import { useRealtimeKeys, useSync } from '../contexts/SyncContext'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { getUserInventory, addItemToInventory } from '../utils/inventoryStorage'
 import { getPendingExchangeRequests, approveExchangeRequest, rejectExchangeRequest, deleteExchangeRequest } from '../utils/exchangeRequestStorage'
 import { refreshAppDataKeyFromSupabase } from '../utils/supabaseSync'
@@ -67,6 +68,7 @@ import { getDailyTodoUnreadCount } from '../utils/todoStorage'
 
 function Dashboard({ onLogout, activeTab: initialTab }) {
   const { refreshFromCloud } = useSync()
+  const { enabled: recordingMode, setEnabled: setRecordingMode } = useRecordingMode()
   const [cloudSyncing, setCloudSyncing] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -847,6 +849,18 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   >
                     <button
                       type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRecordingMode(!recordingMode); setShowTopMenu(false); }}
+                      className={`w-full text-left px-4 py-3 min-h-[44px] text-sm flex items-center gap-2 cursor-pointer touch-manipulation border-b border-cn-gold/15 ${
+                        recordingMode
+                          ? 'text-rose-200 bg-rose-950/40'
+                          : 'text-cn-parchment hover:bg-black/25 active:bg-black/35'
+                      }`}
+                    >
+                      <span className={`w-7 h-7 rounded-sm border flex items-center justify-center text-xs flex-shrink-0 ${recordingMode ? 'bg-rose-700 border-rose-400/50 text-white' : 'bg-gray-700 border-gray-500/50 text-white'}`}>錄</span>
+                      {recordingMode ? '關閉錄影模式' : '開啟錄影模式'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDistributionModal(true); setShowTopMenu(false); }}
                       className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 active:bg-black/35 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation"
                     >
@@ -884,6 +898,21 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           {/* 桌面版：管理員按鈕並排顯示 */}
           {userRole === 'admin' && (
             <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRecordingMode(!recordingMode)}
+                title="僅遮罩畫面顯示，不修改任何真實資料"
+                className={`font-semibold px-3 py-1.5 rounded-md border transition-colors flex items-center justify-center gap-1 min-h-[36px] touch-manipulation text-sm ${
+                  recordingMode
+                    ? 'bg-rose-900 hover:bg-rose-800 text-rose-100 border-rose-400/50'
+                    : 'bg-gray-800 hover:bg-gray-700 text-cn-parchment border-gray-600/50'
+                }`}
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>{recordingMode ? '錄影模式：開' : '錄影模式'}</span>
+              </button>
               <button
                 onClick={() => setShowDistributionModal(!showDistributionModal)}
                 className="bg-cn-jade hover:brightness-110 active:brightness-95 text-white font-semibold px-3 py-1.5 rounded-md border border-emerald-950/40 transition-colors flex items-center justify-center gap-1 min-h-[36px] touch-manipulation text-sm"

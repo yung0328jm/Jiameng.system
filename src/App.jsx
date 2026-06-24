@@ -25,6 +25,7 @@ import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCur
 import { initializeAdminUser } from './utils/storage'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
+import { RecordingModeProvider } from './contexts/RecordingModeContext'
 import ClickStarsEffect from './components/ClickStarsEffect'
 import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange, logout } from './utils/authSupabase'
 import { getSupabaseClient } from './utils/supabaseClient'
@@ -142,6 +143,7 @@ function App() {
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ClickStarsEffect />
       <SyncProvider syncReady={syncReady}>
+      <RecordingModeProvider>
       <Routes>
         <Route 
           path="/login" 
@@ -197,6 +199,7 @@ function App() {
         <Route path="/advance" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="advance" />) : <Navigate to="/login" replace />} />
         <Route path="/change-password" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="change-password" />) : <Navigate to="/login" replace />} />
       </Routes>
+      </RecordingModeProvider>
       </SyncProvider>
     </Router>
   )

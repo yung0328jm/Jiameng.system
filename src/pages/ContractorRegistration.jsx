@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { Navigate } from 'react-router-dom'
 import { getCurrentUserRole } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
+import { maskForRecording as m, maskPhoneForRecording as mPhone, maskCodeForRecording as mCode } from '../utils/recordingModeMask'
 import {
   getContractorRegistrations,
   addContractorRegistration,
@@ -40,6 +42,7 @@ const EMPTY_PERSON_FORM = {
 }
 
 function ContractorRegistration() {
+  useRecordingMode()
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
   const [list, setList] = useState([])
   const [search, setSearch] = useState('')
@@ -311,14 +314,14 @@ function ContractorRegistration() {
             <div key={rec.id} className="bg-gray-800 border border-gray-600 rounded-xl p-4">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-1 text-sm">
-                  <div className="text-lg font-semibold text-yellow-300">{rec.name}</div>
+                  <div className="text-lg font-semibold text-yellow-300">{m(rec.name)}</div>
                   {rec.checkInCode && (
-                    <div className="text-violet-300/90 text-sm">出工登記代碼：{rec.checkInCode}</div>
+                    <div className="text-violet-300/90 text-sm">出工登記代碼：{mCode(rec.checkInCode)}</div>
                   )}
-                  {rec.contactPerson && <div className="text-gray-300">聯絡人：{rec.contactPerson}</div>}
-                  {rec.phone && <div className="text-gray-300">電話：{rec.phone}</div>}
-                  {rec.taxId && <div className="text-gray-300">統一編號：{rec.taxId}</div>}
-                  {rec.address && <div className="text-gray-300">地址：{rec.address}</div>}
+                  {rec.contactPerson && <div className="text-gray-300">聯絡人：{m(rec.contactPerson)}</div>}
+                  {rec.phone && <div className="text-gray-300">電話：{mPhone(rec.phone)}</div>}
+                  {rec.taxId && <div className="text-gray-300">統一編號：{mPhone(rec.taxId)}</div>}
+                  {rec.address && <div className="text-gray-300">地址：{m(rec.address)}</div>}
                   {rec.notes && <div className="text-gray-500">備註：{rec.notes}</div>}
                   <div className="text-teal-300/90 text-xs pt-1">
                     人員名單：{activePersonnelCount(rec)} 人
@@ -337,7 +340,7 @@ function ContractorRegistration() {
                               : 'border-teal-700/50 text-teal-100 bg-teal-950/40'
                           }`}
                         >
-                          {p.name}
+                          {m(p.name)}
                         </span>
                       ))}
                       {(rec.personnel || []).length > 8 && (
@@ -484,7 +487,7 @@ function ContractorRegistration() {
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-lg font-bold text-teal-300">人員名單</h3>
-                <p className="text-gray-400 text-sm mt-0.5">{personnelCompany.name}</p>
+                <p className="text-gray-400 text-sm mt-0.5">{m(personnelCompany.name)}</p>
               </div>
               <button
                 type="button"
@@ -584,12 +587,12 @@ function ContractorRegistration() {
                     >
                       <div className="text-sm min-w-0">
                         <div className={`font-medium ${person.active === false ? 'text-gray-500 line-through' : 'text-white'}`}>
-                          {person.name}
+                          {m(person.name)}
                           {person.active === false && <span className="ml-2 text-xs text-gray-500 no-underline">（已停用）</span>}
                         </div>
                         <div className="text-gray-400 text-xs mt-0.5 space-x-2">
                           {person.employeeNo && <span>編號：{person.employeeNo}</span>}
-                          {person.phone && <span>電話：{person.phone}</span>}
+                          {person.phone && <span>電話：{mPhone(person.phone)}</span>}
                           {person.notes && <span>備註：{person.notes}</span>}
                         </div>
                       </div>
@@ -623,7 +626,7 @@ function ContractorRegistration() {
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-lg font-bold text-violet-300">出勤紀錄</h3>
-                <p className="text-white font-medium mt-1">{attendanceCompany.name}</p>
+                <p className="text-white font-medium mt-1">{m(attendanceCompany.name)}</p>
                 <p className="text-gray-400 text-xs mt-1">同步承攬商出工登記系統之進離廠資料</p>
               </div>
               <button
@@ -713,7 +716,7 @@ function ContractorRegistration() {
                             <tbody>
                               {site.rows.map((row) => (
                                 <tr key={row.id} className="border-t border-gray-700/40 align-top">
-                                  <td className="py-2 pr-2 text-white">{row.personName}</td>
+                                  <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
                                   <td className="py-2 pr-2">
                                     <ContractorWorkHoursDetail log={row} />
                                   </td>

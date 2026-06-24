@@ -1,5 +1,6 @@
 import { getDisplayNamesForAccount, findBoundAccountForDisplayName, getDropdownOptionsByCategory } from './dropdownStorage'
 import { getUsers } from './storage'
+import { maskForRecording } from './recordingModeMask'
 
 /**
  * 顯示名稱規則：
@@ -15,16 +16,16 @@ export const getDisplayNameForAccount = (account) => {
   try {
     const boundNames = getDisplayNamesForAccount(acc) || []
     const preferred = boundNames.find((n) => n && n !== acc)
-    if (preferred) return preferred
+    if (preferred) return maskForRecording(preferred)
   } catch (_) {}
 
   try {
     const u = (getUsers() || []).find((x) => String(x?.account || '').trim() === acc)
-    if (u?.name) return u.name
+    if (u?.name) return maskForRecording(u.name)
   } catch (_) {}
 
   if (acc === 'jiameng.system') return '系統'
-  return acc
+  return maskForRecording(acc)
 }
 
 /** 將畫面上顯示的姓名／帳號字串解析為可發站內信的帳號；無法解析時回傳空字串 */
@@ -55,12 +56,12 @@ export const resolveApplicantLabel = (applicant) => {
     const isKnownAccount = users.some((u) => String(u?.account || '').trim() === raw)
     if (isKnownAccount) return getDisplayNameForAccount(raw)
     const boundAcc = findBoundAccountForDisplayName(raw)
-    if (boundAcc) return raw
+    if (boundAcc) return maskForRecording(raw)
     const acc = resolveDisplayNameToAccount(raw)
-    if (acc) return raw
+    if (acc) return maskForRecording(raw)
   } catch (_) {}
   const display = getDisplayNameForAccount(raw)
-  return display && display !== '使用者' ? display : raw
+  return display && display !== '使用者' ? display : maskForRecording(raw)
 }
 
 /** 可選人員（參與人員＋負責人，排除離職）— 申請人／異動人員下拉用 */

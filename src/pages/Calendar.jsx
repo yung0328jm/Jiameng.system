@@ -12,6 +12,8 @@ import {
 } from '../utils/scheduleStorage'
 import { getDropdownOptionsByCategory, addDropdownOption, getDisplayNamesForAccount } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { useRecordingMode } from '../contexts/RecordingModeContext'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 import { getLeaderboardItems, getManualRankings, addManualRanking, updateManualRanking, saveManualRankings } from '../utils/leaderboardStorage'
 import { getTripReportsBySchedule, addTripReport, actionTypes as tripReportActionTypes } from '../utils/tripReportStorage'
 import { getNameEffectStyle, getDecorationForNameEffect, getUserTitle, getTitleBadgeStyle } from '../utils/nameEffectUtils'
@@ -122,6 +124,7 @@ function tagUsesParticipantWorkEntries(tag) {
 
 function Calendar() {
   const navigate = useNavigate()
+  useRecordingMode()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
   const [showEventModal, setShowEventModal] = useState(false)
@@ -1961,7 +1964,7 @@ function Calendar() {
         out += `<div style="${workItemCardStyle}">`
         out += `<p style="${cardTitleStyle}">・ ${escapeHtml(workTitle)}</p>`
         if (hasContentRows) {
-          if (isCollab) out += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+          if (isCollab) out += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => m(c.name)).join(', ') || '—')}</p>`
           else out += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
           wi.contentRows.forEach((row) => {
             const tw = row.targetQuantity != null && row.targetQuantity !== '' ? row.targetQuantity : '—'
@@ -1969,7 +1972,7 @@ function Calendar() {
             out += `<p style="margin:2px 0 2px 12px;font-size:13px;">・ ${escapeHtml(row.workContent || '未填')} — 目標 ${escapeHtml(String(tw))} / 實際 ${escapeHtml(String(aw))}</p>`
           })
         } else {
-          if (isCollab) out += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+          if (isCollab) out += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => m(c.name)).join(', ') || '—')}</p>`
           else if (it?.responsiblePerson) out += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
         }
         out += `<p style="${cardLineStyle}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
@@ -2098,7 +2101,7 @@ function Calendar() {
           body += `<div style="${workItemCardStyle}">`
           body += `<p style="${cardTitleStyle}">・ ${escapeHtml(workTitle)}</p>`
           if (hasContentRows) {
-            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => m(c.name)).join(', ') || '—')}</p>`
             else body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(wi.responsiblePerson || '—')}</p>`
             wi.contentRows.forEach((row) => {
               const tw = row.targetQuantity != null && row.targetQuantity !== '' ? row.targetQuantity : '—'
@@ -2106,7 +2109,7 @@ function Calendar() {
               body += `<p style="margin:2px 0 2px 12px;font-size:13px;">・ ${escapeHtml(row.workContent || '未填')} — 目標 ${escapeHtml(String(tw))} / 實際 ${escapeHtml(String(aw))}</p>`
             })
           } else {
-            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => c.name).join(', ') || '—')}</p>`
+            if (isCollab) body += `<p style="${cardLineStyle}"><strong>協作:</strong> ${escapeHtml(collabs.map((c) => m(c.name)).join(', ') || '—')}</p>`
             else if (it?.responsiblePerson) body += `<p style="${cardLineStyle}"><strong>負責人:</strong> ${escapeHtml(it.responsiblePerson)}</p>`
           }
           body += `<p style="${cardLineStyle}">建立者: ${escapeHtml(displayCreator(it?.createdBy))}</p>`
@@ -3434,7 +3437,7 @@ function Calendar() {
                       role="button"
                       tabIndex={0}
                       className={`${CAL_DAY_CHIP_ROW} border border-cyan-600/50 bg-cyan-950/70 hover:bg-cyan-900/55 hover:border-cyan-500/70`}
-                      title={`進廠管制表：${site}（點擊查看完整資訊）`}
+                      title={`進廠管制表：${m(site)}（點擊查看完整資訊）`}
                       onClick={(e) => {
                         e.stopPropagation()
                         setWorkReportDetail({ dateStr: cellDateStr, siteName: site })
@@ -3450,7 +3453,7 @@ function Calendar() {
                       <span className={`${CAL_DAY_CHIP_BADGE} bg-cyan-700/60 text-cyan-100`}>
                         進廠
                       </span>
-                      <span className={`${CAL_DAY_CHIP_LABEL} text-cyan-50`}>{site}</span>
+                      <span className={`${CAL_DAY_CHIP_LABEL} text-cyan-50`}>{m(site)}</span>
                     </div>
                   ))}
                   {contractorWorkChips.map((chip) => (
@@ -3459,7 +3462,7 @@ function Calendar() {
                       role="button"
                       tabIndex={0}
                       className={`${CAL_DAY_CHIP_ROW} border border-violet-600/50 bg-violet-950/70 hover:bg-violet-900/55 hover:border-violet-500/70`}
-                      title={`承攬商進廠：${chip.companyName} · ${chip.siteName}`}
+                      title={`承攬商進廠：${m(chip.companyName)} · ${m(chip.siteName)}`}
                       onClick={(e) => {
                         e.stopPropagation()
                         setContractorWorkDetail({
@@ -3485,7 +3488,7 @@ function Calendar() {
                       <span className={`${CAL_DAY_CHIP_BADGE} bg-violet-700/60 text-violet-100`}>
                         承攬
                       </span>
-                      <span className={`${CAL_DAY_CHIP_LABEL} text-violet-50`}>{chip.companyName}</span>
+                      <span className={`${CAL_DAY_CHIP_LABEL} text-violet-50`}>{m(chip.companyName)}</span>
                     </div>
                   ))}
                   {/* 显示其他事件 */}
@@ -3986,7 +3989,7 @@ function Calendar() {
                                         : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
                                     }`}
                                   >
-                                    {seg.siteName || `案場 ${idx + 1}`}
+                                    {m(seg.siteName) || `案場 ${idx + 1}`}
                                     {overtimeDetailLabel === '緊急入場待審核' && (
                                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/40 text-[11px] font-bold">
                                         緊急入場待審核
@@ -4003,7 +4006,7 @@ function Calendar() {
                               {currentSegment && (
                                 <div className="flex flex-wrap items-center gap-3 mb-1">
                                   <div className="text-lg font-semibold text-yellow-400">
-                                    活動：{currentSegment.siteName || '未命名'}
+                                    活動：{m(currentSegment.siteName) || '未命名'}
                                   </div>
                                   {!isLeaveScheduleItem(selectedDetailItem) && (
                                     <div className="flex items-center gap-4 text-sm">
@@ -4437,7 +4440,7 @@ function Calendar() {
                                 {item.contentRows && item.contentRows.length > 0 ? (
                                   <>
                                     {item.isCollaborative ? (
-                                      <div className="text-blue-200 text-sm">協作: {getWorkItemCollaborators(it).map((c) => c.name).join(', ') || '—'}</div>
+                                      <div className="text-blue-200 text-sm">協作: {getWorkItemCollaborators(it).map((c) => m(c.name)).join(', ') || '—'}</div>
                                     ) : (
                                       <div className="text-blue-200 text-sm">負責人: {item.responsiblePerson || '—'}</div>
                                     )}
@@ -4886,8 +4889,8 @@ function Calendar() {
                   承攬商進廠管制表
                 </h3>
                 <p className="text-gray-300 text-sm mt-1 tabular-nums">{contractorWorkDetail.dateStr}</p>
-                <p className="text-white font-medium">{contractorWorkDetail.companyName}</p>
-                <p className="text-gray-400 text-sm">{contractorWorkDetail.siteName}</p>
+                <p className="text-white font-medium">{m(contractorWorkDetail.companyName)}</p>
+                <p className="text-gray-400 text-sm">{m(contractorWorkDetail.siteName)}</p>
               </div>
               <button
                 type="button"
@@ -4921,7 +4924,7 @@ function Calendar() {
                     <tbody>
                       {contractorWorkDetailRows.map((row) => (
                         <tr key={row.id} className="border-b border-gray-700/60 align-top">
-                          <td className="py-2 pr-2 text-white">{row.personName}</td>
+                          <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
                           <td className="py-2 pr-2">
                             <ContractorWorkHoursDetail log={row} />
                           </td>
@@ -4984,7 +4987,7 @@ function Calendar() {
                   進廠管制表
                 </h3>
                 <p className="text-gray-300 text-sm mt-1 tabular-nums">{workReportDetail.dateStr}</p>
-                <p className="text-white font-medium">{workReportDetail.siteName}</p>
+                <p className="text-white font-medium">{m(workReportDetail.siteName)}</p>
               </div>
               <button
                 type="button"
@@ -5029,7 +5032,7 @@ function Calendar() {
                         return (
                           <tr key={group.id} className="border-b border-gray-700/60 align-top">
                             <td className="py-2 pr-2 text-white">
-                              {group.personName}
+                              {m(group.personName)}
                               {group.kind === 'contractor' && group.batchCount > 1 && (
                                 <span className="block text-teal-300/80 text-xs mt-0.5">{group.batchCount} 批</span>
                               )}
@@ -5683,7 +5686,7 @@ function Calendar() {
                       ) : (
                         (changeReq.proposedCollaborators || []).map((c) => (
                           <div key={c.name} className="grid grid-cols-12 gap-2 items-center">
-                            <div className="col-span-4 text-gray-300 text-sm truncate" title={c.name}>{c.name}</div>
+                            <div className="col-span-4 text-gray-300 text-sm truncate" title={m(c.name)}>{m(c.name)}</div>
                             <input
                               type="number"
                               value={c.targetQuantity ?? ''}
@@ -6128,7 +6131,7 @@ function Calendar() {
                               : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                           }`}
                         >
-                          {seg.siteName || `案場 ${idx + 1}`}
+                          {m(seg.siteName) || `案場 ${idx + 1}`}
                         </button>
                       ))}
                     </div>
@@ -6687,7 +6690,7 @@ function Calendar() {
                                 <div className="text-gray-300 text-xs">分開完成：每位負責人目標/實際（整張卡一組）</div>
                                 {getWorkItemCollaborators(item).map((c) => (
                                   <div key={c.name} className="grid grid-cols-3 gap-2 items-center">
-                                    <span className="text-gray-200 text-xs truncate">{c.name}</span>
+                                    <span className="text-gray-200 text-xs truncate">{m(c.name)}</span>
                                     <input type="number" value={c.targetQuantity ?? ''} onChange={(e) => { const prev = getWorkItemCollaborators(item); const next = prev.map((x) => String(x.name).trim() === String(c.name).trim() ? { ...x, targetQuantity: e.target.value } : x); handleWorkItemChange(index, 'collaborators', next) }} placeholder="目標" className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" min="0" step="0.01" disabled={plannedLocked} />
                                     <input type="number" value={c.actualQuantity ?? ''} onChange={(e) => { const prev = getWorkItemCollaborators(item); const next = prev.map((x) => String(x.name).trim() === String(c.name).trim() ? { ...x, actualQuantity: e.target.value } : x); handleWorkItemChange(index, 'collaborators', next) }} placeholder="實際" className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" min="0" step="0.01" />
                                   </div>
@@ -6931,7 +6934,7 @@ function Calendar() {
                                 ) : (
                                   getWorkItemCollaborators(item).map((c) => (
                                     <div key={c.name} className="w-full min-w-0">
-                                      <div className="text-gray-200 text-xs truncate mb-1" title={c.name}>{c.name}</div>
+                                      <div className="text-gray-200 text-xs truncate mb-1" title={m(c.name)}>{m(c.name)}</div>
                                       <div className="grid grid-cols-2 gap-2 w-full min-w-0">
                                         <input
                                           type="number"
