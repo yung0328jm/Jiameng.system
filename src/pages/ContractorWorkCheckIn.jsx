@@ -29,6 +29,7 @@ import {
   FOOD_ORDER_MERCHANTS_KEY,
   FOOD_ORDER_RECORDS_KEY
 } from '../utils/foodOrderStorage'
+import { formatWorkReportHours } from '../utils/workReportStorage'
 
 const CHECKIN_SESSION_KEY = 'jiameng_contractor_checkin_auth'
 
@@ -47,6 +48,7 @@ function ContractorWorkCheckIn() {
     }
   })
   const [message, setMessage] = useState(null)
+  const [activeView, setActiveView] = useState('menu') // menu | attendance | meal
   const [revision, setRevision] = useState(0)
   const [timeModal, setTimeModal] = useState(null) // { person, mode: 'in'|'out' }
   const [mealDrafts, setMealDrafts] = useState({}) // personId -> mealKey (merchantId|itemId)
@@ -194,12 +196,14 @@ function ContractorWorkCheckIn() {
       sessionStorage.setItem(CHECKIN_SESSION_KEY, company.id)
     } catch (_) {}
     setCodeInput('')
+    setActiveView('menu')
     setMessage({ type: 'success', text: `已驗證承攬商：${m(company.name)}` })
   }
 
   const logoutCode = () => {
     setAuthenticatedCompanyId('')
     setSiteName('')
+    setActiveView('menu')
     setCodeInput('')
     setCodeError('')
     setMessage(null)
@@ -427,7 +431,9 @@ function ContractorWorkCheckIn() {
         <div className="flex items-center justify-between gap-2 mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-teal-300 font-serif">承攬商出工登記</h1>
-            <p className="text-cn-mist text-xs sm:text-sm mt-0.5">選擇案場後可登記進離廠與訂餐</p>
+            <p className="text-cn-mist text-xs sm:text-sm mt-0.5">
+              {activeView === 'menu' ? '請選擇要辦理的事項' : activeView === 'attendance' ? '人員進離廠登記' : '人員訂餐'}
+            </p>
           </div>
           <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif">
             回登入
@@ -473,6 +479,41 @@ function ContractorWorkCheckIn() {
             </button>
           </div>
 
+          {activeView === 'menu' && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => { setActiveView('attendance'); setMessage(null) }}
+                className="min-h-[120px] rounded-xl border border-teal-600/60 bg-teal-950/50 hover:bg-teal-900/50 p-4 flex flex-col items-center justify-center gap-2 transition-colors"
+              >
+                <span className="text-2xl">🚪</span>
+                <span className="text-teal-200 font-semibold text-base">登記出入廠</span>
+                <span className="text-teal-400/70 text-xs text-center">人員進廠／離廠</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveView('meal'); setMessage(null) }}
+                className="min-h-[120px] rounded-xl border border-orange-600/60 bg-orange-950/40 hover:bg-orange-900/40 p-4 flex flex-col items-center justify-center gap-2 transition-colors"
+              >
+                <span className="text-2xl">🍱</span>
+                <span className="text-orange-200 font-semibold text-base">登記點餐</span>
+                <span className="text-orange-400/70 text-xs text-center">選擇餐點與數量</span>
+              </button>
+            </div>
+          )}
+
+          {activeView !== 'menu' && (
+            <button
+              type="button"
+              onClick={() => { setActiveView('menu'); setMessage(null) }}
+              className="text-sm text-cn-gold hover:text-amber-200 flex items-center gap-1"
+            >
+              ← 返回選單
+            </button>
+          )}
+
+          {activeView !== 'menu' && (
+            <>
           <div>
             <p className="block text-cn-mist text-sm mb-1.5">日期</p>
             <p className="w-full bg-black/20 border border-cn-gold/25 rounded-md px-3 py-2.5 text-cn-parchment tabular-nums">
@@ -496,8 +537,10 @@ function ContractorWorkCheckIn() {
               <p className="text-gray-500 text-xs mt-1">尚無案場，請至入廠申請「常用清單」勾選要開放給承攬商登記的案場。</p>
             )}
           </div>
+            </>
+          )}
 
-          {activePersonnel.length > 0 && (
+          {activeView === 'attendance' && activePersonnel.length > 0 && (
             <div>
               <p className="text-teal-300 text-sm font-medium mb-2">人員登記</p>
               <div className="space-y-2">
@@ -549,11 +592,11 @@ function ContractorWorkCheckIn() {
             </div>
           )}
 
-          {activePersonnel.length === 0 && !loading && (
+          {activeView === 'attendance' && activePersonnel.length === 0 && !loading && (
             <p className="text-gray-500 text-sm">尚無可登記人員，請聯絡管理員建立人員名單。</p>
           )}
 
-          {siteName && activePersonnel.length > 0 && (
+          {activeView === 'meal' && siteName && activePersonnel.length > 0 && (
             <div className="pt-2 border-t border-gray-700/60">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <p className="text-orange-300 text-sm font-medium">今日訂餐 · {m(siteName)}</p>
@@ -642,7 +685,15 @@ function ContractorWorkCheckIn() {
             </div>
           )}
 
-          {todayLogs.length > 0 && (
+          {activeView === 'meal' && !siteName && activePersonnel.length > 0 && (
+            <p className="text-gray-500 text-sm">請先選擇案場以進行訂餐。</p>
+          )}
+
+          {activeView === 'meal' && activePersonnel.length === 0 && !loading && (
+            <p className="text-gray-500 text-sm">尚無可訂餐人員，請聯絡管理員建立人員名單。</p>
+          )}
+
+          {activeView === 'attendance' && todayLogs.length > 0 && (
             <div className="pt-2 border-t border-gray-700/60">
               <p className="text-cn-mist text-sm mb-2">今日登記紀錄</p>
               <div className="space-y-1.5 max-h-48 overflow-y-auto text-sm">
