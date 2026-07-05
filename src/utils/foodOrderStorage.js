@@ -1,7 +1,6 @@
 import { syncKeyToSupabase } from './supabaseSync'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
-import { getDropdownOptionsByCategory } from './dropdownStorage'
-import { getProjects } from './projectStorage'
+import { getContractorCheckInSiteNames } from './dropdownStorage'
 
 export const FOOD_ORDER_MERCHANTS_KEY = 'jiameng_food_order_merchants'
 export const FOOD_ORDER_RECORDS_KEY = 'jiameng_food_order_records'
@@ -19,20 +18,8 @@ const normalizeSiteNames = (siteNames) => {
   return out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
 
-/** 點餐系統可選案場（入廠申請常用清單 + 專案） */
-export const getFoodSiteOptions = () => {
-  const seen = new Set()
-  const sites = []
-  const add = (n) => {
-    const t = String(n || '').trim()
-    if (!t || seen.has(t)) return
-    seen.add(t)
-    sites.push(t)
-  }
-  ;(getDropdownOptionsByCategory('work_report_sites') || []).forEach((o) => add(o?.value))
-  ;(getProjects() || []).forEach((p) => add(p?.name || p?.siteName))
-  return sites.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
-}
+/** 點餐系統可選案場（僅常用清單已勾選案場） */
+export const getFoodSiteOptions = () => getContractorCheckInSiteNames()
 
 export const merchantAppliesToSite = (merchant, siteName) => {
   const site = String(siteName || '').trim()

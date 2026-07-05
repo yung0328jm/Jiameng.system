@@ -10,11 +10,11 @@ import {
   getDisplayNamesForAccount,
   addDropdownOption,
   deleteDropdownOption,
-  setDropdownSiteContractorCheckIn
+  setDropdownSiteContractorCheckIn,
+  getContractorCheckInSiteNames
 } from '../utils/dropdownStorage'
 
 const WORK_REPORT_SITE_CATEGORY = 'work_report_sites'
-import { getProjects } from '../utils/projectStorage'
 import {
   getWorkReports,
   getWorkReportsForMonth,
@@ -255,17 +255,7 @@ function getParticipantNames(snap) {
 }
 
 function getSiteNameOptions() {
-  const seen = new Set()
-  const sites = []
-  const add = (n) => {
-    const t = String(n || '').trim()
-    if (!t || seen.has(t)) return
-    seen.add(t)
-    sites.push(t)
-  }
-  ;(getDropdownOptionsByCategory(WORK_REPORT_SITE_CATEGORY) || []).forEach((o) => add(o?.value))
-  ;(getProjects() || []).forEach((p) => add(p?.name || p?.siteName))
-  return sites.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+  return getContractorCheckInSiteNames()
 }
 
 function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, unreportedRowIds, onReportOvertime }) {
@@ -743,8 +733,8 @@ function WorkReport() {
     setMessage({
       type: 'success',
       text: checked
-        ? `「${opt.value}」已加入承攬商出工登記案場`
-        : `「${opt.value}」已從承攬商出工登記移除`
+        ? `「${opt.value}」已加入啟用案場（訂餐、出工登記等選單）`
+        : `「${opt.value}」已從啟用案場移除`
     })
   }
 
@@ -924,7 +914,7 @@ function WorkReport() {
                 </div>
                 {siteDropdownRecords.length > 0 && (
                   <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                    <p className="text-gray-500 text-xs">已登記案場 · 勾選「承攬商出工登記」才會出現在承攬商簽到頁</p>
+                    <p className="text-gray-500 text-xs">已登記案場 · 勾選後才會出現在訂餐、出工登記等案場選單</p>
                     {siteDropdownRecords.map((opt) => (
                       <div
                         key={opt.id}

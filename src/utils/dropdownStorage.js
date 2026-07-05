@@ -113,7 +113,7 @@ export const setDropdownSiteContractorCheckIn = (id, enabled) => {
   }
 }
 
-/** 承攬商出工登記用案場（僅含已勾選者） */
+/** 啟用中案場（常用清單已勾選者）；用於訂餐、出工登記、入廠申請等所有案場選單 */
 export const getContractorCheckInSiteNames = () => {
   const seen = new Set()
   const out = []
@@ -126,6 +126,9 @@ export const getContractorCheckInSiteNames = () => {
   })
   return out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
+
+/** @deprecated 請改用 getContractorCheckInSiteNames；保留別名供舊程式碼 */
+export const getActiveSiteNames = getContractorCheckInSiteNames
 
 // 調整某分類內的選項順序（依照 orderedIds 排列）
 // 會保留其他分類的相對位置，只替換該分類在全量陣列中的順序
