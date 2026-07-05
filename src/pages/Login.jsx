@@ -137,7 +137,7 @@ function Login({ onLogin }) {
               to="/contractor-work"
               className="flex items-center justify-center w-full min-h-[48px] py-3 rounded-md border-2 border-teal-500/70 bg-teal-950/40 text-teal-200 hover:bg-teal-900/50 active:bg-teal-900/60 transition-colors text-base font-serif touch-manipulation"
             >
-              承攬商出工登記
+              廠商登記入口
             </Link>
           </div>
 

@@ -384,7 +384,7 @@ function ContractorWorkCheckIn() {
       >
         <div className="max-w-sm w-full">
           <div className="flex items-center justify-between gap-2 mb-6">
-            <h1 className="text-xl font-bold text-teal-300 font-serif">承攬商出工登記</h1>
+            <h1 className="text-xl font-bold text-teal-300 font-serif">廠商登記入口</h1>
             <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif">
               回登入
             </Link>
@@ -430,7 +430,7 @@ function ContractorWorkCheckIn() {
       <div className="max-w-lg mx-auto w-full">
         <div className="flex items-center justify-between gap-2 mb-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-teal-300 font-serif">承攬商出工登記</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-teal-300 font-serif">廠商登記入口</h1>
             <p className="text-cn-mist text-xs sm:text-sm mt-0.5">
               {activeView === 'menu' ? '請選擇要辦理的事項' : activeView === 'attendance' ? '人員進離廠登記' : '人員訂餐'}
             </p>
