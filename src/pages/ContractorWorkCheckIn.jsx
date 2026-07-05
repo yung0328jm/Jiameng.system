@@ -498,9 +498,10 @@ function ContractorWorkCheckIn() {
             <button
               type="button"
               onClick={() => { setActiveView('menu'); setMessage(null) }}
-              className="text-sm text-cn-gold hover:text-amber-200 flex items-center gap-1"
+              className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border-2 border-cn-gold/70 bg-gradient-to-r from-amber-950/70 to-cn-panel/80 text-cn-gold hover:text-amber-100 hover:border-amber-300 hover:from-amber-900/80 hover:to-amber-950/60 active:scale-[0.98] active:bg-amber-900/90 transition-all duration-150 flex items-center justify-center gap-2 text-sm font-semibold shadow-md shadow-black/30 touch-manipulation"
             >
-              ← 返回選單
+              <span className="text-base leading-none">←</span>
+              <span>返回選單</span>
             </button>
           )}
 
