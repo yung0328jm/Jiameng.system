@@ -1,9 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { getContractorRegistrations, CONTRACTOR_REGISTRATION_KEY } from '../utils/contractorRegistrationStorage'
 import {
   getFoodMerchants,
   getFoodMerchantsForSite,
   getFoodSiteOptions,
+  getEnabledFoodMerchants,
+  getCompanyMealOrdersForDate,
+  saveCompanyMealOrders,
+  clearCompanyMealOrders,
   addFoodMerchant,
   updateFoodMerchant,
   deleteFoodMerchant,
@@ -22,6 +27,8 @@ const EMPTY_MERCHANT = { name: '', description: '', enabled: true, siteNames: []
 const EMPTY_ITEM = { name: '', price: '', description: '', enabled: true }
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
+
+const newRegisterMealRow = (id) => ({ id, mealKey: '', quantity: '1' })
 
 function EnabledToggle({ checked, onChange, label }) {
   return (
@@ -66,7 +73,7 @@ function SiteNamesPicker({ siteOptions, value, onChange }) {
 }
 
 function FoodOrderAdmin() {
-  const [activeTab, setActiveTab] = useState('merchants') // merchants | stats
+  const [activeTab, setActiveTab] = useState('merchants') // merchants | register | stats
   const [statsDate, setStatsDate] = useState(todayIso)
   const [statsSite, setStatsSite] = useState('')
   const [orderRevision, setOrderRevision] = useState(0)
@@ -87,19 +94,27 @@ function FoodOrderAdmin() {
   const [merchantForm, setMerchantForm] = useState(EMPTY_MERCHANT)
   const [editingItemId, setEditingItemId] = useState(null)
   const [itemForm, setItemForm] = useState(EMPTY_ITEM)
+  const [registerDate, setRegisterDate] = useState(todayIso)
+  const [registerSite, setRegisterSite] = useState('')
+  const [registerCompanyId, setRegisterCompanyId] = useState('')
+  const [registerMealRows, setRegisterMealRows] = useState(() => [newRegisterMealRow('row-1')])
+  const [contractors, setContractors] = useState(() => getContractorRegistrations())
 
   const loadSites = () => setSiteOptions(getFoodSiteOptions())
   const load = () => setMerchants(getFoodMerchants())
+  const loadContractors = () => setContractors(getContractorRegistrations())
 
-  useRealtimeKeys([FOOD_ORDER_MERCHANTS_KEY, FOOD_ORDER_RECORDS_KEY, 'jiameng_dropdown_options'], () => {
+  useRealtimeKeys([FOOD_ORDER_MERCHANTS_KEY, FOOD_ORDER_RECORDS_KEY, 'jiameng_dropdown_options', CONTRACTOR_REGISTRATION_KEY], () => {
     loadSites()
     load()
+    loadContractors()
     setOrderRevision((r) => r + 1)
   })
 
   useEffect(() => {
     loadSites()
     load()
+    loadContractors()
   }, [])
 
   useEffect(() => {
@@ -126,6 +141,151 @@ function FoodOrderAdmin() {
   const quantityBreakdown = useMemo(() => {
     return getFoodOrderQuantityBreakdown(dailyStats.orders)
   }, [dailyStats.orders])
+
+  const contractorOptions = useMemo(
+    () => [...contractors].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant')),
+    [contractors]
+  )
+
+  const registerCompany = useMemo(
+    () => contractorOptions.find((c) => c.id === registerCompanyId) || null,
+    [contractorOptions, registerCompanyId]
+  )
+
+  const registerMealOptions = useMemo(() => {
+    void orderRevision
+    if (!registerSite) return []
+    const opts = []
+    getEnabledFoodMerchants(registerSite).forEach((merchant) => {
+      ;(merchant.menuItems || []).forEach((item) => {
+        opts.push({
+          key: `${merchant.id}|${item.id}`,
+          merchantId: merchant.id,
+          merchantName: merchant.name,
+          menuItemId: item.id,
+          menuItemName: item.name,
+          unitPrice: item.price,
+          label: `${merchant.name} - ${item.name}（$${item.price}）`
+        })
+      })
+    })
+    return opts.sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'))
+  }, [orderRevision, registerSite])
+
+  const registerExistingOrders = useMemo(() => {
+    void orderRevision
+    if (!registerSite || !registerCompanyId) return []
+    return getCompanyMealOrdersForDate(registerDate, { siteName: registerSite, companyId: registerCompanyId })
+  }, [orderRevision, registerDate, registerSite, registerCompanyId])
+
+  useEffect(() => {
+    if (registerSite && !siteOptions.includes(registerSite)) setRegisterSite('')
+  }, [siteOptions, registerSite])
+
+  useEffect(() => {
+    if (!registerSite || !registerCompanyId) {
+      setRegisterMealRows([newRegisterMealRow('row-1')])
+      return
+    }
+    const orders = getCompanyMealOrdersForDate(registerDate, {
+      siteName: registerSite,
+      companyId: registerCompanyId
+    })
+    if (orders.length === 0) {
+      setRegisterMealRows([newRegisterMealRow(`row-${Date.now()}`)])
+      return
+    }
+    setRegisterMealRows(
+      orders.map((order, idx) => ({
+        id: `saved-${order.id || idx}`,
+        mealKey: `${order.merchantId}|${order.menuItemId}`,
+        quantity: String(order.quantity || 1)
+      }))
+    )
+  }, [registerDate, registerSite, registerCompanyId, orderRevision])
+
+  const registerMealTotal = useMemo(() => {
+    return registerMealRows.reduce((sum, row) => {
+      const sel = registerMealOptions.find((o) => o.key === row.mealKey)
+      if (!sel) return sum
+      const qty = Math.max(1, Math.floor(Number(row.quantity) || 1))
+      return sum + sel.unitPrice * qty
+    }, 0)
+  }, [registerMealRows, registerMealOptions])
+
+  const getRegisterMealSelection = (mealKey) => registerMealOptions.find((o) => o.key === mealKey) || null
+
+  const updateRegisterMealRow = (rowId, patch) => {
+    setRegisterMealRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)))
+  }
+
+  const addRegisterMealRow = () => {
+    setRegisterMealRows((rows) => [...rows, newRegisterMealRow(`row-${Date.now()}`)])
+  }
+
+  const removeRegisterMealRow = (rowId) => {
+    setRegisterMealRows((rows) => {
+      if (rows.length <= 1) return [newRegisterMealRow(`row-${Date.now()}`)]
+      return rows.filter((row) => row.id !== rowId)
+    })
+  }
+
+  const saveRegisterOrders = () => {
+    if (!registerCompany || !registerSite) {
+      setMessage({ type: 'error', text: '請選擇案場與承攬商' })
+      return
+    }
+    const lines = registerMealRows
+      .map((row) => {
+        const sel = getRegisterMealSelection(row.mealKey)
+        if (!sel) return null
+        return {
+          merchantId: sel.merchantId,
+          merchantName: sel.merchantName,
+          menuItemId: sel.menuItemId,
+          menuItemName: sel.menuItemName,
+          unitPrice: sel.unitPrice,
+          quantity: Math.max(1, Math.floor(Number(row.quantity) || 1))
+        }
+      })
+      .filter(Boolean)
+    if (lines.length === 0) {
+      setMessage({ type: 'error', text: '請至少選擇一項餐點' })
+      return
+    }
+    const res = saveCompanyMealOrders({
+      date: registerDate,
+      siteName: registerSite,
+      companyId: registerCompany.id,
+      companyName: registerCompany.name,
+      lines
+    })
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '登記失敗' })
+      return
+    }
+    setOrderRevision((r) => r + 1)
+    const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
+    setMessage({ type: 'success', text: `已代「${registerCompany.name}」登記 ${lines.length} 項，合計 $${total}` })
+  }
+
+  const cancelRegisterOrders = () => {
+    if (!registerCompany || !registerSite) return
+    if (registerExistingOrders.length === 0 && registerMealRows.every((row) => !row.mealKey)) return
+    if (!window.confirm(`確定取消「${registerCompany.name}」${registerDate.replace(/-/g, '/')} 的訂餐？`)) return
+    const res = clearCompanyMealOrders({
+      date: registerDate,
+      siteName: registerSite,
+      companyId: registerCompany.id
+    })
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '取消失敗' })
+      return
+    }
+    setRegisterMealRows([newRegisterMealRow(`row-${Date.now()}`)])
+    setOrderRevision((r) => r + 1)
+    setMessage({ type: 'success', text: '已取消訂餐登記。' })
+  }
 
   const toggleOrderCharged = (order) => {
     const res = setFoodOrderCharged(order.id, !order.isCharged)
@@ -275,7 +435,7 @@ function FoodOrderAdmin() {
       <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-orange-300">點餐系統</h2>
-          <p className="text-gray-400 text-sm mt-1">管理商家菜單，並統計承攬商當日訂餐。</p>
+          <p className="text-gray-400 text-sm mt-1">管理商家菜單、代為登記訂餐，並統計承攬商當日訂餐。</p>
         </div>
         {activeTab === 'merchants' && (
           <button
@@ -303,6 +463,17 @@ function FoodOrderAdmin() {
         </button>
         <button
           type="button"
+          onClick={() => { setActiveTab('register'); setMessage(null) }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'register'
+              ? 'border-orange-400 text-orange-300'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          代為登記
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('stats')}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             activeTab === 'stats'
@@ -314,7 +485,172 @@ function FoodOrderAdmin() {
         </button>
       </div>
 
-      {activeTab === 'stats' ? (
+      {message && (
+        <div
+          className={`mb-4 px-4 py-3 rounded-lg text-sm ${
+            message.type === 'success'
+              ? 'bg-green-900/40 text-green-300 border border-green-700/50'
+              : 'bg-red-900/40 text-red-300 border border-red-700/50'
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
+      {activeTab === 'register' ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-gray-600 bg-gray-800/60 p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5">訂餐日期</label>
+              <input
+                type="date"
+                value={registerDate}
+                onChange={(e) => setRegisterDate(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2.5 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5">案場 *</label>
+              <select
+                value={registerSite}
+                onChange={(e) => setRegisterSite(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2.5 text-white"
+              >
+                <option value="">— 請選擇案場 —</option>
+                {siteOptions.map((site) => (
+                  <option key={site} value={site}>{site}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-300 text-sm mb-1.5">承攬商 *</label>
+              <select
+                value={registerCompanyId}
+                onChange={(e) => setRegisterCompanyId(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2.5 text-white"
+              >
+                <option value="">— 請選擇承攬商 —</option>
+                {contractorOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {!registerSite ? (
+            <p className="text-gray-500 text-sm py-8 text-center border border-dashed border-gray-600 rounded-xl">
+              請先選擇案場以代為登記訂餐。
+            </p>
+          ) : !registerCompanyId ? (
+            <p className="text-gray-500 text-sm py-8 text-center border border-dashed border-gray-600 rounded-xl">
+              請選擇承攬商以登記訂餐。
+            </p>
+          ) : registerMealOptions.length === 0 ? (
+            <p className="text-gray-500 text-sm py-8 text-center border border-dashed border-gray-600 rounded-xl">
+              此案場尚無可訂餐的商家，請至「菜單設定」新增。
+            </p>
+          ) : (
+            <div className="rounded-xl border border-gray-600 bg-gray-800/60 p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-orange-300 text-sm font-medium">
+                  {registerCompany?.name} · {registerSite} · {registerDate.replace(/-/g, '/')}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={saveRegisterOrders}
+                    className="text-xs px-3 py-1.5 rounded-md bg-orange-700 hover:bg-orange-600 text-white font-medium"
+                  >
+                    儲存登記
+                  </button>
+                  {(registerExistingOrders.length > 0 || registerMealRows.some((row) => row.mealKey)) && (
+                    <button
+                      type="button"
+                      onClick={cancelRegisterOrders}
+                      className="text-xs px-3 py-1.5 rounded-md border border-gray-600 text-gray-300 hover:bg-black/30"
+                    >
+                      取消登記
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {registerExistingOrders.length > 0 && (
+                <p className="text-green-400/90 text-xs">
+                  已登記：{registerExistingOrders.map((o) => `${o.menuItemName}×${o.quantity}`).join('、')}
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {registerMealRows.map((row, index) => {
+                  const sel = getRegisterMealSelection(row.mealKey)
+                  const qty = Math.max(1, Math.floor(Number(row.quantity) || 1))
+                  const amount = sel ? sel.unitPrice * qty : 0
+                  return (
+                    <div key={row.id} className="p-3 rounded-lg bg-black/25 border border-orange-800/40 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-gray-400 text-xs">餐點 {index + 1}</span>
+                        {registerMealRows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeRegisterMealRow(row.id)}
+                            className="text-xs text-gray-400 hover:text-red-300"
+                          >
+                            移除
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_5rem_auto] gap-2 items-end">
+                        <div>
+                          <label className="block text-gray-400 text-xs mb-1">選擇餐點</label>
+                          <select
+                            value={row.mealKey}
+                            onChange={(e) => updateRegisterMealRow(row.id, { mealKey: e.target.value })}
+                            className="w-full bg-black/30 border border-gray-600 rounded-md px-2 py-2 text-white text-sm"
+                          >
+                            <option value="">— 請選擇 —</option>
+                            {registerMealOptions.map((opt) => (
+                              <option key={opt.key} value={opt.key}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-gray-400 text-xs mb-1">數量</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={row.quantity}
+                            onChange={(e) => updateRegisterMealRow(row.id, { quantity: e.target.value })}
+                            disabled={!row.mealKey}
+                            className="w-full bg-black/30 border border-gray-600 rounded-md px-2 py-2 text-white text-sm tabular-nums disabled:opacity-40"
+                          />
+                        </div>
+                        <div className="text-right sm:text-center">
+                          <p className="text-gray-400 text-xs mb-1">金額</p>
+                          <p className="text-amber-300 font-semibold tabular-nums">${amount || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={addRegisterMealRow}
+                  className="w-full py-2.5 rounded-lg border border-dashed border-orange-700/60 text-orange-300 text-sm hover:bg-orange-950/30"
+                >
+                  ＋ 新增餐點
+                </button>
+                <div className="flex justify-end pt-1">
+                  <p className="text-sm text-gray-300">
+                    合計 <span className="text-amber-300 font-semibold tabular-nums">${registerMealTotal || 0}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : activeTab === 'stats' ? (
         <div className="space-y-4">
           <div className="rounded-xl border border-gray-600 bg-gray-800/60 p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -442,18 +778,6 @@ function FoodOrderAdmin() {
         </select>
         <p className="text-gray-500 text-xs mt-1.5">僅顯示套用此案場的商家；例：日月光店家不會出現在林口。</p>
       </div>
-
-      {message && (
-        <div
-          className={`mb-4 px-4 py-3 rounded-lg text-sm ${
-            message.type === 'success'
-              ? 'bg-green-900/40 text-green-300 border border-green-700/50'
-              : 'bg-red-900/40 text-red-300 border border-red-700/50'
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
 
       {!selectedSite ? (
         <p className="text-gray-500 text-sm py-12 text-center border border-dashed border-gray-600 rounded-xl">
