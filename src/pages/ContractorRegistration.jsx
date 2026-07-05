@@ -166,28 +166,23 @@ function ContractorRegistration() {
     return getContractorAttendanceByMonth(attendanceCompany.id, attendanceMonth.year, attendanceMonth.month)
   }, [attendanceCompany?.id, attendanceMonth.year, attendanceMonth.month, workLogRevision])
 
-  const attendanceMonthTotal = useMemo(
-    () => attendanceDays.reduce((sum, d) => sum + (d.totalHeadcount || 0), 0),
-    [attendanceDays]
-  )
-
   const attendanceMonthStats = useMemo(() => {
     let fullDayCount = 0
-    let underHours = 0
     let overtimeHours = 0
+    let lateCount = 0
     let pendingOvertimeCount = 0
     attendanceDays.forEach((day) => {
       day.sites.forEach((site) => {
         const s = aggregateContractorWorkLogsSummary(site.rows)
         fullDayCount += s.fullDayHeadcount || 0
-        underHours += s.underActualHours || 0
         overtimeHours += s.totalOvertimeHours || 0
+        lateCount += s.lateHeadcount || 0
         site.rows.forEach((row) => {
           if (String(row?.overtimeStatus || '').trim() === 'pending') pendingOvertimeCount += 1
         })
       })
     })
-    return { fullDayCount, underHours, overtimeHours, pendingOvertimeCount }
+    return { fullDayCount, overtimeHours, lateCount, pendingOvertimeCount }
   }, [attendanceDays])
 
   const startEditPerson = (person) => {
@@ -721,18 +716,10 @@ function ContractorRegistration() {
                 <p className="text-yellow-400 font-semibold tabular-nums">
                   {attendanceMonth.year} 年 {attendanceMonth.month} 月
                 </p>
-                <p className="text-gray-400 text-xs mt-0.5">
-                  本月合計 <span className="text-amber-200 font-medium">{attendanceMonthTotal}</span> 人次
-                  {attendanceMonthStats.fullDayCount > 0 && (
-                    <span className="ml-2">
-                      · 1 工 <span className="text-amber-200">{attendanceMonthStats.fullDayCount}</span> 人次
-                    </span>
-                  )}
-                  {attendanceMonthStats.overtimeHours > 0 && (
-                    <span className="ml-2 text-red-400">
-                      · 緊急入場合計 {formatWorkReportHours(attendanceMonthStats.overtimeHours)} 小時
-                    </span>
-                  )}
+                <p className="text-gray-400 text-xs mt-0.5 tabular-nums">
+                  本月合計 <span className="text-amber-200 font-medium">{attendanceMonthStats.fullDayCount}</span> 工
+                  <span className="mx-2">緊急入場 <span className="text-red-400 font-medium">{formatWorkReportHours(attendanceMonthStats.overtimeHours)}</span> 小時</span>
+                  遲到次數 <span className="text-rose-300 font-medium">{attendanceMonthStats.lateCount}</span> 次
                   {attendanceMonthStats.pendingOvertimeCount > 0 && (
                     <span className="ml-2 text-amber-300">
                       · 待審加班 <span className="font-semibold">{attendanceMonthStats.pendingOvertimeCount}</span> 筆
