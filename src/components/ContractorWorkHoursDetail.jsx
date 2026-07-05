@@ -25,6 +25,9 @@ export function ContractorWorkHoursDetail({ log, className = '' }) {
 
   return (
     <div className={`text-xs space-y-1 tabular-nums ${className}`}>
+      {log?.registrationMode === 'headcount' && (
+        <div className="text-violet-300 font-medium">人數登記 {Math.max(1, Number(log?.headcount) || 1)} 人</div>
+      )}
       <div className="text-gray-400">進離廠 {arr}～{dep}</div>
       {late && <div className="text-rose-300 font-semibold">遲到（超過 08:00 進廠）</div>}
       <div className="text-amber-200 font-semibold">出工 → 1 工</div>

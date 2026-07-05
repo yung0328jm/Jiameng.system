@@ -9,8 +9,11 @@ import {
   pullPublicContractorData,
   getWorkLogsForDate,
   findWorkLog,
+  findHeadcountWorkLog,
   registerContractorArrival,
   registerContractorDeparture,
+  registerHeadcountArrival,
+  registerHeadcountDeparture,
   getTodayDateStr,
   nowTimeStr,
   CONTRACTOR_STANDARD_DEPARTURE,
@@ -50,6 +53,8 @@ function ContractorWorkCheckIn() {
   })
   const [message, setMessage] = useState(null)
   const [activeView, setActiveView] = useState('menu') // menu | attendance | meal
+  const [attendanceMode, setAttendanceMode] = useState('named') // named | headcount
+  const [headcountInput, setHeadcountInput] = useState('1')
   const [revision, setRevision] = useState(0)
   const [timeModal, setTimeModal] = useState(null) // { person, mode: 'in'|'out' }
   const [mealRows, setMealRows] = useState(() => [newMealRow('row-1')])
@@ -140,11 +145,29 @@ function ContractorWorkCheckIn() {
   const hasCheckedInToday = useMemo(() => {
     void revision
     if (!siteName || !authenticatedCompanyId) return false
+    const headcountLog = findHeadcountWorkLog({ date, siteName, companyId: authenticatedCompanyId })
+    if (headcountLog?.arrivalTime) return true
     return activePersonnel.some((person) => {
       const log = findWorkLog({ date, siteName, companyId: authenticatedCompanyId, personId: person.id })
       return !!log?.arrivalTime
     })
   }, [revision, activePersonnel, siteName, authenticatedCompanyId, date])
+
+  const headcountLog = useMemo(() => {
+    void revision
+    if (!siteName || !authenticatedCompanyId) return null
+    return findHeadcountWorkLog({ date, siteName, companyId: authenticatedCompanyId })
+  }, [revision, siteName, authenticatedCompanyId, date])
+
+  useEffect(() => {
+    if (!siteName || !authenticatedCompanyId) {
+      setHeadcountInput('1')
+      return
+    }
+    const log = findHeadcountWorkLog({ date, siteName, companyId: authenticatedCompanyId })
+    if (log?.headcount) setHeadcountInput(String(log.headcount))
+    else setHeadcountInput('1')
+  }, [siteName, authenticatedCompanyId, date, revision])
 
   useEffect(() => {
     if (!siteName || !authenticatedCompanyId) {
@@ -207,6 +230,8 @@ function ContractorWorkCheckIn() {
     setAuthenticatedCompanyId('')
     setSiteName('')
     setActiveView('menu')
+    setAttendanceMode('named')
+    setHeadcountInput('1')
     setCodeInput('')
     setCodeError('')
     setMessage(null)
@@ -227,6 +252,33 @@ function ContractorWorkCheckIn() {
     setTimeModal({
       person,
       mode,
+      headcountMode: false,
+      leaveMode: 'none',
+      overtimeHours: ''
+    })
+    setMessage(null)
+  }
+
+  const openHeadcountTimeModal = (mode) => {
+    if (!siteName) {
+      setMessage({ type: 'error', text: '請先選擇案場' })
+      return
+    }
+    if (!authenticatedCompany) {
+      setMessage({ type: 'error', text: '請先輸入承攬商代碼' })
+      return
+    }
+    const log = findHeadcountWorkLog({ date, siteName, companyId: authenticatedCompany.id })
+    const count = log?.headcount || Math.max(1, Math.floor(Number(headcountInput) || 0))
+    if (mode === 'in' && count < 1) {
+      setMessage({ type: 'error', text: '請填寫今日入場人數' })
+      return
+    }
+    setTimeModal({
+      person: { name: `人數登記（${count}人）` },
+      mode,
+      headcountMode: true,
+      headcount: count,
       leaveMode: 'none',
       overtimeHours: ''
     })
@@ -235,10 +287,35 @@ function ContractorWorkCheckIn() {
 
   const submitTimeModal = () => {
     if (!timeModal || !authenticatedCompany) return
-    const { person, mode, leaveMode, overtimeHours } = timeModal
+    const { person, mode, leaveMode, overtimeHours, headcountMode, headcount } = timeModal
     const recordTime = nowTimeStr()
     let res
-    if (mode === 'in') {
+    if (headcountMode) {
+      if (mode === 'in') {
+        res = registerHeadcountArrival({
+          date,
+          siteName,
+          companyId: authenticatedCompany.id,
+          companyName: authenticatedCompany.name,
+          headcount,
+          arrivalTime: recordTime
+        })
+      } else {
+        const otHours = leaveMode === 'overtime' ? Number(overtimeHours) : 0
+        if (leaveMode === 'overtime' && (!Number.isFinite(otHours) || otHours <= 0)) {
+          setMessage({ type: 'error', text: '請填寫申請加班時數' })
+          return
+        }
+        res = registerHeadcountDeparture({
+          date,
+          siteName,
+          companyId: authenticatedCompany.id,
+          departureTime: CONTRACTOR_STANDARD_DEPARTURE,
+          overtimeRequestHours: otHours,
+          overtimeStatus: otHours > 0 ? 'pending' : 'none'
+        })
+      }
+    } else if (mode === 'in') {
       res = registerContractorArrival({
         date,
         siteName,
@@ -271,6 +348,20 @@ function ContractorWorkCheckIn() {
     }
     setTimeModal(null)
     setRevision((r) => r + 1)
+    if (headcountMode) {
+      if (mode === 'in') {
+        setMessage({ type: 'success', text: `已登記進廠：${headcount} 人 ${recordTime}` })
+        return
+      }
+      const otHours = leaveMode === 'overtime' ? Number(overtimeHours) : 0
+      setMessage({
+        type: 'success',
+        text: otHours > 0
+          ? `已登記離廠：${headcount} 人 ${CONTRACTOR_STANDARD_DEPARTURE}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
+          : `已登記離廠：${headcount} 人 ${CONTRACTOR_STANDARD_DEPARTURE}`
+      })
+      return
+    }
     if (mode === 'in') {
       setMessage({ type: 'success', text: `已登記進廠：${m(person.name)} ${recordTime}` })
       return
@@ -533,7 +624,36 @@ function ContractorWorkCheckIn() {
             </>
           )}
 
-          {activeView === 'attendance' && activePersonnel.length > 0 && (
+          {activeView === 'attendance' && siteName && (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => { setAttendanceMode('named'); setMessage(null) }}
+                className={`min-h-[72px] rounded-xl border p-3 flex flex-col items-center justify-center gap-1 transition-colors ${
+                  attendanceMode === 'named'
+                    ? 'border-teal-500 bg-teal-950/50 text-teal-200'
+                    : 'border-gray-600 bg-black/20 text-gray-400 hover:bg-black/30'
+                }`}
+              >
+                <span className="font-semibold text-sm">實名登記</span>
+                <span className="text-xs opacity-80">逐人進離廠</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAttendanceMode('headcount'); setMessage(null) }}
+                className={`min-h-[72px] rounded-xl border p-3 flex flex-col items-center justify-center gap-1 transition-colors ${
+                  attendanceMode === 'headcount'
+                    ? 'border-amber-500 bg-amber-950/40 text-amber-200'
+                    : 'border-gray-600 bg-black/20 text-gray-400 hover:bg-black/30'
+                }`}
+              >
+                <span className="font-semibold text-sm">人數登記</span>
+                <span className="text-xs opacity-80">填人數進離廠</span>
+              </button>
+            </div>
+          )}
+
+          {activeView === 'attendance' && attendanceMode === 'named' && activePersonnel.length > 0 && (
             <div>
               <p className="text-teal-300 text-sm font-medium mb-2">人員登記</p>
               <div className="space-y-2">
@@ -585,7 +705,67 @@ function ContractorWorkCheckIn() {
             </div>
           )}
 
-          {activeView === 'attendance' && activePersonnel.length === 0 && !loading && (
+          {activeView === 'attendance' && attendanceMode === 'headcount' && siteName && (
+            <div>
+              <p className="text-amber-300 text-sm font-medium mb-2">人數登記</p>
+              <div className="p-3 rounded-lg bg-black/25 border border-amber-800/40 space-y-3">
+                <div>
+                  <label className="block text-gray-400 text-xs mb-1">今日入場人數</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={headcountInput}
+                    onChange={(e) => setHeadcountInput(e.target.value)}
+                    disabled={!!headcountLog?.arrivalTime}
+                    className="w-full bg-black/30 border border-gray-600 rounded-md px-3 py-2.5 text-white text-sm tabular-nums disabled:opacity-50"
+                  />
+                  {headcountLog?.arrivalTime && (
+                    <p className="text-gray-500 text-xs mt-1">已進廠後不可修改人數，請聯絡管理員調整。</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className={`text-xs ${
+                    !headcountLog?.arrivalTime
+                      ? 'text-gray-500'
+                      : !headcountLog?.departureTime
+                        ? 'text-amber-300'
+                        : 'text-green-400'
+                  }`}>
+                    {!headcountLog?.arrivalTime
+                      ? '尚未進廠'
+                      : !headcountLog?.departureTime
+                        ? `進廠 ${headcountLog.arrivalTime}（${headcountLog.headcount || headcountInput} 人）`
+                        : `${headcountLog.arrivalTime}～${headcountLog.departureTime}（${headcountLog.headcount} 人）`}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={!!headcountLog?.arrivalTime}
+                      onClick={() => openHeadcountTimeModal('in')}
+                      className="min-h-[40px] px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      進廠
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!headcountLog?.arrivalTime || !!headcountLog?.departureTime}
+                      onClick={() => openHeadcountTimeModal('out')}
+                      className="min-h-[40px] px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      離廠
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeView === 'attendance' && attendanceMode === 'headcount' && !siteName && (
+            <p className="text-gray-500 text-sm">請先選擇案場以進行人數登記。</p>
+          )}
+
+          {activeView === 'attendance' && attendanceMode === 'named' && activePersonnel.length === 0 && !loading && (
             <p className="text-gray-500 text-sm">尚無可登記人員，請聯絡管理員建立人員名單。</p>
           )}
 

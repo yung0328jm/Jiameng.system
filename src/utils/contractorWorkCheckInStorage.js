@@ -7,6 +7,7 @@ import { CONTRACTOR_REGISTRATION_KEY } from './contractorRegistrationStorage'
 export const CONTRACTOR_WORK_LOG_KEY = 'jiameng_contractor_work_logs'
 export const CONTRACTOR_STANDARD_DEPARTURE = '17:00'
 export const CONTRACTOR_ON_TIME_CUTOFF = '08:00'
+export const HEADCOUNT_PERSON_ID = '__headcount__'
 
 const roundHours = (hours) => Math.round(Number(hours) * 10) / 10
 
@@ -72,6 +73,18 @@ export const findWorkLog = ({ date, siteName, companyId, personId }) => {
   const key = logKey(date, siteName, companyId, personId)
   return getContractorWorkLogs().find((r) => logKey(r.date, r.siteName, r.companyId, r.personId) === key) || null
 }
+
+export const isHeadcountWorkLog = (log) =>
+  log?.registrationMode === 'headcount' || String(log?.personId || '').trim() === HEADCOUNT_PERSON_ID
+
+export const getLogHeadcount = (log) => {
+  if (!String(log?.arrivalTime || '').trim()) return 0
+  if (isHeadcountWorkLog(log)) return Math.max(1, Math.floor(Number(log?.headcount) || 1))
+  return 1
+}
+
+export const findHeadcountWorkLog = ({ date, siteName, companyId }) =>
+  findWorkLog({ date, siteName, companyId, personId: HEADCOUNT_PERSON_ID })
 
 export const getWorkLogsForDate = (date, { companyId, siteName } = {}) => {
   const d = String(date || '').slice(0, 10)
@@ -259,6 +272,106 @@ export const registerContractorDeparture = ({
   }
 }
 
+/** 人數登記：進廠 */
+export const registerHeadcountArrival = ({
+  date,
+  siteName,
+  companyId,
+  companyName,
+  headcount,
+  arrivalTime
+}) => {
+  try {
+    const d = String(date || '').slice(0, 10)
+    const site = String(siteName || '').trim()
+    const cid = String(companyId || '').trim()
+    const count = Math.max(1, Math.floor(Number(headcount) || 0))
+    const at = String(arrivalTime || '').trim()
+    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
+    if (!count) return { success: false, message: '請填寫今日入場人數' }
+    if (!at) return { success: false, message: '請填寫進廠時間' }
+    const list = readAllContractorWorkLogs()
+    const idx = list.findIndex(
+      (r) => logKey(r.date, r.siteName, r.companyId, r.personId) === logKey(d, site, cid, HEADCOUNT_PERSON_ID)
+    )
+    if (idx >= 0 && list[idx]?.arrivalTime && !list[idx]?.deleted) {
+      return { success: false, message: '今日此案場已登記進廠' }
+    }
+    const now = new Date().toISOString()
+    const rec = {
+      id: idx >= 0 ? list[idx].id : `cwl-hc-${Date.now()}`,
+      date: d,
+      siteName: site,
+      companyId: cid,
+      companyName: String(companyName || '').trim(),
+      personId: HEADCOUNT_PERSON_ID,
+      personName: `人數登記（${count}人）`,
+      registrationMode: 'headcount',
+      headcount: count,
+      arrivalTime: at,
+      departureTime: idx >= 0 && !list[idx]?.deleted ? (list[idx].departureTime || '') : '',
+      deleted: false,
+      createdAt: idx >= 0 && !list[idx]?.deleted ? (list[idx].createdAt || now) : now,
+      updatedAt: now
+    }
+    if (idx >= 0) list[idx] = rec
+    else list.push(rec)
+    persist(list)
+    return { success: true, record: rec }
+  } catch (e) {
+    console.error('registerHeadcountArrival:', e)
+    return { success: false, message: '進廠登記失敗' }
+  }
+}
+
+/** 人數登記：離廠 */
+export const registerHeadcountDeparture = ({
+  date,
+  siteName,
+  companyId,
+  departureTime,
+  overtimeRequestHours,
+  overtimeStatus
+}) => {
+  try {
+    const d = String(date || '').slice(0, 10)
+    const site = String(siteName || '').trim()
+    const cid = String(companyId || '').trim()
+    const dt = String(departureTime || CONTRACTOR_STANDARD_DEPARTURE).trim()
+    const otHours = Math.max(0, Number(overtimeRequestHours) || 0)
+    const otStatus = overtimeStatus || (otHours > 0 ? 'pending' : 'none')
+    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
+    if (!dt) return { success: false, message: '請填寫離廠時間' }
+    if (otStatus === 'pending' && otHours <= 0) {
+      return { success: false, message: '請填寫申請加班時數' }
+    }
+    const list = readAllContractorWorkLogs()
+    const idx = list.findIndex(
+      (r) => logKey(r.date, r.siteName, r.companyId, r.personId) === logKey(d, site, cid, HEADCOUNT_PERSON_ID)
+    )
+    if (idx < 0 || !list[idx]?.arrivalTime || list[idx]?.deleted) {
+      return { success: false, message: '請先登記進廠' }
+    }
+    if (list[idx]?.departureTime) {
+      return { success: false, message: '今日此案場已登記離廠' }
+    }
+    const now = new Date().toISOString()
+    list[idx] = {
+      ...list[idx],
+      departureTime: dt,
+      overtimeRequestHours: otHours,
+      overtimeStatus: otStatus,
+      approvedOvertimeHours: undefined,
+      updatedAt: now
+    }
+    persist(list)
+    return { success: true, record: list[idx] }
+  } catch (e) {
+    console.error('registerHeadcountDeparture:', e)
+    return { success: false, message: '離廠登記失敗' }
+  }
+}
+
 /** 管理者更新進離廠時間 */
 export const updateContractorWorkLog = (id, patch) => {
   try {
@@ -414,8 +527,9 @@ export const getContractorWorkLogShiftSummary = (log) => {
   const arr = String(log?.arrivalTime || '').trim()
   const dep = String(log?.departureTime || '').trim()
   if (!arr || !dep) return null
-  const headcount = 1
+  const headcount = getLogHeadcount(log)
   const totalOvertimeHours = getContractorEmergencyHours(log)
+  const late = isContractorLate(arr)
   return {
     headcount,
     perPersonOvertimeHours: totalOvertimeHours,
@@ -426,8 +540,8 @@ export const getContractorWorkLogShiftSummary = (log) => {
     underPerPersonHours: 0,
     hasUnderHours: false,
     fullDayHeadcount: headcount,
-    isLate: isContractorLate(arr),
-    lateHeadcount: isContractorLate(arr) ? 1 : 0
+    isLate: late,
+    lateHeadcount: late ? headcount : 0
   }
 }
 
@@ -485,12 +599,12 @@ export const getContractorAttendanceByMonth = (companyId, year, month) => {
       })
       return {
         date,
-        totalHeadcount: dayLogs.length,
+        totalHeadcount: dayLogs.reduce((sum, r) => sum + getLogHeadcount(r), 0),
         sites: [...sites.entries()]
           .sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant'))
           .map(([siteName, rows]) => ({
             siteName,
-            headcount: rows.length,
+            headcount: rows.reduce((sum, r) => sum + getLogHeadcount(r), 0),
             rows: [...rows].sort((a, b) =>
               String(a?.personName || '').localeCompare(String(b?.personName || ''), 'zh-Hant')
             )
