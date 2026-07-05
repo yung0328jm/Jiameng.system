@@ -78,6 +78,23 @@ function Login({ onLogin }) {
       className="min-h-screen min-h-[100dvh] flex items-center justify-center p-4 w-full bg-gradient-to-b from-cn-ink via-cn-lacquer to-cn-ink"
       style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))', paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))', paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))' }}
     >
+      <style>{`
+        @keyframes contractor-entry-glow {
+          0%, 100% {
+            box-shadow: 0 0 10px rgba(45, 212, 191, 0.35), 0 0 22px rgba(45, 212, 191, 0.18);
+          }
+          50% {
+            box-shadow: 0 0 16px rgba(45, 212, 191, 0.55), 0 0 32px rgba(45, 212, 191, 0.28);
+          }
+        }
+        .login-contractor-glow {
+          animation: contractor-entry-glow 2.5s ease-in-out infinite;
+        }
+        .login-contractor-glow:hover {
+          animation: none;
+          box-shadow: 0 0 18px rgba(45, 212, 191, 0.6), 0 0 36px rgba(45, 212, 191, 0.32);
+        }
+      `}</style>
       <div className="w-full max-w-md">
         <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border-2 border-cn-gold/50 p-5 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,230,200,0.06)]">
           {/* 标题 */}
@@ -135,7 +152,7 @@ function Login({ onLogin }) {
           <div className="mt-4">
             <Link
               to="/contractor-work"
-              className="flex items-center justify-center w-full min-h-[48px] py-3 rounded-md border-2 border-teal-500/70 bg-teal-950/40 text-teal-200 hover:bg-teal-900/50 active:bg-teal-900/60 transition-colors text-base font-serif touch-manipulation"
+              className="login-contractor-glow flex items-center justify-center w-full min-h-[48px] py-3 rounded-md border-2 border-teal-400/80 bg-teal-950/40 text-teal-200 hover:bg-teal-900/50 hover:border-teal-300 active:bg-teal-900/60 transition-all text-base font-serif touch-manipulation"
             >
               廠商登記入口
             </Link>
