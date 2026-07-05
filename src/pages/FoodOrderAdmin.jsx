@@ -11,6 +11,7 @@ import {
   updateFoodMenuItem,
   deleteFoodMenuItem,
   getFoodOrderDailyStats,
+  getFoodOrderQuantityBreakdown,
   setFoodOrderCharged,
   FOOD_ORDER_MERCHANTS_KEY,
   FOOD_ORDER_RECORDS_KEY,
@@ -69,6 +70,7 @@ function FoodOrderAdmin() {
   const [statsDate, setStatsDate] = useState(todayIso)
   const [statsSite, setStatsSite] = useState('')
   const [orderRevision, setOrderRevision] = useState(0)
+  const [showQuantityDetail, setShowQuantityDetail] = useState(false)
   const [siteOptions, setSiteOptions] = useState(() => getFoodSiteOptions())
   const [selectedSite, setSelectedSite] = useState(() => {
     try {
@@ -120,6 +122,10 @@ function FoodOrderAdmin() {
     void orderRevision
     return getFoodOrderDailyStats(statsDate, statsSite || undefined)
   }, [orderRevision, statsDate, statsSite])
+
+  const quantityBreakdown = useMemo(() => {
+    return getFoodOrderQuantityBreakdown(dailyStats.orders)
+  }, [dailyStats.orders])
 
   const toggleOrderCharged = (order) => {
     const res = setFoodOrderCharged(order.id, !order.isCharged)
@@ -340,10 +346,22 @@ function FoodOrderAdmin() {
               <p className="text-gray-400 text-xs">訂餐筆數</p>
               <p className="text-xl font-bold text-white tabular-nums">{dailyStats.orderCount}</p>
             </div>
-            <div className="rounded-lg border border-gray-600 bg-gray-800/60 p-3">
+            <button
+              type="button"
+              onClick={() => dailyStats.orders.length > 0 && setShowQuantityDetail(true)}
+              disabled={dailyStats.orders.length === 0}
+              className={`rounded-lg border p-3 text-left transition-colors ${
+                dailyStats.orders.length > 0
+                  ? 'border-orange-600/60 bg-gray-800/60 hover:bg-orange-950/30 hover:border-orange-500/70 cursor-pointer'
+                  : 'border-gray-600 bg-gray-800/60 opacity-60 cursor-default'
+              }`}
+            >
               <p className="text-gray-400 text-xs">總數量</p>
               <p className="text-xl font-bold text-white tabular-nums">{dailyStats.totalQuantity}</p>
-            </div>
+              {dailyStats.orders.length > 0 && (
+                <p className="text-orange-300/80 text-[10px] mt-1">點擊查看明細</p>
+              )}
+            </button>
             <div className="rounded-lg border border-gray-600 bg-gray-800/60 p-3">
               <p className="text-gray-400 text-xs">總金額</p>
               <p className="text-xl font-bold text-amber-300 tabular-nums">${dailyStats.totalAmount}</p>
@@ -578,6 +596,97 @@ function FoodOrderAdmin() {
         </div>
       )}
         </>
+      )}
+
+      {showQuantityDetail && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-gray-800 border border-orange-600/50 rounded-xl p-5 w-full max-w-lg my-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-orange-300">訂餐數量明細</h3>
+                <p className="text-gray-400 text-sm mt-1">
+                  {statsDate.replace(/-/g, '/')}
+                  {statsSite ? ` · ${statsSite}` : ' · 全部案場'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuantityDetail(false)}
+                className="text-gray-400 hover:text-white text-xl leading-none px-1"
+                aria-label="關閉"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="rounded-lg border border-gray-600 bg-gray-900/40 p-3 mb-4">
+              <p className="text-gray-400 text-xs mb-1">全體合計</p>
+              <p className="text-white font-semibold tabular-nums">
+                共 <span className="text-orange-200">{quantityBreakdown.totalQuantity}</span> 份　
+                金額 <span className="text-amber-300">${quantityBreakdown.totalAmount}</span>
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-teal-300 text-sm font-medium mb-2">依品項統計</p>
+              {quantityBreakdown.byItem.length === 0 ? (
+                <p className="text-gray-500 text-sm">尚無資料</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {quantityBreakdown.byItem.map((item) => (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-black/25 border border-gray-700/60 text-sm"
+                    >
+                      <span className="text-gray-200 min-w-0">{item.label}</span>
+                      <span className="text-white tabular-nums shrink-0">
+                        {item.quantity} 份 · <span className="text-amber-300">${item.amount}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-violet-300 text-sm font-medium mb-2">依承攬商統計</p>
+              {quantityBreakdown.byCompany.length === 0 ? (
+                <p className="text-gray-500 text-sm">尚無資料</p>
+              ) : (
+                <div className="space-y-3">
+                  {quantityBreakdown.byCompany.map((company) => (
+                    <div key={company.companyId} className="rounded-lg border border-gray-600 bg-gray-900/30 overflow-hidden">
+                      <div className="px-3 py-2 bg-gray-900/60 border-b border-gray-700/60 flex items-center justify-between gap-2">
+                        <span className="text-white font-medium text-sm">{company.companyName}</span>
+                        <span className="text-xs text-gray-300 tabular-nums shrink-0">
+                          {company.quantity} 份 · <span className="text-amber-300">${company.amount}</span>
+                        </span>
+                      </div>
+                      <div className="divide-y divide-gray-700/40">
+                        {company.items.map((item) => (
+                          <div key={`${company.companyId}-${item.label}`} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                            <span className="text-gray-400 min-w-0">{item.menuItemName}</span>
+                            <span className="text-gray-200 tabular-nums shrink-0">
+                              {item.quantity} 份 · <span className="text-amber-300/90">${item.amount}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQuantityDetail(false)}
+              className="w-full min-h-[44px] mt-4 rounded-lg bg-gray-600 hover:bg-gray-500 text-white font-medium"
+            >
+              關閉
+            </button>
+          </div>
+        </div>
       )}
 
       {showMerchantForm && (

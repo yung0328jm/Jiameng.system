@@ -331,6 +331,65 @@ export const getFoodOrderDailyStats = (date, siteName) => {
   }
 }
 
+/** 訂餐數量明細：依品項彙總、依承攬商彙總 */
+export const getFoodOrderQuantityBreakdown = (orders) => {
+  const list = Array.isArray(orders) ? orders : []
+  const byItem = new Map()
+  const byCompany = new Map()
+  let totalQuantity = 0
+  let totalAmount = 0
+
+  const bumpItem = (map, key, label, order) => {
+    const qty = Math.max(0, Number(order?.quantity) || 0)
+    const amt = Math.max(0, Number(order?.totalAmount) || 0)
+    const prev = map.get(key)
+    if (prev) {
+      prev.quantity += qty
+      prev.amount += amt
+    } else {
+      map.set(key, { ...label, quantity: qty, amount: amt })
+    }
+  }
+
+  list.forEach((order) => {
+    const qty = Math.max(0, Number(order?.quantity) || 0)
+    const amt = Math.max(0, Number(order?.totalAmount) || 0)
+    totalQuantity += qty
+    totalAmount += amt
+
+    const merchantName = String(order?.merchantName || '').trim()
+    const menuItemName = String(order?.menuItemName || '').trim()
+    const itemKey = `${String(order?.merchantId || '').trim()}|${String(order?.menuItemId || '').trim()}`
+    const itemLabel = { merchantName, menuItemName, label: `${merchantName} - ${menuItemName}` }
+    bumpItem(byItem, itemKey, itemLabel, order)
+
+    const companyId = String(order?.companyId || '').trim() || String(order?.companyName || '').trim()
+    const companyName = String(order?.companyName || '').trim() || '—'
+    if (!byCompany.has(companyId)) {
+      byCompany.set(companyId, { companyId, companyName, items: new Map(), quantity: 0, amount: 0 })
+    }
+    const company = byCompany.get(companyId)
+    company.quantity += qty
+    company.amount += amt
+    bumpItem(company.items, itemKey, itemLabel, order)
+  })
+
+  const sortByLabel = (a, b) => String(a?.label || '').localeCompare(String(b?.label || ''), 'zh-Hant')
+  const sortByCompany = (a, b) => String(a?.companyName || '').localeCompare(String(b?.companyName || ''), 'zh-Hant')
+
+  return {
+    totalQuantity,
+    totalAmount,
+    byItem: [...byItem.values()].sort(sortByLabel),
+    byCompany: [...byCompany.values()]
+      .sort(sortByCompany)
+      .map((company) => ({
+        ...company,
+        items: [...company.items.values()].sort(sortByLabel)
+      }))
+  }
+}
+
 const persist = (list) => {
   persistMerchants(list)
 }
