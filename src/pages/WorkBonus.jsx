@@ -104,7 +104,7 @@ function BonusRuleCard({ item, combineMode }) {
         </div>
         {superseded ? (
           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700/60 text-gray-400 border border-gray-600/50">
-            已被較高階取代
+            同類型較高階取代
           </span>
         ) : achieved ? (
           <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-600/30 text-emerald-300 border border-emerald-500/40">
@@ -437,12 +437,12 @@ export default function WorkBonus() {
                 }`}
               >
                 取代
-                <span className="block text-[10px] mt-0.5 opacity-80">只取最高出工天數門檻</span>
+                <span className="block text-[10px] mt-0.5 opacity-80">同類型只取最高階</span>
               </button>
             </div>
             <p className="text-[11px] text-gray-500 mt-2">
               目前模式：<span className="text-gray-300">{getWorkBonusCombineModeLabel(config.combineMode)}</span>
-              {config.combineMode === 'replace' && '（例：28 天時只拿 28 天那階，不含 26、27 天）'}
+              {config.combineMode === 'replace' && '（例：固定獎 28 天只拿最高階；加班加成另計，兩類型可同時累加）'}
             </p>
           </div>
 

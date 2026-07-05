@@ -59,7 +59,9 @@ export function setWorkBonusCombineMode(mode) {
 }
 
 export function getWorkBonusCombineModeLabel(mode) {
-  return normalizeCombineMode(mode) === 'replace' ? '取代（只取最高階）' : '累加（達成全部相加）'
+  return normalizeCombineMode(mode) === 'replace'
+    ? '取代（同類型只取最高階，不同類型累加）'
+    : '累加（同類型達成全部相加）'
 }
 
 /* ===== 獎金條件 ===== */
@@ -147,13 +149,22 @@ export function deleteWorkBonusRule(id) {
 function resolveCountingRuleIds(items, combineMode) {
   const achieved = items.filter((it) => it.achieved && (it.bonusAmount || 0) > 0)
   if (achieved.length === 0) return new Set()
-  if (normalizeCombineMode(combineMode) === 'replace') {
-    const maxDays = Math.max(...achieved.map((it) => it.targetDays))
-    return new Set(
-      achieved.filter((it) => it.targetDays === maxDays).map((it) => it.rule.id)
-    )
+
+  if (normalizeCombineMode(combineMode) === 'cumulative') {
+    return new Set(achieved.map((it) => it.rule.id))
   }
-  return new Set(achieved.map((it) => it.rule.id))
+
+  // 取代：僅在同類型（固定金額 / 加班加成）內取最高出工天數門檻；不同類型各自計算後累加
+  const countingIds = new Set()
+  const types = [...new Set(achieved.map((it) => it.rule.type))]
+  types.forEach((type) => {
+    const ofType = achieved.filter((it) => it.rule.type === type)
+    const maxDays = Math.max(...ofType.map((it) => it.targetDays))
+    ofType
+      .filter((it) => it.targetDays === maxDays)
+      .forEach((it) => countingIds.add(it.rule.id))
+  })
+  return countingIds
 }
 
 function calcTotalFromProgressItems(items, combineMode) {
