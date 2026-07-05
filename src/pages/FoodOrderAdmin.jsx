@@ -379,7 +379,7 @@ function FoodOrderAdmin() {
                     <tr key={order.id} className="hover:bg-gray-900/40">
                       <td className="px-3 py-2.5 text-gray-300">{order.siteName}</td>
                       <td className="px-3 py-2.5 text-gray-300">{order.companyName}</td>
-                      <td className="px-3 py-2.5 text-white">{order.personName}</td>
+                      <td className="px-3 py-2.5 text-white">{order.personName || '—'}</td>
                       <td className="px-3 py-2.5 text-gray-300">{order.merchantName}</td>
                       <td className="px-3 py-2.5 text-white">{order.menuItemName}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{order.quantity}</td>

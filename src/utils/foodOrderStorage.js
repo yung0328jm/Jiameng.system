@@ -76,6 +76,16 @@ const persistOrders = (list) => {
 const orderKey = (date, siteName, companyId, personId) =>
   `${String(date || '').slice(0, 10)}|${String(siteName || '').trim()}|${String(companyId || '').trim()}|${String(personId || '').trim()}`
 
+const companyMealOrderKey = (date, siteName, companyId, merchantId, menuItemId) =>
+  `${String(date || '').slice(0, 10)}|${String(siteName || '').trim()}|${String(companyId || '').trim()}|${String(merchantId || '').trim()}|${String(menuItemId || '').trim()}`
+
+const isCompanyMealOrder = (record) => record?.orderMode === 'company'
+
+const sameOrderScope = (record, date, siteName, companyId) =>
+  String(record?.date || '').slice(0, 10) === String(date || '').slice(0, 10) &&
+  String(record?.siteName || '').trim() === String(siteName || '').trim() &&
+  String(record?.companyId || '').trim() === String(companyId || '').trim()
+
 export const getFoodOrders = () => readAllFoodOrders().filter((r) => !r?.deleted)
 
 export const getFoodOrdersForDate = (date, { siteName, companyId } = {}) => {
@@ -91,6 +101,116 @@ export const getFoodOrdersForDate = (date, { siteName, companyId } = {}) => {
 export const findFoodOrder = ({ date, siteName, companyId, personId }) => {
   const key = orderKey(date, siteName, companyId, personId)
   return getFoodOrders().find((r) => orderKey(r.date, r.siteName, r.companyId, r.personId) === key) || null
+}
+
+/** 承攬商當日訂餐（依品項，不綁人名） */
+export const getCompanyMealOrdersForDate = (date, { siteName, companyId } = {}) =>
+  getFoodOrdersForDate(date, { siteName, companyId }).filter(isCompanyMealOrder)
+
+export const saveCompanyMealOrders = ({ date, siteName, companyId, companyName, lines }) => {
+  try {
+    const d = String(date || '').slice(0, 10)
+    const site = String(siteName || '').trim()
+    const cid = String(companyId || '').trim()
+    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
+    const merged = new Map()
+    ;(Array.isArray(lines) ? lines : []).forEach((line) => {
+      const merchantId = String(line?.merchantId || '').trim()
+      const menuItemId = String(line?.menuItemId || '').trim()
+      if (!merchantId || !menuItemId) return
+      const qty = Math.max(1, Math.floor(Number(line?.quantity) || 1))
+      const price = Math.max(0, Number(line?.unitPrice) || 0)
+      const key = `${merchantId}|${menuItemId}`
+      const prev = merged.get(key)
+      if (prev) {
+        prev.quantity += qty
+        prev.totalAmount = prev.unitPrice * prev.quantity
+      } else {
+        merged.set(key, {
+          merchantId,
+          merchantName: String(line?.merchantName || '').trim(),
+          menuItemId,
+          menuItemName: String(line?.menuItemName || '').trim(),
+          unitPrice: price,
+          quantity: qty,
+          totalAmount: price * qty
+        })
+      }
+    })
+    const list = readAllFoodOrders()
+    const now = new Date().toISOString()
+    const chargedMap = new Map()
+    list.forEach((r) => {
+      if (!r?.deleted && isCompanyMealOrder(r) && sameOrderScope(r, d, site, cid)) {
+        chargedMap.set(`${r.merchantId}|${r.menuItemId}`, !!r.isCharged)
+      }
+    })
+    for (let i = 0; i < list.length; i += 1) {
+      const r = list[i]
+      if (!r?.deleted && isCompanyMealOrder(r) && sameOrderScope(r, d, site, cid)) {
+        list[i] = { ...r, deleted: true, updatedAt: now }
+      }
+    }
+    merged.forEach((line) => {
+      const lineKey = companyMealOrderKey(d, site, cid, line.merchantId, line.menuItemId)
+      const idx = list.findIndex(
+        (r) => companyMealOrderKey(r.date, r.siteName, r.companyId, r.merchantId, r.menuItemId) === lineKey
+      )
+      const isCharged = chargedMap.get(`${line.merchantId}|${line.menuItemId}`) || false
+      const rec = {
+        id: idx >= 0 ? list[idx].id : `foc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        date: d,
+        siteName: site,
+        companyId: cid,
+        companyName: String(companyName || '').trim(),
+        personId: '',
+        personName: '',
+        orderMode: 'company',
+        merchantId: line.merchantId,
+        merchantName: line.merchantName,
+        menuItemId: line.menuItemId,
+        menuItemName: line.menuItemName,
+        unitPrice: line.unitPrice,
+        quantity: line.quantity,
+        totalAmount: line.totalAmount,
+        isCharged,
+        deleted: false,
+        createdAt: idx >= 0 ? (list[idx].createdAt || now) : now,
+        updatedAt: now
+      }
+      if (idx >= 0) list[idx] = rec
+      else list.push(rec)
+    })
+    persistOrders(list)
+    return { success: true, records: [...merged.values()] }
+  } catch (e) {
+    console.error('saveCompanyMealOrders:', e)
+    return { success: false, message: '訂餐失敗' }
+  }
+}
+
+export const clearCompanyMealOrders = ({ date, siteName, companyId }) => {
+  try {
+    const d = String(date || '').slice(0, 10)
+    const site = String(siteName || '').trim()
+    const cid = String(companyId || '').trim()
+    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
+    const list = readAllFoodOrders()
+    const now = new Date().toISOString()
+    let changed = false
+    for (let i = 0; i < list.length; i += 1) {
+      const r = list[i]
+      if (!r?.deleted && isCompanyMealOrder(r) && sameOrderScope(r, d, site, cid)) {
+        list[i] = { ...r, deleted: true, updatedAt: now }
+        changed = true
+      }
+    }
+    if (changed) persistOrders(list)
+    return { success: true }
+  } catch (e) {
+    console.error('clearCompanyMealOrders:', e)
+    return { success: false, message: '取消訂餐失敗' }
+  }
 }
 
 /** 承攬商當日訂餐（每人一案場一筆，可更新） */
@@ -129,6 +249,7 @@ export const upsertFoodOrder = ({
       companyName: String(companyName || '').trim(),
       personId: pid,
       personName: String(personName || '').trim(),
+      orderMode: 'person',
       merchantId: String(merchantId || '').trim(),
       merchantName: String(merchantName || '').trim(),
       menuItemId: String(menuItemId || '').trim(),
@@ -188,7 +309,9 @@ export const getFoodOrderDailyStats = (date, siteName) => {
     .sort((a, b) => {
       const c = String(a?.companyName || '').localeCompare(String(b?.companyName || ''), 'zh-Hant')
       if (c !== 0) return c
-      return String(a?.personName || '').localeCompare(String(b?.personName || ''), 'zh-Hant')
+      const m = String(a?.merchantName || '').localeCompare(String(b?.merchantName || ''), 'zh-Hant')
+      if (m !== 0) return m
+      return String(a?.menuItemName || '').localeCompare(String(b?.menuItemName || ''), 'zh-Hant')
     })
   let totalAmount = 0
   let totalQuantity = 0
