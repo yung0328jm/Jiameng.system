@@ -68,6 +68,8 @@ import { maybeShowMessageNotification } from '../utils/browserNotification'
 import { getCompanyActivities, getPendingActivitiesCount } from '../utils/companyActivityStorage'
 import { getDailyTodoUnreadCount } from '../utils/todoStorage'
 
+const MORE_FEATURES_TABS = ['memo', 'daily-todo', 'activities', 'monthly-report']
+
 function Dashboard({ onLogout, activeTab: initialTab }) {
   const { refreshFromCloud } = useSync()
   const { enabled: recordingMode, setEnabled: setRecordingMode } = useRecordingMode()
@@ -121,6 +123,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
   const personalServiceButtonRef = useRef(null)
   const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
+  const [showMoreFeaturesMenu, setShowMoreFeaturesMenu] = useState(false)
+  const moreFeaturesButtonRef = useRef(null)
+  const [moreFeaturesMenuPosition, setMoreFeaturesMenuPosition] = useState({ top: 0, left: 0 })
   const [navBadges, setNavBadges] = useState({
     memo: 0,
     messages: 0,
@@ -1300,27 +1305,65 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               onClick={() => handleTabClick('vehicle', '/vehicle-info')}
             />
           )}
-          <NavItem
-            icon={<DocumentIcon />}
-            label="交流區"
-            isActive={activeTab === 'memo'}
-            onClick={() => handleTabClick('memo', '/memo')}
-            badge={activeTab === 'memo' ? null : (navBadges.memo > 0 ? navBadges.memo : null)}
-          />
-          <NavItem
-            icon={<DocumentIcon />}
-            label="工程聯絡單"
-            isActive={activeTab === 'daily-todo'}
-            onClick={() => handleTabClick('daily-todo', '/daily-todo')}
-            badge={activeTab === 'daily-todo' ? null : (navBadges.dailyTodo > 0 ? navBadges.dailyTodo : null)}
-          />
-          <NavItem
-            icon={<PeopleIcon />}
-            label="活動區"
-            isActive={activeTab === 'activities'}
-            onClick={() => handleTabClick('activities', '/company-activities')}
-            badge={activeTab === 'activities' ? null : (navBadges.activities > 0 ? navBadges.activities : null)}
-          />
+          <div className="relative shrink-0">
+            <button
+              ref={moreFeaturesButtonRef}
+              type="button"
+              onClick={() => {
+                const open = !showMoreFeaturesMenu
+                if (open && moreFeaturesButtonRef.current) {
+                  const rect = moreFeaturesButtonRef.current.getBoundingClientRect()
+                  setMoreFeaturesMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                }
+                setShowMoreFeaturesMenu(open)
+                if (open) setShowPersonalServiceMenu(false)
+              }}
+              className={`
+                flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
+                ${MORE_FEATURES_TABS.includes(activeTab)
+                  ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/40 shadow-inner'
+                  : 'text-cn-parchment border-transparent hover:bg-black/25 hover:border-cn-gold/25 active:bg-black/35'
+                }
+              `}
+            >
+              <DocumentIcon />
+              <span>更多功能</span>
+              {(navBadges.memo + navBadges.dailyTodo + navBadges.activities) > 0 && (
+                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${MORE_FEATURES_TABS.includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
+                  {navBadges.memo + navBadges.dailyTodo + navBadges.activities > 99 ? '99+' : navBadges.memo + navBadges.dailyTodo + navBadges.activities}
+                </span>
+              )}
+              <svg className="w-4 h-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showMoreFeaturesMenu && typeof document !== 'undefined' && createPortal(
+              <>
+                <div className="fixed inset-0 z-[9998]" onClick={() => setShowMoreFeaturesMenu(false)} aria-hidden style={{ touchAction: 'none' }} />
+                <div
+                  className="fixed z-[9999] py-1 min-w-[180px] bg-cn-panel border border-cn-gold/40 rounded-md shadow-2xl"
+                  style={{ top: moreFeaturesMenuPosition.top, left: moreFeaturesMenuPosition.left, touchAction: 'manipulation' }}
+                >
+                  <button type="button" onClick={() => { handleTabClick('memo', '/memo'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation">
+                    <DocumentIcon /> 交流區
+                    {navBadges.memo > 0 && activeTab !== 'memo' && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.memo}</span>}
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('daily-todo', '/daily-todo'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <DocumentIcon /> 工程聯絡單
+                    {navBadges.dailyTodo > 0 && activeTab !== 'daily-todo' && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.dailyTodo}</span>}
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('activities', '/company-activities'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <PeopleIcon /> 活動區
+                    {navBadges.activities > 0 && activeTab !== 'activities' && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.activities}</span>}
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('monthly-report', '/monthly-location-report'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                    <CalendarIcon /> 整月報表
+                  </button>
+                </div>
+              </>,
+              document.body
+            )}
+          </div>
           {!isNavHidden('developing') && (
             <NavItem
               icon={<GameIcon />}
@@ -1329,12 +1372,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               onClick={() => handleTabClick('developing', '/developing')}
             />
           )}
-          <NavItem
-            icon={<CalendarIcon />}
-            label="整月報表"
-            isActive={activeTab === 'monthly-report'}
-            onClick={() => handleTabClick('monthly-report', '/monthly-location-report')}
-          />
           {userRole === 'admin' && (
             <NavItem
               icon={<DocumentIcon />}
@@ -1362,6 +1399,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   setPersonalServiceMenuPosition({ top: rect.bottom + 4, left: rect.left })
                 }
                 setShowPersonalServiceMenu(open)
+                if (open) setShowMoreFeaturesMenu(false)
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
@@ -1373,9 +1411,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             >
               <PersonalServiceIcon />
               <span>個人服務</span>
-              {(navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo) > 0 && (
+              {(navBadges.messages + navBadges.leave + navBadges.advance) > 0 && (
                 <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'change-password', ...(!isNavHidden('performance') ? ['performance'] : [])].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
-                  {navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance + navBadges.dailyTodo}
+                  {navBadges.messages + navBadges.leave + navBadges.advance > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance}
                 </span>
               )}
               <svg className="w-4 h-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
