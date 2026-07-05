@@ -27,8 +27,11 @@ import { maskForRecording as m } from '../utils/recordingModeMask'
 import {
   getEnabledFoodMerchants,
   getCompanyMealOrdersForDate,
+  getNamedMealOrdersForDate,
   saveCompanyMealOrders,
+  saveNamedMealOrders,
   clearCompanyMealOrders,
+  clearNamedMealOrders,
   FOOD_ORDER_MERCHANTS_KEY,
   FOOD_ORDER_RECORDS_KEY
 } from '../utils/foodOrderStorage'
@@ -58,6 +61,7 @@ function ContractorWorkCheckIn() {
   const [revision, setRevision] = useState(0)
   const [timeModal, setTimeModal] = useState(null) // { person, mode: 'in'|'out' }
   const [mealRows, setMealRows] = useState(() => [newMealRow('row-1')])
+  const [namedMealRows, setNamedMealRows] = useState([])
 
   const refresh = async () => {
     setLoading(true)
@@ -140,6 +144,14 @@ function ContractorWorkCheckIn() {
     return getCompanyMealOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
   }, [revision, date, authenticatedCompanyId, siteName])
 
+  const todayNamedMealOrders = useMemo(() => {
+    void revision
+    if (!authenticatedCompanyId || !siteName) return []
+    return getNamedMealOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
+  }, [revision, date, authenticatedCompanyId, siteName])
+
+  const isHeadcountMealMode = companyAttendanceMode === 'headcount'
+
   const activePersonnel = useMemo(() => {
     if (!authenticatedCompany) return []
     return (authenticatedCompany.personnel || [])
@@ -168,6 +180,7 @@ function ContractorWorkCheckIn() {
       setMealRows([newMealRow('row-1')])
       return
     }
+    if (!isHeadcountMealMode) return
     const orders = getCompanyMealOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
     if (orders.length === 0) {
       setMealRows([newMealRow(`row-${Date.now()}`)])
@@ -180,7 +193,27 @@ function ContractorWorkCheckIn() {
         quantity: String(order.quantity || 1)
       }))
     )
-  }, [siteName, authenticatedCompanyId, date, revision])
+  }, [siteName, authenticatedCompanyId, date, revision, isHeadcountMealMode])
+
+  useEffect(() => {
+    if (!siteName || !authenticatedCompanyId) {
+      setNamedMealRows([])
+      return
+    }
+    if (isHeadcountMealMode) return
+    const orders = getNamedMealOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
+    const orderByPerson = new Map(orders.map((o) => [String(o.personId || '').trim(), o]))
+    setNamedMealRows(
+      activePersonnel.map((person) => {
+        const order = orderByPerson.get(String(person.id || '').trim())
+        return {
+          personId: person.id,
+          personName: person.name,
+          mealKey: order ? `${order.merchantId}|${order.menuItemId}` : ''
+        }
+      })
+    )
+  }, [siteName, authenticatedCompanyId, date, revision, isHeadcountMealMode, activePersonnel])
 
   const todayLogs = useMemo(() => {
     void revision
@@ -394,27 +427,68 @@ function ContractorWorkCheckIn() {
     })
   }
 
+  const updateNamedMealRow = (personId, mealKey) => {
+    setNamedMealRows((rows) => rows.map((row) => (row.personId === personId ? { ...row, mealKey } : row)))
+  }
+
   const saveMealOrders = () => {
     if (!authenticatedCompany || !siteName) return
-    const lines = mealRows
+    if (isHeadcountMealMode) {
+      const lines = mealRows
+        .map((row) => {
+          const sel = getMealSelection(row.mealKey)
+          if (!sel) return null
+          return {
+            merchantId: sel.merchantId,
+            merchantName: sel.merchantName,
+            menuItemId: sel.menuItemId,
+            menuItemName: sel.menuItemName,
+            unitPrice: sel.unitPrice,
+            quantity: Math.max(1, Math.floor(Number(row.quantity) || 1))
+          }
+        })
+        .filter(Boolean)
+      if (lines.length === 0) {
+        setMessage({ type: 'error', text: '請至少選擇一項餐點' })
+        return
+      }
+      const res = saveCompanyMealOrders({
+        date,
+        siteName,
+        companyId: authenticatedCompany.id,
+        companyName: authenticatedCompany.name,
+        lines
+      })
+      if (!res.success) {
+        setMessage({ type: 'error', text: res.message || '訂餐失敗' })
+        return
+      }
+      setRevision((r) => r + 1)
+      const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
+      setMessage({ type: 'success', text: `已儲存訂餐 ${lines.length} 項，合計 $${total}` })
+      return
+    }
+    const lines = namedMealRows
       .map((row) => {
         const sel = getMealSelection(row.mealKey)
         if (!sel) return null
         return {
+          personId: row.personId,
+          personName: row.personName,
           merchantId: sel.merchantId,
           merchantName: sel.merchantName,
           menuItemId: sel.menuItemId,
           menuItemName: sel.menuItemName,
           unitPrice: sel.unitPrice,
-          quantity: Math.max(1, Math.floor(Number(row.quantity) || 1))
+          quantity: 1
         }
       })
       .filter(Boolean)
     if (lines.length === 0) {
-      setMessage({ type: 'error', text: '請至少選擇一項餐點' })
+      setMessage({ type: 'error', text: '請至少為一位人員選擇餐點' })
       return
     }
-    const res = saveCompanyMealOrders({
+    const res = saveNamedMealOrders({
       date,
       siteName,
       companyId: authenticatedCompany.id,
@@ -427,31 +501,47 @@ function ContractorWorkCheckIn() {
     }
     setRevision((r) => r + 1)
     const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
-    setMessage({ type: 'success', text: `已儲存訂餐 ${lines.length} 項，合計 $${total}` })
+    setMessage({ type: 'success', text: `已儲存 ${lines.length} 人訂餐，合計 $${total}` })
   }
 
   const cancelMealOrders = () => {
     if (!authenticatedCompany || !siteName) return
-    if (todayCompanyMealOrders.length === 0 && mealRows.every((row) => !row.mealKey)) return
+    const hasHeadcountOrders = todayCompanyMealOrders.length > 0 || mealRows.some((row) => row.mealKey)
+    const hasNamedOrders = todayNamedMealOrders.length > 0 || namedMealRows.some((row) => row.mealKey)
+    if (isHeadcountMealMode ? !hasHeadcountOrders : !hasNamedOrders) return
     if (!window.confirm('確定取消今日所有訂餐？')) return
-    const res = clearCompanyMealOrders({ date, siteName, companyId: authenticatedCompany.id })
+    const res = isHeadcountMealMode
+      ? clearCompanyMealOrders({ date, siteName, companyId: authenticatedCompany.id })
+      : clearNamedMealOrders({ date, siteName, companyId: authenticatedCompany.id })
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '取消失敗' })
       return
     }
-    setMealRows([newMealRow(`row-${Date.now()}`)])
+    if (isHeadcountMealMode) setMealRows([newMealRow(`row-${Date.now()}`)])
+    else {
+      setNamedMealRows(
+        activePersonnel.map((person) => ({ personId: person.id, personName: person.name, mealKey: '' }))
+      )
+    }
     setRevision((r) => r + 1)
     setMessage({ type: 'success', text: '已取消今日訂餐。' })
   }
 
   const mealOrderTotal = useMemo(() => {
-    return mealRows.reduce((sum, row) => {
+    if (isHeadcountMealMode) {
+      return mealRows.reduce((sum, row) => {
+        const sel = mealOptions.find((o) => o.key === row.mealKey)
+        if (!sel) return sum
+        const qty = Math.max(1, Math.floor(Number(row.quantity) || 1))
+        return sum + sel.unitPrice * qty
+      }, 0)
+    }
+    return namedMealRows.reduce((sum, row) => {
       const sel = mealOptions.find((o) => o.key === row.mealKey)
       if (!sel) return sum
-      const qty = Math.max(1, Math.floor(Number(row.quantity) || 1))
-      return sum + sel.unitPrice * qty
+      return sum + sel.unitPrice
     }, 0)
-  }, [mealRows, mealOptions])
+  }, [mealRows, namedMealRows, mealOptions, isHeadcountMealMode])
 
   if (!authenticatedCompanyId || !authenticatedCompany) {
     return (
@@ -737,8 +827,13 @@ function ContractorWorkCheckIn() {
           {activeView === 'meal' && siteName && (
             <div className="pt-2 border-t border-gray-700/60">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                <p className="text-orange-300 text-sm font-medium">今日訂餐 · {m(siteName)}</p>
-                {mealOptions.length > 0 && (
+                <p className="text-orange-300 text-sm font-medium">
+                  今日訂餐 · {m(siteName)}
+                  <span className="text-gray-400 font-normal ml-1.5">
+                    （{isHeadcountMealMode ? '人數制' : '實名制'}）
+                  </span>
+                </p>
+                {mealOptions.length > 0 && (isHeadcountMealMode || activePersonnel.length > 0) && (
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -747,7 +842,11 @@ function ContractorWorkCheckIn() {
                     >
                       儲存訂餐
                     </button>
-                    {(todayCompanyMealOrders.length > 0 || mealRows.some((row) => row.mealKey)) && (
+                    {(
+                      isHeadcountMealMode
+                        ? todayCompanyMealOrders.length > 0 || mealRows.some((row) => row.mealKey)
+                        : todayNamedMealOrders.length > 0 || namedMealRows.some((row) => row.mealKey)
+                    ) && (
                       <button
                         type="button"
                         onClick={cancelMealOrders}
@@ -761,7 +860,9 @@ function ContractorWorkCheckIn() {
               </div>
               {mealOptions.length === 0 ? (
                 <p className="text-gray-500 text-sm">此案場尚無可訂餐的商家，請至點餐系統設定。</p>
-              ) : (
+              ) : !isHeadcountMealMode && activePersonnel.length === 0 ? (
+                <p className="text-gray-500 text-sm">尚無可訂餐人員，請聯絡管理員建立人員名單。</p>
+              ) : isHeadcountMealMode ? (
                 <div className="space-y-2">
                   {mealRows.map((row, index) => {
                     const sel = getMealSelection(row.mealKey)
@@ -822,6 +923,46 @@ function ContractorWorkCheckIn() {
                   >
                     ＋ 新增餐點
                   </button>
+                  <div className="flex justify-end pt-1">
+                    <p className="text-sm text-gray-300">
+                      合計 <span className="text-amber-300 font-semibold tabular-nums">${mealOrderTotal || 0}</span>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {todayNamedMealOrders.length > 0 && (
+                    <p className="text-green-400/90 text-xs">
+                      已登記：{todayNamedMealOrders.map((o) => `${m(o.personName)} ${o.menuItemName}`).join('、')}
+                    </p>
+                  )}
+                  {namedMealRows.map((row) => {
+                    const sel = getMealSelection(row.mealKey)
+                    return (
+                      <div key={row.personId} className="p-3 rounded-lg bg-black/25 border border-orange-800/40 space-y-2">
+                        <p className="text-white text-sm font-medium">{m(row.personName)}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+                          <div>
+                            <label className="block text-gray-400 text-xs mb-1">選擇餐點</label>
+                            <select
+                              value={row.mealKey}
+                              onChange={(e) => updateNamedMealRow(row.personId, e.target.value)}
+                              className="w-full bg-black/30 border border-gray-600 rounded-md px-2 py-2 text-white text-sm"
+                            >
+                              <option value="">— 不訂餐 —</option>
+                              {mealOptions.map((opt) => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="text-right sm:text-center">
+                            <p className="text-gray-400 text-xs mb-1">金額</p>
+                            <p className="text-amber-300 font-semibold tabular-nums">${sel ? sel.unitPrice : '—'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                   <div className="flex justify-end pt-1">
                     <p className="text-sm text-gray-300">
                       合計 <span className="text-amber-300 font-semibold tabular-nums">${mealOrderTotal || 0}</span>

@@ -68,6 +68,8 @@ const companyMealOrderKey = (date, siteName, companyId, merchantId, menuItemId) 
 
 const isCompanyMealOrder = (record) => record?.orderMode === 'company'
 
+const isPersonMealOrder = (record) => record?.orderMode === 'person'
+
 const sameOrderScope = (record, date, siteName, companyId) =>
   String(record?.date || '').slice(0, 10) === String(date || '').slice(0, 10) &&
   String(record?.siteName || '').trim() === String(siteName || '').trim() &&
@@ -93,6 +95,10 @@ export const findFoodOrder = ({ date, siteName, companyId, personId }) => {
 /** 承攬商當日訂餐（依品項，不綁人名） */
 export const getCompanyMealOrdersForDate = (date, { siteName, companyId } = {}) =>
   getFoodOrdersForDate(date, { siteName, companyId }).filter(isCompanyMealOrder)
+
+/** 承攬商當日訂餐（實名制，每人一筆） */
+export const getNamedMealOrdersForDate = (date, { siteName, companyId } = {}) =>
+  getFoodOrdersForDate(date, { siteName, companyId }).filter(isPersonMealOrder)
 
 export const saveCompanyMealOrders = ({ date, siteName, companyId, companyName, lines }) => {
   try {
@@ -196,6 +202,94 @@ export const clearCompanyMealOrders = ({ date, siteName, companyId }) => {
     return { success: true }
   } catch (e) {
     console.error('clearCompanyMealOrders:', e)
+    return { success: false, message: '取消訂餐失敗' }
+  }
+}
+
+export const saveNamedMealOrders = ({ date, siteName, companyId, companyName, lines }) => {
+  try {
+    const d = String(date || '').slice(0, 10)
+    const site = String(siteName || '').trim()
+    const cid = String(companyId || '').trim()
+    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
+    const list = readAllFoodOrders()
+    const now = new Date().toISOString()
+    const chargedMap = new Map()
+    list.forEach((r) => {
+      if (!r?.deleted && isPersonMealOrder(r) && sameOrderScope(r, d, site, cid)) {
+        chargedMap.set(String(r.personId || '').trim(), !!r.isCharged)
+      }
+    })
+    for (let i = 0; i < list.length; i += 1) {
+      const r = list[i]
+      if (!r?.deleted && isPersonMealOrder(r) && sameOrderScope(r, d, site, cid)) {
+        list[i] = { ...r, deleted: true, updatedAt: now }
+      }
+    }
+    const validLines = (Array.isArray(lines) ? lines : []).filter((line) => {
+      const pid = String(line?.personId || '').trim()
+      const merchantId = String(line?.merchantId || '').trim()
+      const menuItemId = String(line?.menuItemId || '').trim()
+      return pid && merchantId && menuItemId
+    })
+    validLines.forEach((line) => {
+      const pid = String(line.personId || '').trim()
+      const qty = Math.max(1, Math.floor(Number(line?.quantity) || 1))
+      const price = Math.max(0, Number(line?.unitPrice) || 0)
+      const key = orderKey(d, site, cid, pid)
+      const idx = list.findIndex((r) => orderKey(r.date, r.siteName, r.companyId, r.personId) === key)
+      const rec = {
+        id: idx >= 0 ? list[idx].id : `for-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        date: d,
+        siteName: site,
+        companyId: cid,
+        companyName: String(companyName || '').trim(),
+        personId: pid,
+        personName: String(line.personName || '').trim(),
+        orderMode: 'person',
+        merchantId: String(line.merchantId || '').trim(),
+        merchantName: String(line.merchantName || '').trim(),
+        menuItemId: String(line.menuItemId || '').trim(),
+        menuItemName: String(line.menuItemName || '').trim(),
+        unitPrice: price,
+        quantity: qty,
+        totalAmount: price * qty,
+        isCharged: chargedMap.get(pid) || false,
+        deleted: false,
+        createdAt: idx >= 0 ? (list[idx].createdAt || now) : now,
+        updatedAt: now
+      }
+      if (idx >= 0) list[idx] = rec
+      else list.push(rec)
+    })
+    persistOrders(list)
+    return { success: true, count: validLines.length }
+  } catch (e) {
+    console.error('saveNamedMealOrders:', e)
+    return { success: false, message: '訂餐失敗' }
+  }
+}
+
+export const clearNamedMealOrders = ({ date, siteName, companyId }) => {
+  try {
+    const d = String(date || '').slice(0, 10)
+    const site = String(siteName || '').trim()
+    const cid = String(companyId || '').trim()
+    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
+    const list = readAllFoodOrders()
+    const now = new Date().toISOString()
+    let changed = false
+    for (let i = 0; i < list.length; i += 1) {
+      const r = list[i]
+      if (!r?.deleted && isPersonMealOrder(r) && sameOrderScope(r, d, site, cid)) {
+        list[i] = { ...r, deleted: true, updatedAt: now }
+        changed = true
+      }
+    }
+    if (changed) persistOrders(list)
+    return { success: true }
+  } catch (e) {
+    console.error('clearNamedMealOrders:', e)
     return { success: false, message: '取消訂餐失敗' }
   }
 }

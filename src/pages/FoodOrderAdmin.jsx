@@ -1,14 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { getContractorRegistrations, CONTRACTOR_REGISTRATION_KEY } from '../utils/contractorRegistrationStorage'
+import { getContractorRegistrations, getContractorAttendanceMode, CONTRACTOR_REGISTRATION_KEY } from '../utils/contractorRegistrationStorage'
 import {
   getFoodMerchants,
   getFoodMerchantsForSite,
   getFoodSiteOptions,
   getEnabledFoodMerchants,
   getCompanyMealOrdersForDate,
+  getNamedMealOrdersForDate,
   saveCompanyMealOrders,
+  saveNamedMealOrders,
   clearCompanyMealOrders,
+  clearNamedMealOrders,
   addFoodMerchant,
   updateFoodMerchant,
   deleteFoodMerchant,
@@ -98,6 +101,7 @@ function FoodOrderAdmin() {
   const [registerSite, setRegisterSite] = useState('')
   const [registerCompanyId, setRegisterCompanyId] = useState('')
   const [registerMealRows, setRegisterMealRows] = useState(() => [newRegisterMealRow('row-1')])
+  const [registerNamedMealRows, setRegisterNamedMealRows] = useState([])
   const [contractors, setContractors] = useState(() => getContractorRegistrations())
 
   const loadSites = () => setSiteOptions(getFoodSiteOptions())
@@ -152,6 +156,20 @@ function FoodOrderAdmin() {
     [contractorOptions, registerCompanyId]
   )
 
+  const registerAttendanceMode = useMemo(
+    () => getContractorAttendanceMode(registerCompany),
+    [registerCompany]
+  )
+
+  const isRegisterHeadcountMode = registerAttendanceMode === 'headcount'
+
+  const registerActivePersonnel = useMemo(() => {
+    if (!registerCompany) return []
+    return (registerCompany.personnel || [])
+      .filter((p) => p?.active !== false && String(p?.name || '').trim())
+      .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant'))
+  }, [registerCompany])
+
   const registerMealOptions = useMemo(() => {
     void orderRevision
     if (!registerSite) return []
@@ -175,8 +193,10 @@ function FoodOrderAdmin() {
   const registerExistingOrders = useMemo(() => {
     void orderRevision
     if (!registerSite || !registerCompanyId) return []
-    return getCompanyMealOrdersForDate(registerDate, { siteName: registerSite, companyId: registerCompanyId })
-  }, [orderRevision, registerDate, registerSite, registerCompanyId])
+    return isRegisterHeadcountMode
+      ? getCompanyMealOrdersForDate(registerDate, { siteName: registerSite, companyId: registerCompanyId })
+      : getNamedMealOrdersForDate(registerDate, { siteName: registerSite, companyId: registerCompanyId })
+  }, [orderRevision, registerDate, registerSite, registerCompanyId, isRegisterHeadcountMode])
 
   useEffect(() => {
     if (registerSite && !siteOptions.includes(registerSite)) setRegisterSite('')
@@ -187,6 +207,7 @@ function FoodOrderAdmin() {
       setRegisterMealRows([newRegisterMealRow('row-1')])
       return
     }
+    if (!isRegisterHeadcountMode) return
     const orders = getCompanyMealOrdersForDate(registerDate, {
       siteName: registerSite,
       companyId: registerCompanyId
@@ -202,16 +223,46 @@ function FoodOrderAdmin() {
         quantity: String(order.quantity || 1)
       }))
     )
-  }, [registerDate, registerSite, registerCompanyId, orderRevision])
+  }, [registerDate, registerSite, registerCompanyId, orderRevision, isRegisterHeadcountMode])
+
+  useEffect(() => {
+    if (!registerSite || !registerCompanyId) {
+      setRegisterNamedMealRows([])
+      return
+    }
+    if (isRegisterHeadcountMode) return
+    const orders = getNamedMealOrdersForDate(registerDate, {
+      siteName: registerSite,
+      companyId: registerCompanyId
+    })
+    const orderByPerson = new Map(orders.map((o) => [String(o.personId || '').trim(), o]))
+    setRegisterNamedMealRows(
+      registerActivePersonnel.map((person) => {
+        const order = orderByPerson.get(String(person.id || '').trim())
+        return {
+          personId: person.id,
+          personName: person.name,
+          mealKey: order ? `${order.merchantId}|${order.menuItemId}` : ''
+        }
+      })
+    )
+  }, [registerDate, registerSite, registerCompanyId, orderRevision, isRegisterHeadcountMode, registerActivePersonnel])
 
   const registerMealTotal = useMemo(() => {
-    return registerMealRows.reduce((sum, row) => {
+    if (isRegisterHeadcountMode) {
+      return registerMealRows.reduce((sum, row) => {
+        const sel = registerMealOptions.find((o) => o.key === row.mealKey)
+        if (!sel) return sum
+        const qty = Math.max(1, Math.floor(Number(row.quantity) || 1))
+        return sum + sel.unitPrice * qty
+      }, 0)
+    }
+    return registerNamedMealRows.reduce((sum, row) => {
       const sel = registerMealOptions.find((o) => o.key === row.mealKey)
       if (!sel) return sum
-      const qty = Math.max(1, Math.floor(Number(row.quantity) || 1))
-      return sum + sel.unitPrice * qty
+      return sum + sel.unitPrice
     }, 0)
-  }, [registerMealRows, registerMealOptions])
+  }, [registerMealRows, registerNamedMealRows, registerMealOptions, isRegisterHeadcountMode])
 
   const getRegisterMealSelection = (mealKey) => registerMealOptions.find((o) => o.key === mealKey) || null
 
@@ -230,30 +281,71 @@ function FoodOrderAdmin() {
     })
   }
 
+  const updateRegisterNamedMealRow = (personId, mealKey) => {
+    setRegisterNamedMealRows((rows) => rows.map((row) => (row.personId === personId ? { ...row, mealKey } : row)))
+  }
+
   const saveRegisterOrders = () => {
     if (!registerCompany || !registerSite) {
       setMessage({ type: 'error', text: '請選擇案場與承攬商' })
       return
     }
-    const lines = registerMealRows
+    if (isRegisterHeadcountMode) {
+      const lines = registerMealRows
+        .map((row) => {
+          const sel = getRegisterMealSelection(row.mealKey)
+          if (!sel) return null
+          return {
+            merchantId: sel.merchantId,
+            merchantName: sel.merchantName,
+            menuItemId: sel.menuItemId,
+            menuItemName: sel.menuItemName,
+            unitPrice: sel.unitPrice,
+            quantity: Math.max(1, Math.floor(Number(row.quantity) || 1))
+          }
+        })
+        .filter(Boolean)
+      if (lines.length === 0) {
+        setMessage({ type: 'error', text: '請至少選擇一項餐點' })
+        return
+      }
+      const res = saveCompanyMealOrders({
+        date: registerDate,
+        siteName: registerSite,
+        companyId: registerCompany.id,
+        companyName: registerCompany.name,
+        lines
+      })
+      if (!res.success) {
+        setMessage({ type: 'error', text: res.message || '登記失敗' })
+        return
+      }
+      setOrderRevision((r) => r + 1)
+      const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
+      setMessage({ type: 'success', text: `已代「${registerCompany.name}」登記 ${lines.length} 項，合計 $${total}` })
+      return
+    }
+    const lines = registerNamedMealRows
       .map((row) => {
         const sel = getRegisterMealSelection(row.mealKey)
         if (!sel) return null
         return {
+          personId: row.personId,
+          personName: row.personName,
           merchantId: sel.merchantId,
           merchantName: sel.merchantName,
           menuItemId: sel.menuItemId,
           menuItemName: sel.menuItemName,
           unitPrice: sel.unitPrice,
-          quantity: Math.max(1, Math.floor(Number(row.quantity) || 1))
+          quantity: 1
         }
       })
       .filter(Boolean)
     if (lines.length === 0) {
-      setMessage({ type: 'error', text: '請至少選擇一項餐點' })
+      setMessage({ type: 'error', text: '請至少為一位人員選擇餐點' })
       return
     }
-    const res = saveCompanyMealOrders({
+    const res = saveNamedMealOrders({
       date: registerDate,
       siteName: registerSite,
       companyId: registerCompany.id,
@@ -266,23 +358,36 @@ function FoodOrderAdmin() {
     }
     setOrderRevision((r) => r + 1)
     const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
-    setMessage({ type: 'success', text: `已代「${registerCompany.name}」登記 ${lines.length} 項，合計 $${total}` })
+    setMessage({ type: 'success', text: `已代「${registerCompany.name}」登記 ${lines.length} 人，合計 $${total}` })
   }
 
   const cancelRegisterOrders = () => {
     if (!registerCompany || !registerSite) return
-    if (registerExistingOrders.length === 0 && registerMealRows.every((row) => !row.mealKey)) return
+    const hasHeadcountOrders = registerExistingOrders.length > 0 || registerMealRows.some((row) => row.mealKey)
+    const hasNamedOrders = registerExistingOrders.length > 0 || registerNamedMealRows.some((row) => row.mealKey)
+    if (isRegisterHeadcountMode ? !hasHeadcountOrders : !hasNamedOrders) return
     if (!window.confirm(`確定取消「${registerCompany.name}」${registerDate.replace(/-/g, '/')} 的訂餐？`)) return
-    const res = clearCompanyMealOrders({
-      date: registerDate,
-      siteName: registerSite,
-      companyId: registerCompany.id
-    })
+    const res = isRegisterHeadcountMode
+      ? clearCompanyMealOrders({
+          date: registerDate,
+          siteName: registerSite,
+          companyId: registerCompany.id
+        })
+      : clearNamedMealOrders({
+          date: registerDate,
+          siteName: registerSite,
+          companyId: registerCompany.id
+        })
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '取消失敗' })
       return
     }
-    setRegisterMealRows([newRegisterMealRow(`row-${Date.now()}`)])
+    if (isRegisterHeadcountMode) setRegisterMealRows([newRegisterMealRow(`row-${Date.now()}`)])
+    else {
+      setRegisterNamedMealRows(
+        registerActivePersonnel.map((person) => ({ personId: person.id, personName: person.name, mealKey: '' }))
+      )
+    }
     setOrderRevision((r) => r + 1)
     setMessage({ type: 'success', text: '已取消訂餐登記。' })
   }
@@ -549,11 +654,18 @@ function FoodOrderAdmin() {
             <p className="text-gray-500 text-sm py-8 text-center border border-dashed border-gray-600 rounded-xl">
               此案場尚無可訂餐的商家，請至「菜單設定」新增。
             </p>
+          ) : !isRegisterHeadcountMode && registerActivePersonnel.length === 0 ? (
+            <p className="text-gray-500 text-sm py-8 text-center border border-dashed border-gray-600 rounded-xl">
+              此承攬商尚無可訂餐人員，請至「承攬商資料登記」建立人員名單。
+            </p>
           ) : (
             <div className="rounded-xl border border-gray-600 bg-gray-800/60 p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-orange-300 text-sm font-medium">
                   {registerCompany?.name} · {registerSite} · {registerDate.replace(/-/g, '/')}
+                  <span className="text-gray-400 font-normal ml-1.5">
+                    （{isRegisterHeadcountMode ? '人數制' : '實名制'}）
+                  </span>
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -563,7 +675,11 @@ function FoodOrderAdmin() {
                   >
                     儲存登記
                   </button>
-                  {(registerExistingOrders.length > 0 || registerMealRows.some((row) => row.mealKey)) && (
+                  {(
+                    isRegisterHeadcountMode
+                      ? registerExistingOrders.length > 0 || registerMealRows.some((row) => row.mealKey)
+                      : registerExistingOrders.length > 0 || registerNamedMealRows.some((row) => row.mealKey)
+                  ) && (
                     <button
                       type="button"
                       onClick={cancelRegisterOrders}
@@ -577,10 +693,15 @@ function FoodOrderAdmin() {
 
               {registerExistingOrders.length > 0 && (
                 <p className="text-green-400/90 text-xs">
-                  已登記：{registerExistingOrders.map((o) => `${o.menuItemName}×${o.quantity}`).join('、')}
+                  已登記：{registerExistingOrders.map((o) => (
+                    isRegisterHeadcountMode
+                      ? `${o.menuItemName}×${o.quantity}`
+                      : `${o.personName} ${o.menuItemName}`
+                  )).join('、')}
                 </p>
               )}
 
+              {isRegisterHeadcountMode ? (
               <div className="space-y-2">
                 {registerMealRows.map((row, index) => {
                   const sel = getRegisterMealSelection(row.mealKey)
@@ -647,6 +768,42 @@ function FoodOrderAdmin() {
                   </p>
                 </div>
               </div>
+              ) : (
+              <div className="space-y-2">
+                {registerNamedMealRows.map((row) => {
+                  const sel = getRegisterMealSelection(row.mealKey)
+                  return (
+                    <div key={row.personId} className="p-3 rounded-lg bg-black/25 border border-orange-800/40 space-y-2">
+                      <p className="text-white text-sm font-medium">{row.personName}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+                        <div>
+                          <label className="block text-gray-400 text-xs mb-1">選擇餐點</label>
+                          <select
+                            value={row.mealKey}
+                            onChange={(e) => updateRegisterNamedMealRow(row.personId, e.target.value)}
+                            className="w-full bg-black/30 border border-gray-600 rounded-md px-2 py-2 text-white text-sm"
+                          >
+                            <option value="">— 不訂餐 —</option>
+                            {registerMealOptions.map((opt) => (
+                              <option key={opt.key} value={opt.key}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="text-right sm:text-center">
+                          <p className="text-gray-400 text-xs mb-1">金額</p>
+                          <p className="text-amber-300 font-semibold tabular-nums">${sel ? sel.unitPrice : '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div className="flex justify-end pt-1">
+                  <p className="text-sm text-gray-300">
+                    合計 <span className="text-amber-300 font-semibold tabular-nums">${registerMealTotal || 0}</span>
+                  </p>
+                </div>
+              </div>
+              )}
             </div>
           )}
         </div>
