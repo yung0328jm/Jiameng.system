@@ -147,17 +147,6 @@ function ContractorWorkCheckIn() {
       .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant'))
   }, [authenticatedCompany])
 
-  const hasCheckedInToday = useMemo(() => {
-    void revision
-    if (!siteName || !authenticatedCompanyId) return false
-    const headcountLog = findHeadcountWorkLog({ date, siteName, companyId: authenticatedCompanyId })
-    if (headcountLog?.arrivalTime) return true
-    return activePersonnel.some((person) => {
-      const log = findWorkLog({ date, siteName, companyId: authenticatedCompanyId, personId: person.id })
-      return !!log?.arrivalTime
-    })
-  }, [revision, activePersonnel, siteName, authenticatedCompanyId, date])
-
   const headcountLog = useMemo(() => {
     void revision
     if (!siteName || !authenticatedCompanyId) return null
@@ -745,7 +734,7 @@ function ContractorWorkCheckIn() {
             <p className="text-gray-500 text-sm">尚無可登記人員，請聯絡管理員建立人員名單。</p>
           )}
 
-          {activeView === 'meal' && siteName && hasCheckedInToday && (
+          {activeView === 'meal' && siteName && (
             <div className="pt-2 border-t border-gray-700/60">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <p className="text-orange-300 text-sm font-medium">今日訂餐 · {m(siteName)}</p>
@@ -843,16 +832,8 @@ function ContractorWorkCheckIn() {
             </div>
           )}
 
-          {activeView === 'meal' && siteName && !hasCheckedInToday && (
-            <p className="text-gray-500 text-sm">今日尚無進廠紀錄，請先至「登記出入廠」完成進廠登記。</p>
-          )}
-
           {activeView === 'meal' && !siteName && (
             <p className="text-gray-500 text-sm">請先選擇案場以進行訂餐。</p>
-          )}
-
-          {activeView === 'meal' && companyAttendanceMode === 'named' && activePersonnel.length === 0 && !loading && (
-            <p className="text-gray-500 text-sm">尚無可訂餐人員，請聯絡管理員建立人員名單。</p>
           )}
 
           {activeView === 'attendance' && todayLogs.length > 0 && (
