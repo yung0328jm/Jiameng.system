@@ -20,7 +20,15 @@ import {
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
-import { formatWorkReportHours } from '../utils/workReportStorage'
+import {
+  getEnabledFoodMerchants,
+  getFoodOrdersForDate,
+  findFoodOrder,
+  upsertFoodOrder,
+  clearFoodOrder,
+  FOOD_ORDER_MERCHANTS_KEY,
+  FOOD_ORDER_RECORDS_KEY
+} from '../utils/foodOrderStorage'
 
 const CHECKIN_SESSION_KEY = 'jiameng_contractor_checkin_auth'
 
@@ -41,6 +49,8 @@ function ContractorWorkCheckIn() {
   const [message, setMessage] = useState(null)
   const [revision, setRevision] = useState(0)
   const [timeModal, setTimeModal] = useState(null) // { person, mode: 'in'|'out' }
+  const [mealDrafts, setMealDrafts] = useState({}) // personId -> mealKey (merchantId|itemId)
+  const [mealQty, setMealQty] = useState({}) // personId -> quantity
 
   const refresh = async () => {
     setLoading(true)
@@ -54,7 +64,7 @@ function ContractorWorkCheckIn() {
     refresh()
     const onRt = (e) => {
       const k = e.detail?.key
-      if (k === CONTRACTOR_WORK_LOG_KEY || k === 'jiameng_contractor_registrations' || k === 'jiameng_dropdown_options') {
+      if (k === CONTRACTOR_WORK_LOG_KEY || k === 'jiameng_contractor_registrations' || k === 'jiameng_dropdown_options' || k === FOOD_ORDER_MERCHANTS_KEY || k === FOOD_ORDER_RECORDS_KEY) {
         setRevision((r) => r + 1)
       }
     }
@@ -88,12 +98,67 @@ function ContractorWorkCheckIn() {
     if (siteName && !siteOptions.includes(siteName)) setSiteName('')
   }, [siteOptions, siteName])
 
+  const mealMerchants = useMemo(() => {
+    void revision
+    if (!siteName) return []
+    return getEnabledFoodMerchants(siteName)
+  }, [revision, siteName])
+
+  const mealOptions = useMemo(() => {
+    const opts = []
+    mealMerchants.forEach((merchant) => {
+      ;(merchant.menuItems || []).forEach((item) => {
+        opts.push({
+          key: `${merchant.id}|${item.id}`,
+          merchantId: merchant.id,
+          merchantName: merchant.name,
+          menuItemId: item.id,
+          menuItemName: item.name,
+          unitPrice: item.price,
+          label: `${merchant.name} - ${item.name}（$${item.price}）`
+        })
+      })
+    })
+    return opts.sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'))
+  }, [mealMerchants])
+
+  const todayFoodOrders = useMemo(() => {
+    void revision
+    if (!authenticatedCompanyId || !siteName) return []
+    return getFoodOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
+  }, [revision, date, authenticatedCompanyId, siteName])
+
+  const todayFoodOrderMap = useMemo(() => {
+    const map = new Map()
+    todayFoodOrders.forEach((o) => map.set(o.personId, o))
+    return map
+  }, [todayFoodOrders])
+
   const activePersonnel = useMemo(() => {
     if (!authenticatedCompany) return []
     return (authenticatedCompany.personnel || [])
       .filter((p) => p?.active !== false && String(p?.name || '').trim())
       .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant'))
   }, [authenticatedCompany])
+
+  useEffect(() => {
+    if (!siteName || !authenticatedCompanyId) {
+      setMealDrafts({})
+      setMealQty({})
+      return
+    }
+    const drafts = {}
+    const qtys = {}
+    activePersonnel.forEach((person) => {
+      const order = findFoodOrder({ date, siteName, companyId: authenticatedCompanyId, personId: person.id })
+      if (order?.merchantId && order?.menuItemId) {
+        drafts[person.id] = `${order.merchantId}|${order.menuItemId}`
+        qtys[person.id] = String(order.quantity || 1)
+      }
+    })
+    setMealDrafts(drafts)
+    setMealQty(qtys)
+  }, [siteName, authenticatedCompanyId, date, activePersonnel, revision])
 
   const todayLogs = useMemo(() => {
     void revision
@@ -220,6 +285,93 @@ function ContractorWorkCheckIn() {
     setTimeModal((prev) => (prev ? { ...prev, overtimeHours: value } : prev))
   }
 
+  const getMealSelection = (personId) => mealOptions.find((o) => o.key === mealDrafts[personId]) || null
+
+  const saveMealOrder = (person) => {
+    if (!authenticatedCompany || !siteName) return
+    const sel = getMealSelection(person.id)
+    if (!sel) {
+      setMessage({ type: 'error', text: `請為「${person.name}」選擇餐點` })
+      return
+    }
+    const qty = Math.max(1, Math.floor(Number(mealQty[person.id]) || 1))
+    const res = upsertFoodOrder({
+      date,
+      siteName,
+      companyId: authenticatedCompany.id,
+      companyName: authenticatedCompany.name,
+      personId: person.id,
+      personName: person.name,
+      merchantId: sel.merchantId,
+      merchantName: sel.merchantName,
+      menuItemId: sel.menuItemId,
+      menuItemName: sel.menuItemName,
+      unitPrice: sel.unitPrice,
+      quantity: qty
+    })
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '訂餐失敗' })
+      return
+    }
+    setRevision((r) => r + 1)
+    setMessage({ type: 'success', text: `已儲存「${m(person.name)}」訂餐：${sel.menuItemName} × ${qty}（$${sel.unitPrice * qty}）` })
+  }
+
+  const cancelMealOrder = (person) => {
+    if (!authenticatedCompany || !siteName) return
+    if (!todayFoodOrderMap.has(person.id) && !mealDrafts[person.id]) return
+    if (!window.confirm(`確定取消「${person.name}」的訂餐？`)) return
+    const res = clearFoodOrder({ date, siteName, companyId: authenticatedCompany.id, personId: person.id })
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '取消失敗' })
+      return
+    }
+    setMealDrafts((prev) => {
+      const next = { ...prev }
+      delete next[person.id]
+      return next
+    })
+    setMealQty((prev) => {
+      const next = { ...prev }
+      delete next[person.id]
+      return next
+    })
+    setRevision((r) => r + 1)
+    setMessage({ type: 'success', text: `已取消「${m(person.name)}」訂餐。` })
+  }
+
+  const saveAllMealOrders = () => {
+    if (!authenticatedCompany || !siteName) return
+    const pending = activePersonnel.filter((p) => mealDrafts[p.id])
+    if (pending.length === 0) {
+      setMessage({ type: 'error', text: '請至少為一位人員選擇餐點' })
+      return
+    }
+    let ok = 0
+    pending.forEach((person) => {
+      const sel = getMealSelection(person.id)
+      if (!sel) return
+      const qty = Math.max(1, Math.floor(Number(mealQty[person.id]) || 1))
+      const res = upsertFoodOrder({
+        date,
+        siteName,
+        companyId: authenticatedCompany.id,
+        companyName: authenticatedCompany.name,
+        personId: person.id,
+        personName: person.name,
+        merchantId: sel.merchantId,
+        merchantName: sel.merchantName,
+        menuItemId: sel.menuItemId,
+        menuItemName: sel.menuItemName,
+        unitPrice: sel.unitPrice,
+        quantity: qty
+      })
+      if (res.success) ok += 1
+    })
+    setRevision((r) => r + 1)
+    setMessage({ type: 'success', text: `已儲存 ${ok} 筆訂餐。` })
+  }
+
   if (!authenticatedCompanyId || !authenticatedCompany) {
     return (
       <div
@@ -275,7 +427,7 @@ function ContractorWorkCheckIn() {
         <div className="flex items-center justify-between gap-2 mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-teal-300 font-serif">承攬商出工登記</h1>
-            <p className="text-cn-mist text-xs sm:text-sm mt-0.5">選擇案場與人員登記進離廠</p>
+            <p className="text-cn-mist text-xs sm:text-sm mt-0.5">選擇案場後可登記進離廠與訂餐</p>
           </div>
           <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif">
             回登入
@@ -399,6 +551,95 @@ function ContractorWorkCheckIn() {
 
           {activePersonnel.length === 0 && !loading && (
             <p className="text-gray-500 text-sm">尚無可登記人員，請聯絡管理員建立人員名單。</p>
+          )}
+
+          {siteName && activePersonnel.length > 0 && (
+            <div className="pt-2 border-t border-gray-700/60">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <p className="text-orange-300 text-sm font-medium">今日訂餐 · {m(siteName)}</p>
+                {mealOptions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={saveAllMealOrders}
+                    className="text-xs px-3 py-1.5 rounded-md bg-orange-700 hover:bg-orange-600 text-white"
+                  >
+                    儲存全部訂餐
+                  </button>
+                )}
+              </div>
+              {mealOptions.length === 0 ? (
+                <p className="text-gray-500 text-sm">此案場尚無可訂餐的商家，請至點餐系統設定。</p>
+              ) : (
+                <div className="space-y-2">
+                  {activePersonnel.map((person) => {
+                    const sel = getMealSelection(person.id)
+                    const qty = Math.max(1, Math.floor(Number(mealQty[person.id]) || 1))
+                    const amount = sel ? sel.unitPrice * qty : 0
+                    const saved = todayFoodOrderMap.get(person.id)
+                    return (
+                      <div key={`meal-${person.id}`} className="p-3 rounded-lg bg-black/25 border border-orange-800/40 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium text-white">{m(person.name)}</span>
+                          {saved && (
+                            <span className="text-xs text-green-400">已訂：{saved.menuItemName} ${saved.totalAmount}</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_5rem_auto] gap-2 items-end">
+                          <div>
+                            <label className="block text-gray-400 text-xs mb-1">選擇餐點</label>
+                            <select
+                              value={mealDrafts[person.id] || ''}
+                              onChange={(e) => setMealDrafts((prev) => ({ ...prev, [person.id]: e.target.value }))}
+                              className="w-full bg-black/30 border border-gray-600 rounded-md px-2 py-2 text-white text-sm"
+                            >
+                              <option value="">— 不訂餐 —</option>
+                              {mealOptions.map((opt) => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-gray-400 text-xs mb-1">數量</label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={mealQty[person.id] || '1'}
+                              onChange={(e) => setMealQty((prev) => ({ ...prev, [person.id]: e.target.value }))}
+                              disabled={!mealDrafts[person.id]}
+                              className="w-full bg-black/30 border border-gray-600 rounded-md px-2 py-2 text-white text-sm tabular-nums disabled:opacity-40"
+                            />
+                          </div>
+                          <div className="text-right sm:text-center">
+                            <p className="text-gray-400 text-xs mb-1">金額</p>
+                            <p className="text-amber-300 font-semibold tabular-nums">${amount || '—'}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="button"
+                            disabled={!mealDrafts[person.id]}
+                            onClick={() => saveMealOrder(person)}
+                            className="text-xs px-3 py-1.5 rounded bg-orange-700 hover:bg-orange-600 text-white disabled:opacity-40"
+                          >
+                            儲存
+                          </button>
+                          {(saved || mealDrafts[person.id]) && (
+                            <button
+                              type="button"
+                              onClick={() => cancelMealOrder(person)}
+                              className="text-xs px-3 py-1.5 rounded border border-gray-600 text-gray-300 hover:bg-black/30"
+                            >
+                              取消
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           {todayLogs.length > 0 && (

@@ -129,7 +129,13 @@ export async function pullPublicContractorData() {
   const sb = getSupabaseClient()
   if (!sb) return { ok: true, localOnly: true }
   try {
-    const keys = [CONTRACTOR_REGISTRATION_KEY, CONTRACTOR_WORK_LOG_KEY, 'jiameng_dropdown_options']
+    const keys = [
+      CONTRACTOR_REGISTRATION_KEY,
+      CONTRACTOR_WORK_LOG_KEY,
+      'jiameng_dropdown_options',
+      'jiameng_food_order_merchants',
+      'jiameng_food_order_records'
+    ]
     const { data, error } = await sb.from('app_data').select('key, data').in('key', keys)
     if (error) throw error
     ;(data || []).forEach((row) => {

@@ -24,6 +24,7 @@ import WorkReport from './WorkReport'
 import PaySlip from './PaySlip'
 import WorkBonus from './WorkBonus'
 import ContractorRegistration from './ContractorRegistration'
+import FoodOrderAdmin from './FoodOrderAdmin'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { isNavHidden } from '../config/hiddenNavTabs'
 import {
@@ -68,7 +69,7 @@ import { maybeShowMessageNotification } from '../utils/browserNotification'
 import { getCompanyActivities, getPendingActivitiesCount } from '../utils/companyActivityStorage'
 import { getDailyTodoUnreadCount } from '../utils/todoStorage'
 
-const MORE_FEATURES_TABS = ['memo', 'daily-todo', 'activities', 'monthly-report', 'leave-application', 'contractor-registration']
+const MORE_FEATURES_TABS = ['memo', 'daily-todo', 'activities', 'monthly-report', 'leave-application', 'contractor-registration', 'food-order-admin']
 const PERSONAL_SERVICE_TABS = [
   'exchange-shop',
   'exchange',
@@ -658,6 +659,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('dropdown-management')) return 'management'
     if (path.includes('user-management')) return 'user-management'
     if (path.includes('contractor-registration')) return 'contractor-registration'
+    if (path.includes('food-order-admin')) return 'food-order-admin'
     if (path.includes('personal-performance')) return 'performance'
     if (path.includes('monthly-location-report')) return 'monthly-report'
     if (path.includes('exchange-shop')) return 'exchange-shop'
@@ -721,6 +723,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'advance': '工程款借貸',
       'user-management': '用戶管理',
       'contractor-registration': '承攬商資料登記',
+      'food-order-admin': '點餐系統',
       'developing': '開發中',
       'work-report': '入廠申請',
       'pay-slip': '勞務報酬單',
@@ -771,6 +774,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       case 'contractor-registration':
         if (userRole != null && userRole !== 'admin') return <Navigate to="/home" replace />
         return <ContractorRegistration />
+      case 'food-order-admin':
+        return <FoodOrderAdmin />
       case 'performance':
         return <PersonalPerformance />
       case 'monthly-report':
@@ -1368,15 +1373,18 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   <button type="button" onClick={() => { handleTabClick('monthly-report', '/monthly-location-report'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <CalendarIcon /> 整月報表
                   </button>
-                  <button type="button" onClick={() => { handleTabClick('leave-application', '/leave-application'); setShowMoreFeaturesMenu(false) }} className={`w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation ${userRole !== 'admin' ? 'rounded-b-lg' : ''}`}>
+                  <button type="button" onClick={() => { handleTabClick('leave-application', '/leave-application'); setShowMoreFeaturesMenu(false) }} className={`w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation ${userRole !== 'admin' ? '' : ''}`}>
                     <LeaveIcon /> 入廠人員異動申請
                     {navBadges.leave > 0 && activeTab !== 'leave-application' && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.leave}</span>}
                   </button>
                   {userRole === 'admin' && (
-                    <button type="button" onClick={() => { handleTabClick('contractor-registration', '/contractor-registration'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                    <button type="button" onClick={() => { handleTabClick('contractor-registration', '/contractor-registration'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                       <DocumentIcon /> 承攬商資料登記
                     </button>
                   )}
+                  <button type="button" onClick={() => { handleTabClick('food-order-admin', '/food-order-admin'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                    <ShopIcon /> 點餐系統
+                  </button>
                 </div>
               </>,
               document.body

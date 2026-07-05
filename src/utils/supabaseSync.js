@@ -150,6 +150,10 @@ export const APP_DATA_KEYS = [
   'jiameng_no_leave_dates',
   // 承攬商資料登記（管理員）
   'jiameng_contractor_registrations',
+  // 點餐系統商家與菜單（管理員）
+  'jiameng_food_order_merchants',
+  // 點餐紀錄（承攬商當日訂餐）
+  'jiameng_food_order_records',
   // 承攬商出工登記紀錄（免登入頁面）
   'jiameng_contractor_work_logs',
   // 個人績效：指定「一人」可檢視全員（唯讀）
