@@ -6,6 +6,12 @@ import { addDropdownOption, getDropdownOptionsByCategory, updateDropdownOption }
 export const CONTRACTOR_REGISTRATION_KEY = 'jiameng_contractor_registrations'
 export const WORK_REPORT_CONTRACTOR_CATEGORY = 'work_report_contractors'
 
+export const normalizeContractorAttendanceMode = (mode) =>
+  String(mode || '').trim() === 'headcount' ? 'headcount' : 'named'
+
+export const getContractorAttendanceMode = (company) =>
+  normalizeContractorAttendanceMode(company?.attendanceMode)
+
 const notifyChanged = () => {
   try {
     if (typeof window !== 'undefined') {
@@ -28,6 +34,7 @@ export const getContractorRegistrations = () => {
     const list = Array.isArray(parsed) ? parsed : []
     return list.map((r) => ({
       ...r,
+      attendanceMode: normalizeContractorAttendanceMode(r?.attendanceMode),
       personnel: Array.isArray(r?.personnel) ? r.personnel : []
     }))
   } catch (_) {
@@ -140,6 +147,7 @@ export const addContractorRegistration = (data) => {
       id: `contractor-${Date.now()}`,
       name,
       checkInCode,
+      attendanceMode: normalizeContractorAttendanceMode(data?.attendanceMode),
       contactPerson: String(data?.contactPerson || '').trim(),
       phone: String(data?.phone || '').trim(),
       taxId: String(data?.taxId || '').trim(),
@@ -181,6 +189,10 @@ export const updateContractorRegistration = (id, updates = {}) => {
       ...prev,
       name,
       checkInCode,
+      attendanceMode:
+        updates.attendanceMode != null
+          ? normalizeContractorAttendanceMode(updates.attendanceMode)
+          : normalizeContractorAttendanceMode(prev.attendanceMode),
       contactPerson: updates.contactPerson != null ? String(updates.contactPerson || '').trim() : (prev.contactPerson || ''),
       phone: updates.phone != null ? String(updates.phone || '').trim() : (prev.phone || ''),
       taxId: updates.taxId != null ? String(updates.taxId || '').trim() : (prev.taxId || ''),

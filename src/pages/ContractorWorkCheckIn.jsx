@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   findContractorByCheckInCode,
-  getContractorById
+  getContractorById,
+  getContractorAttendanceMode
 } from '../utils/contractorRegistrationStorage'
 import { getContractorCheckInSiteNames } from '../utils/dropdownStorage'
 import {
@@ -53,7 +54,6 @@ function ContractorWorkCheckIn() {
   })
   const [message, setMessage] = useState(null)
   const [activeView, setActiveView] = useState('menu') // menu | attendance | meal
-  const [attendanceMode, setAttendanceMode] = useState('named') // named | headcount
   const [headcountInput, setHeadcountInput] = useState('1')
   const [revision, setRevision] = useState(0)
   const [timeModal, setTimeModal] = useState(null) // { person, mode: 'in'|'out' }
@@ -84,6 +84,11 @@ function ContractorWorkCheckIn() {
     if (!authenticatedCompanyId) return null
     return getContractorById(authenticatedCompanyId)
   }, [authenticatedCompanyId, revision])
+
+  const companyAttendanceMode = useMemo(
+    () => getContractorAttendanceMode(authenticatedCompany),
+    [authenticatedCompany]
+  )
 
   useEffect(() => {
     if (!authenticatedCompanyId) return
@@ -213,7 +218,8 @@ function ContractorWorkCheckIn() {
       return
     }
     const hasActive = (company.personnel || []).some((p) => p?.active !== false && String(p?.name || '').trim())
-    if (!hasActive) {
+    const isHeadcount = getContractorAttendanceMode(company) === 'headcount'
+    if (!isHeadcount && !hasActive) {
       setCodeError('此承攬商尚無可登記人員，請聯絡管理員')
       return
     }
@@ -230,7 +236,6 @@ function ContractorWorkCheckIn() {
     setAuthenticatedCompanyId('')
     setSiteName('')
     setActiveView('menu')
-    setAttendanceMode('named')
     setHeadcountInput('1')
     setCodeInput('')
     setCodeError('')
@@ -624,36 +629,7 @@ function ContractorWorkCheckIn() {
             </>
           )}
 
-          {activeView === 'attendance' && siteName && (
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => { setAttendanceMode('named'); setMessage(null) }}
-                className={`min-h-[72px] rounded-xl border p-3 flex flex-col items-center justify-center gap-1 transition-colors ${
-                  attendanceMode === 'named'
-                    ? 'border-teal-500 bg-teal-950/50 text-teal-200'
-                    : 'border-gray-600 bg-black/20 text-gray-400 hover:bg-black/30'
-                }`}
-              >
-                <span className="font-semibold text-sm">實名登記</span>
-                <span className="text-xs opacity-80">逐人進離廠</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAttendanceMode('headcount'); setMessage(null) }}
-                className={`min-h-[72px] rounded-xl border p-3 flex flex-col items-center justify-center gap-1 transition-colors ${
-                  attendanceMode === 'headcount'
-                    ? 'border-amber-500 bg-amber-950/40 text-amber-200'
-                    : 'border-gray-600 bg-black/20 text-gray-400 hover:bg-black/30'
-                }`}
-              >
-                <span className="font-semibold text-sm">人數登記</span>
-                <span className="text-xs opacity-80">填人數進離廠</span>
-              </button>
-            </div>
-          )}
-
-          {activeView === 'attendance' && attendanceMode === 'named' && activePersonnel.length > 0 && (
+          {activeView === 'attendance' && companyAttendanceMode === 'named' && activePersonnel.length > 0 && (
             <div>
               <p className="text-teal-300 text-sm font-medium mb-2">人員登記</p>
               <div className="space-y-2">
@@ -705,7 +681,7 @@ function ContractorWorkCheckIn() {
             </div>
           )}
 
-          {activeView === 'attendance' && attendanceMode === 'headcount' && siteName && (
+          {activeView === 'attendance' && companyAttendanceMode === 'headcount' && siteName && (
             <div>
               <p className="text-amber-300 text-sm font-medium mb-2">人數登記</p>
               <div className="p-3 rounded-lg bg-black/25 border border-amber-800/40 space-y-3">
@@ -761,11 +737,11 @@ function ContractorWorkCheckIn() {
             </div>
           )}
 
-          {activeView === 'attendance' && attendanceMode === 'headcount' && !siteName && (
+          {activeView === 'attendance' && companyAttendanceMode === 'headcount' && !siteName && (
             <p className="text-gray-500 text-sm">請先選擇案場以進行人數登記。</p>
           )}
 
-          {activeView === 'attendance' && attendanceMode === 'named' && activePersonnel.length === 0 && !loading && (
+          {activeView === 'attendance' && companyAttendanceMode === 'named' && activePersonnel.length === 0 && !loading && (
             <p className="text-gray-500 text-sm">尚無可登記人員，請聯絡管理員建立人員名單。</p>
           )}
 
@@ -867,15 +843,15 @@ function ContractorWorkCheckIn() {
             </div>
           )}
 
-          {activeView === 'meal' && siteName && !hasCheckedInToday && activePersonnel.length > 0 && (
-            <p className="text-gray-500 text-sm">今日尚無已進廠人員，請先至「登記出入廠」完成進廠登記。</p>
+          {activeView === 'meal' && siteName && !hasCheckedInToday && (
+            <p className="text-gray-500 text-sm">今日尚無進廠紀錄，請先至「登記出入廠」完成進廠登記。</p>
           )}
 
-          {activeView === 'meal' && !siteName && activePersonnel.length > 0 && (
+          {activeView === 'meal' && !siteName && (
             <p className="text-gray-500 text-sm">請先選擇案場以進行訂餐。</p>
           )}
 
-          {activeView === 'meal' && activePersonnel.length === 0 && !loading && (
+          {activeView === 'meal' && companyAttendanceMode === 'named' && activePersonnel.length === 0 && !loading && (
             <p className="text-gray-500 text-sm">尚無可訂餐人員，請聯絡管理員建立人員名單。</p>
           )}
 

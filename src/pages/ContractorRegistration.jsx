@@ -29,6 +29,7 @@ import { formatWorkReportHours, isWorkReportTimeFilled } from '../utils/workRepo
 const EMPTY_FORM = {
   name: '',
   checkInCode: '',
+  attendanceMode: 'named',
   contactPerson: '',
   phone: '',
   taxId: '',
@@ -107,6 +108,7 @@ function ContractorRegistration() {
     setForm({
       name: rec.name || '',
       checkInCode: rec.checkInCode || '',
+      attendanceMode: rec.attendanceMode === 'headcount' ? 'headcount' : 'named',
       contactPerson: rec.contactPerson || '',
       phone: rec.phone || '',
       taxId: rec.taxId || '',
@@ -383,6 +385,9 @@ function ContractorRegistration() {
                   {rec.checkInCode && (
                     <div className="text-violet-300/90 text-sm">出工登記代碼：{mCode(rec.checkInCode)}</div>
                   )}
+                  <div className="text-amber-200/90 text-sm">
+                    出工登記方式：{rec.attendanceMode === 'headcount' ? '人數登記' : '實名登記'}
+                  </div>
                   {rec.contactPerson && <div className="text-gray-300">聯絡人：{m(rec.contactPerson)}</div>}
                   {rec.phone && <div className="text-gray-300">電話：{mPhone(rec.phone)}</div>}
                   {rec.taxId && <div className="text-gray-300">統一編號：{mPhone(rec.taxId)}</div>}
@@ -480,6 +485,36 @@ function ContractorRegistration() {
                   required
                 />
                 <p className="text-gray-500 text-xs mt-1">請提供給承攬商，代碼對應此公司名稱（不可與其他承攬商重複）</p>
+              </div>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1.5">出工登記方式 <span className="text-red-400">*</span></label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, attendanceMode: 'named' }))}
+                    className={`min-h-[64px] rounded-lg border px-3 py-2 text-left transition-colors ${
+                      form.attendanceMode !== 'headcount'
+                        ? 'border-teal-500 bg-teal-950/40 text-teal-200'
+                        : 'border-gray-600 bg-gray-900/40 text-gray-400 hover:bg-gray-800'
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold">實名登記</span>
+                    <span className="block text-xs opacity-80 mt-0.5">逐人進離廠</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, attendanceMode: 'headcount' }))}
+                    className={`min-h-[64px] rounded-lg border px-3 py-2 text-left transition-colors ${
+                      form.attendanceMode === 'headcount'
+                        ? 'border-amber-500 bg-amber-950/40 text-amber-200'
+                        : 'border-gray-600 bg-gray-900/40 text-gray-400 hover:bg-gray-800'
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold">人數登記</span>
+                    <span className="block text-xs opacity-80 mt-0.5">填人數進離廠</span>
+                  </button>
+                </div>
+                <p className="text-gray-500 text-xs mt-1">廠商登記入口將依此設定顯示，廠商無法自行切換。</p>
               </div>
               <div>
                 <label className="block text-gray-300 text-sm mb-1">聯絡人</label>
