@@ -3,9 +3,28 @@ import { getSupabaseClient } from './supabaseClient'
 import { syncKeyToSupabase } from './supabaseSync'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
 import { CONTRACTOR_REGISTRATION_KEY } from './contractorRegistrationStorage'
-import { aggregateWorkReportShiftSummary, getWorkReportRowShiftSummary } from './workReportStorage'
 
 export const CONTRACTOR_WORK_LOG_KEY = 'jiameng_contractor_work_logs'
+export const CONTRACTOR_STANDARD_DEPARTURE = '17:00'
+export const CONTRACTOR_ON_TIME_CUTOFF = '08:00'
+
+const roundHours = (hours) => Math.round(Number(hours) * 10) / 10
+
+/** 進廠超過 08:00 視為遲到 */
+export const isContractorLate = (arrivalTime) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(arrivalTime || '').trim())
+  if (!m) return false
+  const mins = (parseInt(m[1], 10) || 0) * 60 + (parseInt(m[2], 10) || 0)
+  return mins > 8 * 60
+}
+
+/** 緊急入場時數：僅採已核准之加班申請，不依進離廠時間計算 */
+export const getContractorEmergencyHours = (log) => {
+  if (String(log?.overtimeStatus || '').trim() !== 'approved') return 0
+  return roundHours(Number(log?.approvedOvertimeHours ?? log?.overtimeRequestHours) || 0)
+}
+
+export const CONTRACTOR_OVERTIME_HOUR_OPTIONS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6]
 
 const notifyChanged = () => {
   try {
@@ -88,7 +107,10 @@ export const mergeContractorWorkLogs = (existing, incoming) => {
       departureTime: String(keep.departureTime || other.departureTime || '').trim(),
       personName: String(keep.personName || other.personName || '').trim(),
       companyName: String(keep.companyName || other.companyName || '').trim(),
-      siteName: String(keep.siteName || other.siteName || '').trim()
+      siteName: String(keep.siteName || other.siteName || '').trim(),
+      overtimeStatus: String(keep.overtimeStatus || other.overtimeStatus || 'none').trim() || 'none',
+      overtimeRequestHours: Number(keep.overtimeRequestHours ?? other.overtimeRequestHours) || 0,
+      approvedOvertimeHours: keep.approvedOvertimeHours ?? other.approvedOvertimeHours
     }
     if (keep.deleted || other.deleted) {
       const delKeep = keep.deleted ? keep : other
@@ -189,16 +211,23 @@ export const registerContractorDeparture = ({
   siteName,
   companyId,
   personId,
-  departureTime
+  departureTime,
+  overtimeRequestHours,
+  overtimeStatus
 }) => {
   try {
     const d = String(date || '').slice(0, 10)
     const site = String(siteName || '').trim()
     const cid = String(companyId || '').trim()
     const pid = String(personId || '').trim()
-    const dt = String(departureTime || '').trim()
+    const dt = String(departureTime || CONTRACTOR_STANDARD_DEPARTURE).trim()
+    const otHours = Math.max(0, Number(overtimeRequestHours) || 0)
+    const otStatus = overtimeStatus || (otHours > 0 ? 'pending' : 'none')
     if (!d || !site || !cid || !pid) return { success: false, message: '資料不完整' }
     if (!dt) return { success: false, message: '請填寫離廠時間' }
+    if (otStatus === 'pending' && otHours <= 0) {
+      return { success: false, message: '請填寫申請加班時數' }
+    }
     const list = readAllContractorWorkLogs()
     const idx = list.findIndex((r) => logKey(r.date, r.siteName, r.companyId, r.personId) === logKey(d, site, cid, pid))
     if (idx < 0 || !list[idx]?.arrivalTime || list[idx]?.deleted) {
@@ -208,7 +237,14 @@ export const registerContractorDeparture = ({
       return { success: false, message: '此人今日此案場已登記離廠' }
     }
     const now = new Date().toISOString()
-    list[idx] = { ...list[idx], departureTime: dt, updatedAt: now }
+    list[idx] = {
+      ...list[idx],
+      departureTime: dt,
+      overtimeRequestHours: otHours,
+      overtimeStatus: otStatus,
+      approvedOvertimeHours: undefined,
+      updatedAt: now
+    }
     persist(list)
     return { success: true, record: list[idx] }
   } catch (e) {
@@ -233,6 +269,16 @@ export const updateContractorWorkLog = (id, patch) => {
     if (patch.departureTime !== undefined) {
       next.departureTime = String(patch.departureTime || '').trim()
     }
+    if (patch.overtimeRequestHours !== undefined) {
+      next.overtimeRequestHours = Math.max(0, Number(patch.overtimeRequestHours) || 0)
+    }
+    if (patch.overtimeStatus !== undefined) {
+      next.overtimeStatus = String(patch.overtimeStatus || 'none').trim() || 'none'
+    }
+    if (patch.approvedOvertimeHours !== undefined) {
+      const v = Number(patch.approvedOvertimeHours)
+      next.approvedOvertimeHours = Number.isFinite(v) && v > 0 ? v : undefined
+    }
     if (!next.arrivalTime && !next.departureTime) {
       return { success: false, message: '進廠與離廠時間不可皆為空' }
     }
@@ -242,6 +288,46 @@ export const updateContractorWorkLog = (id, patch) => {
   } catch (e) {
     console.error('updateContractorWorkLog:', e)
     return { success: false, message: '更新失敗' }
+  }
+}
+
+/** 管理員審核承攬商加班申請 */
+export const reviewContractorOvertime = (id, { action, approvedHours } = {}) => {
+  try {
+    const rid = String(id || '').trim()
+    if (!rid) return { success: false, message: '紀錄不存在' }
+    const act = String(action || '').trim()
+    if (act !== 'approve' && act !== 'reject') return { success: false, message: '無效操作' }
+    const list = readAllContractorWorkLogs()
+    const idx = list.findIndex((r) => String(r?.id || '').trim() === rid)
+    if (idx < 0 || list[idx]?.deleted) return { success: false, message: '找不到紀錄' }
+    const prev = list[idx]
+    if (String(prev?.overtimeStatus || '').trim() !== 'pending') {
+      return { success: false, message: '此筆無待審加班申請' }
+    }
+    const now = new Date().toISOString()
+    if (act === 'approve') {
+      const hrs = Number(approvedHours ?? prev.overtimeRequestHours) || 0
+      if (hrs <= 0) return { success: false, message: '請填寫核准加班時數' }
+      list[idx] = {
+        ...prev,
+        overtimeStatus: 'approved',
+        approvedOvertimeHours: hrs,
+        updatedAt: now
+      }
+    } else {
+      list[idx] = {
+        ...prev,
+        overtimeStatus: 'rejected',
+        approvedOvertimeHours: undefined,
+        updatedAt: now
+      }
+    }
+    persist(list)
+    return { success: true, record: list[idx] }
+  } catch (e) {
+    console.error('reviewContractorOvertime:', e)
+    return { success: false, message: '審核失敗' }
   }
 }
 
@@ -317,19 +403,57 @@ export const formatContractorTimeLabel = (log) => {
   return `${arr}~${dep}`
 }
 
-const toWorkReportRow = (log) => ({
-  arrivalTime: log?.arrivalTime,
-  departureTime: log?.departureTime,
-  personName: log?.personName,
-  headcount: 1
-})
+/** 單人出工摘要：有離廠即 1 工；緊急入場僅採已核准加班申請時數 */
+export const getContractorWorkLogShiftSummary = (log) => {
+  const arr = String(log?.arrivalTime || '').trim()
+  const dep = String(log?.departureTime || '').trim()
+  if (!arr || !dep) return null
+  const headcount = 1
+  const totalOvertimeHours = getContractorEmergencyHours(log)
+  return {
+    headcount,
+    perPersonOvertimeHours: totalOvertimeHours,
+    totalOvertimeHours,
+    hasOvertime: totalOvertimeHours > 0,
+    underHeadcount: 0,
+    underActualHours: 0,
+    underPerPersonHours: 0,
+    hasUnderHours: false,
+    fullDayHeadcount: headcount,
+    isLate: isContractorLate(arr),
+    lateHeadcount: isContractorLate(arr) ? 1 : 0
+  }
+}
 
-/** 單人出工摘要（1 工 / 緊急入場時數） */
-export const getContractorWorkLogShiftSummary = (log) => getWorkReportRowShiftSummary(toWorkReportRow(log))
-
-/** 多人合計摘要 */
-export const aggregateContractorWorkLogsSummary = (logs) =>
-  aggregateWorkReportShiftSummary((Array.isArray(logs) ? logs : []).map(toWorkReportRow))
+/** 多人合計摘要（承攬商：不計未滿 8 小時，有出工即 1 工） */
+export const aggregateContractorWorkLogsSummary = (logs) => {
+  const list = Array.isArray(logs) ? logs : []
+  let totalHeadcount = 0
+  let totalOvertimeHours = 0
+  let fullDayHeadcount = 0
+  let lateHeadcount = 0
+  list.forEach((log) => {
+    const s = getContractorWorkLogShiftSummary(log)
+    if (!s) return
+    totalHeadcount += s.headcount
+    totalOvertimeHours += s.totalOvertimeHours
+    fullDayHeadcount += s.fullDayHeadcount
+    lateHeadcount += s.lateHeadcount || 0
+  })
+  totalOvertimeHours = roundHours(totalOvertimeHours)
+  return {
+    totalHeadcount,
+    totalOvertimeHours,
+    hasOvertime: totalOvertimeHours > 0,
+    underHeadcount: 0,
+    underActualHours: 0,
+    underPerPersonHours: 0,
+    hasUnderHours: false,
+    fullDayHeadcount,
+    lateHeadcount,
+    hasLate: lateHeadcount > 0
+  }
+}
 
 /** 承攬商出勤紀錄：依月份彙整每日各案場人員與人數 */
 export const getContractorAttendanceByMonth = (companyId, year, month) => {

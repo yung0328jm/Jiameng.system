@@ -4910,7 +4910,7 @@ function Calendar() {
                     合計出工 <strong className="text-amber-200">{contractorWorkDetailHeadcount}</strong> 人
                   </p>
                   <div className="mb-3 p-2.5 rounded-lg bg-violet-950/40 border border-violet-800/40">
-                    <p className="text-violet-200/80 text-xs mb-1">工時規則：扣午休 · 滿 8 小時＝1 工 · 超過為緊急入場</p>
+                    <p className="text-violet-200/80 text-xs mb-1">工時規則：有出工即 1 工 · 超過 08:00 進廠標示遲到 · 緊急入場由加班申請手動填寫</p>
                     <ContractorWorkHoursSummaryLine summary={contractorWorkDetailSummary} />
                   </div>
                   <table className="w-full text-sm border-collapse">

@@ -1,49 +1,50 @@
-import {
-  calcWorkReportHoursBreakdown,
-  formatWorkReportHours,
-  HOURS_PER_DAY
-} from '../utils/workReportStorage'
+import { formatWorkReportHours } from '../utils/workReportStorage'
+import { getContractorEmergencyHours, isContractorLate } from '../utils/contractorWorkCheckInStorage'
 
-/** 承攬商出工：扣午休、滿 8 小時＝1 工、超過為緊急入場 */
+/** 承攬商出工：有出工即 1 工；超過 08:00 進廠標示遲到；緊急入場僅採加班申請時數 */
 export function ContractorWorkHoursDetail({ log, className = '' }) {
   const arr = String(log?.arrivalTime || '').trim()
   const dep = String(log?.departureTime || '').trim()
+  const otStatus = String(log?.overtimeStatus || 'none').trim()
+  const otReq = Number(log?.overtimeRequestHours) || 0
+  const otApproved = Number(log?.approvedOvertimeHours) || 0
+  const emergencyHours = getContractorEmergencyHours(log)
+  const late = isContractorLate(arr)
 
   if (!arr) {
     return <span className={`text-gray-500 text-xs ${className}`}>—</span>
   }
   if (!dep) {
-    return <span className={`text-amber-300 text-xs ${className}`}>待離廠，尚無法計算工時</span>
+    return (
+      <div className={`text-xs space-y-1 ${className}`}>
+        <span className="text-amber-300">待離廠，尚無法計算工時</span>
+        {late && <div className="text-rose-300 font-semibold">遲到（進廠 {arr}）</div>}
+      </div>
+    )
   }
-
-  const bd = calcWorkReportHoursBreakdown(arr, dep)
-  if (!bd) {
-    return <span className={`text-gray-500 text-xs ${className}`}>時間格式無法計算</span>
-  }
-
-  const isFullDay = bd.totalHours >= HOURS_PER_DAY - 1e-6
 
   return (
     <div className={`text-xs space-y-1 tabular-nums ${className}`}>
-      <div className="text-gray-400">
-        進離廠 {arr}～{dep}
-        {bd.hasLunchDeduct && (
-          <span className="text-gray-500"> · 午休 −{formatWorkReportHours(bd.lunchDeductHours)}h</span>
-        )}
-      </div>
-      <div className="text-gray-300">
-        扣午休後工時{' '}
-        <span className="text-white font-semibold">{formatWorkReportHours(bd.totalHours)}</span> 小時
-      </div>
-      {isFullDay ? (
-        <div className="text-amber-200 font-semibold">滿 8 小時 → 1 工</div>
-      ) : (
-        <div className="text-orange-300">未滿 8 小時（{formatWorkReportHours(bd.totalHours)} 小時，不計 1 工）</div>
-      )}
-      {bd.hasOvertime && (
+      <div className="text-gray-400">進離廠 {arr}～{dep}</div>
+      {late && <div className="text-rose-300 font-semibold">遲到（超過 08:00 進廠）</div>}
+      <div className="text-amber-200 font-semibold">出工 → 1 工</div>
+      {emergencyHours > 0 && (
         <div className="text-red-400 font-semibold">
-          緊急入場 {formatWorkReportHours(bd.overtimeHours)} 小時
+          緊急入場 {formatWorkReportHours(emergencyHours)} 小時
         </div>
+      )}
+      {otStatus === 'pending' && otReq > 0 && (
+        <div className="text-amber-300 font-semibold">
+          加班申請 {formatWorkReportHours(otReq)} 小時（待審核）
+        </div>
+      )}
+      {otStatus === 'approved' && otApproved > 0 && (
+        <div className="text-emerald-300">
+          已核准加班 {formatWorkReportHours(otApproved)} 小時
+        </div>
+      )}
+      {otStatus === 'rejected' && otReq > 0 && (
+        <div className="text-gray-500">加班申請 {formatWorkReportHours(otReq)} 小時（已駁回）</div>
       )}
     </div>
   )
@@ -54,19 +55,19 @@ export function ContractorWorkHoursSummaryLine({ summary, className = '' }) {
     return <span className={`text-gray-500 text-xs ${className}`}>—</span>
   }
   const full = summary.fullDayHeadcount || 0
-  const under = summary.underHeadcount || 0
   const ot = summary.totalOvertimeHours || 0
+  const late = summary.lateHeadcount || 0
 
   return (
     <div className={`text-xs space-y-0.5 tabular-nums ${className}`}>
       {full > 0 && (
         <div className="text-amber-200">
-          滿 8 小時（1 工）<strong className="font-semibold"> {full}</strong> 人
+          1 工 <strong className="font-semibold">{full}</strong> 人
         </div>
       )}
-      {under > 0 && (
-        <div className="text-orange-300">
-          未滿 8 小時 <strong>{under}</strong> 人（共 {formatWorkReportHours(summary.underActualHours)} 小時）
+      {late > 0 && (
+        <div className="text-rose-300">
+          遲到 <strong>{late}</strong> 人
         </div>
       )}
       {summary.hasOvertime && (
@@ -74,7 +75,7 @@ export function ContractorWorkHoursSummaryLine({ summary, className = '' }) {
           緊急入場合計 {formatWorkReportHours(ot)} 小時
         </div>
       )}
-      {full > 0 && !summary.hasOvertime && under === 0 && (
+      {full > 0 && !summary.hasOvertime && late === 0 && (
         <div className="text-gray-500">無緊急入場</div>
       )}
     </div>

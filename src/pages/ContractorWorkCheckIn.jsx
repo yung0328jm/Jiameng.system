@@ -13,11 +13,14 @@ import {
   registerContractorDeparture,
   getTodayDateStr,
   nowTimeStr,
+  CONTRACTOR_STANDARD_DEPARTURE,
+  CONTRACTOR_OVERTIME_HOUR_OPTIONS,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
+import { formatWorkReportHours } from '../utils/workReportStorage'
 
 const CHECKIN_SESSION_KEY = 'jiameng_contractor_checkin_auth'
 
@@ -149,44 +152,72 @@ function ContractorWorkCheckIn() {
       setMessage({ type: 'error', text: '請先輸入承攬商代碼' })
       return
     }
-    setTimeModal({ person, mode })
+    setTimeModal({
+      person,
+      mode,
+      leaveMode: 'none',
+      overtimeHours: ''
+    })
     setMessage(null)
   }
 
   const submitTimeModal = () => {
     if (!timeModal || !authenticatedCompany) return
-    const { person, mode } = timeModal
+    const { person, mode, leaveMode, overtimeHours } = timeModal
     const recordTime = nowTimeStr()
-    const res = mode === 'in'
-      ? registerContractorArrival({
-          date,
-          siteName,
-          companyId: authenticatedCompany.id,
-          companyName: authenticatedCompany.name,
-          personId: person.id,
-          personName: person.name,
-          employeeNo: person.employeeNo,
-          arrivalTime: recordTime
-        })
-      : registerContractorDeparture({
-          date,
-          siteName,
-          companyId: authenticatedCompany.id,
-          personId: person.id,
-          departureTime: recordTime
-        })
+    let res
+    if (mode === 'in') {
+      res = registerContractorArrival({
+        date,
+        siteName,
+        companyId: authenticatedCompany.id,
+        companyName: authenticatedCompany.name,
+        personId: person.id,
+        personName: person.name,
+        employeeNo: person.employeeNo,
+        arrivalTime: recordTime
+      })
+    } else {
+      const otHours = leaveMode === 'overtime' ? Number(overtimeHours) : 0
+      if (leaveMode === 'overtime' && (!Number.isFinite(otHours) || otHours <= 0)) {
+        setMessage({ type: 'error', text: '請填寫申請加班時數' })
+        return
+      }
+      res = registerContractorDeparture({
+        date,
+        siteName,
+        companyId: authenticatedCompany.id,
+        personId: person.id,
+        departureTime: CONTRACTOR_STANDARD_DEPARTURE,
+        overtimeRequestHours: otHours,
+        overtimeStatus: otHours > 0 ? 'pending' : 'none'
+      })
+    }
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '登記失敗' })
       return
     }
     setTimeModal(null)
     setRevision((r) => r + 1)
+    if (mode === 'in') {
+      setMessage({ type: 'success', text: `已登記進廠：${m(person.name)} ${recordTime}` })
+      return
+    }
+    const otHours = leaveMode === 'overtime' ? Number(overtimeHours) : 0
     setMessage({
       type: 'success',
-      text: mode === 'in'
-        ? `已登記進廠：${m(person.name)} ${recordTime}`
-        : `已登記離廠：${m(person.name)} ${recordTime}`
+      text: otHours > 0
+        ? `已登記離廠：${m(person.name)} ${CONTRACTOR_STANDARD_DEPARTURE}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
+        : `已登記離廠：${m(person.name)} ${CONTRACTOR_STANDARD_DEPARTURE}`
     })
+  }
+
+  const setLeaveMode = (mode) => {
+    setTimeModal((prev) => (prev ? { ...prev, leaveMode: mode } : prev))
+  }
+
+  const setOvertimeHours = (value) => {
+    setTimeModal((prev) => (prev ? { ...prev, overtimeHours: value } : prev))
   }
 
   if (!authenticatedCompanyId || !authenticatedCompany) {
@@ -400,15 +431,69 @@ function ContractorWorkCheckIn() {
                 離場時請務必記得點擊離場按鈕
               </p>
             ) : (
-              <p className="text-gray-300 text-sm leading-relaxed mb-4 px-1">
-                將以目前時間登記離廠
-              </p>
+              <div className="space-y-3 mb-4">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLeaveMode('none')}
+                    className={`flex-1 min-h-[40px] px-3 py-2 rounded-lg text-sm font-medium border ${
+                      timeModal.leaveMode === 'none'
+                        ? 'bg-teal-800 border-teal-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    無加班
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLeaveMode('overtime')}
+                    className={`flex-1 min-h-[40px] px-3 py-2 rounded-lg text-sm font-medium border ${
+                      timeModal.leaveMode === 'overtime'
+                        ? 'bg-amber-800 border-amber-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    加班申請
+                  </button>
+                </div>
+                <div className="rounded-lg bg-gray-900/60 border border-gray-600 px-3 py-2">
+                  <p className="text-gray-400 text-xs">離廠時間</p>
+                  <p className="text-white font-semibold tabular-nums mt-0.5">{CONTRACTOR_STANDARD_DEPARTURE}（固定）</p>
+                </div>
+                {timeModal.leaveMode === 'overtime' && (
+                  <div>
+                    <label className="block text-gray-300 text-sm mb-2">申請緊急入場時數</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {CONTRACTOR_OVERTIME_HOUR_OPTIONS.map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setOvertimeHours(String(h))}
+                          className={`min-h-[40px] px-2 py-2 rounded-lg text-sm font-medium border tabular-nums ${
+                            Number(timeModal.overtimeHours) === h
+                              ? 'bg-amber-700 border-amber-500 text-white'
+                              : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                          }`}
+                        >
+                          {formatWorkReportHours(h)} 小時
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-gray-500 text-xs mt-2">送出後由管理員於出勤紀錄審核</p>
+                  </div>
+                )}
+              </div>
             )}
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={submitTimeModal}
-                className="flex-1 min-h-[44px] rounded-lg bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold"
+                disabled={
+                  timeModal.mode === 'out' &&
+                  timeModal.leaveMode === 'overtime' &&
+                  (!Number(timeModal.overtimeHours) || Number(timeModal.overtimeHours) <= 0)
+                }
+                className="flex-1 min-h-[44px] rounded-lg bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 確認
               </button>

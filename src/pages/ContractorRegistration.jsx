@@ -18,6 +18,7 @@ import {
   getContractorAttendanceByMonth,
   deleteContractorWorkLog,
   updateContractorWorkLog,
+  reviewContractorOvertime,
   aggregateContractorWorkLogsSummary,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
@@ -174,15 +175,19 @@ function ContractorRegistration() {
     let fullDayCount = 0
     let underHours = 0
     let overtimeHours = 0
+    let pendingOvertimeCount = 0
     attendanceDays.forEach((day) => {
       day.sites.forEach((site) => {
         const s = aggregateContractorWorkLogsSummary(site.rows)
         fullDayCount += s.fullDayHeadcount || 0
         underHours += s.underActualHours || 0
         overtimeHours += s.totalOvertimeHours || 0
+        site.rows.forEach((row) => {
+          if (String(row?.overtimeStatus || '').trim() === 'pending') pendingOvertimeCount += 1
+        })
       })
     })
-    return { fullDayCount, underHours, overtimeHours }
+    return { fullDayCount, underHours, overtimeHours, pendingOvertimeCount }
   }, [attendanceDays])
 
   const startEditPerson = (person) => {
@@ -299,6 +304,30 @@ function ContractorRegistration() {
     if (editingWorkLogId === row.id) cancelEditWorkLog()
     setWorkLogRevision((r) => r + 1)
     setMessage({ type: 'success', text: '已刪除出工紀錄。' })
+  }
+
+  const handleApproveOvertime = (row) => {
+    const hrs = Number(row?.overtimeRequestHours) || 0
+    if (!window.confirm(`核准「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`)) return
+    const res = reviewContractorOvertime(row.id, { action: 'approve', approvedHours: hrs })
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '核准失敗' })
+      return
+    }
+    setWorkLogRevision((r) => r + 1)
+    setMessage({ type: 'success', text: `已核准加班 ${formatWorkReportHours(hrs)} 小時。` })
+  }
+
+  const handleRejectOvertime = (row) => {
+    const hrs = Number(row?.overtimeRequestHours) || 0
+    if (!window.confirm(`駁回「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`)) return
+    const res = reviewContractorOvertime(row.id, { action: 'reject' })
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '駁回失敗' })
+      return
+    }
+    setWorkLogRevision((r) => r + 1)
+    setMessage({ type: 'success', text: '已駁回加班申請。' })
   }
 
   if (userRole !== 'admin') {
@@ -696,12 +725,17 @@ function ContractorRegistration() {
                   本月合計 <span className="text-amber-200 font-medium">{attendanceMonthTotal}</span> 人次
                   {attendanceMonthStats.fullDayCount > 0 && (
                     <span className="ml-2">
-                      · 滿 8 小時（1 工）<span className="text-amber-200">{attendanceMonthStats.fullDayCount}</span> 人次
+                      · 1 工 <span className="text-amber-200">{attendanceMonthStats.fullDayCount}</span> 人次
                     </span>
                   )}
                   {attendanceMonthStats.overtimeHours > 0 && (
                     <span className="ml-2 text-red-400">
                       · 緊急入場合計 {formatWorkReportHours(attendanceMonthStats.overtimeHours)} 小時
+                    </span>
+                  )}
+                  {attendanceMonthStats.pendingOvertimeCount > 0 && (
+                    <span className="ml-2 text-amber-300">
+                      · 待審加班 <span className="font-semibold">{attendanceMonthStats.pendingOvertimeCount}</span> 筆
                     </span>
                   )}
                 </p>
@@ -760,6 +794,7 @@ function ContractorRegistration() {
                                 const canSave =
                                   isWorkReportTimeFilled(editWorkLogArrival) ||
                                   isWorkReportTimeFilled(editWorkLogDeparture)
+                                const pendingOvertime = String(row?.overtimeStatus || '').trim() === 'pending'
                                 return (
                                   <tr key={row.id} className="border-t border-gray-700/40 align-top">
                                     <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
@@ -775,6 +810,24 @@ function ContractorRegistration() {
                                     </td>
                                     <td className="py-1.5 text-right">
                                       <div className="flex flex-col gap-1 items-end">
+                                        {pendingOvertime && !isEditing && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleApproveOvertime({ ...row, date: day.date })}
+                                              className="text-xs px-2 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/50 hover:bg-emerald-800/60"
+                                            >
+                                              核准加班
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRejectOvertime({ ...row, date: day.date })}
+                                              className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700"
+                                            >
+                                              駁回
+                                            </button>
+                                          </>
+                                        )}
                                         {isEditing ? (
                                           <>
                                             <button
