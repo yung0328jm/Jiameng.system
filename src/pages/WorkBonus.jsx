@@ -4,6 +4,8 @@ import { buildPersonStatsMap } from '../utils/workReportStats'
 import {
   getWorkBonusConfig,
   setWorkBonusDescription,
+  setWorkBonusCombineMode,
+  getWorkBonusCombineModeLabel,
   getWorkBonusRules,
   addWorkBonusRule,
   updateWorkBonusRule,
@@ -81,16 +83,30 @@ function ProgressBar({ pct, achieved }) {
   )
 }
 
-function BonusRuleCard({ item }) {
-  const { rule, currentDays, targetDays, progressPct, daysRemaining, achieved, bonusAmount, projectedBonus, overtimeHours } = item
+function BonusRuleCard({ item, combineMode }) {
+  const {
+    rule, currentDays, targetDays, progressPct, daysRemaining, achieved,
+    bonusAmount, projectedBonus, overtimeHours, countsTowardTotal, superseded
+  } = item
+  const isReplaceMode = combineMode === 'replace'
   return (
-    <div className={`rounded-lg border p-3 sm:p-4 ${achieved ? 'border-emerald-600/40 bg-emerald-950/20' : 'border-gray-600/50 bg-gray-900/30'}`}>
+    <div className={`rounded-lg border p-3 sm:p-4 ${
+      superseded
+        ? 'border-gray-600/40 bg-gray-900/20 opacity-75'
+        : achieved
+          ? 'border-emerald-600/40 bg-emerald-950/20'
+          : 'border-gray-600/50 bg-gray-900/30'
+    }`}>
       <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
         <div>
           <div className="font-medium text-white">{rule.label}</div>
           <div className="text-xs text-gray-400 mt-0.5">{describeWorkBonusRule(rule)}</div>
         </div>
-        {achieved ? (
+        {superseded ? (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700/60 text-gray-400 border border-gray-600/50">
+            已被較高階取代
+          </span>
+        ) : achieved ? (
           <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-600/30 text-emerald-300 border border-emerald-500/40">
             已達成
           </span>
@@ -121,9 +137,13 @@ function BonusRuleCard({ item }) {
         </p>
       )}
 
-      <div className={`text-sm font-semibold ${achieved ? 'text-emerald-300' : 'text-gray-400'}`}>
-        {achieved ? (
-          <>可獲獎金 <span className="text-yellow-300">${formatBonusMoney(bonusAmount)}</span> 元</>
+      <div className={`text-sm font-semibold ${
+        superseded ? 'text-gray-500' : achieved ? 'text-emerald-300' : 'text-gray-400'
+      }`}>
+        {superseded ? (
+          <>已達成 ${formatBonusMoney(bonusAmount)} 元（{isReplaceMode ? '取代模式下不計入合計' : '不計入合計'}）</>
+        ) : achieved ? (
+          <>可獲獎金 <span className="text-yellow-300">${formatBonusMoney(bonusAmount)}</span> 元{countsTowardTotal ? '' : ''}</>
         ) : rule.type === 'overtime_rate' && projectedBonus > 0 ? (
           <>達成後預估 <span className="text-yellow-300/80">${formatBonusMoney(projectedBonus)}</span> 元</>
         ) : (
@@ -191,16 +211,26 @@ export default function WorkBonus() {
   }, [memberNames, statsMap, isAdmin, selfDisplayNames])
 
   const personRows = useMemo(() => {
+    const combineMode = config.combineMode
     return visiblePersons.map((name) => {
       const s = statsMap.get(name)
       const stats = s
         ? { fullDays: s.fullDays, overtimeHours: s.overtimeHours }
         : { fullDays: 0, overtimeHours: 0 }
-      const progress = calcPersonBonusProgress(stats, rules)
-      const totalBonus = calcPersonTotalBonus(stats, rules)
+      const progress = calcPersonBonusProgress(stats, rules, { combineMode })
+      const totalBonus = calcPersonTotalBonus(stats, rules, { combineMode })
       return { personName: name, stats, progress, totalBonus }
     })
-  }, [visiblePersons, statsMap, rules])
+  }, [visiblePersons, statsMap, rules, config.combineMode])
+
+  const handleCombineModeChange = (mode) => {
+    setWorkBonusCombineMode(mode)
+    refetch()
+    setMessage({
+      type: 'success',
+      text: `已切換為「${getWorkBonusCombineModeLabel(mode)}」模式`
+    })
+  }
 
   const startEditDesc = () => {
     setDescDraft(config.description || '')
@@ -371,7 +401,7 @@ export default function WorkBonus() {
       {/* 管理員：條件設定 */}
       {isAdmin && (
         <div className="rounded-xl border border-amber-700/40 bg-amber-950/10 p-4 sm:p-6 mb-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-base font-semibold text-amber-300">獎金條件設定</h2>
             <button
               type="button"
@@ -380,6 +410,40 @@ export default function WorkBonus() {
             >
               ＋ 新增條件
             </button>
+          </div>
+
+          <div className="rounded-lg border border-gray-600/50 bg-gray-900/40 p-3 mb-4">
+            <div className="text-xs text-gray-400 mb-2">多條件合併方式</div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleCombineModeChange('cumulative')}
+                className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+                  config.combineMode === 'cumulative'
+                    ? 'border-amber-500 bg-amber-600/20 text-amber-200'
+                    : 'border-gray-600 text-gray-400 hover:bg-gray-800/50'
+                }`}
+              >
+                累加
+                <span className="block text-[10px] mt-0.5 opacity-80">達成幾個加幾個</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCombineModeChange('replace')}
+                className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+                  config.combineMode === 'replace'
+                    ? 'border-amber-500 bg-amber-600/20 text-amber-200'
+                    : 'border-gray-600 text-gray-400 hover:bg-gray-800/50'
+                }`}
+              >
+                取代
+                <span className="block text-[10px] mt-0.5 opacity-80">只取最高出工天數門檻</span>
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-2">
+              目前模式：<span className="text-gray-300">{getWorkBonusCombineModeLabel(config.combineMode)}</span>
+              {config.combineMode === 'replace' && '（例：28 天時只拿 28 天那階，不含 26、27 天）'}
+            </p>
           </div>
 
           {showRuleForm && (
@@ -492,6 +556,9 @@ export default function WorkBonus() {
               <p className="text-sm text-gray-400 mt-1">
                 本月出工 {myRow.stats.fullDays} 天
                 {myRow.stats.overtimeHours > 0 && `，加班 ${myRow.stats.overtimeHours} 小時`}
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  合併方式：{getWorkBonusCombineModeLabel(config.combineMode)}
+                </span>
               </p>
             </div>
             <div className="text-right">
@@ -504,7 +571,7 @@ export default function WorkBonus() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {myRow.progress.map((item) => (
-                <BonusRuleCard key={item.rule.id} item={item} />
+                <BonusRuleCard key={item.rule.id} item={item} combineMode={config.combineMode} />
               ))}
             </div>
           )}
@@ -550,7 +617,7 @@ export default function WorkBonus() {
                   {isOpen && (
                     <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-700/50 pt-3">
                       {row.progress.map((item) => (
-                        <BonusRuleCard key={item.rule.id} item={item} />
+                        <BonusRuleCard key={item.rule.id} item={item} combineMode={config.combineMode} />
                       ))}
                     </div>
                   )}

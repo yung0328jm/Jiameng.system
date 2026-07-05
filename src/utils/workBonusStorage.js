@@ -21,23 +21,45 @@ const persist = (key, data) => {
   syncKeyToSupabase(key, val)
 }
 
-/* ===== 規則說明 ===== */
+/* ===== 規則說明與合併模式 ===== */
+
+/** @typedef {'cumulative' | 'replace'} WorkBonusCombineMode */
+
+function normalizeCombineMode(mode) {
+  return mode === 'replace' ? 'replace' : 'cumulative'
+}
+
+function saveWorkBonusConfig(updates) {
+  const prev = getWorkBonusConfig()
+  const cfg = {
+    description: prev.description,
+    combineMode: prev.combineMode,
+    ...updates,
+    updatedAt: new Date().toISOString()
+  }
+  persist(CONFIG_KEY, cfg)
+  return { success: true }
+}
 
 export function getWorkBonusConfig() {
   const cfg = safeParse(localStorage.getItem(CONFIG_KEY), {})
   return {
     description: String(cfg?.description || ''),
+    combineMode: normalizeCombineMode(cfg?.combineMode),
     updatedAt: cfg?.updatedAt || ''
   }
 }
 
 export function setWorkBonusDescription(description) {
-  const cfg = {
-    description: String(description || '').trim(),
-    updatedAt: new Date().toISOString()
-  }
-  persist(CONFIG_KEY, cfg)
-  return { success: true }
+  return saveWorkBonusConfig({ description: String(description || '').trim() })
+}
+
+export function setWorkBonusCombineMode(mode) {
+  return saveWorkBonusConfig({ combineMode: normalizeCombineMode(mode) })
+}
+
+export function getWorkBonusCombineModeLabel(mode) {
+  return normalizeCombineMode(mode) === 'replace' ? '取代（只取最高階）' : '累加（達成全部相加）'
 }
 
 /* ===== 獎金條件 ===== */
@@ -122,16 +144,39 @@ export function deleteWorkBonusRule(id) {
 
 /* ===== 進度計算 ===== */
 
+function resolveCountingRuleIds(items, combineMode) {
+  const achieved = items.filter((it) => it.achieved && (it.bonusAmount || 0) > 0)
+  if (achieved.length === 0) return new Set()
+  if (normalizeCombineMode(combineMode) === 'replace') {
+    const maxDays = Math.max(...achieved.map((it) => it.targetDays))
+    return new Set(
+      achieved.filter((it) => it.targetDays === maxDays).map((it) => it.rule.id)
+    )
+  }
+  return new Set(achieved.map((it) => it.rule.id))
+}
+
+function calcTotalFromProgressItems(items, combineMode) {
+  const countingIds = resolveCountingRuleIds(items, combineMode)
+  return round2(
+    items
+      .filter((it) => countingIds.has(it.rule.id))
+      .reduce((sum, it) => sum + (it.bonusAmount || 0), 0)
+  )
+}
+
 /**
  * @param {{ fullDays: number, overtimeHours: number }} stats
  * @param {WorkBonusRule[]} [rules]
+ * @param {{ combineMode?: WorkBonusCombineMode }} [options]
  */
-export function calcPersonBonusProgress(stats, rules) {
+export function calcPersonBonusProgress(stats, rules, options = {}) {
   const fullDays = Number(stats?.fullDays) || 0
   const overtimeHours = round2(Number(stats?.overtimeHours) || 0)
   const activeRules = (rules || getWorkBonusRules()).filter((r) => r.enabled)
+  const combineMode = normalizeCombineMode(options.combineMode ?? getWorkBonusConfig().combineMode)
 
-  return activeRules.map((rule) => {
+  const items = activeRules.map((rule) => {
     const targetDays = rule.minWorkDays
     const achieved = fullDays >= targetDays
     const progressPct = Math.min(100, Math.round((fullDays / targetDays) * 1000) / 10)
@@ -159,11 +204,19 @@ export function calcPersonBonusProgress(stats, rules) {
       overtimeHours: rule.type === 'overtime_rate' ? overtimeHours : undefined
     }
   })
+
+  const countingIds = resolveCountingRuleIds(items, combineMode)
+  return items.map((it) => ({
+    ...it,
+    countsTowardTotal: countingIds.has(it.rule.id),
+    superseded: it.achieved && !countingIds.has(it.rule.id)
+  }))
 }
 
-export function calcPersonTotalBonus(stats, rules) {
-  const items = calcPersonBonusProgress(stats, rules)
-  return round2(items.reduce((sum, it) => sum + (it.bonusAmount || 0), 0))
+export function calcPersonTotalBonus(stats, rules, options = {}) {
+  const combineMode = normalizeCombineMode(options.combineMode ?? getWorkBonusConfig().combineMode)
+  const items = calcPersonBonusProgress(stats, rules, { combineMode })
+  return calcTotalFromProgressItems(items, combineMode)
 }
 
 export function describeWorkBonusRule(rule) {
