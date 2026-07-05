@@ -182,6 +182,7 @@ function App() {
         <Route path="/company-activities" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="activities" />) : <Navigate to="/login" replace />} />
         <Route path="/work-report" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="work-report" />) : <Navigate to="/login" replace />} />
         <Route path="/pay-slip" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="pay-slip" />) : <Navigate to="/login" replace />} />
+        <Route path="/work-bonus" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="work-bonus" />) : <Navigate to="/login" replace />} />
         <Route path="/developing" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="developing" />) : <Navigate to="/login" replace />} />
         <Route path="/dropdown-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />
         <Route path="/user-management" element={isAuthenticated ? withSync(<ProtectedRoute><Dashboard onLogout={handleLogout} activeTab="user-management" /></ProtectedRoute>) : <Navigate to="/login" replace />} />

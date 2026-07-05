@@ -22,6 +22,7 @@ import MiniGames from './MiniGames'
 import ChangePassword from './ChangePassword'
 import WorkReport from './WorkReport'
 import PaySlip from './PaySlip'
+import WorkBonus from './WorkBonus'
 import ContractorRegistration from './ContractorRegistration'
 import ErrorBoundary from '../components/ErrorBoundary'
 import {
@@ -654,6 +655,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('messages')) return 'messages'
     if (path.includes('change-password')) return 'change-password'
     if (path.includes('pay-slip')) return 'pay-slip'
+    if (path.includes('work-bonus')) return 'work-bonus'
     if (path.includes('work-report')) return 'work-report'
     if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
@@ -707,6 +709,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'developing': '開發中',
       'work-report': '入廠申請',
       'pay-slip': '勞務報酬單',
+      'work-bonus': '獎金制度',
       'change-password': '修改密碼'
     }
     return titles[tab] || '毓承事業群'
@@ -779,6 +782,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <WorkReport />
       case 'pay-slip':
         return <PaySlip />
+      case 'work-bonus':
+        return <WorkBonus />
       default:
         return <Home />
     }
@@ -1279,6 +1284,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             label="勞務報酬單"
             isActive={activeTab === 'pay-slip'}
             onClick={() => handleTabClick('pay-slip', '/pay-slip')}
+          />
+          <NavItem
+            icon={<PerformanceIcon />}
+            label="獎金制度"
+            isActive={activeTab === 'work-bonus'}
+            onClick={() => handleTabClick('work-bonus', '/work-bonus')}
           />
           <NavItem
             icon={<ChatIcon />}

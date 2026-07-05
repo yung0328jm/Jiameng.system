@@ -76,7 +76,7 @@ export function setPayRate(personName, rate) {
   }
 }
 
-/* ===== 每月獎金 ===== */
+/* ===== 每月獎金（手動輸入部分，與出工獎金制度自動計算相加） ===== */
 
 export function getAllBonuses() {
   try {
@@ -120,6 +120,18 @@ export function setBonus(personName, yearMonth, amount) {
     console.error('Error saving bonus:', e)
     return { success: false, message: '儲存失敗' }
   }
+}
+
+export function getManualBonus(personName, yearMonth) {
+  return getBonus(personName, yearMonth)
+}
+
+export function setManualBonus(personName, yearMonth, amount) {
+  return setBonus(personName, yearMonth, amount)
+}
+
+export function calcTotalPayBonus(autoBonus, manualBonus) {
+  return round2((Number(autoBonus) || 0) + (Number(manualBonus) || 0))
 }
 
 /* ===== 計算 ===== */

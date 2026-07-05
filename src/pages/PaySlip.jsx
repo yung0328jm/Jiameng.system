@@ -2,21 +2,22 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
   getWorkReportsForMonth,
   getWorkReportRowShiftSummary,
-  getWorkReportStatsPersonKey,
-  formatWorkReportHours,
-  isWorkReportContractorName
+  formatWorkReportHours
 } from '../utils/workReportStorage'
+import { buildPersonStatsMap } from '../utils/workReportStats'
 import {
   getPayRate,
   setPayRate,
   getBonus,
   setBonus,
   calcPayAmount,
+  calcTotalPayBonus,
   getAllPayRates,
   getAllBonuses,
   DEFAULT_PAY_RATE,
   NIGHT_MEAL_OT_THRESHOLD_HOURS
 } from '../utils/paySlipStorage'
+import { calcPersonTotalBonus, getWorkBonusRules } from '../utils/workBonusStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   getDropdownOptionsByCategory,
@@ -27,10 +28,6 @@ import { getUsers } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
-import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
-
-const round1 = (x) => Math.round(Number(x) * 10) / 10
-
 function formatMoney(n) {
   const x = Number(n) || 0
   return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 2 })
@@ -73,72 +70,6 @@ function getActiveMemberNames() {
   ;(getDropdownOptionsByCategory('responsible_persons') || []).forEach((opt) => add(opt?.value))
   out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
   return out
-}
-
-function buildApprovedWorkReportOvertimeMap() {
-  const map = new Map()
-  ;(getOvertimeApplications() || []).forEach((app) => {
-    if (String(app?.status || '').trim() !== 'approved') return
-    const rowId = String(app?.workReportRowId || '').trim()
-    if (!rowId) return
-    const hours = Number(app?.hours) || 0
-    if (hours <= 0) return
-    map.set(rowId, (map.get(rowId) || 0) + hours)
-  })
-  return map
-}
-
-/** 將月份內所有出工紀錄依「統計人名」彙整成每人 { fullDays, overtimeHours, underHours, rows } */
-function buildPersonStatsMap(monthRecords) {
-  const map = new Map()
-  const approvedOvertimeByRowId = buildApprovedWorkReportOvertimeMap()
-  monthRecords.forEach((row) => {
-    const person = getWorkReportStatsPersonKey(row?.personName)
-    if (!person) return
-    const shift = getWorkReportRowShiftSummary(row)
-    if (!shift) return
-    const approvedOvertimeHours = round1(approvedOvertimeByRowId.get(String(row?.id || '').trim()) || 0)
-    const prev = map.get(person) || {
-      personName: person,
-      isContractor: isWorkReportContractorName(row?.personName),
-      fullDays: 0,
-      overtimeHours: 0,
-      underHours: 0,
-      otHoursByDate: new Map(),
-      rows: []
-    }
-    prev.fullDays += shift.fullDayHeadcount || 0
-    prev.overtimeHours += approvedOvertimeHours
-    prev.underHours += shift.underActualHours || 0
-    const dateStr = String(row?.date || '').slice(0, 10)
-    if (dateStr && approvedOvertimeHours > 0) {
-      prev.otHoursByDate.set(
-        dateStr,
-        round1((prev.otHoursByDate.get(dateStr) || 0) + approvedOvertimeHours)
-      )
-    }
-    prev.rows.push({ row, shift, approvedOvertimeHours })
-    map.set(person, prev)
-  })
-  // 四捨五入＋未滿時數累計補日（每滿 8 小時 → 出工 +1 天）
-  map.forEach((v) => {
-    v.overtimeHours = round1(v.overtimeHours)
-    let nightMealQualifyingDays = 0
-    ;(v.otHoursByDate || new Map()).forEach((hrs) => {
-      if (hrs >= NIGHT_MEAL_OT_THRESHOLD_HOURS) nightMealQualifyingDays += 1
-    })
-    v.nightMealQualifyingDays = nightMealQualifyingDays
-    delete v.otHoursByDate
-    const totalUnder = round1(v.underHours)
-    const carryDays = Math.floor((totalUnder + 1e-9) / 8)
-    const remain = round1(Math.max(0, totalUnder - carryDays * 8))
-    v.baseDays = v.fullDays
-    v.carryDays = carryDays
-    v.fullDays = v.fullDays + carryDays
-    v.underHours = remain
-    v.rawUnderHours = totalUnder
-  })
-  return map
 }
 
 function NumberField({ label, value, onChange, suffix, step = 1, hint }) {
@@ -191,6 +122,8 @@ function PaySlip() {
       'jiameng_overtime_applications',
       'jiameng_pay_rates',
       'jiameng_pay_bonuses',
+      'jiameng_work_bonus_config',
+      'jiameng_work_bonus_rules',
       'jiameng_dropdown_options',
       'jiameng_users'
     ],
@@ -239,6 +172,8 @@ function PaySlip() {
   }, [fullPersonList, isAdmin, selfDisplayNames])
 
   /** 依顯示條件過濾（顯示無資料的成員與否） */
+  const workBonusRules = useMemo(() => getWorkBonusRules(), [revision])
+
   const personRows = useMemo(() => {
     void revision
     return visiblePersons
@@ -262,9 +197,11 @@ function PaySlip() {
               isContractor: false
             }
         const rate = getPayRate(name)
-        const bonus = getBonus(name, yearMonth)
-        const amounts = calcPayAmount(stats, rate, bonus)
-        return { personName: name, stats, rate, bonus, amounts }
+        const manualBonus = getBonus(name, yearMonth)
+        const autoBonus = calcPersonTotalBonus(stats, workBonusRules)
+        const totalBonus = calcTotalPayBonus(autoBonus, manualBonus)
+        const amounts = calcPayAmount(stats, rate, totalBonus)
+        return { personName: name, stats, rate, manualBonus, autoBonus, totalBonus, amounts }
       })
       .filter((p) => showZero || p.stats.fullDays || p.stats.overtimeHours || p.stats.underHours || p.amounts.total)
       .sort((a, b) => {
@@ -272,7 +209,7 @@ function PaySlip() {
         if (bd !== 0) return bd
         return a.personName.localeCompare(b.personName, 'zh-Hant')
       })
-  }, [visiblePersons, statsMap, yearMonth, showZero, revision])
+  }, [visiblePersons, statsMap, yearMonth, showZero, revision, workBonusRules])
 
   const grandTotal = useMemo(() => {
     let day = 0
@@ -357,7 +294,7 @@ function PaySlip() {
     }
     cancelEditBonus(name)
     setRevision((v) => v + 1)
-    setMessage({ type: 'success', text: `已儲存 ${name} 的 ${yearMonth} 品質獎勵金` })
+    setMessage({ type: 'success', text: `已儲存 ${name} 的 ${yearMonth} 手動獎金` })
   }
 
   const toggleOpen = (name) => setOpenIds((prev) => ({ ...prev, [name]: !prev[name] }))
@@ -367,9 +304,9 @@ function PaySlip() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">勞務報酬單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          依出工回報統計＋每人費用參數計算月度勞務報酬。夜間誤餐雜支費：當日已核准緊急入場達{' '}
-          {NIGHT_MEAL_OT_THRESHOLD_HOURS} 小時以上計 1 日。所有數字可由管理員自行設定。
+          依出工回報統計＋每人費用參數計算月度勞務報酬。出工獎金依「獎金制度」已達成條件自動帶入，手動獎金可額外設定。
           {!isAdmin && '（一般使用者僅顯示自己的紀錄）'}
+          夜間誤餐雜支費：當日已核准緊急入場達 {NIGHT_MEAL_OT_THRESHOLD_HOURS} 小時以上計 1 日。
         </p>
       </div>
 
@@ -474,7 +411,7 @@ function PaySlip() {
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.insur)}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">完工品質獎勵金</div>
+                <div className="text-gray-400 text-xs">獎勵金合計</div>
                 <div className="text-cyan-300 font-semibold">${formatMoney(grandTotal.bonus)}</div>
               </div>
               <div>
@@ -493,7 +430,7 @@ function PaySlip() {
       ) : (
         <div className="space-y-4">
           {personRows.map((p) => {
-            const { personName, stats, rate, bonus, amounts } = p
+            const { personName, stats, rate, manualBonus, autoBonus, totalBonus, amounts } = p
             const isOpen = !!openIds[personName]
             const isEditingRate = !!editingRate[personName]
             const isEditingBonus = personName in editingBonus
@@ -606,10 +543,30 @@ function PaySlip() {
                           <span className="ml-1 font-semibold">${formatMoney(amounts.insuranceAmount)}</span>
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-300">案場完工品質獎勵金</span>
-                        <span className="text-cyan-300 font-semibold">${formatMoney(amounts.bonusAmount)}</span>
-                      </div>
+                      {autoBonus > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">出工獎金（自動）</span>
+                          <span className="text-emerald-300 font-semibold">${formatMoney(autoBonus)}</span>
+                        </div>
+                      )}
+                      {manualBonus > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">案場完工品質獎勵金（手動）</span>
+                          <span className="text-cyan-300 font-semibold">${formatMoney(manualBonus)}</span>
+                        </div>
+                      )}
+                      {(autoBonus > 0 || manualBonus > 0) && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">獎勵金合計</span>
+                          <span className="text-cyan-300 font-semibold">${formatMoney(amounts.bonusAmount)}</span>
+                        </div>
+                      )}
+                      {autoBonus === 0 && manualBonus === 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">案場完工品質獎勵金</span>
+                          <span className="text-cyan-300 font-semibold">${formatMoney(0)}</span>
+                        </div>
+                      )}
                       <div className="border-t border-emerald-700/40 pt-1 flex justify-between">
                         <span className="text-gray-200">合計</span>
                         <span className="text-emerald-300 font-bold">${formatMoney(amounts.total)}</span>
@@ -741,27 +698,42 @@ function PaySlip() {
 
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-gray-400">本月案場完工品質獎勵金（{yearMonth}）</div>
+                        <div className="text-xs text-gray-400">本月獎勵金（{yearMonth}）</div>
                         {isAdmin && !isEditingBonus && (
                           <button
                             type="button"
                             onClick={() => startEditBonus(personName)}
                             className="text-cyan-300 hover:text-cyan-200 text-xs"
                           >
-                            {bonus > 0 ? '編輯' : '＋ 設定'}
+                            {manualBonus > 0 ? '編輯手動' : '＋ 手動加項'}
                           </button>
                         )}
                       </div>
+                      <div className="space-y-1.5 text-sm tabular-nums">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 text-xs">出工獎金（自動，依獎金制度）</span>
+                          <span className="text-emerald-300 font-medium">${formatMoney(autoBonus)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 text-xs">手動獎金（品質獎勵等）</span>
+                          <span className="text-cyan-300 font-medium">${formatMoney(manualBonus)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-gray-700/60 pt-1.5">
+                          <span className="text-gray-300 text-xs font-medium">獎勵金合計</span>
+                          <span className="text-cyan-200 text-base font-semibold">${formatMoney(totalBonus)}</span>
+                        </div>
+                      </div>
                       {isAdmin && isEditingBonus ? (
-                        <div className="flex items-end gap-2">
+                        <div className="flex items-end gap-2 pt-1 border-t border-gray-700/40">
                           <div className="flex-1">
                             <NumberField
-                              label="品質獎勵金"
+                              label="手動獎金（額外加項）"
                               suffix="元"
                               value={editingBonus[personName] ?? ''}
                               onChange={(v) =>
                                 setEditingBonus((prev) => ({ ...prev, [personName]: v }))
                               }
+                              hint="出工獎金自動計算，此欄僅填額外手動獎金"
                             />
                           </div>
                           <button
@@ -779,11 +751,7 @@ function PaySlip() {
                             取消
                           </button>
                         </div>
-                      ) : (
-                        <div className="text-cyan-300 text-base font-semibold tabular-nums">
-                          ${formatMoney(bonus)}
-                        </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>
