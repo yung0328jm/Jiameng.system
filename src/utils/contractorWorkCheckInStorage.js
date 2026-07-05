@@ -217,6 +217,34 @@ export const registerContractorDeparture = ({
   }
 }
 
+/** 管理者更新進離廠時間 */
+export const updateContractorWorkLog = (id, patch) => {
+  try {
+    const rid = String(id || '').trim()
+    if (!rid) return { success: false, message: '紀錄不存在' }
+    const list = readAllContractorWorkLogs()
+    const idx = list.findIndex((r) => String(r?.id || '').trim() === rid)
+    if (idx < 0 || list[idx]?.deleted) return { success: false, message: '找不到紀錄' }
+    const prev = list[idx]
+    const next = { ...prev, ...patch, updatedAt: new Date().toISOString() }
+    if (patch.arrivalTime !== undefined) {
+      next.arrivalTime = String(patch.arrivalTime || '').trim()
+    }
+    if (patch.departureTime !== undefined) {
+      next.departureTime = String(patch.departureTime || '').trim()
+    }
+    if (!next.arrivalTime && !next.departureTime) {
+      return { success: false, message: '進廠與離廠時間不可皆為空' }
+    }
+    list[idx] = next
+    persist(list)
+    return { success: true, record: next }
+  } catch (e) {
+    console.error('updateContractorWorkLog:', e)
+    return { success: false, message: '更新失敗' }
+  }
+}
+
 /** 刪除出工紀錄（軟刪除，同步雲端後行事曆與出勤紀錄會一併移除） */
 export const deleteContractorWorkLog = (id) => {
   try {

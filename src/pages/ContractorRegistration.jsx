@@ -17,11 +17,13 @@ import {
 import {
   getContractorAttendanceByMonth,
   deleteContractorWorkLog,
+  updateContractorWorkLog,
   aggregateContractorWorkLogsSummary,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { ContractorWorkHoursDetail, ContractorWorkHoursSummaryLine } from '../components/ContractorWorkHoursDetail'
-import { formatWorkReportHours } from '../utils/workReportStorage'
+import TimeInput24 from '../components/TimeInput24'
+import { formatWorkReportHours, isWorkReportTimeFilled } from '../utils/workReportStorage'
 
 const EMPTY_FORM = {
   name: '',
@@ -59,6 +61,9 @@ function ContractorRegistration() {
     return { year: n.getFullYear(), month: n.getMonth() + 1 }
   })
   const [workLogRevision, setWorkLogRevision] = useState(0)
+  const [editingWorkLogId, setEditingWorkLogId] = useState(null)
+  const [editWorkLogArrival, setEditWorkLogArrival] = useState('')
+  const [editWorkLogDeparture, setEditWorkLogDeparture] = useState('')
 
   const loadList = () => setList(getContractorRegistrations())
 
@@ -137,7 +142,12 @@ function ContractorRegistration() {
     setMessage(null)
   }
 
-  const closeAttendance = () => setAttendanceCompany(null)
+  const closeAttendance = () => {
+    setAttendanceCompany(null)
+    setEditingWorkLogId(null)
+    setEditWorkLogArrival('')
+    setEditWorkLogDeparture('')
+  }
 
   const shiftAttendanceMonth = (delta) => {
     setAttendanceMonth((prev) => {
@@ -249,6 +259,36 @@ function ContractorRegistration() {
     setMessage({ type: 'success', text: '已刪除人員。' })
   }
 
+  const cancelEditWorkLog = () => {
+    setEditingWorkLogId(null)
+    setEditWorkLogArrival('')
+    setEditWorkLogDeparture('')
+  }
+
+  const startEditWorkLog = (row) => {
+    setEditingWorkLogId(row.id)
+    setEditWorkLogArrival(row.arrivalTime || '')
+    setEditWorkLogDeparture(row.departureTime || '')
+  }
+
+  const handleSaveWorkLogTimes = (id) => {
+    if (!isWorkReportTimeFilled(editWorkLogArrival) && !isWorkReportTimeFilled(editWorkLogDeparture)) {
+      setMessage({ type: 'error', text: '請至少填寫進廠或離廠時間' })
+      return
+    }
+    const res = updateContractorWorkLog(id, {
+      arrivalTime: editWorkLogArrival,
+      departureTime: editWorkLogDeparture
+    })
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '更新失敗' })
+      return
+    }
+    cancelEditWorkLog()
+    setWorkLogRevision((r) => r + 1)
+    setMessage({ type: 'success', text: '已更新進離廠時間。' })
+  }
+
   const handleDeleteWorkLog = (row) => {
     if (!window.confirm(`確定要刪除「${row.personName}」${row.date ? `（${String(row.date).replace(/-/g, '/')}）` : ''}的出工紀錄嗎？`)) return
     const res = deleteContractorWorkLog(row.id)
@@ -256,6 +296,7 @@ function ContractorRegistration() {
       setMessage({ type: 'error', text: res.message || '刪除失敗' })
       return
     }
+    if (editingWorkLogId === row.id) cancelEditWorkLog()
     setWorkLogRevision((r) => r + 1)
     setMessage({ type: 'success', text: '已刪除出工紀錄。' })
   }
@@ -627,7 +668,7 @@ function ContractorRegistration() {
               <div>
                 <h3 className="text-lg font-bold text-violet-300">出勤紀錄</h3>
                 <p className="text-white font-medium mt-1">{m(attendanceCompany.name)}</p>
-                <p className="text-gray-400 text-xs mt-1">同步承攬商出工登記系統之進離廠資料</p>
+                <p className="text-gray-400 text-xs mt-1">同步承攬商出工登記系統之進離廠資料；可編輯進離廠時間</p>
               </div>
               <button
                 type="button"
@@ -714,23 +755,67 @@ function ContractorRegistration() {
                               </tr>
                             </thead>
                             <tbody>
-                              {site.rows.map((row) => (
-                                <tr key={row.id} className="border-t border-gray-700/40 align-top">
-                                  <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
-                                  <td className="py-2 pr-2">
-                                    <ContractorWorkHoursDetail log={row} />
-                                  </td>
-                                  <td className="py-1.5 text-right">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteWorkLog({ ...row, date: day.date })}
-                                      className="text-xs px-2 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700/50 hover:bg-red-800/60"
-                                    >
-                                      刪除
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
+                              {site.rows.map((row) => {
+                                const isEditing = editingWorkLogId === row.id
+                                const canSave =
+                                  isWorkReportTimeFilled(editWorkLogArrival) ||
+                                  isWorkReportTimeFilled(editWorkLogDeparture)
+                                return (
+                                  <tr key={row.id} className="border-t border-gray-700/40 align-top">
+                                    <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
+                                    <td className="py-2 pr-2">
+                                      {isEditing ? (
+                                        <div className="space-y-2">
+                                          <TimeInput24 label="進廠" value={editWorkLogArrival} onChange={setEditWorkLogArrival} compact />
+                                          <TimeInput24 label="離廠" value={editWorkLogDeparture} onChange={setEditWorkLogDeparture} compact />
+                                        </div>
+                                      ) : (
+                                        <ContractorWorkHoursDetail log={row} />
+                                      )}
+                                    </td>
+                                    <td className="py-1.5 text-right">
+                                      <div className="flex flex-col gap-1 items-end">
+                                        {isEditing ? (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSaveWorkLogTimes(row.id)}
+                                              disabled={!canSave}
+                                              className="text-xs px-2 py-0.5 rounded bg-yellow-700/60 text-yellow-200 border border-yellow-600/50 hover:bg-yellow-600/60 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                              儲存
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={cancelEditWorkLog}
+                                              className="text-xs px-2 py-0.5 rounded text-gray-400 hover:text-gray-200"
+                                            >
+                                              取消
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => startEditWorkLog(row)}
+                                              className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-200 border border-gray-600 hover:bg-gray-600"
+                                            >
+                                              編輯
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteWorkLog({ ...row, date: day.date })}
+                                              className="text-xs px-2 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700/50 hover:bg-red-800/60"
+                                            >
+                                              刪除
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>

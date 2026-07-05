@@ -14,7 +14,6 @@ import {
 } from '../utils/dropdownStorage'
 
 const WORK_REPORT_SITE_CATEGORY = 'work_report_sites'
-const WORK_REPORT_CONTRACTOR_CATEGORY = 'work_report_contractors'
 import { getProjects } from '../utils/projectStorage'
 import {
   getWorkReports,
@@ -269,19 +268,6 @@ function getSiteNameOptions() {
   return sites.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
 }
 
-function getContractorNameOptions() {
-  const seen = new Set()
-  const names = []
-  const add = (n) => {
-    const t = String(n || '').trim()
-    if (!t || seen.has(t)) return
-    seen.add(t)
-    names.push(t)
-  }
-  ;(getDropdownOptionsByCategory(WORK_REPORT_CONTRACTOR_CATEGORY) || []).forEach((o) => add(o?.value))
-  return names.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
-}
-
 function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, unreportedRowIds, onReportOvertime }) {
   const isAdmin = userRole === 'admin'
   const showOvertimeCol = !!onReportOvertime && rows.some((r) => unreportedRowIds?.has(r.id))
@@ -436,7 +422,6 @@ function WorkReport() {
   const [laborOpen, setLaborOpen] = useState(false)
   const [listsOpen, setListsOpen] = useState(false)
   const [newSiteName, setNewSiteName] = useState('')
-  const [newContractorName, setNewContractorName] = useState('')
   const [message, setMessage] = useState(null)
   const [adminEditRow, setAdminEditRow] = useState(null)
   const [adminEditArrival, setAdminEditArrival] = useState('')
@@ -763,18 +748,6 @@ function WorkReport() {
     })
   }
 
-  const addContractorToList = () => {
-    const v = newContractorName.trim()
-    if (!v) return
-    const result = addDropdownOption(v, WORK_REPORT_CONTRACTOR_CATEGORY)
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.message || '新增包商失敗' })
-      return
-    }
-    setNewContractorName('')
-    setMessage({ type: 'success', text: `已新增包商「${v}」` })
-  }
-
   const handleDelete = (row) => {
     const isAdmin = userRole === 'admin'
     const isOwner = String(row?.submittedBy || '') === String(currentUser || '')
@@ -930,7 +903,7 @@ function WorkReport() {
             onClick={() => setListsOpen((v) => !v)}
             className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-gray-900/40"
           >
-            <span className="text-gray-300 text-sm">常用清單（案場、包商名稱）</span>
+            <span className="text-gray-300 text-sm">常用清單（案場）</span>
             <span className="text-gray-500 text-xs">{listsOpen ? '收合 ▲' : '展開 ▼'}</span>
           </button>
           {listsOpen && (
@@ -977,21 +950,6 @@ function WorkReport() {
                     ))}
                   </div>
                 )}
-              </div>
-              <div>
-                <label className="block text-gray-400 text-xs mb-1">新增包商名稱</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newContractorName}
-                    onChange={(e) => setNewContractorName(e.target.value)}
-                    placeholder="例：小豪"
-                    className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
-                  />
-                  <button type="button" onClick={addContractorToList} className="shrink-0 px-3 py-2 rounded-lg border border-teal-600/50 text-teal-200 text-sm hover:bg-teal-950/30">
-                    加入
-                  </button>
-                </div>
               </div>
             </div>
           )}
