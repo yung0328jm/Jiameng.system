@@ -68,7 +68,16 @@ import { maybeShowMessageNotification } from '../utils/browserNotification'
 import { getCompanyActivities, getPendingActivitiesCount } from '../utils/companyActivityStorage'
 import { getDailyTodoUnreadCount } from '../utils/todoStorage'
 
-const MORE_FEATURES_TABS = ['memo', 'daily-todo', 'activities', 'monthly-report']
+const MORE_FEATURES_TABS = ['memo', 'daily-todo', 'activities', 'monthly-report', 'leave-application', 'contractor-registration']
+const PERSONAL_SERVICE_TABS = [
+  'exchange-shop',
+  'exchange',
+  'my-backpack',
+  'advance',
+  'messages',
+  'change-password',
+  ...(!isNavHidden('performance') ? ['performance'] : [])
+]
 
 function Dashboard({ onLogout, activeTab: initialTab }) {
   const { refreshFromCloud } = useSync()
@@ -1328,9 +1337,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             >
               <DocumentIcon />
               <span>更多功能</span>
-              {(navBadges.memo + navBadges.dailyTodo + navBadges.activities) > 0 && (
+              {(navBadges.memo + navBadges.dailyTodo + navBadges.activities + navBadges.leave) > 0 && (
                 <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${MORE_FEATURES_TABS.includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
-                  {navBadges.memo + navBadges.dailyTodo + navBadges.activities > 99 ? '99+' : navBadges.memo + navBadges.dailyTodo + navBadges.activities}
+                  {navBadges.memo + navBadges.dailyTodo + navBadges.activities + navBadges.leave > 99 ? '99+' : navBadges.memo + navBadges.dailyTodo + navBadges.activities + navBadges.leave}
                 </span>
               )}
               <svg className="w-4 h-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1356,9 +1365,18 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                     <PeopleIcon /> 活動區
                     {navBadges.activities > 0 && activeTab !== 'activities' && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.activities}</span>}
                   </button>
-                  <button type="button" onClick={() => { handleTabClick('monthly-report', '/monthly-location-report'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                  <button type="button" onClick={() => { handleTabClick('monthly-report', '/monthly-location-report'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <CalendarIcon /> 整月報表
                   </button>
+                  <button type="button" onClick={() => { handleTabClick('leave-application', '/leave-application'); setShowMoreFeaturesMenu(false) }} className={`w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation ${userRole !== 'admin' ? 'rounded-b-lg' : ''}`}>
+                    <LeaveIcon /> 入廠人員異動申請
+                    {navBadges.leave > 0 && activeTab !== 'leave-application' && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.leave}</span>}
+                  </button>
+                  {userRole === 'admin' && (
+                    <button type="button" onClick={() => { handleTabClick('contractor-registration', '/contractor-registration'); setShowMoreFeaturesMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                      <DocumentIcon /> 承攬商資料登記
+                    </button>
+                  )}
                 </div>
               </>,
               document.body
@@ -1370,14 +1388,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               label="開發中"
               isActive={activeTab === 'developing'}
               onClick={() => handleTabClick('developing', '/developing')}
-            />
-          )}
-          {userRole === 'admin' && (
-            <NavItem
-              icon={<DocumentIcon />}
-              label="承攬商資料登記"
-              isActive={activeTab === 'contractor-registration'}
-              onClick={() => handleTabClick('contractor-registration', '/contractor-registration')}
             />
           )}
           {userRole === 'admin' && (
@@ -1403,7 +1413,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
-                ${['exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'change-password', ...(!isNavHidden('performance') ? ['performance'] : [])].includes(activeTab)
+                ${PERSONAL_SERVICE_TABS.includes(activeTab)
                   ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/40 shadow-inner'
                   : 'text-cn-parchment border-transparent hover:bg-black/25 hover:border-cn-gold/25 active:bg-black/35'
                 }
@@ -1411,9 +1421,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             >
               <PersonalServiceIcon />
               <span>個人服務</span>
-              {(navBadges.messages + navBadges.leave + navBadges.advance) > 0 && (
-                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${['exchange-shop', 'exchange', 'my-backpack', 'leave-application', 'advance', 'messages', 'change-password', ...(!isNavHidden('performance') ? ['performance'] : [])].includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
-                  {navBadges.messages + navBadges.leave + navBadges.advance > 99 ? '99+' : navBadges.messages + navBadges.leave + navBadges.advance}
+              {(navBadges.messages + navBadges.advance) > 0 && (
+                <span className={`absolute top-0.5 right-0.5 sm:top-1 sm:right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold ${PERSONAL_SERVICE_TABS.includes(activeTab) ? 'bg-cn-ink text-cn-gold' : 'bg-cn-vermilion text-cn-parchment'}`}>
+                  {navBadges.messages + navBadges.advance > 99 ? '99+' : navBadges.messages + navBadges.advance}
                 </span>
               )}
               <svg className="w-4 h-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1447,10 +1457,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   </button>
                   <button type="button" onClick={() => { handleTabClick('exchange', '/exchange'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <ExchangeIcon /> 交易所
-                  </button>
-                  <button type="button" onClick={() => { handleTabClick('leave-application', '/leave-application'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
-                    <LeaveIcon /> 入廠人員異動申請
-                    {navBadges.leave > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.leave}</span>}
                   </button>
                   <button type="button" onClick={() => { handleTabClick('advance', '/advance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <AdvanceIcon /> 工程款借貸
