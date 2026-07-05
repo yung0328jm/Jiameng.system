@@ -5,7 +5,7 @@ import { getContractorRegistrations } from './contractorRegistrationStorage'
 import { getProjects } from './projectStorage'
 import { getSchedules } from './scheduleStorage'
 import { LEAVE_APPLICATION_KEY } from './leaveApplicationMerge'
-import { getAllPayRates, getAllBonuses } from './paySlipStorage'
+import { getAllPayRatePersonNames, getAllBonuses } from './paySlipStorage'
 import { MONTHLY_LOCATION_OVERRIDES_KEY } from './monthlyLocationReportStorage'
 
 const INDEX_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -123,7 +123,7 @@ const buildMaskPairs = () => {
     })
   })
 
-  Object.keys(getAllPayRates() || {}).forEach((name) => addEntry(person, name))
+  getAllPayRatePersonNames().forEach((name) => addEntry(person, name))
   Object.values(getAllBonuses() || {}).forEach((monthMap) => {
     if (monthMap && typeof monthMap === 'object') {
       Object.keys(monthMap).forEach((name) => addEntry(person, name))

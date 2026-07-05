@@ -17,7 +17,59 @@ export const DEFAULT_PAY_RATE = {
 
 const round2 = (x) => Math.round(Number(x) * 100) / 100
 
-/* ===== 薪資參數 ===== */
+const isYearMonthKey = (key) => /^\d{4}-\d{2}$/.test(String(key || '').trim())
+
+function isLegacyPersonRateRecord(val) {
+  return !!val && typeof val === 'object' && (
+    'dailyRate' in val ||
+    'overtimeMultiplier' in val ||
+    'mealAllowancePerDay' in val ||
+    'nightMealAllowancePerDay' in val ||
+    'insuranceSubsidyPerDay' in val
+  )
+}
+
+function normalizePayRateRecord(raw) {
+  if (!isLegacyPersonRateRecord(raw)) return { ...DEFAULT_PAY_RATE }
+  return {
+    dailyRate: Number.isFinite(Number(raw.dailyRate)) ? Number(raw.dailyRate) : DEFAULT_PAY_RATE.dailyRate,
+    overtimeMultiplier: Number.isFinite(Number(raw.overtimeMultiplier))
+      ? Number(raw.overtimeMultiplier)
+      : DEFAULT_PAY_RATE.overtimeMultiplier,
+    mealAllowancePerDay: Number.isFinite(Number(raw.mealAllowancePerDay))
+      ? Number(raw.mealAllowancePerDay)
+      : DEFAULT_PAY_RATE.mealAllowancePerDay,
+    nightMealAllowancePerDay: Number.isFinite(Number(raw.nightMealAllowancePerDay))
+      ? Number(raw.nightMealAllowancePerDay)
+      : DEFAULT_PAY_RATE.nightMealAllowancePerDay,
+    insuranceSubsidyPerDay: Number.isFinite(Number(raw.insuranceSubsidyPerDay))
+      ? Number(raw.insuranceSubsidyPerDay)
+      : DEFAULT_PAY_RATE.insuranceSubsidyPerDay,
+    updatedAt: raw.updatedAt || ''
+  }
+}
+
+function getPriorMonthRateRecord(all, personName, yearMonth) {
+  const ym = String(yearMonth || '').trim()
+  if (!ym) return null
+  const months = Object.keys(all || {})
+    .filter(isYearMonthKey)
+    .filter((m) => m < ym)
+    .sort()
+    .reverse()
+  for (const m of months) {
+    const rec = all?.[m]?.[personName]
+    if (isLegacyPersonRateRecord(rec)) return rec
+  }
+  return null
+}
+
+function getLegacyPersonRateRecord(all, personName) {
+  const rec = all?.[personName]
+  return isLegacyPersonRateRecord(rec) ? rec : null
+}
+
+/* ===== 薪資參數（依月份儲存） ===== */
 
 export function getAllPayRates() {
   try {
@@ -30,34 +82,68 @@ export function getAllPayRates() {
   }
 }
 
-export function getPayRate(personName) {
+/** 供錄影模式等用途：彙整所有曾設定過費用參數的人名 */
+export function getAllPayRatePersonNames() {
   const all = getAllPayRates()
-  const name = String(personName || '').trim()
-  const r = all?.[name]
-  if (!r) return { ...DEFAULT_PAY_RATE }
-  return {
-    dailyRate: Number.isFinite(Number(r.dailyRate)) ? Number(r.dailyRate) : DEFAULT_PAY_RATE.dailyRate,
-    overtimeMultiplier: Number.isFinite(Number(r.overtimeMultiplier))
-      ? Number(r.overtimeMultiplier)
-      : DEFAULT_PAY_RATE.overtimeMultiplier,
-    mealAllowancePerDay: Number.isFinite(Number(r.mealAllowancePerDay))
-      ? Number(r.mealAllowancePerDay)
-      : DEFAULT_PAY_RATE.mealAllowancePerDay,
-    nightMealAllowancePerDay: Number.isFinite(Number(r.nightMealAllowancePerDay))
-      ? Number(r.nightMealAllowancePerDay)
-      : DEFAULT_PAY_RATE.nightMealAllowancePerDay,
-    insuranceSubsidyPerDay: Number.isFinite(Number(r.insuranceSubsidyPerDay))
-      ? Number(r.insuranceSubsidyPerDay)
-      : DEFAULT_PAY_RATE.insuranceSubsidyPerDay,
-    updatedAt: r.updatedAt || ''
-  }
+  const names = new Set()
+  Object.entries(all).forEach(([key, val]) => {
+    if (isYearMonthKey(key) && val && typeof val === 'object') {
+      Object.keys(val).forEach((name) => names.add(name))
+      return
+    }
+    if (isLegacyPersonRateRecord(val)) names.add(key)
+  })
+  return [...names]
 }
 
-export function setPayRate(personName, rate) {
+/**
+ * @returns {'month' | 'prior' | 'legacy' | 'default'}
+ */
+export function getPayRateSource(personName, yearMonth) {
   const name = String(personName || '').trim()
-  if (!name) return { success: false, message: '人員名稱不可空白' }
+  const ym = String(yearMonth || '').trim()
   const all = getAllPayRates()
-  all[name] = {
+  if (!name) return 'default'
+  if (ym && isLegacyPersonRateRecord(all?.[ym]?.[name])) return 'month'
+  if (ym && getPriorMonthRateRecord(all, name, ym)) return 'prior'
+  if (getLegacyPersonRateRecord(all, name)) return 'legacy'
+  return 'default'
+}
+
+export function hasPayRateForMonth(personName, yearMonth) {
+  const name = String(personName || '').trim()
+  const ym = String(yearMonth || '').trim()
+  if (!name || !ym) return false
+  return isLegacyPersonRateRecord(getAllPayRates()?.[ym]?.[name])
+}
+
+export function getPayRate(personName, yearMonth) {
+  const name = String(personName || '').trim()
+  const ym = String(yearMonth || '').trim()
+  const all = getAllPayRates()
+  if (!name) return { ...DEFAULT_PAY_RATE }
+
+  if (ym && isLegacyPersonRateRecord(all?.[ym]?.[name])) {
+    return normalizePayRateRecord(all[ym][name])
+  }
+
+  const prior = ym ? getPriorMonthRateRecord(all, name, ym) : null
+  if (prior) return normalizePayRateRecord(prior)
+
+  const legacy = getLegacyPersonRateRecord(all, name)
+  if (legacy) return normalizePayRateRecord(legacy)
+
+  return { ...DEFAULT_PAY_RATE }
+}
+
+export function setPayRate(personName, yearMonth, rate) {
+  const name = String(personName || '').trim()
+  const ym = String(yearMonth || '').trim()
+  if (!name) return { success: false, message: '人員名稱不可空白' }
+  if (!ym) return { success: false, message: '月份不可空白' }
+  const all = getAllPayRates()
+  if (!all[ym] || typeof all[ym] !== 'object') all[ym] = {}
+  all[ym][name] = {
     dailyRate: round2(rate?.dailyRate),
     overtimeMultiplier: round2(rate?.overtimeMultiplier),
     mealAllowancePerDay: round2(rate?.mealAllowancePerDay),

@@ -12,7 +12,8 @@ import {
   setBonus,
   calcPayAmount,
   calcTotalPayBonus,
-  getAllPayRates,
+  hasPayRateForMonth,
+  getPayRateSource,
   getAllBonuses,
   DEFAULT_PAY_RATE,
   NIGHT_MEAL_OT_THRESHOLD_HOURS
@@ -196,12 +197,22 @@ function PaySlip() {
               rows: [],
               isContractor: false
             }
-        const rate = getPayRate(name)
+        const rate = getPayRate(name, yearMonth)
         const manualBonus = getBonus(name, yearMonth)
         const autoBonus = calcPersonTotalBonus(stats, workBonusRules)
         const totalBonus = calcTotalPayBonus(autoBonus, manualBonus)
         const amounts = calcPayAmount(stats, rate, totalBonus)
-        return { personName: name, stats, rate, manualBonus, autoBonus, totalBonus, amounts }
+        return {
+          personName: name,
+          stats,
+          rate,
+          manualBonus,
+          autoBonus,
+          totalBonus,
+          amounts,
+          rateLockedForMonth: hasPayRateForMonth(name, yearMonth),
+          rateSource: getPayRateSource(name, yearMonth)
+        }
       })
       .filter((p) => showZero || p.stats.fullDays || p.stats.overtimeHours || p.stats.underHours || p.amounts.total)
       .sort((a, b) => {
@@ -233,7 +244,7 @@ function PaySlip() {
   }, [personRows])
 
   const startEditRate = (name) => {
-    const r = getPayRate(name)
+    const r = getPayRate(name, yearMonth)
     setEditingRate((prev) => ({
       ...prev,
       [name]: {
@@ -258,7 +269,7 @@ function PaySlip() {
 
   const saveEditRate = (name) => {
     const d = editingRate[name] || {}
-    const result = setPayRate(name, {
+    const result = setPayRate(name, yearMonth, {
       dailyRate: Number(d.dailyRate) || 0,
       overtimeMultiplier: Number(d.overtimeMultiplier) || 0,
       mealAllowancePerDay: Number(d.mealAllowancePerDay) || 0,
@@ -271,7 +282,7 @@ function PaySlip() {
     }
     cancelEditRate(name)
     setRevision((v) => v + 1)
-    setMessage({ type: 'success', text: `已儲存 ${name} 的費用參數` })
+    setMessage({ type: 'success', text: `已儲存 ${name} 的 ${yearMonth} 費用參數` })
   }
 
   const startEditBonus = (name) => {
@@ -304,7 +315,7 @@ function PaySlip() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">勞務報酬單</h1>
         <p className="text-gray-400 text-sm mt-1">
-          依出工回報統計＋每人費用參數計算月度勞務報酬。出工獎金依「獎金制度」已達成條件自動帶入，手動獎金可額外設定。
+          依出工回報統計＋每人費用參數計算月度勞務報酬。費用參數依月份獨立儲存，修改其他月份不影響本月。出工獎金依「獎金制度」已達成條件自動帶入，手動獎金可額外設定。
           {!isAdmin && '（一般使用者僅顯示自己的紀錄）'}
           夜間誤餐雜支費：當日已核准緊急入場達 {NIGHT_MEAL_OT_THRESHOLD_HOURS} 小時以上計 1 日。
         </p>
@@ -430,7 +441,7 @@ function PaySlip() {
       ) : (
         <div className="space-y-4">
           {personRows.map((p) => {
-            const { personName, stats, rate, manualBonus, autoBonus, totalBonus, amounts } = p
+            const { personName, stats, rate, manualBonus, autoBonus, totalBonus, amounts, rateLockedForMonth, rateSource } = p
             const isOpen = !!openIds[personName]
             const isEditingRate = !!editingRate[personName]
             const isEditingBonus = personName in editingBonus
@@ -578,17 +589,22 @@ function PaySlip() {
                   <div className="space-y-3">
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-gray-400">費用參數</div>
+                        <div className="text-xs text-gray-400">費用參數（{yearMonth}）</div>
                         {isAdmin && !isEditingRate && (
                           <button
                             type="button"
                             onClick={() => startEditRate(personName)}
                             className="text-cyan-300 hover:text-cyan-200 text-xs"
                           >
-                            {rateMissing ? '＋ 設定' : '編輯'}
+                            {rateLockedForMonth ? '編輯' : '＋ 設定本月'}
                           </button>
                         )}
                       </div>
+                      {!rateLockedForMonth && rateSource !== 'default' && (
+                        <p className="text-[10px] text-amber-200/80">
+                          本月尚未獨立設定，目前顯示沿用值；儲存後僅套用於 {yearMonth}
+                        </p>
+                      )}
                       {isAdmin && isEditingRate ? (
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <NumberField
