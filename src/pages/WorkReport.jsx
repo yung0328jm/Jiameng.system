@@ -424,18 +424,12 @@ function WorkReport() {
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser() || '')
   const [participantNames, setParticipantNames] = useState([])
   const [siteOptions, setSiteOptions] = useState([])
-  const [contractorOptions, setContractorOptions] = useState([])
 
   const [date, setDate] = useState(() => {
     const fromCalendar = location.state?.date
     return typeof fromCalendar === 'string' && fromCalendar ? fromCalendar : todayStr
   })
   const [siteSelect, setSiteSelect] = useState('')
-  const [contractorName, setContractorName] = useState('')
-  const [contractorHeadcount, setContractorHeadcount] = useState(1)
-  const [contractorArrival, setContractorArrival] = useState('')
-  const [contractorDeparture, setContractorDeparture] = useState('')
-  const [contractorOpen, setContractorOpen] = useState(false)
   const [laborNames, setLaborNames] = useState([])
   const [laborArrival, setLaborArrival] = useState('')
   const [laborDeparture, setLaborDeparture] = useState('')
@@ -466,11 +460,8 @@ function WorkReport() {
     setResignedSnapshot(snap)
     setParticipantNames(getParticipantNames(snap))
     const sites = getSiteNameOptions()
-    const contractors = getContractorNameOptions()
     setSiteOptions(sites)
-    setContractorOptions(contractors)
     setSiteSelect((prev) => (prev && sites.includes(prev) ? prev : sites[0] || ''))
-    setContractorName((prev) => (prev && contractors.includes(prev) ? prev : ''))
     setLaborNames((prev) => {
       const valid = getParticipantNames(snap)
       return Array.isArray(prev) ? prev.filter((n) => valid.includes(n)) : []
@@ -500,31 +491,6 @@ function WorkReport() {
   }, [refetch])
 
   const resolvedSite = siteSelect.trim()
-
-  const contractorPerHours = useMemo(
-    () => calcWorkReportHours(contractorArrival, contractorDeparture),
-    [contractorArrival, contractorDeparture]
-  )
-
-  const contractorPreviewHeadcount = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
-
-  const contractorPreviewSummary = useMemo(() => {
-    if (contractorPerHours == null) return null
-    return getWorkReportRowShiftSummary({
-      arrivalTime: contractorArrival,
-      departureTime: contractorDeparture,
-      headcount: contractorPreviewHeadcount,
-      personName: formatContractorPersonName('_', contractorPreviewHeadcount)
-    })
-  }, [contractorPerHours, contractorArrival, contractorDeparture, contractorPreviewHeadcount])
-
-  const dayContractorRecords = useMemo(() => {
-    const d = String(date || '').slice(0, 10)
-    if (!d) return []
-    return getWorkReports({ date: d })
-      .filter((r) => isWorkReportContractorName(r.personName))
-      .sort((a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0))
-  }, [date, monthRecords])
 
   const dayLaborRecords = useMemo(() => {
     const d = String(date || '').slice(0, 10)
@@ -675,80 +641,6 @@ function WorkReport() {
     setMessage({ type: 'success', text: `已離廠登記：${names.join('、')}（${date}）` })
   }
 
-  const registerContractorEntry = () => {
-    setMessage(null)
-    const siteName = resolvedSite
-    if (!siteName) {
-      setMessage({ type: 'error', text: '請選擇或輸入案場' })
-      return
-    }
-    const name = contractorName.trim()
-    if (!name) {
-      setMessage({ type: 'error', text: '請選擇承攬商' })
-      return
-    }
-    if (!isWorkReportTimeFilled(contractorArrival)) {
-      setMessage({ type: 'error', text: '請填寫進廠時間' })
-      return
-    }
-    const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
-    const result = registerWorkReportTime('entry', {
-      date,
-      siteName,
-      personName: formatContractorPersonName(name, hc),
-      headcount: hc,
-      arrivalTime: contractorArrival,
-      ...submitterMeta
-    })
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.message || '進廠登記失敗' })
-      return
-    }
-    setContractorArrival('')
-    refreshMonthForDate(date)
-    setMessage({
-      type: 'success',
-      text: `已進廠登記 ${formatContractorPersonName(name, hc)}（${date}）`
-    })
-  }
-
-  const registerContractorExit = () => {
-    setMessage(null)
-    const siteName = resolvedSite
-    if (!siteName) {
-      setMessage({ type: 'error', text: '請選擇或輸入案場' })
-      return
-    }
-    const name = contractorName.trim()
-    if (!name) {
-      setMessage({ type: 'error', text: '請選擇承攬商' })
-      return
-    }
-    if (!isWorkReportTimeFilled(contractorDeparture)) {
-      setMessage({ type: 'error', text: '請填寫離廠時間' })
-      return
-    }
-    const hc = Math.max(1, Math.floor(Number(contractorHeadcount) || 1))
-    const result = registerWorkReportTime('exit', {
-      date,
-      siteName,
-      personName: formatContractorPersonName(name, hc),
-      headcount: hc,
-      departureTime: contractorDeparture,
-      ...submitterMeta
-    })
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.message || '離廠登記失敗' })
-      return
-    }
-    setContractorDeparture('')
-    refreshMonthForDate(date)
-    setMessage({
-      type: 'success',
-      text: `已離廠登記 ${formatContractorPersonName(name, hc)}（${date}）`
-    })
-  }
-
   const laborCanEntry =
     !!resolvedSite &&
     laborNames.length > 0 &&
@@ -757,14 +649,6 @@ function WorkReport() {
     !!resolvedSite &&
     laborNames.length > 0 &&
     isWorkReportTimeFilled(laborDeparture)
-  const contractorCanEntry =
-    !!resolvedSite &&
-    !!contractorName.trim() &&
-    isWorkReportTimeFilled(contractorArrival)
-  const contractorCanExit =
-    !!resolvedSite &&
-    !!contractorName.trim() &&
-    isWorkReportTimeFilled(contractorDeparture)
 
   const unreportedOvertimeItems = useMemo(() => {
     if (!currentUser) return []
@@ -887,9 +771,6 @@ function WorkReport() {
       setMessage({ type: 'error', text: result.message || '新增包商失敗' })
       return
     }
-    const contractors = getContractorNameOptions()
-    setContractorOptions(contractors)
-    setContractorName(v)
     setNewContractorName('')
     setMessage({ type: 'success', text: `已新增包商「${v}」` })
   }
@@ -989,7 +870,7 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">入廠申請</h1>
         <p className="text-gray-400 text-sm mt-1">
-          選日期與案場後，包商或勞務承攬者填一筆按「登記」即寫入當日。顯示出工人數與緊急入場時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
+          選日期與案場後，勞務承攬者填一筆按「登記」即寫入當日。承攬商出工請使用承攬商簽到頁。顯示出工人數與緊急入場時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
         </p>
       </div>
 
@@ -1237,86 +1118,6 @@ function WorkReport() {
                   onClick={registerLaborExit}
                   disabled={!laborCanExit}
                   className="flex-1 min-h-[44px] px-6 py-2.5 rounded-lg bg-amber-800 hover:bg-amber-700 text-white font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  離廠登記
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="rounded-lg border border-teal-700/40 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setContractorOpen((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-teal-950/30 transition-colors"
-          >
-            <span className="text-teal-300 text-sm font-medium">承攬商登記（登記即存當日）</span>
-            <span className="text-gray-500 text-xs shrink-0">
-              {contractorOpen ? '收合 ▲' : '展開 ▼'}
-              {dayContractorRecords.length > 0 ? ` · 本日 ${dayContractorRecords.length} 筆` : ''}
-            </span>
-          </button>
-          {contractorOpen && (
-            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-teal-700/30">
-              {dayContractorRecords.length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-400 mb-2">{date} 已登記承攬商 {dayContractorRecords.length} 筆</p>
-                  <DayRegisterTable
-                    rows={dayContractorRecords}
-                    labelName="承攬商"
-                    userRole={userRole}
-                    onDelete={handleDelete}
-                    onSaveTimes={handleSaveTimes}
-                    unreportedRowIds={unreportedRowIds}
-                    onReportOvertime={handleReportOvertime}
-                  />
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-400 text-xs mb-1">承攬商名稱</label>
-                  <select
-                    value={contractorName}
-                    onChange={(e) => setContractorName(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                  >
-                    <option value="">— 請選擇承攬商 —</option>
-                    {contractorOptions.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-400 text-xs mb-1">人數</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={contractorHeadcount}
-                    onChange={(e) => setContractorHeadcount(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white tabular-nums"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TimeInput24 label="進廠時間" value={contractorArrival} onChange={setContractorArrival} />
-                <TimeInput24 label="離廠時間" value={contractorDeparture} onChange={setContractorDeparture} />
-              </div>
-              {contractorPreviewSummary && <WorkReportShiftSummary summary={contractorPreviewSummary} />}
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={registerContractorEntry}
-                  disabled={!contractorCanEntry}
-                  className="flex-1 min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  進廠登記
-                </button>
-                <button
-                  type="button"
-                  onClick={registerContractorExit}
-                  disabled={!contractorCanExit}
-                  className="flex-1 min-h-[44px] px-6 py-2.5 rounded-lg bg-teal-900 hover:bg-teal-800 text-white font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   離廠登記
                 </button>
