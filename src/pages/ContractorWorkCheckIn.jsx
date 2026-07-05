@@ -41,6 +41,7 @@ function ContractorWorkCheckIn() {
 
   const refresh = async () => {
     setLoading(true)
+    setDate(getTodayDateStr())
     await pullPublicContractorData()
     setRevision((r) => r + 1)
     setLoading(false)
@@ -148,17 +149,14 @@ function ContractorWorkCheckIn() {
       setMessage({ type: 'error', text: '請先輸入承攬商代碼' })
       return
     }
-    setTimeModal({
-      person,
-      mode,
-      time: nowTimeStr()
-    })
+    setTimeModal({ person, mode })
     setMessage(null)
   }
 
   const submitTimeModal = () => {
     if (!timeModal || !authenticatedCompany) return
-    const { person, mode, time } = timeModal
+    const { person, mode } = timeModal
+    const recordTime = nowTimeStr()
     const res = mode === 'in'
       ? registerContractorArrival({
           date,
@@ -168,14 +166,14 @@ function ContractorWorkCheckIn() {
           personId: person.id,
           personName: person.name,
           employeeNo: person.employeeNo,
-          arrivalTime: time
+          arrivalTime: recordTime
         })
       : registerContractorDeparture({
           date,
           siteName,
           companyId: authenticatedCompany.id,
           personId: person.id,
-          departureTime: time
+          departureTime: recordTime
         })
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '登記失敗' })
@@ -186,8 +184,8 @@ function ContractorWorkCheckIn() {
     setMessage({
       type: 'success',
       text: mode === 'in'
-        ? `已登記進廠：${m(person.name)} ${time}`
-        : `已登記離廠：${m(person.name)} ${time}`
+        ? `已登記進廠：${m(person.name)} ${recordTime}`
+        : `已登記離廠：${m(person.name)} ${recordTime}`
     })
   }
 
@@ -293,13 +291,10 @@ function ContractorWorkCheckIn() {
           </div>
 
           <div>
-            <label className="block text-cn-mist text-sm mb-1.5">日期</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-2.5 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-teal-500/40"
-            />
+            <p className="block text-cn-mist text-sm mb-1.5">日期</p>
+            <p className="w-full bg-black/20 border border-cn-gold/25 rounded-md px-3 py-2.5 text-cn-parchment tabular-nums">
+              {date.replace(/-/g, '/')}
+            </p>
           </div>
 
           <div>
@@ -400,13 +395,15 @@ function ContractorWorkCheckIn() {
               {timeModal.mode === 'in' ? '進廠登記' : '離廠登記'}
             </h3>
             <p className="text-gray-400 text-sm mb-4">{m(timeModal.person?.name)}</p>
-            <label className="block text-gray-300 text-sm mb-1">時間</label>
-            <input
-              type="time"
-              value={timeModal.time}
-              onChange={(e) => setTimeModal((m) => ({ ...m, time: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-500 text-white mb-4"
-            />
+            {timeModal.mode === 'in' ? (
+              <p className="text-amber-200 text-sm leading-relaxed mb-4 px-1">
+                離場時請務必記得點擊離場按鈕
+              </p>
+            ) : (
+              <p className="text-gray-300 text-sm leading-relaxed mb-4 px-1">
+                將以目前時間登記離廠
+              </p>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
