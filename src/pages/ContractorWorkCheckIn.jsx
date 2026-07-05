@@ -38,6 +38,7 @@ import {
 import { formatWorkReportHours } from '../utils/workReportStorage'
 
 const CHECKIN_SESSION_KEY = 'jiameng_contractor_checkin_auth'
+const MEAL_MODE_SESSION_PREFIX = 'jiameng_contractor_meal_mode_'
 
 const newMealRow = (id) => ({ id, mealKey: '', quantity: '1' })
 
@@ -62,6 +63,7 @@ function ContractorWorkCheckIn() {
   const [timeModal, setTimeModal] = useState(null) // { person, mode: 'in'|'out' }
   const [mealRows, setMealRows] = useState(() => [newMealRow('row-1')])
   const [namedMealRows, setNamedMealRows] = useState([])
+  const [mealOrderMode, setMealOrderMode] = useState('headcount') // named | headcount
 
   const refresh = async () => {
     setLoading(true)
@@ -150,7 +152,39 @@ function ContractorWorkCheckIn() {
     return getNamedMealOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
   }, [revision, date, authenticatedCompanyId, siteName])
 
-  const isHeadcountMealMode = companyAttendanceMode === 'headcount'
+  const isHeadcountMealMode = mealOrderMode === 'headcount'
+
+  const setMealOrderModeChoice = (mode) => {
+    const next = mode === 'headcount' ? 'headcount' : 'named'
+    setMealOrderMode(next)
+    if (authenticatedCompanyId) {
+      try {
+        sessionStorage.setItem(`${MEAL_MODE_SESSION_PREFIX}${authenticatedCompanyId}`, next)
+      } catch (_) {}
+    }
+  }
+
+  useEffect(() => {
+    if (!authenticatedCompanyId || !siteName) return
+    const named = getNamedMealOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
+    const company = getCompanyMealOrdersForDate(date, { siteName, companyId: authenticatedCompanyId })
+    if (named.length > 0) {
+      setMealOrderMode('named')
+      return
+    }
+    if (company.length > 0) {
+      setMealOrderMode('headcount')
+      return
+    }
+    try {
+      const saved = sessionStorage.getItem(`${MEAL_MODE_SESSION_PREFIX}${authenticatedCompanyId}`)
+      if (saved === 'named' || saved === 'headcount') {
+        setMealOrderMode(saved)
+        return
+      }
+    } catch (_) {}
+    setMealOrderMode(getContractorAttendanceMode(authenticatedCompany) === 'headcount' ? 'headcount' : 'named')
+  }, [authenticatedCompanyId, authenticatedCompany, siteName, date])
 
   const activePersonnel = useMemo(() => {
     if (!authenticatedCompany) return []
@@ -463,6 +497,9 @@ function ContractorWorkCheckIn() {
         setMessage({ type: 'error', text: res.message || '訂餐失敗' })
         return
       }
+      if (todayNamedMealOrders.length > 0) {
+        clearNamedMealOrders({ date, siteName, companyId: authenticatedCompany.id })
+      }
       setRevision((r) => r + 1)
       const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
       setMessage({ type: 'success', text: `已儲存訂餐 ${lines.length} 項，合計 $${total}` })
@@ -498,6 +535,9 @@ function ContractorWorkCheckIn() {
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '訂餐失敗' })
       return
+    }
+    if (todayCompanyMealOrders.length > 0) {
+      clearCompanyMealOrders({ date, siteName, companyId: authenticatedCompany.id })
     }
     setRevision((r) => r + 1)
     const total = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
@@ -827,12 +867,7 @@ function ContractorWorkCheckIn() {
           {activeView === 'meal' && siteName && (
             <div className="pt-2 border-t border-gray-700/60">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                <p className="text-orange-300 text-sm font-medium">
-                  今日訂餐 · {m(siteName)}
-                  <span className="text-gray-400 font-normal ml-1.5">
-                    （{isHeadcountMealMode ? '人數制' : '實名制'}）
-                  </span>
-                </p>
+                <p className="text-orange-300 text-sm font-medium">今日訂餐 · {m(siteName)}</p>
                 {mealOptions.length > 0 && (isHeadcountMealMode || activePersonnel.length > 0) && (
                   <div className="flex gap-2">
                     <button
@@ -858,6 +893,34 @@ function ContractorWorkCheckIn() {
                   </div>
                 )}
               </div>
+
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMealOrderModeChoice('named')}
+                  className={`min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    !isHeadcountMealMode
+                      ? 'bg-orange-800/70 border-orange-500 text-orange-100'
+                      : 'bg-black/25 border-gray-600 text-gray-300 hover:bg-black/40'
+                  }`}
+                >
+                  實名制
+                  <span className="block text-[10px] font-normal opacity-80 mt-0.5">每人選一項</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMealOrderModeChoice('headcount')}
+                  className={`min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    isHeadcountMealMode
+                      ? 'bg-orange-800/70 border-orange-500 text-orange-100'
+                      : 'bg-black/25 border-gray-600 text-gray-300 hover:bg-black/40'
+                  }`}
+                >
+                  數量制
+                  <span className="block text-[10px] font-normal opacity-80 mt-0.5">依餐點填數量</span>
+                </button>
+              </div>
+
               {mealOptions.length === 0 ? (
                 <p className="text-gray-500 text-sm">此案場尚無可訂餐的商家，請至點餐系統設定。</p>
               ) : !isHeadcountMealMode && activePersonnel.length === 0 ? (
