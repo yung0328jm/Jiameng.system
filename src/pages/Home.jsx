@@ -7,6 +7,8 @@ import { getLeaderboardItems, getLeaderboardUIConfig, saveLeaderboardUIConfig, a
 import { addTestRecord, getTestRecords, deleteTestRecord } from '../utils/testRecordStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { getAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement } from '../utils/announcementStorage'
+import AnnouncementVideoEmbed from '../components/AnnouncementVideoEmbed'
+import { parseVideoEmbedUrl } from '../utils/videoEmbed'
 import { getItems, getItem, createItem, updateItem, deleteItem, ITEM_TYPES } from '../utils/itemStorage'
 import { addItemToInventory, hasItem, removeItemFromInventory, getUserInventory } from '../utils/inventoryStorage'
 import { getAllEquippedEffects, unequipEffect, equipEffect } from '../utils/effectStorage'
@@ -91,7 +93,7 @@ function Home() {
   // 交流區公布欄狀態（首頁顯示）
   const [announcements, setAnnouncements] = useState([])
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false)
-  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'normal' })
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'normal', videoUrl: '' })
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null)
   const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false)
   const [isAddingAnnouncement, setIsAddingAnnouncement] = useState(false)
@@ -366,15 +368,21 @@ function Home() {
       alert('請輸入標題和內容')
       return
     }
+    const videoUrl = String(announcementForm.videoUrl || '').trim()
+    if (videoUrl && !parseVideoEmbedUrl(videoUrl)) {
+      alert('影片連結格式無法辨識，請貼上 YouTube、TikTok 或抖音網址')
+      return
+    }
     if (isAddingAnnouncement) return
     setIsAddingAnnouncement(true)
     try {
       const result = await addAnnouncement({
         ...announcementForm,
+        videoUrl,
         createdBy: currentUser
       })
       if (result.success) {
-        setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+        setAnnouncementForm({ title: '', content: '', priority: 'normal', videoUrl: '' })
         setShowAnnouncementForm(false)
         if (Array.isArray(result.data)) setAnnouncements(result.data)
         else loadAnnouncements()
@@ -388,9 +396,14 @@ function Home() {
 
   const handleUpdateAnnouncement = async (id, updates) => {
     if (isSavingAnnouncement) return
+    const videoUrl = String(updates.videoUrl ?? '').trim()
+    if (videoUrl && !parseVideoEmbedUrl(videoUrl)) {
+      alert('影片連結格式無法辨識，請貼上 YouTube、TikTok 或抖音網址')
+      return
+    }
     setIsSavingAnnouncement(true)
     try {
-      const result = await updateAnnouncement(id, updates)
+      const result = await updateAnnouncement(id, { ...updates, videoUrl })
       if (result.success) {
         if (Array.isArray(result.data)) setAnnouncements(result.data)
         else loadAnnouncements()
@@ -2048,7 +2061,7 @@ function Home() {
                 onClick={() => {
                   setShowAnnouncementForm(!showAnnouncementForm)
                   setEditingAnnouncementId(null)
-                  setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+                  setAnnouncementForm({ title: '', content: '', priority: 'normal', videoUrl: '' })
                 }}
                 className="shrink-0 bg-amber-900/90 hover:bg-amber-950 text-amber-50 px-3 py-2 rounded-md font-semibold text-sm transition-colors shadow-md border border-amber-950/30"
               >
@@ -2081,6 +2094,17 @@ function Home() {
                   />
                 </div>
                 <div>
+                  <label className="block text-stone-600 text-sm mb-1">影片連結（選填）</label>
+                  <input
+                    type="url"
+                    value={announcementForm.videoUrl}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, videoUrl: e.target.value })}
+                    placeholder="YouTube、TikTok 或抖音網址"
+                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-800/40 focus:border-amber-800"
+                  />
+                  <p className="text-stone-500 text-xs mt-1">支援 YouTube、TikTok 直接嵌入播放；抖音短連結將顯示為外部連結。</p>
+                </div>
+                <div>
                   <label className="block text-stone-600 text-sm mb-1">優先級</label>
                   <select
                     value={announcementForm.priority}
@@ -2106,7 +2130,7 @@ function Home() {
                     onClick={() => {
                       setShowAnnouncementForm(false)
                       setEditingAnnouncementId(null)
-                      setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+                      setAnnouncementForm({ title: '', content: '', priority: 'normal', videoUrl: '' })
                     }}
                     className="flex-1 bg-stone-300 hover:bg-stone-400 text-stone-900 font-semibold py-2 rounded-md transition-colors"
                   >
@@ -2171,7 +2195,7 @@ function Home() {
                               disabled={isSavingAnnouncement}
                               onClick={() => {
                                 setEditingAnnouncementId(null)
-                                setAnnouncementForm({ title: '', content: '', priority: 'normal' })
+                                setAnnouncementForm({ title: '', content: '', priority: 'normal', videoUrl: '' })
                               }}
                               className="text-stone-600 hover:text-stone-800 text-sm px-2 sm:px-3 py-1 disabled:opacity-50"
                             >
@@ -2187,7 +2211,8 @@ function Home() {
                                 setAnnouncementForm({
                                   title: announcement.title,
                                   content: announcement.content,
-                                  priority: announcement.priority ?? 'normal'
+                                  priority: announcement.priority ?? 'normal',
+                                  videoUrl: announcement.videoUrl || ''
                                 })
                               }}
                               className="text-amber-900 hover:text-amber-950 text-sm px-2 sm:px-3 py-1 font-medium"
@@ -2207,14 +2232,26 @@ function Home() {
                     )}
                   </div>
                   {editingAnnouncementId === announcement.id && userRole === 'admin' ? (
-                    <textarea
-                      value={announcementForm.content}
-                      onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
-                      rows="3"
-                      className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-800/40 resize-none"
-                    />
+                    <div className="space-y-2">
+                      <textarea
+                        value={announcementForm.content}
+                        onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
+                        rows="3"
+                        className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-800/40 resize-none"
+                      />
+                      <input
+                        type="url"
+                        value={announcementForm.videoUrl}
+                        onChange={(e) => setAnnouncementForm({ ...announcementForm, videoUrl: e.target.value })}
+                        placeholder="影片連結（選填）"
+                        className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-800/40"
+                      />
+                    </div>
                   ) : (
-                    <p className="text-stone-800 text-sm whitespace-pre-wrap leading-relaxed">{announcement.content}</p>
+                    <>
+                      <p className="text-stone-800 text-sm whitespace-pre-wrap leading-relaxed">{announcement.content}</p>
+                      {announcement.videoUrl && <AnnouncementVideoEmbed videoUrl={announcement.videoUrl} />}
+                    </>
                   )}
                 </div>
               ))
