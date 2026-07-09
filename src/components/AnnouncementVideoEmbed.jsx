@@ -1,36 +1,33 @@
-import { useMemo } from 'react'
-import { parseVideoEmbedUrl } from '../utils/videoEmbed'
+import { useEffect, useMemo, useState } from 'react'
+import { parseVideoEmbedUrl, resolveVideoEmbedViaOEmbed } from '../utils/videoEmbed'
 
-function AnnouncementVideoEmbed({ videoUrl }) {
-  const embed = useMemo(() => parseVideoEmbedUrl(videoUrl), [videoUrl])
-  if (!embed) return null
-
-  if (embed.embedUrl) {
-    const isVertical = embed.aspect === '9/16'
-    return (
-      <div
-        className={`mt-3 rounded-lg overflow-hidden border border-stone-400/60 bg-black/90 shadow-inner ${
-          isVertical ? 'mx-auto max-w-[320px]' : 'max-w-2xl w-full'
-        }`}
-      >
-        <div className={isVertical ? 'aspect-[9/16] w-full' : 'aspect-video w-full'}>
-          <iframe
-            src={embed.embedUrl}
-            title={`${embed.platformLabel} 影片`}
-            className="w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
-        </div>
-        <p className="px-2 py-1 text-[10px] text-stone-500 bg-stone-100/80 text-center">
-          {embed.platformLabel}
-        </p>
+function VideoPlayer({ embed }) {
+  const isVertical = embed.aspect === '9/16'
+  return (
+    <div
+      className={`mt-3 rounded-lg overflow-hidden border border-stone-400/60 bg-black/90 shadow-inner ${
+        isVertical ? 'mx-auto max-w-[320px]' : 'max-w-2xl w-full'
+      }`}
+    >
+      <div className={isVertical ? 'aspect-[9/16] w-full' : 'aspect-video w-full'}>
+        <iframe
+          src={embed.embedUrl}
+          title={`${embed.platformLabel} 影片`}
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
       </div>
-    )
-  }
+      <p className="px-2 py-1 text-[10px] text-stone-500 bg-stone-100/80 text-center">
+        {embed.platformLabel}
+      </p>
+    </div>
+  )
+}
 
+function ExternalLinkCard({ embed }) {
   return (
     <a
       href={embed.originalUrl}
@@ -47,6 +44,44 @@ function AnnouncementVideoEmbed({ videoUrl }) {
       </div>
     </a>
   )
+}
+
+function AnnouncementVideoEmbed({ videoUrl }) {
+  const initial = useMemo(() => parseVideoEmbedUrl(videoUrl), [videoUrl])
+  const [embed, setEmbed] = useState(initial)
+  const [loading, setLoading] = useState(!!initial?.needsOEmbed)
+
+  useEffect(() => {
+    setEmbed(initial)
+    if (!initial?.needsOEmbed) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    resolveVideoEmbedViaOEmbed(videoUrl).then((resolved) => {
+      if (cancelled) return
+      if (resolved?.embedUrl) setEmbed(resolved)
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [videoUrl, initial])
+
+  if (!initial) return null
+
+  if (loading) {
+    return (
+      <div className="mt-3 rounded-lg border border-stone-400/60 bg-stone-100/80 px-4 py-6 text-center text-stone-500 text-sm">
+        載入影片中…
+      </div>
+    )
+  }
+
+  if (embed?.embedUrl) return <VideoPlayer embed={embed} />
+
+  return <ExternalLinkCard embed={embed || initial} />
 }
 
 export default AnnouncementVideoEmbed

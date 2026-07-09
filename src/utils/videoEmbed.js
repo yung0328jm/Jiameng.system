@@ -1,73 +1,133 @@
+const YT_ID_RE = /^[a-zA-Z0-9_-]{11}$/
+
+function normalizeUrl(url) {
+  let raw = String(url || '').trim()
+  if (!raw) return ''
+  if (!/^https?:\/\//i.test(raw)) raw = `https://${raw.replace(/^\/+/, '')}`
+  return raw
+}
+
+function parseYoutubeId(url) {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./, '').toLowerCase()
+    if (host === 'youtu.be') {
+      const id = u.pathname.split('/').filter(Boolean)[0]
+      return YT_ID_RE.test(id) ? id : null
+    }
+    if (['youtube.com', 'm.youtube.com', 'music.youtube.com'].includes(host)) {
+      const fromQuery = u.searchParams.get('v')
+      if (YT_ID_RE.test(fromQuery || '')) return fromQuery
+      const pathMatch = u.pathname.match(/\/(?:shorts|embed|live|v)\/([a-zA-Z0-9_-]{11})/)
+      if (pathMatch) return pathMatch[1]
+    }
+  } catch (_) {}
+  return null
+}
+
+function parseTiktokId(url) {
+  const match = String(url || '').match(/tiktok\.com\/@[^/]+\/video\/(\d+)/i)
+  return match ? match[1] : null
+}
+
+function looksLikeYoutube(url) {
+  return /youtube\.com|youtu\.be|m\.youtube\.com/i.test(url)
+}
+
+function looksLikeTiktok(url) {
+  return /tiktok\.com|vm\.tiktok\.com/i.test(url)
+}
+
+/** 從 oEmbed / noembed 回傳的 html 取出 iframe src */
+export function extractIframeSrcFromHtml(html) {
+  const match = String(html || '').match(/src=["']([^"']+)["']/i)
+  return match ? match[1].replace(/&amp;/g, '&') : null
+}
+
 /** 解析外部影片網址，供公佈欄嵌入播放 */
 export function parseVideoEmbedUrl(url) {
-  const raw = String(url || '').trim()
-  if (!raw) return null
+  const originalUrl = normalizeUrl(url)
+  if (!originalUrl) return null
 
-  let match
-
-  // YouTube: watch, youtu.be, shorts, embed
-  match = raw.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
-  )
-  if (match) {
-    const videoId = match[1]
+  const youtubeId = parseYoutubeId(originalUrl)
+  if (youtubeId) {
     return {
       platform: 'youtube',
       platformLabel: 'YouTube',
-      videoId,
-      embedUrl: `https://www.youtube.com/embed/${videoId}`,
-      originalUrl: raw,
+      videoId: youtubeId,
+      embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
+      originalUrl,
       aspect: '16/9'
     }
   }
 
-  // TikTok: /@user/video/1234567890
-  match = raw.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/)
-  if (match) {
-    const videoId = match[1]
+  const tiktokId = parseTiktokId(originalUrl)
+  if (tiktokId) {
     return {
       platform: 'tiktok',
       platformLabel: 'TikTok',
-      videoId,
-      embedUrl: `https://www.tiktok.com/embed/v2/${videoId}`,
-      originalUrl: raw,
+      videoId: tiktokId,
+      embedUrl: `https://www.tiktok.com/embed/v2/${tiktokId}`,
+      originalUrl,
       aspect: '9/16'
     }
   }
 
-  // 抖音：完整影片頁
-  match = raw.match(/douyin\.com\/video\/(\d+)/)
-  if (match) {
+  if (/douyin\.com\/video\/(\d+)/i.test(originalUrl)) {
+    const videoId = originalUrl.match(/douyin\.com\/video\/(\d+)/i)?.[1]
     return {
       platform: 'douyin',
       platformLabel: '抖音',
-      videoId: match[1],
+      videoId,
       embedUrl: null,
-      originalUrl: raw,
+      originalUrl,
       aspect: '9/16'
     }
   }
 
-  // 抖音短連結（無法直接嵌入，提供外部連結）
-  if (/v\.douyin\.com|iesdouyin\.com/i.test(raw)) {
+  if (/v\.douyin\.com|iesdouyin\.com/i.test(originalUrl)) {
     return {
       platform: 'douyin',
       platformLabel: '抖音',
       videoId: null,
       embedUrl: null,
-      originalUrl: raw,
+      originalUrl,
       aspect: '9/16'
     }
   }
 
-  // 其他 http(s) 連結
-  if (/^https?:\/\//i.test(raw)) {
+  // YouTube / TikTok 短連結等：稍後用 oEmbed 解析
+  if (looksLikeYoutube(originalUrl)) {
+    return {
+      platform: 'youtube',
+      platformLabel: 'YouTube',
+      videoId: null,
+      embedUrl: null,
+      originalUrl,
+      aspect: '16/9',
+      needsOEmbed: true
+    }
+  }
+
+  if (looksLikeTiktok(originalUrl)) {
+    return {
+      platform: 'tiktok',
+      platformLabel: 'TikTok',
+      videoId: null,
+      embedUrl: null,
+      originalUrl,
+      aspect: '9/16',
+      needsOEmbed: true
+    }
+  }
+
+  if (/^https?:\/\//i.test(originalUrl)) {
     return {
       platform: 'unknown',
       platformLabel: '外部影片',
       videoId: null,
       embedUrl: null,
-      originalUrl: raw,
+      originalUrl,
       aspect: '16/9'
     }
   }
@@ -75,6 +135,33 @@ export function parseVideoEmbedUrl(url) {
   return null
 }
 
+/** 透過 noembed 取得可嵌入的 iframe 網址（支援 YouTube / TikTok 短連結） */
+export async function resolveVideoEmbedViaOEmbed(url) {
+  const originalUrl = normalizeUrl(url)
+  if (!originalUrl) return null
+  try {
+    const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(originalUrl)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const embedUrl = extractIframeSrcFromHtml(data?.html)
+    if (!embedUrl) return null
+    const isVertical = looksLikeTiktok(originalUrl)
+    return {
+      platform: looksLikeTiktok(originalUrl) ? 'tiktok' : 'youtube',
+      platformLabel: looksLikeTiktok(originalUrl) ? 'TikTok' : 'YouTube',
+      videoId: null,
+      embedUrl,
+      originalUrl,
+      aspect: isVertical ? '9/16' : '16/9'
+    }
+  } catch (_) {
+    return null
+  }
+}
+
 export function isValidVideoEmbedUrl(url) {
-  return !!parseVideoEmbedUrl(url)
+  const parsed = parseVideoEmbedUrl(url)
+  if (!parsed) return false
+  if (parsed.embedUrl || parsed.needsOEmbed) return true
+  return parsed.platform === 'douyin' || parsed.platform === 'unknown'
 }

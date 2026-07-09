@@ -2102,7 +2102,7 @@ function Home() {
                     placeholder="YouTube、TikTok 或抖音網址"
                     className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-800/40 focus:border-amber-800"
                   />
-                  <p className="text-stone-500 text-xs mt-1">支援 YouTube、TikTok 直接嵌入播放；抖音短連結將顯示為外部連結。</p>
+                  <p className="text-stone-500 text-xs mt-1">支援 YouTube、TikTok 直接嵌入播放（含短連結）；抖音多為外部連結開啟。</p>
                 </div>
                 <div>
                   <label className="block text-stone-600 text-sm mb-1">優先級</label>
