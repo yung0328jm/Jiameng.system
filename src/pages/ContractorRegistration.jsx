@@ -188,7 +188,43 @@ function ContractorRegistration() {
         })
       })
     })
-    return { fullDayCount, overtimeHours, lateCount, pendingOvertimeCount }
+    return {
+      fullDayCount: Math.round(fullDayCount * 10) / 10,
+      overtimeHours: Math.round(overtimeHours * 10) / 10,
+      lateCount,
+      pendingOvertimeCount
+    }
+  }, [attendanceDays])
+
+  /** 本月各案場個別合計 */
+  const attendanceSiteMonthStats = useMemo(() => {
+    const bySite = new Map()
+    attendanceDays.forEach((day) => {
+      day.sites.forEach((site) => {
+        const name = String(site.siteName || '').trim() || '—'
+        if (!bySite.has(name)) {
+          bySite.set(name, { siteName: name, rows: [] })
+        }
+        bySite.get(name).rows.push(...(site.rows || []))
+      })
+    })
+    return [...bySite.values()]
+      .map((entry) => {
+        const s = aggregateContractorWorkLogsSummary(entry.rows)
+        let pendingOvertimeCount = 0
+        entry.rows.forEach((row) => {
+          if (String(row?.overtimeStatus || '').trim() === 'pending') pendingOvertimeCount += 1
+        })
+        return {
+          siteName: entry.siteName,
+          fullDayCount: Math.round((s.fullDayHeadcount || 0) * 10) / 10,
+          overtimeHours: Math.round((s.totalOvertimeHours || 0) * 10) / 10,
+          lateCount: s.lateHeadcount || 0,
+          headcount: s.totalHeadcount || 0,
+          pendingOvertimeCount
+        }
+      })
+      .sort((a, b) => a.siteName.localeCompare(b.siteName, 'zh-Hant'))
   }, [attendanceDays])
 
   const startEditPerson = (person) => {
@@ -792,7 +828,7 @@ function ContractorRegistration() {
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg bg-gray-900/60 border border-gray-600">
+            <div className="flex items-center justify-between gap-3 mb-3 p-3 rounded-lg bg-gray-900/60 border border-gray-600">
               <button
                 type="button"
                 onClick={() => shiftAttendanceMonth(-1)}
@@ -823,6 +859,43 @@ function ContractorRegistration() {
                 下月
               </button>
             </div>
+
+            {attendanceSiteMonthStats.length > 0 && (
+              <div className="mb-4 rounded-lg border border-teal-800/50 bg-teal-950/20 overflow-hidden">
+                <p className="px-3 py-2 text-teal-300 text-xs font-medium border-b border-teal-800/40 bg-teal-950/30">
+                  各案場本月合計
+                </p>
+                <ul className="divide-y divide-teal-900/40">
+                  {attendanceSiteMonthStats.map((site) => (
+                    <li
+                      key={site.siteName}
+                      className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5"
+                    >
+                      <span className="text-teal-200 text-sm font-medium">{site.siteName}</span>
+                      <div className="text-right text-xs tabular-nums text-gray-400 space-y-0.5">
+                        <div>
+                          出工 <span className="text-amber-200 font-medium">{site.fullDayCount}</span> 工
+                          <span className="mx-1.5 text-gray-600">·</span>
+                          緊急入場{' '}
+                          <span className="text-red-400 font-medium">
+                            {formatWorkReportHours(site.overtimeHours)}
+                          </span>{' '}
+                          小時
+                        </div>
+                        <div>
+                          遲到 <span className="text-rose-300 font-medium">{site.lateCount}</span> 次
+                          {site.pendingOvertimeCount > 0 && (
+                            <span className="ml-2 text-amber-300">
+                              · 待審加班 {site.pendingOvertimeCount} 筆
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {attendanceDays.length === 0 ? (
               <p className="text-gray-500 text-sm py-8 text-center">本月尚無進廠紀錄。</p>
