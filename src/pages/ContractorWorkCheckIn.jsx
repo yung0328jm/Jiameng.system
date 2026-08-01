@@ -19,6 +19,7 @@ import {
   getTodayDateStr,
   nowTimeStr,
   CONTRACTOR_STANDARD_DEPARTURE,
+  CONTRACTOR_HALF_DAY_DEPARTURE,
   CONTRACTOR_ON_TIME_CUTOFF,
   CONTRACTOR_OVERTIME_HOUR_OPTIONS,
   CONTRACTOR_WORK_LOG_KEY
@@ -370,7 +371,9 @@ function ContractorWorkCheckIn() {
       headcountMode: false,
       leaveMode: 'none',
       overtimeHours: '',
-      useStandardArrival: false
+      useStandardArrival: false,
+      earlyDeparture: false,
+      earlyDepartureCount: 1
     })
     setMessage(null)
   }
@@ -397,18 +400,39 @@ function ContractorWorkCheckIn() {
       headcount: count,
       leaveMode: 'none',
       overtimeHours: '',
-      useStandardArrival: false
+      useStandardArrival: false,
+      earlyDeparture: false,
+      earlyDepartureCount: 1
     })
     setMessage(null)
   }
 
   const submitTimeModal = () => {
     if (!timeModal || !authenticatedCompany) return
-    const { person, mode, leaveMode, overtimeHours, headcountMode, headcount, useStandardArrival } = timeModal
+    const {
+      person,
+      mode,
+      leaveMode,
+      overtimeHours,
+      headcountMode,
+      headcount,
+      useStandardArrival,
+      earlyDeparture,
+      earlyDepartureCount
+    } = timeModal
     const recordTime =
       mode === 'in' && isInternalProxy && useStandardArrival
         ? CONTRACTOR_ON_TIME_CUTOFF
         : nowTimeStr()
+    const hc = Math.max(1, Math.floor(Number(headcount) || 1))
+    const earlyCount =
+      mode === 'out' && isInternalProxy && earlyDeparture
+        ? Math.min(hc, Math.max(1, Math.floor(Number(earlyDepartureCount) || 1)))
+        : 0
+    const isEarlyOut = earlyCount > 0
+    const allEarly = isEarlyOut && earlyCount >= hc
+    const departureTime = allEarly ? CONTRACTOR_HALF_DAY_DEPARTURE : CONTRACTOR_STANDARD_DEPARTURE
+    const workDaysPreview = Math.round((hc - earlyCount * 0.5) * 10) / 10
     let res
     if (headcountMode) {
       if (mode === 'in') {
@@ -430,9 +454,11 @@ function ContractorWorkCheckIn() {
           date,
           siteName,
           companyId: authenticatedCompany.id,
-          departureTime: CONTRACTOR_STANDARD_DEPARTURE,
+          departureTime,
           overtimeRequestHours: otHours,
-          overtimeStatus: otHours > 0 ? 'pending' : 'none'
+          overtimeStatus: otHours > 0 ? 'pending' : 'none',
+          earlyDeparture: isEarlyOut,
+          earlyDepartureCount: earlyCount
         })
       }
     } else if (mode === 'in') {
@@ -457,9 +483,10 @@ function ContractorWorkCheckIn() {
         siteName,
         companyId: authenticatedCompany.id,
         personId: person.id,
-        departureTime: CONTRACTOR_STANDARD_DEPARTURE,
+        departureTime: isEarlyOut ? CONTRACTOR_HALF_DAY_DEPARTURE : CONTRACTOR_STANDARD_DEPARTURE,
         overtimeRequestHours: otHours,
-        overtimeStatus: otHours > 0 ? 'pending' : 'none'
+        overtimeStatus: otHours > 0 ? 'pending' : 'none',
+        earlyDeparture: isEarlyOut
       })
     }
     if (!res.success) {
@@ -474,11 +501,12 @@ function ContractorWorkCheckIn() {
         return
       }
       const otHours = leaveMode === 'overtime' ? Number(overtimeHours) : 0
+      const earlyNote = isEarlyOut ? `（提早 ${earlyCount} 人 → ${workDaysPreview} 工）` : ''
       setMessage({
         type: 'success',
         text: otHours > 0
-          ? `已登記離廠：${headcount} 人 ${CONTRACTOR_STANDARD_DEPARTURE}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
-          : `已登記離廠：${headcount} 人 ${CONTRACTOR_STANDARD_DEPARTURE}`
+          ? `已登記離廠：${headcount} 人 ${departureTime}${earlyNote}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
+          : `已登記離廠：${headcount} 人 ${departureTime}${earlyNote}`
       })
       return
     }
@@ -487,11 +515,12 @@ function ContractorWorkCheckIn() {
       return
     }
     const otHours = leaveMode === 'overtime' ? Number(overtimeHours) : 0
+    const namedDep = isEarlyOut ? CONTRACTOR_HALF_DAY_DEPARTURE : CONTRACTOR_STANDARD_DEPARTURE
     setMessage({
       type: 'success',
       text: otHours > 0
-        ? `已登記離廠：${m(person.name)} ${CONTRACTOR_STANDARD_DEPARTURE}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
-        : `已登記離廠：${m(person.name)} ${CONTRACTOR_STANDARD_DEPARTURE}`
+        ? `已登記離廠：${m(person.name)} ${namedDep}${isEarlyOut ? '（半天 0.5 工）' : ''}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
+        : `已登記離廠：${m(person.name)} ${namedDep}${isEarlyOut ? '（半天 0.5 工）' : ''}`
     })
   }
 
@@ -505,6 +534,27 @@ function ContractorWorkCheckIn() {
 
   const setUseStandardArrival = (checked) => {
     setTimeModal((prev) => (prev ? { ...prev, useStandardArrival: !!checked } : prev))
+  }
+
+  const setEarlyDeparture = (checked) => {
+    setTimeModal((prev) => {
+      if (!prev) return prev
+      const hc = Math.max(1, Math.floor(Number(prev.headcount) || 1))
+      return {
+        ...prev,
+        earlyDeparture: !!checked,
+        earlyDepartureCount: checked ? Math.min(hc, Math.max(1, Number(prev.earlyDepartureCount) || 1)) : 0
+      }
+    })
+  }
+
+  const setEarlyDepartureCount = (value) => {
+    setTimeModal((prev) => {
+      if (!prev) return prev
+      const hc = Math.max(1, Math.floor(Number(prev.headcount) || 1))
+      const n = Math.min(hc, Math.max(1, Math.floor(Number(value) || 1)))
+      return { ...prev, earlyDepartureCount: n }
+    })
   }
 
   const getMealSelection = (mealKey) => mealOptions.find((o) => o.key === mealKey) || null
@@ -1257,9 +1307,76 @@ function ContractorWorkCheckIn() {
                     加班申請
                   </button>
                 </div>
+                {isInternalProxy && (
+                  <div className="space-y-2">
+                    <label className="flex items-start gap-2.5 rounded-lg border border-violet-600/50 bg-violet-950/30 px-3 py-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!timeModal.earlyDeparture}
+                        onChange={(e) => setEarlyDeparture(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-violet-400 text-violet-600 focus:ring-violet-500"
+                      />
+                      <span className="text-violet-100 text-sm leading-snug">
+                        有提早離場人員
+                        <span className="block text-violet-300/80 text-xs mt-0.5">
+                          提早離場以 0.5 工計算（例：3 人中 1 人提早＝2.5 工）
+                        </span>
+                      </span>
+                    </label>
+                    {timeModal.earlyDeparture && timeModal.headcountMode && (Number(timeModal.headcount) || 1) > 1 && (
+                      <div className="rounded-lg border border-violet-700/40 bg-black/20 px-3 py-2.5">
+                        <label className="block text-violet-200 text-sm mb-2">提早離場人數</label>
+                        <div className="flex flex-wrap gap-2">
+                          {Array.from(
+                            { length: Math.max(1, Math.floor(Number(timeModal.headcount) || 1)) },
+                            (_, i) => i + 1
+                          ).map((n) => {
+                            const hc = Math.max(1, Math.floor(Number(timeModal.headcount) || 1))
+                            const preview = Math.round((hc - n * 0.5) * 10) / 10
+                            return (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => setEarlyDepartureCount(n)}
+                                className={`min-h-[40px] px-3 py-2 rounded-lg text-sm font-medium border tabular-nums ${
+                                  Number(timeModal.earlyDepartureCount) === n
+                                    ? 'bg-violet-700 border-violet-400 text-white'
+                                    : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                }`}
+                              >
+                                {n} 人 → {preview} 工
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="rounded-lg bg-gray-900/60 border border-gray-600 px-3 py-2">
                   <p className="text-gray-400 text-xs">離廠時間</p>
-                  <p className="text-white font-semibold tabular-nums mt-0.5">{CONTRACTOR_STANDARD_DEPARTURE}（固定）</p>
+                  <p className="text-white font-semibold tabular-nums mt-0.5">
+                    {isInternalProxy &&
+                    timeModal.earlyDeparture &&
+                    Number(timeModal.earlyDepartureCount || 0) >= Math.max(1, Number(timeModal.headcount) || 1)
+                      ? `${CONTRACTOR_HALF_DAY_DEPARTURE}（全數半天）`
+                      : `${CONTRACTOR_STANDARD_DEPARTURE}（固定）`}
+                  </p>
+                  {isInternalProxy &&
+                    timeModal.earlyDeparture &&
+                    timeModal.headcountMode &&
+                    Number(timeModal.earlyDepartureCount || 0) > 0 &&
+                    Number(timeModal.earlyDepartureCount || 0) < Math.max(1, Number(timeModal.headcount) || 1) && (
+                      <p className="text-violet-300/90 text-xs mt-1">
+                        提早 {Number(timeModal.earlyDepartureCount)} 人、其餘滿日 → 合計{' '}
+                        {Math.round(
+                          (Math.max(1, Number(timeModal.headcount) || 1) -
+                            Number(timeModal.earlyDepartureCount) * 0.5) *
+                            10
+                        ) / 10}{' '}
+                        工
+                      </p>
+                    )}
                 </div>
                 {timeModal.leaveMode === 'overtime' && (
                   <div>

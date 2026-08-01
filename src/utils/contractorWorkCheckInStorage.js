@@ -6,10 +6,45 @@ import { CONTRACTOR_REGISTRATION_KEY } from './contractorRegistrationStorage'
 
 export const CONTRACTOR_WORK_LOG_KEY = 'jiameng_contractor_work_logs'
 export const CONTRACTOR_STANDARD_DEPARTURE = '17:00'
+export const CONTRACTOR_HALF_DAY_DEPARTURE = '12:00'
 export const CONTRACTOR_ON_TIME_CUTOFF = '08:00'
 export const HEADCOUNT_PERSON_ID = '__headcount__'
 
+/** 提早離場（半天）以 0.5 工計算 */
+export const CONTRACTOR_HALF_DAY_WORK_FACTOR = 0.5
+
 const roundHours = (hours) => Math.round(Number(hours) * 10) / 10
+
+/** 提早離場人數（0～當日人數）；舊資料僅有 earlyDeparture 旗標時視同全數提早 */
+export const getContractorEarlyDepartureCount = (log) => {
+  const headcount = Math.max(1, Math.floor(Number(log?.headcount) || 1))
+  const raw = Number(log?.earlyDepartureCount)
+  if (Number.isFinite(raw) && raw > 0) {
+    return Math.min(headcount, Math.floor(raw))
+  }
+  if (log?.earlyDeparture === true || Number(log?.workDayFactor) === CONTRACTOR_HALF_DAY_WORK_FACTOR) {
+    return headcount
+  }
+  return 0
+}
+
+export const isContractorEarlyDeparture = (log) => getContractorEarlyDepartureCount(log) > 0
+
+/** 出工天數＝滿日人數×1 + 提早人數×0.5 */
+export const getContractorWorkDaysFromLog = (log) => {
+  const headcount = Math.max(1, Math.floor(Number(log?.headcount) || 1))
+  const earlyCount = getContractorEarlyDepartureCount(log)
+  return roundHours(headcount - earlyCount * CONTRACTOR_HALF_DAY_WORK_FACTOR)
+}
+
+/** @deprecated 相容舊呼叫：有提早時回傳 0.5，否則 1（無法表達部分提早） */
+export const getContractorWorkDayFactor = (log) => {
+  const headcount = Math.max(1, Math.floor(Number(log?.headcount) || 1))
+  const earlyCount = getContractorEarlyDepartureCount(log)
+  if (earlyCount <= 0) return 1
+  if (earlyCount >= headcount) return CONTRACTOR_HALF_DAY_WORK_FACTOR
+  return roundHours(getContractorWorkDaysFromLog(log) / headcount)
+}
 
 /** 進廠超過 08:00 視為遲到 */
 export const isContractorLate = (arrivalTime) => {
@@ -123,7 +158,10 @@ export const mergeContractorWorkLogs = (existing, incoming) => {
       siteName: String(keep.siteName || other.siteName || '').trim(),
       overtimeStatus: String(keep.overtimeStatus || other.overtimeStatus || 'none').trim() || 'none',
       overtimeRequestHours: Number(keep.overtimeRequestHours ?? other.overtimeRequestHours) || 0,
-      approvedOvertimeHours: keep.approvedOvertimeHours ?? other.approvedOvertimeHours
+      approvedOvertimeHours: keep.approvedOvertimeHours ?? other.approvedOvertimeHours,
+      earlyDeparture: !!(keep.earlyDeparture ?? other.earlyDeparture),
+      earlyDepartureCount: keep.earlyDepartureCount ?? other.earlyDepartureCount,
+      workDayFactor: keep.workDayFactor ?? other.workDayFactor
     }
     if (keep.deleted || other.deleted) {
       const delKeep = keep.deleted ? keep : other
@@ -232,14 +270,19 @@ export const registerContractorDeparture = ({
   personId,
   departureTime,
   overtimeRequestHours,
-  overtimeStatus
+  overtimeStatus,
+  earlyDeparture = false
 }) => {
   try {
     const d = String(date || '').slice(0, 10)
     const site = String(siteName || '').trim()
     const cid = String(companyId || '').trim()
     const pid = String(personId || '').trim()
-    const dt = String(departureTime || CONTRACTOR_STANDARD_DEPARTURE).trim()
+    const earlyCount = earlyDeparture ? 1 : 0
+    const isEarly = earlyCount > 0
+    const dt = String(
+      departureTime || (isEarly ? CONTRACTOR_HALF_DAY_DEPARTURE : CONTRACTOR_STANDARD_DEPARTURE)
+    ).trim()
     const otHours = Math.max(0, Number(overtimeRequestHours) || 0)
     const otStatus = overtimeStatus || (otHours > 0 ? 'pending' : 'none')
     if (!d || !site || !cid || !pid) return { success: false, message: '資料不完整' }
@@ -262,6 +305,9 @@ export const registerContractorDeparture = ({
       overtimeRequestHours: otHours,
       overtimeStatus: otStatus,
       approvedOvertimeHours: undefined,
+      earlyDeparture: isEarly,
+      earlyDepartureCount: earlyCount,
+      workDayFactor: isEarly ? CONTRACTOR_HALF_DAY_WORK_FACTOR : 1,
       updatedAt: now
     }
     persist(list)
@@ -331,20 +377,14 @@ export const registerHeadcountDeparture = ({
   companyId,
   departureTime,
   overtimeRequestHours,
-  overtimeStatus
+  overtimeStatus,
+  earlyDeparture = false,
+  earlyDepartureCount
 }) => {
   try {
     const d = String(date || '').slice(0, 10)
     const site = String(siteName || '').trim()
     const cid = String(companyId || '').trim()
-    const dt = String(departureTime || CONTRACTOR_STANDARD_DEPARTURE).trim()
-    const otHours = Math.max(0, Number(overtimeRequestHours) || 0)
-    const otStatus = overtimeStatus || (otHours > 0 ? 'pending' : 'none')
-    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
-    if (!dt) return { success: false, message: '請填寫離廠時間' }
-    if (otStatus === 'pending' && otHours <= 0) {
-      return { success: false, message: '請填寫申請加班時數' }
-    }
     const list = readAllContractorWorkLogs()
     const idx = list.findIndex(
       (r) => logKey(r.date, r.siteName, r.companyId, r.personId) === logKey(d, site, cid, HEADCOUNT_PERSON_ID)
@@ -355,13 +395,38 @@ export const registerHeadcountDeparture = ({
     if (list[idx]?.departureTime) {
       return { success: false, message: '今日此案場已登記離廠' }
     }
+    const headcount = Math.max(1, Math.floor(Number(list[idx]?.headcount) || 1))
+    let earlyCount = 0
+    if (earlyDeparture) {
+      earlyCount = Math.floor(Number(earlyDepartureCount) || 0)
+      if (!Number.isFinite(earlyCount) || earlyCount < 1) {
+        return { success: false, message: '請選擇提早離場人數' }
+      }
+      earlyCount = Math.min(headcount, earlyCount)
+    }
+    const allEarly = earlyCount >= headcount
+    const dt = String(
+      departureTime ||
+        (allEarly ? CONTRACTOR_HALF_DAY_DEPARTURE : CONTRACTOR_STANDARD_DEPARTURE)
+    ).trim()
+    const otHours = Math.max(0, Number(overtimeRequestHours) || 0)
+    const otStatus = overtimeStatus || (otHours > 0 ? 'pending' : 'none')
+    if (!d || !site || !cid) return { success: false, message: '資料不完整' }
+    if (!dt) return { success: false, message: '請填寫離廠時間' }
+    if (otStatus === 'pending' && otHours <= 0) {
+      return { success: false, message: '請填寫申請加班時數' }
+    }
     const now = new Date().toISOString()
+    const workDays = roundHours(headcount - earlyCount * CONTRACTOR_HALF_DAY_WORK_FACTOR)
     list[idx] = {
       ...list[idx],
       departureTime: dt,
       overtimeRequestHours: otHours,
       overtimeStatus: otStatus,
       approvedOvertimeHours: undefined,
+      earlyDeparture: earlyCount > 0,
+      earlyDepartureCount: earlyCount,
+      workDayFactor: earlyCount > 0 ? roundHours(workDays / headcount) : 1,
       updatedAt: now
     }
     persist(list)
@@ -522,16 +587,21 @@ export const formatContractorTimeLabel = (log) => {
   return `${arr}~${dep}`
 }
 
-/** 單人出工摘要：有離廠即 1 工；緊急入場僅採已核准加班申請時數 */
+/** 單人出工摘要：滿日 1 工、提早離場每人 0.5 工；緊急入場僅採已核准加班申請時數 */
 export const getContractorWorkLogShiftSummary = (log) => {
   const arr = String(log?.arrivalTime || '').trim()
   const dep = String(log?.departureTime || '').trim()
   if (!arr || !dep) return null
   const headcount = getLogHeadcount(log)
+  const earlyCount = getContractorEarlyDepartureCount(log)
+  const fullDayHeadcount = getContractorWorkDaysFromLog(log)
   const totalOvertimeHours = getContractorEmergencyHours(log)
   const late = isContractorLate(arr)
   return {
     headcount,
+    earlyDepartureCount: earlyCount,
+    workDayFactor: getContractorWorkDayFactor(log),
+    earlyDeparture: earlyCount > 0,
     perPersonOvertimeHours: totalOvertimeHours,
     totalOvertimeHours,
     hasOvertime: totalOvertimeHours > 0,
@@ -539,7 +609,7 @@ export const getContractorWorkLogShiftSummary = (log) => {
     underActualHours: 0,
     underPerPersonHours: 0,
     hasUnderHours: false,
-    fullDayHeadcount: headcount,
+    fullDayHeadcount,
     isLate: late,
     lateHeadcount: late ? headcount : 0
   }
@@ -561,6 +631,7 @@ export const aggregateContractorWorkLogsSummary = (logs) => {
     lateHeadcount += s.lateHeadcount || 0
   })
   totalOvertimeHours = roundHours(totalOvertimeHours)
+  fullDayHeadcount = roundHours(fullDayHeadcount)
   return {
     totalHeadcount,
     totalOvertimeHours,
