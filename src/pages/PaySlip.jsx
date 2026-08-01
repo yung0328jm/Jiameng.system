@@ -34,17 +34,31 @@ function formatMoney(n) {
   return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 0 })
 }
 
-/** 依顯示名對應借支帳號，讀取該月管理員登記的實際還款（＝勞務單借支扣款） */
-function getAdvanceDeductionForPerson(personName, yearMonth) {
+/** 勞務單年月 YYYY-MM → 下一曆月（隔月5號發薪時登記還款） */
+function nextYearMonth(ymKey) {
+  if (!ymKey || ymKey.length < 7) return ''
+  const y = Number(ymKey.slice(0, 4))
+  const m = parseInt(ymKey.slice(5), 10)
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return ''
+  if (m >= 12) return `${y + 1}-01`
+  return `${y}-${String(m + 1).padStart(2, '0')}`
+}
+
+/**
+ * 借支扣款：讀「發薪月」管理員手填的實際還款。
+ * 勞務單為上個月，隔月5號發薪才知道扣多少 → 對照下一曆月的還款登記。
+ */
+function getAdvanceDeductionForPerson(personName, paySlipYearMonth) {
   const name = String(personName || '').trim()
-  if (!name || !yearMonth) return 0
+  const repayYm = nextYearMonth(paySlipYearMonth)
+  if (!name || !repayYm) return 0
   const bound = findBoundAccountForDisplayName(name)
   const candidates = []
   if (bound) candidates.push(bound)
   candidates.push('name:' + name)
   candidates.push(name)
   for (const acc of candidates) {
-    const v = Math.max(0, Number(getAdvanceRepayment(acc, yearMonth)) || 0)
+    const v = Math.max(0, Number(getAdvanceRepayment(acc, repayYm)) || 0)
     if (v > 0) return Math.round(v)
   }
   return 0
@@ -645,7 +659,7 @@ function PaySlip() {
                           <span className="text-emerald-200 font-bold">${formatMoney(netPay)}</span>
                         </div>
                         <p className="text-[10px] text-gray-500 pt-0.5">
-                          借支扣款＝工程款借貸「本月實際還款」；實際＝合計 − 借支扣款
+                          借支扣款＝隔月（發薪月）在工程款借貸手填的「實際還款」；實際＝合計 − 借支扣款
                         </p>
                       </div>
                     </div>
