@@ -7,21 +7,29 @@ import {
   getContractorWorkDaysFromLog
 } from '../utils/contractorWorkCheckInStorage'
 
-/** 承攬商出工：滿日 1 工、提早離場每人 0.5 工；超過 08:00 進廠標示遲到；緊急入場僅採加班申請時數 */
+function formatOtWithHeadcount(perPerson, headcount) {
+  const total = Math.round(perPerson * headcount * 10) / 10
+  if (headcount <= 1) return `${formatWorkReportHours(perPerson)} 小時`
+  return `${formatWorkReportHours(total)} 小時（${headcount}人×${formatWorkReportHours(perPerson)}）`
+}
+
+/** 承攬商出工：滿日 1 工、提早離場每人 0.5 工；超過 08:00 進廠標示遲到；緊急入場＝每人加班時數×人數 */
 export function ContractorWorkHoursDetail({ log, className = '' }) {
   const arr = String(log?.arrivalTime || '').trim()
   const dep = String(log?.departureTime || '').trim()
   const otStatus = String(log?.overtimeStatus || 'none').trim()
-  const otReq = Number(log?.overtimeRequestHours) || 0
-  const otApproved = Number(log?.approvedOvertimeHours) || 0
+  const otReq = Math.round((Number(log?.overtimeRequestHours) || 0) * 10) / 10
+  const approvedPerPerson =
+    otStatus === 'approved'
+      ? Math.round((Number(log?.approvedOvertimeHours ?? log?.overtimeRequestHours) || 0) * 10) / 10
+      : 0
   const emergencyHours = getContractorEmergencyHours(log)
   const late = isContractorLate(arr)
   const early = isContractorEarlyDeparture(log)
   const earlyCount = getContractorEarlyDepartureCount(log)
-  const headcount = Math.max(1, Number(log?.headcount) || 1)
+  const headcount = Math.max(1, Math.floor(Number(log?.headcount) || 1))
   const workDays = getContractorWorkDaysFromLog(log)
   const fullCount = Math.max(0, headcount - earlyCount)
-
   if (!arr) {
     return <span className={`text-gray-500 text-xs ${className}`}>—</span>
   }
@@ -50,21 +58,23 @@ export function ContractorWorkHoursDetail({ log, className = '' }) {
       <div className="text-amber-200 font-semibold">出工 → {workDays} 工</div>
       {emergencyHours > 0 && (
         <div className="text-red-400 font-semibold">
-          緊急入場 {formatWorkReportHours(emergencyHours)} 小時
+          緊急入場 {formatOtWithHeadcount(approvedPerPerson, headcount)}
         </div>
       )}
       {otStatus === 'pending' && otReq > 0 && (
         <div className="text-amber-300 font-semibold">
-          加班申請 {formatWorkReportHours(otReq)} 小時（待審核）
+          加班申請 {formatOtWithHeadcount(otReq, headcount)}（待審核）
         </div>
       )}
-      {otStatus === 'approved' && otApproved > 0 && (
+      {otStatus === 'approved' && approvedPerPerson > 0 && (
         <div className="text-emerald-300">
-          已核准加班 {formatWorkReportHours(otApproved)} 小時
+          已核准加班 {formatOtWithHeadcount(approvedPerPerson, headcount)}
         </div>
       )}
       {otStatus === 'rejected' && otReq > 0 && (
-        <div className="text-gray-500">加班申請 {formatWorkReportHours(otReq)} 小時（已駁回）</div>
+        <div className="text-gray-500">
+          加班申請 {formatOtWithHeadcount(otReq, headcount)}（已駁回）
+        </div>
       )}
     </div>
   )

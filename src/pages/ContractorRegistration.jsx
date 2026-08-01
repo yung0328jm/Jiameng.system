@@ -318,9 +318,17 @@ function ContractorRegistration() {
       setMessage({ type: 'error', text: res.message || '申請失敗' })
       return
     }
+    const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
+    const total = Math.round(hrs * hc * 10) / 10
     cancelApplyOvertime()
     setWorkLogRevision((r) => r + 1)
-    setMessage({ type: 'success', text: `已送出加班申請 ${formatWorkReportHours(hrs)} 小時，待核准。` })
+    setMessage({
+      type: 'success',
+      text:
+        hc > 1
+          ? `已送出加班申請：每人 ${formatWorkReportHours(hrs)} 小時，合計 ${formatWorkReportHours(total)} 小時（${hc}人），待核准。`
+          : `已送出加班申請 ${formatWorkReportHours(hrs)} 小時，待核准。`
+    })
   }
 
   const handleDeleteWorkLog = (row) => {
@@ -338,19 +346,31 @@ function ContractorRegistration() {
 
   const handleApproveOvertime = (row) => {
     const hrs = Number(row?.overtimeRequestHours) || 0
-    if (!window.confirm(`核准「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`)) return
+    const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
+    const total = Math.round(hrs * hc * 10) / 10
+    const label =
+      hc > 1
+        ? `每人 ${formatWorkReportHours(hrs)} 小時、合計 ${formatWorkReportHours(total)} 小時（${hc}人）`
+        : `${formatWorkReportHours(hrs)} 小時`
+    if (!window.confirm(`核准「${row.personName}」加班申請 ${label}？`)) return
     const res = reviewContractorOvertime(row.id, { action: 'approve', approvedHours: hrs })
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '核准失敗' })
       return
     }
     setWorkLogRevision((r) => r + 1)
-    setMessage({ type: 'success', text: `已核准加班 ${formatWorkReportHours(hrs)} 小時。` })
+    setMessage({ type: 'success', text: `已核准加班 ${label}。` })
   }
 
   const handleRejectOvertime = (row) => {
     const hrs = Number(row?.overtimeRequestHours) || 0
-    if (!window.confirm(`駁回「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`)) return
+    const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
+    const total = Math.round(hrs * hc * 10) / 10
+    const label =
+      hc > 1
+        ? `每人 ${formatWorkReportHours(hrs)} 小時、合計 ${formatWorkReportHours(total)} 小時（${hc}人）`
+        : `${formatWorkReportHours(hrs)} 小時`
+    if (!window.confirm(`駁回「${row.personName}」加班申請 ${label}？`)) return
     const res = reviewContractorOvertime(row.id, { action: 'reject' })
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '駁回失敗' })
@@ -870,7 +890,7 @@ function ContractorRegistration() {
                                         <div className="space-y-2">
                                           <ContractorWorkHoursDetail log={row} />
                                           <div className="rounded-lg border border-amber-700/40 bg-amber-950/20 p-2">
-                                            <p className="text-amber-200 text-xs mb-2">申請緊急入場時數</p>
+                                            <p className="text-amber-200 text-xs mb-2">申請緊急入場時數（每人）</p>
                                             <div className="grid grid-cols-3 gap-1.5">
                                               {CONTRACTOR_OVERTIME_HOUR_OPTIONS.map((h) => (
                                                 <button
@@ -887,6 +907,21 @@ function ContractorRegistration() {
                                                 </button>
                                               ))}
                                             </div>
+                                            {Number(applyOvertimeHours) > 0 &&
+                                              Math.max(1, Math.floor(Number(row?.headcount) || 1)) > 1 && (
+                                                <p className="text-amber-300/80 text-[11px] mt-1.5">
+                                                  合計{' '}
+                                                  {formatWorkReportHours(
+                                                    Math.round(
+                                                      Number(applyOvertimeHours) *
+                                                        Math.max(1, Math.floor(Number(row?.headcount) || 1)) *
+                                                        10
+                                                    ) / 10
+                                                  )}{' '}
+                                                  小時（{Math.max(1, Math.floor(Number(row?.headcount) || 1))}人×
+                                                  {formatWorkReportHours(Number(applyOvertimeHours))}）
+                                                </p>
+                                              )}
                                           </div>
                                         </div>
                                       ) : (

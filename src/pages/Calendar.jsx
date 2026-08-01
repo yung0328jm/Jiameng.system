@@ -4960,7 +4960,7 @@ function Calendar() {
                               <ContractorWorkHoursDetail log={row} />
                               {isApplyingOt && (
                                 <div className="mt-2 rounded-lg border border-amber-700/40 bg-amber-950/20 p-2">
-                                  <p className="text-amber-200 text-xs mb-2">申請緊急入場時數</p>
+                                  <p className="text-amber-200 text-xs mb-2">申請緊急入場時數（每人）</p>
                                   <div className="grid grid-cols-3 gap-1.5">
                                     {CONTRACTOR_OVERTIME_HOUR_OPTIONS.map((h) => (
                                       <button
@@ -4977,6 +4977,21 @@ function Calendar() {
                                       </button>
                                     ))}
                                   </div>
+                                  {Number(contractorApplyOvertimeHours) > 0 &&
+                                    Math.max(1, Math.floor(Number(row?.headcount) || 1)) > 1 && (
+                                      <p className="text-amber-300/80 text-[11px] mt-1.5">
+                                        合計{' '}
+                                        {formatWorkReportHours(
+                                          Math.round(
+                                            Number(contractorApplyOvertimeHours) *
+                                              Math.max(1, Math.floor(Number(row?.headcount) || 1)) *
+                                              10
+                                          ) / 10
+                                        )}{' '}
+                                        小時（{Math.max(1, Math.floor(Number(row?.headcount) || 1))}人×
+                                        {formatWorkReportHours(Number(contractorApplyOvertimeHours))}）
+                                      </p>
+                                    )}
                                 </div>
                               )}
                             </td>
@@ -5028,11 +5043,13 @@ function Calendar() {
                                           type="button"
                                           onClick={() => {
                                             const hrs = Number(row?.overtimeRequestHours) || 0
-                                            if (
-                                              !window.confirm(
-                                                `核准「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`
-                                              )
-                                            ) {
+                                            const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
+                                            const total = Math.round(hrs * hc * 10) / 10
+                                            const label =
+                                              hc > 1
+                                                ? `每人 ${formatWorkReportHours(hrs)} 小時、合計 ${formatWorkReportHours(total)} 小時（${hc}人）`
+                                                : `${formatWorkReportHours(hrs)} 小時`
+                                            if (!window.confirm(`核准「${row.personName}」加班申請 ${label}？`)) {
                                               return
                                             }
                                             const res = reviewContractorOvertime(row.id, {
@@ -5053,11 +5070,13 @@ function Calendar() {
                                           type="button"
                                           onClick={() => {
                                             const hrs = Number(row?.overtimeRequestHours) || 0
-                                            if (
-                                              !window.confirm(
-                                                `駁回「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`
-                                              )
-                                            ) {
+                                            const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
+                                            const total = Math.round(hrs * hc * 10) / 10
+                                            const label =
+                                              hc > 1
+                                                ? `每人 ${formatWorkReportHours(hrs)} 小時、合計 ${formatWorkReportHours(total)} 小時（${hc}人）`
+                                                : `${formatWorkReportHours(hrs)} 小時`
+                                            if (!window.confirm(`駁回「${row.personName}」加班申請 ${label}？`)) {
                                               return
                                             }
                                             const res = reviewContractorOvertime(row.id, { action: 'reject' })

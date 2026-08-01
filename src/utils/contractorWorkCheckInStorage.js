@@ -54,10 +54,25 @@ export const isContractorLate = (arrivalTime) => {
   return mins > 8 * 60
 }
 
-/** 緊急入場時數：僅採已核准之加班申請，不依進離廠時間計算 */
+/** 加班申請／核准時數（每人）；人數登記時選的小時數是以 1 人為單位 */
+export const getContractorPerPersonOvertimeHours = (log) => {
+  const status = String(log?.overtimeStatus || '').trim()
+  if (status === 'approved') {
+    return roundHours(Number(log?.approvedOvertimeHours ?? log?.overtimeRequestHours) || 0)
+  }
+  if (status === 'pending' || status === 'rejected') {
+    return roundHours(Number(log?.overtimeRequestHours) || 0)
+  }
+  return 0
+}
+
+/** 緊急入場合計時數：每人時數 × 人數（僅採已核准） */
 export const getContractorEmergencyHours = (log) => {
   if (String(log?.overtimeStatus || '').trim() !== 'approved') return 0
-  return roundHours(Number(log?.approvedOvertimeHours ?? log?.overtimeRequestHours) || 0)
+  const perPerson = roundHours(Number(log?.approvedOvertimeHours ?? log?.overtimeRequestHours) || 0)
+  if (perPerson <= 0) return 0
+  const headcount = Math.max(1, Math.floor(Number(log?.headcount) || 1))
+  return roundHours(perPerson * headcount)
 }
 
 export const CONTRACTOR_OVERTIME_HOUR_OPTIONS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6]
@@ -625,7 +640,7 @@ export const formatContractorTimeLabel = (log) => {
   return `${arr}~${dep}`
 }
 
-/** 單人出工摘要：滿日 1 工、提早離場每人 0.5 工；緊急入場僅採已核准加班申請時數 */
+/** 單人出工摘要：滿日 1 工、提早離場每人 0.5 工；緊急入場＝每人加班時數×人數 */
 export const getContractorWorkLogShiftSummary = (log) => {
   const arr = String(log?.arrivalTime || '').trim()
   const dep = String(log?.departureTime || '').trim()
@@ -633,6 +648,7 @@ export const getContractorWorkLogShiftSummary = (log) => {
   const headcount = getLogHeadcount(log)
   const earlyCount = getContractorEarlyDepartureCount(log)
   const fullDayHeadcount = getContractorWorkDaysFromLog(log)
+  const perPersonOvertimeHours = getContractorPerPersonOvertimeHours(log)
   const totalOvertimeHours = getContractorEmergencyHours(log)
   const late = isContractorLate(arr)
   return {
@@ -640,7 +656,7 @@ export const getContractorWorkLogShiftSummary = (log) => {
     earlyDepartureCount: earlyCount,
     workDayFactor: getContractorWorkDayFactor(log),
     earlyDeparture: earlyCount > 0,
-    perPersonOvertimeHours: totalOvertimeHours,
+    perPersonOvertimeHours,
     totalOvertimeHours,
     hasOvertime: totalOvertimeHours > 0,
     underHeadcount: 0,

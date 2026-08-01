@@ -501,11 +501,14 @@ function ContractorWorkCheckIn() {
         return
       }
       const otHours = leaveMode === 'overtime' ? Number(overtimeHours) : 0
+      const otTotal = Math.round(otHours * headcount * 10) / 10
       const earlyNote = isEarlyOut ? `（提早 ${earlyCount} 人 → ${workDaysPreview} 工）` : ''
       setMessage({
         type: 'success',
         text: otHours > 0
-          ? `已登記離廠：${headcount} 人 ${departureTime}${earlyNote}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
+          ? headcount > 1
+            ? `已登記離廠：${headcount} 人 ${departureTime}${earlyNote}，加班申請每人 ${formatWorkReportHours(otHours)}／合計 ${formatWorkReportHours(otTotal)} 小時待審核`
+            : `已登記離廠：${headcount} 人 ${departureTime}${earlyNote}，加班申請 ${formatWorkReportHours(otHours)} 小時待審核`
           : `已登記離廠：${headcount} 人 ${departureTime}${earlyNote}`
       })
       return
@@ -1380,7 +1383,7 @@ function ContractorWorkCheckIn() {
                 </div>
                 {timeModal.leaveMode === 'overtime' && (
                   <div>
-                    <label className="block text-gray-300 text-sm mb-2">申請緊急入場時數</label>
+                    <label className="block text-gray-300 text-sm mb-2">申請緊急入場時數（每人）</label>
                     <div className="grid grid-cols-3 gap-2">
                       {CONTRACTOR_OVERTIME_HOUR_OPTIONS.map((h) => (
                         <button
@@ -1397,6 +1400,22 @@ function ContractorWorkCheckIn() {
                         </button>
                       ))}
                     </div>
+                    {timeModal.headcountMode &&
+                      Number(timeModal.overtimeHours) > 0 &&
+                      Math.max(1, Number(timeModal.headcount) || 1) > 1 && (
+                        <p className="text-amber-300/90 text-xs mt-2">
+                          合計{' '}
+                          {formatWorkReportHours(
+                            Math.round(
+                              Number(timeModal.overtimeHours) *
+                                Math.max(1, Number(timeModal.headcount) || 1) *
+                                10
+                            ) / 10
+                          )}{' '}
+                          小時（{Math.max(1, Number(timeModal.headcount) || 1)}人×
+                          {formatWorkReportHours(Number(timeModal.overtimeHours))}）
+                        </p>
+                      )}
                     <p className="text-gray-500 text-xs mt-2">送出後由管理員於出勤紀錄審核</p>
                   </div>
                 )}
