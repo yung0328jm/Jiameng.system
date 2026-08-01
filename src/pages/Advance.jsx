@@ -546,7 +546,7 @@ function Advance() {
                           <dd className="text-white font-medium tabular-nums">{Number(stats.monthAdded).toLocaleString()} 元</dd>
                         </div>
                         <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
-                          <dt className="text-gray-400">本月實際還款（登記）</dt>
+                          <dt className="text-gray-400">本月實際還款／借支扣款</dt>
                           <dd className="text-green-400 font-semibold tabular-nums">{previewPaid.toLocaleString()} 元</dd>
                         </div>
                         <div className="flex justify-between gap-3 pt-1">
@@ -562,7 +562,7 @@ function Advance() {
                     <div className="rounded-lg border border-gray-600 bg-gray-800/90 p-4 space-y-4">
                       <div className="text-gray-300 text-sm font-medium">管理者填寫</div>
                       <div>
-                        <label className="block text-gray-400 text-sm mb-1">本月實際還款（由薪資／匯款登記）</label>
+                        <label className="block text-gray-400 text-sm mb-1">本月實際還款／借支扣款（帶入勞務報酬單）</label>
                         <input
                           type="number"
                           min={0}
@@ -570,6 +570,7 @@ function Advance() {
                           onChange={(e) => setRepayAmount(e.target.value)}
                           className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-lg"
                         />
+                        <p className="text-gray-500 text-xs mt-1">此金額會在勞務報酬單顯示為借支扣款：合計 − 借支＝實際發放。</p>
                       </div>
                       <details className="text-sm">
                         <summary className="cursor-pointer text-gray-500 hover:text-gray-400 select-none">進階：校正「本月初尚欠」</summary>

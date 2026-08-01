@@ -25,13 +25,29 @@ import {
   getDisplayNamesForAccount,
   findBoundAccountForDisplayName
 } from '../utils/dropdownStorage'
-import { getUsers } from '../utils/storage'
+import { getUsers, getAdvanceRepayment } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
 function formatMoney(n) {
   const x = Math.round(Number(n) || 0)
   return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 0 })
+}
+
+/** 依顯示名對應借支帳號，讀取該月管理員登記的實際還款（＝勞務單借支扣款） */
+function getAdvanceDeductionForPerson(personName, yearMonth) {
+  const name = String(personName || '').trim()
+  if (!name || !yearMonth) return 0
+  const bound = findBoundAccountForDisplayName(name)
+  const candidates = []
+  if (bound) candidates.push(bound)
+  candidates.push('name:' + name)
+  candidates.push(name)
+  for (const acc of candidates) {
+    const v = Math.max(0, Number(getAdvanceRepayment(acc, yearMonth)) || 0)
+    if (v > 0) return Math.round(v)
+  }
+  return 0
 }
 
 /** 取得所有在職成員顯示名（participants + responsible_persons，排除 resigned） */
@@ -126,7 +142,9 @@ function PaySlip() {
       'jiameng_work_bonus_config',
       'jiameng_work_bonus_rules',
       'jiameng_dropdown_options',
-      'jiameng_users'
+      'jiameng_users',
+      'jiameng_advance_repayments',
+      'jiameng_advances'
     ],
     refetch
   )
@@ -202,6 +220,8 @@ function PaySlip() {
         const autoBonus = calcPersonTotalBonus(stats, workBonusRules)
         const totalBonus = calcTotalPayBonus(autoBonus, manualBonus)
         const amounts = calcPayAmount(stats, rate, totalBonus)
+        const advanceDeduction = getAdvanceDeductionForPerson(name, yearMonth)
+        const netPay = Math.max(0, Math.round(Number(amounts.total) || 0) - advanceDeduction)
         return {
           personName: name,
           stats,
@@ -210,11 +230,13 @@ function PaySlip() {
           autoBonus,
           totalBonus,
           amounts,
+          advanceDeduction,
+          netPay,
           rateLockedForMonth: hasPayRateForMonth(name, yearMonth),
           rateSource: getPayRateSource(name, yearMonth)
         }
       })
-      .filter((p) => showZero || p.stats.fullDays || p.stats.overtimeHours || p.stats.underHours || p.amounts.total)
+      .filter((p) => showZero || p.stats.fullDays || p.stats.overtimeHours || p.stats.underHours || p.amounts.total || p.advanceDeduction)
       .sort((a, b) => {
         const bd = (b.stats.fullDays || 0) - (a.stats.fullDays || 0)
         if (bd !== 0) return bd
@@ -230,6 +252,8 @@ function PaySlip() {
     let nightMeal = 0
     let insur = 0
     let bonus = 0
+    let advance = 0
+    let net = 0
     personRows.forEach((p) => {
       day += p.amounts.dayAmount
       under += p.amounts.underAmount
@@ -238,9 +262,11 @@ function PaySlip() {
       nightMeal += p.amounts.nightMealAmount
       insur += p.amounts.insuranceAmount
       bonus += p.amounts.bonusAmount
+      advance += p.advanceDeduction || 0
+      net += p.netPay || 0
     })
     const total = day + under + ot + meal + nightMeal + insur + bonus
-    return { day, under, ot, meal, nightMeal, insur, bonus, total }
+    return { day, under, ot, meal, nightMeal, insur, bonus, total, advance, net }
   }, [personRows])
 
   const startEditRate = (name) => {
@@ -396,7 +422,7 @@ function PaySlip() {
         {isAdmin && personRows.length > 0 && (
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">{yearMonth} 全部人員合計</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 tabular-nums">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 tabular-nums">
               <div>
                 <div className="text-gray-400 text-xs">出勤基本工程款</div>
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.day)}</div>
@@ -429,6 +455,14 @@ function PaySlip() {
                 <div className="text-gray-400 text-xs">總計</div>
                 <div className="text-emerald-300 text-lg font-bold">${formatMoney(grandTotal.total)}</div>
               </div>
+              <div>
+                <div className="text-gray-400 text-xs">借支扣款</div>
+                <div className="text-rose-300 font-semibold">${formatMoney(grandTotal.advance)}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">實際發放</div>
+                <div className="text-emerald-200 text-lg font-bold">${formatMoney(grandTotal.net)}</div>
+              </div>
             </div>
           </div>
         )}
@@ -441,7 +475,19 @@ function PaySlip() {
       ) : (
         <div className="space-y-4">
           {personRows.map((p) => {
-            const { personName, stats, rate, manualBonus, autoBonus, totalBonus, amounts, rateLockedForMonth, rateSource } = p
+            const {
+              personName,
+              stats,
+              rate,
+              manualBonus,
+              autoBonus,
+              totalBonus,
+              amounts,
+              advanceDeduction,
+              netPay,
+              rateLockedForMonth,
+              rateSource
+            } = p
             const isOpen = !!openIds[personName]
             const isEditingRate = !!editingRate[personName]
             const isEditingBonus = personName in editingBonus
@@ -471,8 +517,15 @@ function PaySlip() {
                       </span>
                     )}
                   </div>
-                  <div className="text-emerald-300 text-xl font-bold tabular-nums">
-                    ${formatMoney(amounts.total)}
+                  <div className="text-right">
+                    <div className="text-emerald-300 text-xl font-bold tabular-nums">
+                      ${formatMoney(netPay)}
+                    </div>
+                    {advanceDeduction > 0 && (
+                      <div className="text-gray-400 text-xs tabular-nums">
+                        合計 ${formatMoney(amounts.total)} − 借支 ${formatMoney(advanceDeduction)}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -578,9 +631,22 @@ function PaySlip() {
                           <span className="text-cyan-300 font-semibold">${formatMoney(0)}</span>
                         </div>
                       )}
-                      <div className="border-t border-emerald-700/40 pt-1 flex justify-between">
-                        <span className="text-gray-200">合計</span>
-                        <span className="text-emerald-300 font-bold">${formatMoney(amounts.total)}</span>
+                      <div className="border-t border-emerald-700/40 pt-1 space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-200">合計</span>
+                          <span className="text-emerald-300 font-bold">${formatMoney(amounts.total)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">借支扣款</span>
+                          <span className="text-rose-300 font-semibold">− ${formatMoney(advanceDeduction)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-100 font-medium">實際</span>
+                          <span className="text-emerald-200 font-bold">${formatMoney(netPay)}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 pt-0.5">
+                          借支扣款＝工程款借貸「本月實際還款」；實際＝合計 − 借支扣款
+                        </p>
                       </div>
                     </div>
                   </div>
