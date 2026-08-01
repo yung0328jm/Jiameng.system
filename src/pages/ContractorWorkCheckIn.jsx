@@ -19,6 +19,7 @@ import {
   getTodayDateStr,
   nowTimeStr,
   CONTRACTOR_STANDARD_DEPARTURE,
+  CONTRACTOR_ON_TIME_CUTOFF,
   CONTRACTOR_OVERTIME_HOUR_OPTIONS,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
@@ -368,7 +369,8 @@ function ContractorWorkCheckIn() {
       mode,
       headcountMode: false,
       leaveMode: 'none',
-      overtimeHours: ''
+      overtimeHours: '',
+      useStandardArrival: false
     })
     setMessage(null)
   }
@@ -394,15 +396,19 @@ function ContractorWorkCheckIn() {
       headcountMode: true,
       headcount: count,
       leaveMode: 'none',
-      overtimeHours: ''
+      overtimeHours: '',
+      useStandardArrival: false
     })
     setMessage(null)
   }
 
   const submitTimeModal = () => {
     if (!timeModal || !authenticatedCompany) return
-    const { person, mode, leaveMode, overtimeHours, headcountMode, headcount } = timeModal
-    const recordTime = nowTimeStr()
+    const { person, mode, leaveMode, overtimeHours, headcountMode, headcount, useStandardArrival } = timeModal
+    const recordTime =
+      mode === 'in' && isInternalProxy && useStandardArrival
+        ? CONTRACTOR_ON_TIME_CUTOFF
+        : nowTimeStr()
     let res
     if (headcountMode) {
       if (mode === 'in') {
@@ -495,6 +501,10 @@ function ContractorWorkCheckIn() {
 
   const setOvertimeHours = (value) => {
     setTimeModal((prev) => (prev ? { ...prev, overtimeHours: value } : prev))
+  }
+
+  const setUseStandardArrival = (checked) => {
+    setTimeModal((prev) => (prev ? { ...prev, useStandardArrival: !!checked } : prev))
   }
 
   const getMealSelection = (mealKey) => mealOptions.find((o) => o.key === mealKey) || null
@@ -1200,9 +1210,27 @@ function ContractorWorkCheckIn() {
             </h3>
             <p className="text-gray-400 text-sm mb-4">{m(timeModal.person?.name)}</p>
             {timeModal.mode === 'in' ? (
-              <p className="text-amber-200 text-sm leading-relaxed mb-4 px-1">
-                離場時請務必記得點擊離場按鈕
-              </p>
+              <div className="space-y-3 mb-4">
+                <p className="text-amber-200 text-sm leading-relaxed px-1">
+                  離場時請務必記得點擊離場按鈕
+                </p>
+                {isInternalProxy && (
+                  <label className="flex items-start gap-2.5 rounded-lg border border-violet-600/50 bg-violet-950/30 px-3 py-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!timeModal.useStandardArrival}
+                      onChange={(e) => setUseStandardArrival(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-violet-400 text-violet-600 focus:ring-violet-500"
+                    />
+                    <span className="text-violet-100 text-sm leading-snug">
+                      用 {CONTRACTOR_ON_TIME_CUTOFF} 上班登記為入場
+                      <span className="block text-violet-300/80 text-xs mt-0.5">
+                        勾選後入場時間記為 {CONTRACTOR_ON_TIME_CUTOFF}（內部補登）
+                      </span>
+                    </span>
+                  </label>
+                )}
+              </div>
             ) : (
               <div className="space-y-3 mb-4">
                 <div className="flex gap-2">
