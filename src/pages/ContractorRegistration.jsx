@@ -173,6 +173,7 @@ function ContractorRegistration() {
   const [editingWorkLogId, setEditingWorkLogId] = useState(null)
   const [editWorkLogArrival, setEditWorkLogArrival] = useState('')
   const [editWorkLogDeparture, setEditWorkLogDeparture] = useState('')
+  const [editWorkLogOvertimeHours, setEditWorkLogOvertimeHours] = useState('')
   const [applyingOvertimeId, setApplyingOvertimeId] = useState(null)
   const [applyOvertimeHours, setApplyOvertimeHours] = useState('')
   const [attendancePdfBusy, setAttendancePdfBusy] = useState(false)
@@ -260,6 +261,9 @@ function ContractorRegistration() {
     setEditingWorkLogId(null)
     setEditWorkLogArrival('')
     setEditWorkLogDeparture('')
+    setEditWorkLogOvertimeHours('')
+    setApplyingOvertimeId(null)
+    setApplyOvertimeHours('')
   }
 
   const shiftAttendanceMonth = (delta) => {
@@ -518,6 +522,7 @@ function ContractorRegistration() {
     setEditingWorkLogId(null)
     setEditWorkLogArrival('')
     setEditWorkLogDeparture('')
+    setEditWorkLogOvertimeHours('')
   }
 
   const cancelApplyOvertime = () => {
@@ -530,6 +535,14 @@ function ContractorRegistration() {
     setEditingWorkLogId(row.id)
     setEditWorkLogArrival(row.arrivalTime || '')
     setEditWorkLogDeparture(row.departureTime || '')
+    const otStatus = String(row?.overtimeStatus || 'none').trim()
+    let perPerson = 0
+    if (otStatus === 'approved') {
+      perPerson = Number(row?.approvedOvertimeHours ?? row?.overtimeRequestHours) || 0
+    } else if (otStatus === 'pending' || otStatus === 'rejected') {
+      perPerson = Number(row?.overtimeRequestHours) || 0
+    }
+    setEditWorkLogOvertimeHours(perPerson > 0 ? String(perPerson) : '')
   }
 
   const startApplyOvertime = (row) => {
@@ -538,22 +551,50 @@ function ContractorRegistration() {
     setApplyOvertimeHours('')
   }
 
-  const handleSaveWorkLogTimes = (id) => {
+  const handleSaveWorkLogTimes = (id, row) => {
     if (!isWorkReportTimeFilled(editWorkLogArrival) && !isWorkReportTimeFilled(editWorkLogDeparture)) {
       setMessage({ type: 'error', text: '請至少填寫進廠或離廠時間' })
       return
     }
-    const res = updateContractorWorkLog(id, {
+    const otRaw = String(editWorkLogOvertimeHours || '').trim()
+    const otHours = otRaw === '' ? 0 : Number(otRaw)
+    if (otRaw !== '' && (!Number.isFinite(otHours) || otHours < 0)) {
+      setMessage({ type: 'error', text: '緊急入場時數無效' })
+      return
+    }
+    const patch = {
       arrivalTime: editWorkLogArrival,
       departureTime: editWorkLogDeparture
-    })
+    }
+    if (otHours > 0) {
+      patch.overtimeRequestHours = otHours
+      patch.overtimeStatus = 'approved'
+      patch.approvedOvertimeHours = otHours
+    } else {
+      patch.overtimeRequestHours = 0
+      patch.overtimeStatus = 'none'
+      patch.approvedOvertimeHours = 0
+    }
+    const res = updateContractorWorkLog(id, patch)
     if (!res.success) {
       setMessage({ type: 'error', text: res.message || '更新失敗' })
       return
     }
+    const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
+    const total = Math.round(otHours * hc * 10) / 10
     cancelEditWorkLog()
     setWorkLogRevision((r) => r + 1)
-    setMessage({ type: 'success', text: '已更新進離廠時間。' })
+    if (otHours > 0) {
+      setMessage({
+        type: 'success',
+        text:
+          hc > 1
+            ? `已更新：進離廠時間，緊急入場每人 ${formatWorkReportHours(otHours)}／合計 ${formatWorkReportHours(total)} 小時。`
+            : `已更新：進離廠時間，緊急入場 ${formatWorkReportHours(otHours)} 小時。`
+      })
+    } else {
+      setMessage({ type: 'success', text: '已更新進離廠時間，並清除緊急入場。' })
+    }
   }
 
   const handleSubmitOvertimeRequest = (row) => {
@@ -1181,6 +1222,52 @@ function ContractorRegistration() {
                                         <div className="space-y-2">
                                           <TimeInput24 label="進廠" value={editWorkLogArrival} onChange={setEditWorkLogArrival} compact />
                                           <TimeInput24 label="離廠" value={editWorkLogDeparture} onChange={setEditWorkLogDeparture} compact />
+                                          <div className="rounded-lg border border-amber-700/40 bg-amber-950/20 p-2">
+                                            <p className="text-amber-200 text-xs mb-2">緊急入場時數（每人）</p>
+                                            <div className="grid grid-cols-3 gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => setEditWorkLogOvertimeHours('')}
+                                                className={`min-h-[36px] px-1.5 py-1 rounded-lg text-xs font-medium border ${
+                                                  editWorkLogOvertimeHours === ''
+                                                    ? 'bg-gray-600 border-gray-400 text-white'
+                                                    : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                                }`}
+                                              >
+                                                無
+                                              </button>
+                                              {CONTRACTOR_OVERTIME_HOUR_OPTIONS.map((h) => (
+                                                <button
+                                                  key={h}
+                                                  type="button"
+                                                  onClick={() => setEditWorkLogOvertimeHours(String(h))}
+                                                  className={`min-h-[36px] px-1.5 py-1 rounded-lg text-xs font-medium border tabular-nums ${
+                                                    Number(editWorkLogOvertimeHours) === h
+                                                      ? 'bg-amber-700 border-amber-500 text-white'
+                                                      : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                                  }`}
+                                                >
+                                                  {formatWorkReportHours(h)} 小時
+                                                </button>
+                                              ))}
+                                            </div>
+                                            {Number(editWorkLogOvertimeHours) > 0 &&
+                                              Math.max(1, Math.floor(Number(row?.headcount) || 1)) > 1 && (
+                                                <p className="text-amber-300/80 text-[11px] mt-1.5">
+                                                  合計{' '}
+                                                  {formatWorkReportHours(
+                                                    Math.round(
+                                                      Number(editWorkLogOvertimeHours) *
+                                                        Math.max(1, Math.floor(Number(row?.headcount) || 1)) *
+                                                        10
+                                                    ) / 10
+                                                  )}{' '}
+                                                  小時（{Math.max(1, Math.floor(Number(row?.headcount) || 1))}人×
+                                                  {formatWorkReportHours(Number(editWorkLogOvertimeHours))}）
+                                                </p>
+                                              )}
+                                            <p className="text-gray-500 text-[11px] mt-1.5">儲存後直接套用為已核准緊急入場</p>
+                                          </div>
                                         </div>
                                       ) : isApplyingOt ? (
                                         <div className="space-y-2">
@@ -1248,7 +1335,7 @@ function ContractorRegistration() {
                                           <>
                                             <button
                                               type="button"
-                                              onClick={() => handleSaveWorkLogTimes(row.id)}
+                                              onClick={() => handleSaveWorkLogTimes(row.id, row)}
                                               disabled={!canSave}
                                               className="text-xs px-2 py-0.5 rounded bg-yellow-700/60 text-yellow-200 border border-yellow-600/50 hover:bg-yellow-600/60 disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
