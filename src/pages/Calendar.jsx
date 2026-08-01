@@ -1355,6 +1355,15 @@ function Calendar() {
     navigate('/leave-application', dateStr ? { state: { date: dateStr } } : undefined)
   }
 
+  /** 內部幫承攬商補登記（免代碼） */
+  const goToContractorWorkFromCalendar = () => {
+    const dateStr = selectedDateForSchedule
+    closeEntryChoiceModal()
+    const q = new URLSearchParams({ internal: '1' })
+    if (dateStr) q.set('date', dateStr)
+    navigate(`/contractor-work?${q.toString()}`)
+  }
+
   const handleToggleNoLeaveForSelectedDate = () => {
     if (currentRole !== 'admin' || !selectedDateForSchedule) return
     const blocked = isNoLeaveDate(selectedDateForSchedule)
@@ -5177,6 +5186,14 @@ function Calendar() {
                 className="w-full min-h-[48px] py-3 rounded-xl font-semibold bg-teal-600 text-white hover:bg-teal-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 入廠異動申請
+              </button>
+              <button
+                type="button"
+                onClick={goToContractorWorkFromCalendar}
+                className="w-full min-h-[48px] py-3 rounded-xl font-semibold bg-violet-700 text-white hover:bg-violet-600 transition-colors"
+              >
+                承攬商登記
+                <span className="block text-xs font-normal text-violet-200/90 mt-0.5">內部補登記（免代碼）</span>
               </button>
               {currentRole === 'admin' && selectedDateForSchedule && (
                 <button

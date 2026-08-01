@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams, Navigate } from 'react-router-dom'
 import {
   findContractorByCheckInCode,
   getContractorById,
-  getContractorAttendanceMode
+  getContractorAttendanceMode,
+  getContractorRegistrations
 } from '../utils/contractorRegistrationStorage'
 import { getContractorCheckInSiteNames } from '../utils/dropdownStorage'
 import {
@@ -24,6 +25,7 @@ import {
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
+import { getCurrentUser } from '../utils/authStorage'
 import {
   getEnabledFoodMerchants,
   getCompanyMealOrdersForDate,
@@ -42,14 +44,27 @@ const MEAL_MODE_SESSION_PREFIX = 'jiameng_contractor_meal_mode_'
 
 const newMealRow = (id) => ({ id, mealKey: '', quantity: '1' })
 
+function isValidDateStr(d) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '').trim())
+}
+
 function ContractorWorkCheckIn() {
   useRecordingMode()
+  const [searchParams] = useSearchParams()
+  const isInternalProxy = searchParams.get('internal') === '1'
+  const dateFromQuery = searchParams.get('date')
+  const internalLoggedIn = isInternalProxy && !!getCurrentUser()
+
   const [loading, setLoading] = useState(true)
-  const [date, setDate] = useState(getTodayDateStr)
+  const [date, setDate] = useState(() =>
+    isValidDateStr(dateFromQuery) ? String(dateFromQuery).trim() : getTodayDateStr()
+  )
   const [siteName, setSiteName] = useState('')
   const [codeInput, setCodeInput] = useState('')
   const [codeError, setCodeError] = useState('')
+  const [pickCompanyId, setPickCompanyId] = useState('')
   const [authenticatedCompanyId, setAuthenticatedCompanyId] = useState(() => {
+    if (isInternalProxy) return ''
     try {
       return sessionStorage.getItem(CHECKIN_SESSION_KEY) || ''
     } catch (_) {
@@ -67,11 +82,18 @@ function ContractorWorkCheckIn() {
 
   const refresh = async () => {
     setLoading(true)
-    setDate(getTodayDateStr())
+    // 內部補登記保留選定日期；公開入口才強制今天
+    if (!isInternalProxy) setDate(getTodayDateStr())
     await pullPublicContractorData()
     setRevision((r) => r + 1)
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (isInternalProxy && isValidDateStr(dateFromQuery)) {
+      setDate(String(dateFromQuery).trim())
+    }
+  }, [isInternalProxy, dateFromQuery])
 
   useEffect(() => {
     refresh()
@@ -96,16 +118,24 @@ function ContractorWorkCheckIn() {
     [authenticatedCompany]
   )
 
+  const contractorOptions = useMemo(() => {
+    void revision
+    return [...getContractorRegistrations()].sort((a, b) =>
+      String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant')
+    )
+  }, [revision])
+
   useEffect(() => {
     if (!authenticatedCompanyId) return
     const company = getContractorById(authenticatedCompanyId)
-    if (!company?.checkInCode) {
+    // 公開入口仍要求有代碼；內部補登記只要公司存在即可
+    if (!company || (!isInternalProxy && !company?.checkInCode)) {
       setAuthenticatedCompanyId('')
       try {
         sessionStorage.removeItem(CHECKIN_SESSION_KEY)
       } catch (_) {}
     }
-  }, [revision, authenticatedCompanyId])
+  }, [revision, authenticatedCompanyId, isInternalProxy])
 
   const siteOptions = useMemo(() => {
     void revision
@@ -288,17 +318,40 @@ function ContractorWorkCheckIn() {
     setMessage({ type: 'success', text: `已驗證承攬商：${m(company.name)}` })
   }
 
+  const selectCompanyInternal = (e) => {
+    e.preventDefault()
+    setCodeError('')
+    setMessage(null)
+    const company = getContractorById(pickCompanyId)
+    if (!company) {
+      setCodeError('請選擇承攬商')
+      return
+    }
+    const hasActive = (company.personnel || []).some((p) => p?.active !== false && String(p?.name || '').trim())
+    const isHeadcount = getContractorAttendanceMode(company) === 'headcount'
+    if (!isHeadcount && !hasActive) {
+      setCodeError('此承攬商尚無可登記人員，請先至承攬商資料登記建立人員')
+      return
+    }
+    setAuthenticatedCompanyId(company.id)
+    setActiveView('menu')
+    setMessage({ type: 'success', text: `已選擇承攬商：${m(company.name)}（內部補登記）` })
+  }
+
   const logoutCode = () => {
     setAuthenticatedCompanyId('')
     setSiteName('')
     setActiveView('menu')
     setHeadcountInput('1')
     setCodeInput('')
+    setPickCompanyId('')
     setCodeError('')
     setMessage(null)
-    try {
-      sessionStorage.removeItem(CHECKIN_SESSION_KEY)
-    } catch (_) {}
+    if (!isInternalProxy) {
+      try {
+        sessionStorage.removeItem(CHECKIN_SESSION_KEY)
+      } catch (_) {}
+    }
   }
 
   const openTimeModal = (person, mode) => {
@@ -583,6 +636,10 @@ function ContractorWorkCheckIn() {
     }, 0)
   }, [mealRows, namedMealRows, mealOptions, isHeadcountMealMode])
 
+  if (isInternalProxy && !internalLoggedIn) {
+    return <Navigate to="/login" replace state={{ from: `/contractor-work?${searchParams.toString()}` }} />
+  }
+
   if (!authenticatedCompanyId || !authenticatedCompany) {
     return (
       <div
@@ -591,38 +648,93 @@ function ContractorWorkCheckIn() {
       >
         <div className="max-w-sm w-full">
           <div className="flex items-center justify-between gap-2 mb-6">
-            <h1 className="text-xl font-bold text-teal-300 font-serif">廠商登記入口</h1>
-            <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif">
-              回登入
+            <h1 className="text-xl font-bold text-teal-300 font-serif">
+              {isInternalProxy ? '承攬商補登記' : '廠商登記入口'}
+            </h1>
+            <Link
+              to={isInternalProxy ? '/calendar' : '/login'}
+              className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif"
+            >
+              {isInternalProxy ? '回行事曆' : '回登入'}
             </Link>
           </div>
           <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border border-cn-gold/40 p-5 shadow-xl">
-            <p className="text-cn-mist text-sm mb-4">請輸入管理員提供的承攬商代碼</p>
-            <form onSubmit={submitCode} className="space-y-4">
-              <div>
-                <label className="block text-cn-mist text-sm mb-1.5">承攬商代碼</label>
-                <input
-                  type="text"
-                  value={codeInput}
-                  onChange={(e) => {
-                    setCodeInput(e.target.value)
-                    setCodeError('')
-                  }}
-                  placeholder="請輸入代碼"
-                  autoComplete="off"
-                  className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-3 text-cn-parchment text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-teal-500/40"
-                  disabled={loading}
-                />
-                {codeError && <p className="text-red-400 text-sm mt-2">{codeError}</p>}
-              </div>
-              <button
-                type="submit"
-                disabled={loading || !codeInput.trim()}
-                className="w-full min-h-[48px] rounded-md bg-gradient-to-r from-cn-gold to-amber-500 text-cn-ink font-semibold disabled:opacity-50"
-              >
-                {loading ? '同步中…' : '確認進入'}
-              </button>
-            </form>
+            {isInternalProxy ? (
+              <>
+                <p className="text-violet-300 text-sm mb-1 font-medium">內部補登記（免代碼）</p>
+                <p className="text-cn-mist text-sm mb-4">直接選擇承攬商，代為登記進出廠／訂餐。</p>
+                <form onSubmit={selectCompanyInternal} className="space-y-4">
+                  <div>
+                    <label className="block text-cn-mist text-sm mb-1.5">日期</label>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-3 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-cn-mist text-sm mb-1.5">承攬商</label>
+                    <select
+                      value={pickCompanyId}
+                      onChange={(e) => {
+                        setPickCompanyId(e.target.value)
+                        setCodeError('')
+                      }}
+                      className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-3 text-cn-parchment focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                      disabled={loading}
+                    >
+                      <option value="">— 請選擇承攬商 —</option>
+                      {contractorOptions.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name || c.id}
+                        </option>
+                      ))}
+                    </select>
+                    {contractorOptions.length === 0 && !loading && (
+                      <p className="text-gray-500 text-xs mt-2">尚無承攬商，請先至「承攬商資料登記」建立。</p>
+                    )}
+                    {codeError && <p className="text-red-400 text-sm mt-2">{codeError}</p>}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || !pickCompanyId}
+                    className="w-full min-h-[48px] rounded-md bg-gradient-to-r from-violet-600 to-violet-500 text-white font-semibold disabled:opacity-50"
+                  >
+                    {loading ? '同步中…' : '進入登記'}
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <p className="text-cn-mist text-sm mb-4">請輸入管理員提供的承攬商代碼</p>
+                <form onSubmit={submitCode} className="space-y-4">
+                  <div>
+                    <label className="block text-cn-mist text-sm mb-1.5">承攬商代碼</label>
+                    <input
+                      type="text"
+                      value={codeInput}
+                      onChange={(e) => {
+                        setCodeInput(e.target.value)
+                        setCodeError('')
+                      }}
+                      placeholder="請輸入代碼"
+                      autoComplete="off"
+                      className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-3 text-cn-parchment text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                      disabled={loading}
+                    />
+                    {codeError && <p className="text-red-400 text-sm mt-2">{codeError}</p>}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || !codeInput.trim()}
+                    className="w-full min-h-[48px] rounded-md bg-gradient-to-r from-cn-gold to-amber-500 text-cn-ink font-semibold disabled:opacity-50"
+                  >
+                    {loading ? '同步中…' : '確認進入'}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -637,13 +749,24 @@ function ContractorWorkCheckIn() {
       <div className="max-w-lg mx-auto w-full">
         <div className="flex items-center justify-between gap-2 mb-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-teal-300 font-serif">廠商登記入口</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-teal-300 font-serif">
+              {isInternalProxy ? '承攬商補登記' : '廠商登記入口'}
+            </h1>
             <p className="text-cn-mist text-xs sm:text-sm mt-0.5">
-              {activeView === 'menu' ? '請選擇要辦理的事項' : activeView === 'attendance' ? '人員進離廠登記' : '人員訂餐'}
+              {isInternalProxy
+                ? '內部代為登記（免代碼）'
+                : activeView === 'menu'
+                  ? '請選擇要辦理的事項'
+                  : activeView === 'attendance'
+                    ? '人員進離廠登記'
+                    : '人員訂餐'}
             </p>
           </div>
-          <Link to="/login" className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif">
-            回登入
+          <Link
+            to={isInternalProxy ? '/calendar' : '/login'}
+            className="text-cn-gold text-sm hover:text-amber-200 shrink-0 font-serif"
+          >
+            {isInternalProxy ? '回行事曆' : '回登入'}
           </Link>
         </div>
 
@@ -674,7 +797,9 @@ function ContractorWorkCheckIn() {
 
           <div className="p-3 rounded-lg bg-teal-950/40 border border-teal-700/50 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-teal-300/80 text-xs">承攬商</p>
+              <p className="text-teal-300/80 text-xs">
+                承攬商{isInternalProxy ? '（內部補登記）' : ''}
+              </p>
               <p className="text-white font-semibold text-lg">{m(authenticatedCompany.name)}</p>
             </div>
             <button
@@ -682,7 +807,7 @@ function ContractorWorkCheckIn() {
               onClick={logoutCode}
               className="text-xs px-3 py-1.5 rounded-md border border-gray-500 text-gray-300 hover:bg-black/30"
             >
-              重新輸入代碼
+              {isInternalProxy ? '切換承攬商' : '重新輸入代碼'}
             </button>
           </div>
 
@@ -724,9 +849,18 @@ function ContractorWorkCheckIn() {
             <>
           <div>
             <p className="block text-cn-mist text-sm mb-1.5">日期</p>
-            <p className="w-full bg-black/20 border border-cn-gold/25 rounded-md px-3 py-2.5 text-cn-parchment tabular-nums">
-              {date.replace(/-/g, '/')}
-            </p>
+            {isInternalProxy ? (
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-black/30 border border-cn-gold/35 rounded-md px-3 py-2.5 text-cn-parchment tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              />
+            ) : (
+              <p className="w-full bg-black/20 border border-cn-gold/25 rounded-md px-3 py-2.5 text-cn-parchment tabular-nums">
+                {date.replace(/-/g, '/')}
+              </p>
+            )}
           </div>
 
           <div>
