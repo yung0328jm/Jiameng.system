@@ -256,7 +256,7 @@ export function computeDefaultMinRepayment(lastMonthUnpaid, monthAdded) {
   return added + ADVANCE_MIN_EXTRA_WHEN_CARRIED
 }
 
-/** 申請表單預覽：試算核准後總欠款、若核准後本月最低還款 */
+/** 申請表單預覽：試算核准後總欠款 */
 export function getAdvanceApplicationPreview(account, proposedAmount) {
   const acc = String(account || '').trim()
   const prop = Math.max(0, Number(proposedAmount) || 0)
@@ -264,14 +264,11 @@ export function getAdvanceApplicationPreview(account, proposedAmount) {
   const stats = getAdvanceRepaymentStats(acc, ym)
   const base = getAdvanceProjectedDebtTotal(acc, ym, {})
   const projectedDebtTotal = base + prop
-  const addedIfApproved = stats.monthAdded + prop
-  const previewMinRepayment = computeDefaultMinRepayment(stats.lastMonthUnpaid, addedIfApproved)
   return {
     yearMonth: ym,
     lastMonthUnpaid: stats.lastMonthUnpaid,
     monthAddedNow: stats.monthAdded,
     projectedDebtTotal,
-    previewMinRepayment,
     carriedRemain: Math.max(0, stats.lastMonthUnpaid - stats.actualRepayment)
   }
 }
@@ -410,9 +407,11 @@ function getRepaymentEntry(account, yearMonth) {
   if (!byAccount || typeof byAccount !== 'object') return null
   const v = byAccount[yearMonth]
   if (v == null) return null
-  if (typeof v === 'number') return { actual: v, min: undefined, balanceEnd: undefined }
+  if (typeof v === 'number') return { actual: v, min: undefined, balanceEnd: undefined, openingBalance: undefined }
   const balanceEnd = v.balanceEnd != null && v.balanceEnd !== '' ? Number(v.balanceEnd) : (v.unpaid != null && v.unpaid !== '' ? Number(v.unpaid) : undefined)
-  return { actual: v.actual, min: v.min, balanceEnd }
+  const openingBalance =
+    v.openingBalance != null && v.openingBalance !== '' ? Number(v.openingBalance) : undefined
+  return { actual: v.actual, min: v.min, balanceEnd, openingBalance }
 }
 
 /** 取得某帳號某年月的實際還款金額 */
@@ -445,21 +444,36 @@ export function setAdvanceRepayment(account, yearMonth, payload) {
     if (!map[acc]) map[acc] = {}
     const existing = getRepaymentEntry(acc, ym)
     const actual = payload.actual != null && payload.actual !== '' ? Math.max(0, Number(payload.actual) || 0) : (existing ? Number(existing.actual) || 0 : 0)
-    const min = payload.min != null && payload.min !== '' ? Math.max(0, Number(payload.min) || 0) : (existing && existing.min != null ? Number(existing.min) : undefined)
-    
-    // 如果有指定上月剩餘，則存到上個月的 balanceEnd
-    const prevYm = prevYearMonth(ym)
-    if (payload.lastMonthUnpaid != null && payload.lastMonthUnpaid !== '' && prevYm) {
-      const prevEntry = getRepaymentEntry(acc, prevYm)
-      const prevActual = prevEntry ? Number(prevEntry.actual) || 0 : 0
-      const prevMin = prevEntry && prevEntry.min != null ? prevEntry.min : undefined
-      map[acc][prevYm] = { actual: prevActual, min: prevMin, balanceEnd: Math.max(0, Number(payload.lastMonthUnpaid) || 0) }
+
+    // 本月初尚欠：寫在「當月」openingBalance，避免每次存檔把上月 balanceEnd 覆寫成 0
+    const naturalOpening = getAdvanceRepaymentStats(acc, ym).lastMonthUnpaid
+    let openingBalance
+    if (payload.lastMonthUnpaid != null && payload.lastMonthUnpaid !== '') {
+      const fromPayload = Math.max(0, Number(payload.lastMonthUnpaid) || 0)
+      const existingOpening = existing?.openingBalance != null ? Number(existing.openingBalance) : null
+      // 表單仍帶 0、且先前沒有「刻意改成 0」以外的期初時，改採流水結轉，避免再度寫零
+      if (
+        fromPayload === 0 &&
+        naturalOpening > 0 &&
+        (existingOpening == null || existingOpening === 0)
+      ) {
+        openingBalance = naturalOpening
+      } else {
+        openingBalance = fromPayload
+      }
+    } else if (
+      existing?.openingBalance != null &&
+      Number.isFinite(Number(existing.openingBalance)) &&
+      !(Number(existing.openingBalance) === 0 && naturalOpening > 0)
+    ) {
+      openingBalance = Math.max(0, Number(existing.openingBalance) || 0)
     }
-    
-    const lastMonthUnpaid = payload.lastMonthUnpaid != null && payload.lastMonthUnpaid !== '' ? Math.max(0, Number(payload.lastMonthUnpaid) || 0) : getAdvanceRepaymentStats(acc, ym).lastMonthUnpaid
+    const lastMonthUnpaid = openingBalance != null ? openingBalance : naturalOpening
+
     const monthAddedSave = Math.max(0, Number(getMonthlyTransferredByAccount(acc)[ym] || 0))
     const balanceEnd = Math.max(0, lastMonthUnpaid + monthAddedSave - actual)
-    map[acc][ym] = { actual, min, balanceEnd }
+    const next = { actual, balanceEnd, openingBalance: lastMonthUnpaid }
+    map[acc][ym] = next
     saveAdvanceRepayments(map)
     return { success: true }
   } catch (e) {
@@ -475,15 +489,16 @@ function prevYearMonth(ymKey) {
   return `${y}-${String(m - 1).padStart(2, '0')}`
 }
 
-/** 計算某帳號某年月的：上月結轉、本月新借、本月最低還款、本月實際還款、本月結算後尚欠（結算後 = 本月初尚欠 + 本月新借 − 本月實際還款） */
+/**
+ * 計算某帳號某年月的：上月結轉、本月新借、本月實際還款、本月結算後尚欠
+ * 結轉優先以「借支／還款流水」推算上月結餘；有活動的月份不再盲目採用可能被存成 0 的 balanceEnd。
+ */
 export function getAdvanceRepaymentStats(account, yearMonth) {
   const acc = String(account || '').trim()
   const ym = String(yearMonth || '').trim()
   const monthlyAdded = getMonthlyTransferredByAccount(acc)
   const getAdded = (y) => Number(monthlyAdded[y] || 0)
   const getRepay = (y) => getAdvanceRepayment(acc, y)
-  const getBalanceEnd = (y) => getAdvanceRepaymentBalanceEnd(acc, y)
-  const getStoredMin = (y) => getAdvanceRepaymentMin(acc, y)
 
   const prevYm = prevYearMonth(ym)
   const allMonths = new Set(Object.keys(monthlyAdded || {}))
@@ -493,33 +508,63 @@ export function getAdvanceRepaymentStats(account, yearMonth) {
   allMonths.add(ym)
   const sorted = [...allMonths].filter((m) => m.length === 7).sort()
 
-  let balanceEnd = 0
-  let lastMonthUnpaid = 0
+  let running = 0
   for (const m of sorted) {
-    const stored = getBalanceEnd(m)
+    if (m === ym) break
+    const entry = getRepaymentEntry(acc, m)
+    const openingOverride =
+      entry?.openingBalance != null && Number.isFinite(Number(entry.openingBalance))
+        ? Math.max(0, Number(entry.openingBalance) || 0)
+        : null
+    const storedEnd =
+      entry?.balanceEnd != null && Number.isFinite(Number(entry.balanceEnd))
+        ? Math.max(0, Number(entry.balanceEnd) || 0)
+        : null
     const actual = getRepay(m)
     const added = getAdded(m)
-    balanceEnd = stored != null ? stored : Math.max(0, balanceEnd + added - actual)
-    if (m === prevYm) lastMonthUnpaid = balanceEnd
+
+    // 僅有期末標記、當月無借還：視為期初／結轉種子（相容舊「期初匯入」寫在上月 balanceEnd）
+    if (openingOverride == null && added === 0 && actual === 0 && storedEnd != null) {
+      running = storedEnd
+      continue
+    }
+
+    const opening = openingOverride != null ? openingOverride : running
+    running = Math.max(0, opening + added - actual)
   }
 
+  // 流水因缺少更早期初而為 0、但上月仍留有正的 balanceEnd：沿用舊期末（相容舊存檔）
+  if (prevYm && running === 0) {
+    const prevStoredEnd = getAdvanceRepaymentBalanceEnd(acc, prevYm)
+    if (prevStoredEnd != null && prevStoredEnd > 0) running = prevStoredEnd
+  }
+
+  const curEntry = getRepaymentEntry(acc, ym)
+  const curOpening =
+    curEntry?.openingBalance != null && Number.isFinite(Number(curEntry.openingBalance))
+      ? Math.max(0, Number(curEntry.openingBalance) || 0)
+      : null
+  // 當月手動期初為 0 但流水結轉 > 0：多半是舊版存檔誤寫，改採流水結轉
+  const lastMonthUnpaid =
+    curOpening != null && !(curOpening === 0 && running > 0) ? curOpening : running
+
   const monthAdded = getAdded(ym)
-  const minStored = getStoredMin(ym)
-  // 存檔的 min 為 0 時視同未覆寫（舊資料／誤存），仍用規則試算，與申請表單預覽一致
-  const minRepayment =
-    minStored != null && minStored > 0 ? minStored : computeDefaultMinRepayment(lastMonthUnpaid, monthAdded)
   const actualRepayment = getRepay(ym)
   const monthRemaining = Math.max(0, lastMonthUnpaid + monthAdded - actualRepayment)
   const prevMonthRepayment = prevYm ? getRepay(prevYm) : 0
+  const prevMonthRemaining = running
 
   return {
     lastMonthUnpaid,
     monthAdded,
-    minRepayment,
+    /** @deprecated 最低還款已取消，固定回傳 0 */
+    minRepayment: 0,
     actualRepayment,
     monthRemaining,
     /** 上個曆月實際還款金額（方便對帳） */
     prevMonthRepayment,
+    /** 上個曆月結算後尚欠（應結轉至本月） */
+    prevMonthRemaining,
     /** 目前檢視的年月（YYYY-MM） */
     yearMonth: ym,
     /** 上一曆月（YYYY-MM） */
