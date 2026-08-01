@@ -21,6 +21,10 @@ import {
   requestContractorOvertime,
   reviewContractorOvertime,
   aggregateContractorWorkLogsSummary,
+  getContractorEmergencyHours,
+  isContractorLate,
+  getContractorEarlyDepartureCount,
+  getContractorWorkDaysFromLog,
   CONTRACTOR_OVERTIME_HOUR_OPTIONS,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
@@ -47,6 +51,107 @@ const EMPTY_PERSON_FORM = {
   active: true
 }
 
+const escapeHtml = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+
+function formatOtPrintLabel(perPerson, headcount) {
+  const pp = Math.round((Number(perPerson) || 0) * 10) / 10
+  const hc = Math.max(1, Math.floor(Number(headcount) || 1))
+  const total = Math.round(pp * hc * 10) / 10
+  if (hc <= 1) return `${formatWorkReportHours(pp)} 小時`
+  return `${formatWorkReportHours(total)} 小時（${hc}人×${formatWorkReportHours(pp)}）`
+}
+
+function buildWorkLogPrintLines(log) {
+  const arr = String(log?.arrivalTime || '').trim()
+  const dep = String(log?.departureTime || '').trim()
+  const lines = []
+  if (!arr) {
+    lines.push('—')
+    return lines
+  }
+  if (!dep) {
+    lines.push('待離廠，尚無法計算工時')
+    if (isContractorLate(arr)) lines.push(`遲到（進廠 ${arr}）`)
+    return lines
+  }
+  const headcount = Math.max(1, Math.floor(Number(log?.headcount) || 1))
+  const earlyCount = getContractorEarlyDepartureCount(log)
+  const workDays = getContractorWorkDaysFromLog(log)
+  const otStatus = String(log?.overtimeStatus || 'none').trim()
+  const otReq = Math.round((Number(log?.overtimeRequestHours) || 0) * 10) / 10
+  const approvedPer =
+    otStatus === 'approved'
+      ? Math.round((Number(log?.approvedOvertimeHours ?? log?.overtimeRequestHours) || 0) * 10) / 10
+      : 0
+  if (log?.registrationMode === 'headcount') lines.push(`人數登記 ${headcount} 人`)
+  lines.push(`進離廠 ${arr}～${dep}`)
+  if (isContractorLate(arr)) lines.push('遲到（超過 08:00 進廠）')
+  if (earlyCount > 0) {
+    const fullCount = Math.max(0, headcount - earlyCount)
+    lines.push(
+      `提早離場 ${earlyCount} 人（0.5 工）${fullCount > 0 ? `、滿日 ${fullCount} 人` : ''}`
+    )
+  }
+  lines.push(`出工 → ${workDays} 工`)
+  if (getContractorEmergencyHours(log) > 0) {
+    lines.push(`緊急入場 ${formatOtPrintLabel(approvedPer, headcount)}`)
+  }
+  if (otStatus === 'pending' && otReq > 0) {
+    lines.push(`加班申請 ${formatOtPrintLabel(otReq, headcount)}（待審核）`)
+  } else if (otStatus === 'approved' && approvedPer > 0) {
+    lines.push(`已核准加班 ${formatOtPrintLabel(approvedPer, headcount)}`)
+  } else if (otStatus === 'rejected' && otReq > 0) {
+    lines.push(`加班申請 ${formatOtPrintLabel(otReq, headcount)}（已駁回）`)
+  }
+  return lines
+}
+
+async function exportAttendancePdfHtml(html, filename) {
+  const [jspdfMod, h2cMod] = await Promise.all([import('jspdf'), import('html2canvas')])
+  const jsPDF = jspdfMod.jsPDF
+  const html2canvas = h2cMod.default
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const wrap = document.createElement('div')
+  wrap.style.cssText =
+    'position:fixed;left:-9999px;top:0;width:720px;max-width:720px;background:#fff;padding:28px 32px 40px;font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;font-size:13px;box-sizing:border-box;color:#111;overflow:visible;word-break:break-word;line-height:1.45;'
+  wrap.innerHTML = html
+  document.body.appendChild(wrap)
+  await new Promise((r) => setTimeout(r, 120))
+  const w = Math.max(wrap.scrollWidth, 1)
+  const h = Math.max(wrap.scrollHeight, 1)
+  const canvas = await html2canvas(wrap, {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    logging: false,
+    width: w,
+    height: h,
+    windowWidth: w,
+    windowHeight: h
+  })
+  document.body.removeChild(wrap)
+  const img = canvas.toDataURL('image/png')
+  const imgW = pageW
+  const imgH = (canvas.height * pageW) / canvas.width
+  let y = 0
+  let hLeft = imgH
+  pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+  hLeft -= pageH
+  while (hLeft > 0) {
+    y = hLeft - imgH
+    pdf.addPage()
+    pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
+    hLeft -= pageH
+  }
+  pdf.save(filename)
+}
+
 function ContractorRegistration() {
   useRecordingMode()
   const [userRole, setUserRole] = useState(() => getCurrentUserRole())
@@ -70,6 +175,7 @@ function ContractorRegistration() {
   const [editWorkLogDeparture, setEditWorkLogDeparture] = useState('')
   const [applyingOvertimeId, setApplyingOvertimeId] = useState(null)
   const [applyOvertimeHours, setApplyOvertimeHours] = useState('')
+  const [attendancePdfBusy, setAttendancePdfBusy] = useState(false)
 
   const loadList = () => setList(getContractorRegistrations())
 
@@ -164,6 +270,113 @@ function ContractorRegistration() {
       while (m > 12) { m -= 12; y += 1 }
       return { year: y, month: m }
     })
+  }
+
+  const handleExportAttendancePdf = async () => {
+    if (!attendanceCompany || attendancePdfBusy) return
+    if (attendanceDays.length === 0) {
+      alert('本月尚無進廠紀錄，無法匯出。')
+      return
+    }
+    setAttendancePdfBusy(true)
+    try {
+      const companyName = String(attendanceCompany.name || '').trim() || '承攬商'
+      const year = attendanceMonth.year
+      const month = attendanceMonth.month
+      let html = ''
+      html += `<div style="margin-bottom:18px;border-bottom:2px solid #111;padding-bottom:12px;">`
+      html += `<div style="font-size:20px;font-weight:700;">出勤紀錄</div>`
+      html += `<div style="font-size:16px;font-weight:600;margin-top:4px;">${escapeHtml(companyName)}</div>`
+      html += `<div style="font-size:14px;margin-top:4px;color:#333;">${year} 年 ${month} 月</div>`
+      html += `</div>`
+
+      html += `<div style="margin-bottom:16px;padding:10px 12px;border:1px solid #ccc;border-radius:6px;background:#f8f8f8;">`
+      html += `<div style="font-weight:700;margin-bottom:4px;">本月合計</div>`
+      html += `<div>出工 <strong>${attendanceMonthStats.fullDayCount}</strong> 工`
+      html += `　緊急入場 <strong>${formatWorkReportHours(attendanceMonthStats.overtimeHours)}</strong> 小時`
+      html += `　遲到 <strong>${attendanceMonthStats.lateCount}</strong> 次`
+      if (attendanceMonthStats.pendingOvertimeCount > 0) {
+        html += `　待審加班 <strong>${attendanceMonthStats.pendingOvertimeCount}</strong> 筆`
+      }
+      html += `</div></div>`
+
+      if (attendanceSiteMonthStats.length > 0) {
+        html += `<div style="margin-bottom:18px;">`
+        html += `<div style="font-weight:700;margin-bottom:8px;font-size:14px;">各案場本月合計</div>`
+        html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">`
+        html += `<thead><tr style="background:#eee;text-align:left;">`
+        html += `<th style="border:1px solid #bbb;padding:6px 8px;">案場</th>`
+        html += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">出工（工）</th>`
+        html += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">緊急入場（小時）</th>`
+        html += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">遲到（次）</th>`
+        html += `</tr></thead><tbody>`
+        attendanceSiteMonthStats.forEach((site) => {
+          html += `<tr>`
+          html += `<td style="border:1px solid #bbb;padding:6px 8px;">${escapeHtml(site.siteName)}</td>`
+          html += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${site.fullDayCount}</td>`
+          html += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${formatWorkReportHours(site.overtimeHours)}</td>`
+          html += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${site.lateCount}</td>`
+          html += `</tr>`
+        })
+        html += `</tbody></table></div>`
+      }
+
+      html += `<div style="font-weight:700;margin-bottom:10px;font-size:14px;">每日明細</div>`
+      attendanceDays.forEach((day) => {
+        const daySummary = aggregateContractorWorkLogsSummary(day.sites.flatMap((s) => s.rows))
+        html += `<div style="margin-bottom:14px;border:1px solid #ccc;border-radius:6px;overflow:hidden;page-break-inside:avoid;">`
+        html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 10px;background:#f0f0f0;border-bottom:1px solid #ccc;">`
+        html += `<strong>${escapeHtml(String(day.date || '').replace(/-/g, '/'))}</strong>`
+        html += `<span style="font-size:12px;color:#333;">出工 ${day.totalHeadcount} 人`
+        html += `　合計 ${daySummary.fullDayHeadcount || 0} 工`
+        if (daySummary.hasOvertime) {
+          html += `　緊急入場 ${formatWorkReportHours(daySummary.totalOvertimeHours || 0)} 小時`
+        }
+        if (daySummary.lateHeadcount > 0) {
+          html += `　遲到 ${daySummary.lateHeadcount} 人`
+        }
+        html += `</span></div>`
+
+        day.sites.forEach((site) => {
+          const siteSummary = aggregateContractorWorkLogsSummary(site.rows)
+          html += `<div style="padding:8px 10px;border-top:1px solid #ddd;">`
+          html += `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;">`
+          html += `<strong style="color:#0f766e;">案場：${escapeHtml(site.siteName)}（${site.headcount} 人）</strong>`
+          html += `<span style="font-size:12px;color:#444;">合計 ${siteSummary.fullDayHeadcount || 0} 工`
+          if (siteSummary.hasOvertime) {
+            html += `　緊急入場 ${formatWorkReportHours(siteSummary.totalOvertimeHours || 0)} 小時`
+          }
+          if (siteSummary.lateHeadcount > 0) {
+            html += `　遲到 ${siteSummary.lateHeadcount} 人`
+          }
+          html += `</span></div>`
+          html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">`
+          html += `<thead><tr style="background:#fafafa;text-align:left;">`
+          html += `<th style="border:1px solid #ddd;padding:5px 6px;width:28%;">姓名</th>`
+          html += `<th style="border:1px solid #ddd;padding:5px 6px;">工時明細</th>`
+          html += `</tr></thead><tbody>`
+          site.rows.forEach((row) => {
+            const detail = buildWorkLogPrintLines(row)
+              .map((line) => escapeHtml(line))
+              .join('<br/>')
+            html += `<tr>`
+            html += `<td style="border:1px solid #ddd;padding:5px 6px;vertical-align:top;">${escapeHtml(row.personName || '—')}</td>`
+            html += `<td style="border:1px solid #ddd;padding:5px 6px;vertical-align:top;">${detail}</td>`
+            html += `</tr>`
+          })
+          html += `</tbody></table></div>`
+        })
+        html += `</div>`
+      })
+
+      const safeName = companyName.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40)
+      await exportAttendancePdfHtml(html, `出勤紀錄_${safeName}_${year}年${month}月.pdf`)
+    } catch (e) {
+      console.error('export attendance pdf:', e)
+      alert('匯出 PDF 失敗，請稍後再試。')
+    } finally {
+      setAttendancePdfBusy(false)
+    }
   }
 
   const attendanceDays = useMemo(() => {
@@ -818,14 +1031,24 @@ function ContractorRegistration() {
                 <p className="text-white font-medium mt-1">{m(attendanceCompany.name)}</p>
                 <p className="text-gray-400 text-xs mt-1">同步承攬商出工登記系統之進離廠資料；可編輯進離廠時間</p>
               </div>
-              <button
-                type="button"
-                onClick={closeAttendance}
-                className="text-gray-400 hover:text-white shrink-0 self-end sm:self-start p-1"
-                aria-label="關閉"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
+                <button
+                  type="button"
+                  onClick={handleExportAttendancePdf}
+                  disabled={attendancePdfBusy || attendanceDays.length === 0}
+                  className="min-h-[36px] px-3 py-1.5 rounded-lg bg-violet-700 hover:bg-violet-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {attendancePdfBusy ? '匯出中…' : '匯出 PDF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeAttendance}
+                  className="text-gray-400 hover:text-white p-1"
+                  aria-label="關閉"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-3 mb-3 p-3 rounded-lg bg-gray-900/60 border border-gray-600">
