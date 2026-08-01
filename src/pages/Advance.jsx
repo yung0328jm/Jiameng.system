@@ -15,9 +15,7 @@ import {
   getMonthlyTransferredByAccount,
   getAdvanceRepaymentStats,
   setAdvanceRepayment,
-  getAdvanceApplicationPreview,
-  ADVANCE_MIN_EXTRA_WHEN_CARRIED,
-  ADVANCE_MIN_PAY_NO_NEW_BORROW
+  getAdvanceApplicationPreview
 } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
@@ -90,8 +88,8 @@ function Advance() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
   const [repayAmount, setRepayAmount] = useState('')
-  const [repayMin, setRepayMin] = useState('')
   const [repayLastMonth, setRepayLastMonth] = useState('')
+  const [openingEdited, setOpeningEdited] = useState(false)
   const [repayMessage, setRepayMessage] = useState(null)
 
   const advanceApplyPreview = useMemo(() => {
@@ -115,8 +113,8 @@ function Advance() {
     if (repayAccount && repayYearMonth) {
       const stats = getAdvanceRepaymentStats(repayAccount, repayYearMonth)
       setRepayAmount(String(stats.actualRepayment))
-      setRepayMin(String(stats.minRepayment))
       setRepayLastMonth(String(stats.lastMonthUnpaid))
+      setOpeningEdited(false)
     }
   }, [repayAccount, repayYearMonth])
 
@@ -189,13 +187,17 @@ function Advance() {
       setRepayMessage({ type: 'error', text: '請選擇年月' })
       return
     }
-    const result = setAdvanceRepayment(account, ym, {
-      actual: repayAmount,
-      min: repayMin,
-      lastMonthUnpaid: repayLastMonth
-    })
+    const payload = { actual: repayAmount }
+    if (openingEdited) {
+      payload.correctOpening = true
+      payload.lastMonthUnpaid = repayLastMonth
+    }
+    const result = setAdvanceRepayment(account, ym, payload)
     if (result.success) {
       setRepayMessage({ type: 'success', text: '已儲存還款' })
+      setOpeningEdited(false)
+      const stats = getAdvanceRepaymentStats(account, ym)
+      setRepayLastMonth(String(stats.lastMonthUnpaid))
       loadData()
     } else {
       setRepayMessage({ type: 'error', text: result.message || '儲存失敗' })
@@ -283,13 +285,6 @@ function Advance() {
                     {advanceApplyPreview.projectedDebtTotal.toLocaleString()} 元
                   </span>
                 </div>
-                <div className="flex justify-between gap-2 text-white">
-                  <span className="text-gray-300 shrink-0">本月最低還款(預估)</span>
-                  <span className="text-amber-200 font-semibold tabular-nums text-right">{advanceApplyPreview.previewMinRepayment.toLocaleString()} 元</span>
-                </div>
-                <p className="text-gray-500 text-xs leading-relaxed">
-                  規則：無上月舊帳時「借多少至少還多少」。有上月舊帳時，每月至少還 {ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()} 元（不超過實際欠款）；若同月又有新借，則為「本月新借＋{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}」。
-                </p>
               </div>
             )}
             <div>
@@ -339,13 +334,19 @@ function Advance() {
               <div className="text-gray-400 text-sm mb-3">還款總覽（{formatYmZh(currentYm)}）</div>
               <ul className="space-y-2.5 text-white text-sm sm:text-base">
                 {stats.prevYearMonth ? (
-                  <li className="flex justify-between gap-2">
-                    <span className="text-gray-300 shrink-0">{formatYmZh(stats.prevYearMonth)} 已還款</span>
-                    <span className="text-green-400 font-medium text-right">{Number(stats.prevMonthRepayment || 0).toLocaleString()} 元</span>
-                  </li>
+                  <>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-gray-300 shrink-0">{formatYmZh(stats.prevYearMonth)} 已還款</span>
+                      <span className="text-green-400 font-medium text-right">{Number(stats.prevMonthRepayment || 0).toLocaleString()} 元</span>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-gray-300 shrink-0">{formatYmZh(stats.prevYearMonth)} 結算後尚欠</span>
+                      <span className="text-amber-200 font-medium text-right">{Number(stats.prevMonthRemaining || 0).toLocaleString()} 元</span>
+                    </li>
+                  </>
                 ) : null}
                 <li className="flex justify-between gap-2">
-                  <span className="text-gray-300 shrink-0">本月初尚欠</span>
+                  <span className="text-gray-300 shrink-0">本月初尚欠（上月結轉）</span>
                   <span className="text-yellow-400 font-medium text-right">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</span>
                 </li>
                 <li className="flex justify-between gap-2">
@@ -497,7 +498,9 @@ function Advance() {
               </div>
               {repayAccount && repayYearMonth && (() => {
                 const stats = getAdvanceRepaymentStats(repayAccount, repayYearMonth)
-                const previewOpening = Number(repayLastMonth) || stats.lastMonthUnpaid || 0
+                const previewOpening = openingEdited
+                  ? Math.max(0, Number(repayLastMonth) || 0)
+                  : (Number(stats.lastMonthUnpaid) || 0)
                 const previewAdded = Number(stats.monthAdded) || 0
                 const previewPaid = Math.max(0, Number(repayAmount) || 0)
                 const previewRemaining = Math.max(0, previewOpening + previewAdded - previewPaid)
@@ -510,37 +513,36 @@ function Advance() {
                       <p className="text-gray-500 text-xs mb-3">以下數字由系統依預支與還款紀錄計算，無需逐欄猜測。</p>
                       <dl className="space-y-3 text-sm sm:text-base">
                         {stats.prevYearMonth ? (
-                          <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
-                            <dt className="text-gray-400">{formatYmZh(stats.prevYearMonth)} 實際還款</dt>
-                            <dd className="text-green-400 font-semibold tabular-nums">{Number(stats.prevMonthRepayment || 0).toLocaleString()} 元</dd>
-                          </div>
+                          <>
+                            <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
+                              <dt className="text-gray-400">{formatYmZh(stats.prevYearMonth)} 實際還款</dt>
+                              <dd className="text-green-400 font-semibold tabular-nums">{Number(stats.prevMonthRepayment || 0).toLocaleString()} 元</dd>
+                            </div>
+                            <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
+                              <dt className="text-gray-400">{formatYmZh(stats.prevYearMonth)} 結算後尚欠</dt>
+                              <dd className="text-amber-200 font-semibold tabular-nums">{Number(stats.prevMonthRemaining || 0).toLocaleString()} 元</dd>
+                            </div>
+                          </>
                         ) : null}
                         <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
                           <dt className="text-gray-400">本月初尚欠（上月結轉）</dt>
-                          <dd className="text-yellow-300 font-semibold tabular-nums">{Number(stats.lastMonthUnpaid).toLocaleString()} 元</dd>
+                          <dd className="text-yellow-300 font-semibold tabular-nums">{previewOpening.toLocaleString()} 元</dd>
                         </div>
                         <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
                           <dt className="text-gray-400">本月新借支（已匯款）</dt>
                           <dd className="text-white font-medium tabular-nums">{Number(stats.monthAdded).toLocaleString()} 元</dd>
                         </div>
                         <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
-                          <dt className="text-gray-400">本月最低還款(預估)</dt>
-                          <dd className="text-amber-200 font-medium tabular-nums">{Number(stats.minRepayment).toLocaleString()} 元</dd>
-                        </div>
-                        <div className="flex justify-between gap-3 py-2 border-b border-gray-700/80">
                           <dt className="text-gray-400">本月實際還款（登記）</dt>
                           <dd className="text-green-400 font-semibold tabular-nums">{previewPaid.toLocaleString()} 元</dd>
                         </div>
-                        <p className="text-gray-500 text-xs -mt-1 pb-2 border-b border-gray-700/80 leading-relaxed">
-                          預設規則：無結轉欠款＝本月新借；有結轉但本月無新借＝至少{ADVANCE_MIN_PAY_NO_NEW_BORROW.toLocaleString()}（不超過尚欠）；有結轉＋本月新借＝新借+{ADVANCE_MIN_EXTRA_WHEN_CARRIED.toLocaleString()}。下方「最低還款」可覆寫。
-                        </p>
                         <div className="flex justify-between gap-3 pt-1">
                           <dt className="text-white font-medium">預覽 · 本月結算後尚欠</dt>
                           <dd className="text-amber-300 font-bold text-lg tabular-nums">{previewRemaining.toLocaleString()} 元</dd>
                         </div>
                       </dl>
                       <p className="text-gray-500 text-xs mt-3">
-                        預覽 = 本月初尚欠（進階欄位有填則以該值為準）+ 本月新借支（已匯款）− 本月實際還款；儲存後會寫入紀錄。
+                        上月結算後尚欠會自動帶入本月初尚欠。預覽 = 本月初尚欠 + 本月新借支 − 本月實際還款。一般存檔不會改動上月數字。
                       </p>
                     </div>
 
@@ -556,24 +558,17 @@ function Advance() {
                           className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white text-lg"
                         />
                       </div>
-                      <div>
-                        <label className="block text-gray-400 text-sm mb-1">本月最低還款（可覆寫；留空則依上列規則試算）</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={repayMin}
-                          onChange={(e) => setRepayMin(e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                        />
-                      </div>
                       <details className="text-sm">
                         <summary className="cursor-pointer text-gray-500 hover:text-gray-400 select-none">進階：校正「本月初尚欠」</summary>
-                        <p className="text-gray-500 text-xs mt-2 mb-2">僅在與實際帳務不符時調整；一般請依系統帶入。</p>
+                        <p className="text-gray-500 text-xs mt-2 mb-2">僅在與實際帳務不符時調整；修改後儲存才會覆寫上月結轉。</p>
                         <input
                           type="number"
                           min={0}
                           value={repayLastMonth}
-                          onChange={(e) => setRepayLastMonth(e.target.value)}
+                          onChange={(e) => {
+                            setRepayLastMonth(e.target.value)
+                            setOpeningEdited(true)
+                          }}
                           className="w-full bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
                         />
                       </details>
