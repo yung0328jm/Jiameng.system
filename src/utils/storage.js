@@ -353,6 +353,24 @@ export function markTransferred(id, reviewedBy = '') {
     return { success: false, message: '更新失敗' }
   }
 }
+
+/** 管理員刪除一筆預支紀錄（含已匯款／已駁回／審核中） */
+export function deleteAdvance(id) {
+  try {
+    const targetId = String(id || '').trim()
+    if (!targetId) return { success: false, message: '參數無效' }
+    const list = getAdvanceList()
+    const idx = list.findIndex((r) => String(r?.id) === targetId)
+    if (idx === -1) return { success: false, message: '找不到該紀錄' }
+    const removed = list[idx]
+    list.splice(idx, 1)
+    saveAdvanceList(list)
+    return { success: true, record: removed }
+  } catch (e) {
+    return { success: false, message: '刪除失敗' }
+  }
+}
+
 export function getTotalTransferredByAccount(account) {
   const list = getAdvanceList()
   const acc = String(account || '').trim()

@@ -11,6 +11,7 @@ import {
   addManualAdvance,
   rejectAdvance,
   markTransferred,
+  deleteAdvance,
   getTotalTransferredByAccount,
   getMonthlyTransferredByAccount,
   getAdvanceRepaymentStats,
@@ -171,6 +172,18 @@ function Advance() {
       loadData()
     } else {
       alert(result.message || '操作失敗')
+    }
+  }
+
+  const handleDeleteAdvance = (r) => {
+    const name = getMemberDisplayName(r?.account)
+    const amt = Number(r?.amount || 0).toLocaleString()
+    if (!window.confirm(`確定刪除「${name} · ${amt} 元」這筆預支紀錄？\n刪除後無法復原。`)) return
+    const result = deleteAdvance(r?.id)
+    if (result.success) {
+      loadData()
+    } else {
+      alert(result.message || '刪除失敗')
     }
   }
 
@@ -694,15 +707,24 @@ function Advance() {
                         <span className="text-gray-400 text-sm">{formatDate(r.createdAt)}</span>
                         {r.reason && <span className="text-gray-300 text-sm">原因：{r.reason}</span>}
                       </div>
-                      <span
-                        className={`px-2 py-0.5 text-xs font-semibold rounded shrink-0 ${
-                          r.status === 'pending' ? 'bg-yellow-600' : r.status === 'transferred' ? 'bg-green-600' : 'bg-gray-600'
-                        } text-white`}
-                      >
-                        {r.status === 'transferred'
-                          ? (PAYMENT_LABEL[r.paymentMethod] || '已匯款')
-                          : (STATUS_LABEL[r.status] || r.status)}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                            r.status === 'pending' ? 'bg-yellow-600' : r.status === 'transferred' ? 'bg-green-600' : 'bg-gray-600'
+                          } text-white`}
+                        >
+                          {r.status === 'transferred'
+                            ? (PAYMENT_LABEL[r.paymentMethod] || '已匯款')
+                            : (STATUS_LABEL[r.status] || r.status)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAdvance(r)}
+                          className="px-2 py-1 text-xs rounded bg-red-700/80 hover:bg-red-600 text-white"
+                        >
+                          刪除
+                        </button>
+                      </div>
                     </li>
                   )
                 })}

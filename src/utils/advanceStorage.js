@@ -6,6 +6,7 @@ export {
   addAdvance,
   rejectAdvance,
   markTransferred,
+  deleteAdvance,
   getTotalTransferredByAccount,
   getPendingCountByAccount,
   getTransferredCountByAccount,
