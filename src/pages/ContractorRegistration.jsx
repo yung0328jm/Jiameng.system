@@ -25,7 +25,11 @@ import {
   isContractorLate,
   getContractorEarlyDepartureCount,
   getContractorWorkDaysFromLog,
+  isHeadcountWorkLog,
   CONTRACTOR_OVERTIME_HOUR_OPTIONS,
+  CONTRACTOR_HALF_DAY_WORK_FACTOR,
+  CONTRACTOR_HALF_DAY_DEPARTURE,
+  CONTRACTOR_STANDARD_DEPARTURE,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { ContractorWorkHoursDetail, ContractorWorkHoursSummaryLine } from '../components/ContractorWorkHoursDetail'
@@ -174,6 +178,8 @@ function ContractorRegistration() {
   const [editWorkLogArrival, setEditWorkLogArrival] = useState('')
   const [editWorkLogDeparture, setEditWorkLogDeparture] = useState('')
   const [editWorkLogOvertimeHours, setEditWorkLogOvertimeHours] = useState('')
+  const [editWorkLogHeadcount, setEditWorkLogHeadcount] = useState('1')
+  const [editWorkLogEarlyCount, setEditWorkLogEarlyCount] = useState(0)
   const [applyingOvertimeId, setApplyingOvertimeId] = useState(null)
   const [applyOvertimeHours, setApplyOvertimeHours] = useState('')
   const [attendancePdfBusy, setAttendancePdfBusy] = useState(false)
@@ -262,6 +268,8 @@ function ContractorRegistration() {
     setEditWorkLogArrival('')
     setEditWorkLogDeparture('')
     setEditWorkLogOvertimeHours('')
+    setEditWorkLogHeadcount('1')
+    setEditWorkLogEarlyCount(0)
     setApplyingOvertimeId(null)
     setApplyOvertimeHours('')
   }
@@ -523,6 +531,8 @@ function ContractorRegistration() {
     setEditWorkLogArrival('')
     setEditWorkLogDeparture('')
     setEditWorkLogOvertimeHours('')
+    setEditWorkLogHeadcount('1')
+    setEditWorkLogEarlyCount(0)
   }
 
   const cancelApplyOvertime = () => {
@@ -543,6 +553,9 @@ function ContractorRegistration() {
       perPerson = Number(row?.overtimeRequestHours) || 0
     }
     setEditWorkLogOvertimeHours(perPerson > 0 ? String(perPerson) : '')
+    const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
+    setEditWorkLogHeadcount(String(hc))
+    setEditWorkLogEarlyCount(getContractorEarlyDepartureCount(row))
   }
 
   const startApplyOvertime = (row) => {
@@ -562,9 +575,26 @@ function ContractorRegistration() {
       setMessage({ type: 'error', text: '緊急入場時數無效' })
       return
     }
+    const isHeadcount = isHeadcountWorkLog(row)
+    const hc = isHeadcount
+      ? Math.max(1, Math.floor(Number(editWorkLogHeadcount) || 1))
+      : Math.max(1, Math.floor(Number(row?.headcount) || 1))
+    const earlyCount = Math.max(0, Math.min(hc, Math.floor(Number(editWorkLogEarlyCount) || 0)))
+    const workDays = Math.round((hc - earlyCount * CONTRACTOR_HALF_DAY_WORK_FACTOR) * 10) / 10
+    let dep = String(editWorkLogDeparture || '').trim()
+    if (earlyCount >= hc && (dep === CONTRACTOR_STANDARD_DEPARTURE || !dep)) {
+      dep = CONTRACTOR_HALF_DAY_DEPARTURE
+    } else if (earlyCount === 0 && dep === CONTRACTOR_HALF_DAY_DEPARTURE) {
+      dep = CONTRACTOR_STANDARD_DEPARTURE
+    }
     const patch = {
       arrivalTime: editWorkLogArrival,
-      departureTime: editWorkLogDeparture
+      departureTime: dep,
+      earlyDepartureCount: earlyCount,
+      earlyDeparture: earlyCount > 0
+    }
+    if (isHeadcount) {
+      patch.headcount = hc
     }
     if (otHours > 0) {
       patch.overtimeRequestHours = otHours
@@ -580,21 +610,29 @@ function ContractorRegistration() {
       setMessage({ type: 'error', text: res.message || '更新失敗' })
       return
     }
-    const hc = Math.max(1, Math.floor(Number(row?.headcount) || 1))
-    const total = Math.round(otHours * hc * 10) / 10
+    const otTotal = Math.round(otHours * hc * 10) / 10
     cancelEditWorkLog()
     setWorkLogRevision((r) => r + 1)
-    if (otHours > 0) {
-      setMessage({
-        type: 'success',
-        text:
-          hc > 1
-            ? `已更新：進離廠時間，緊急入場每人 ${formatWorkReportHours(otHours)}／合計 ${formatWorkReportHours(total)} 小時。`
-            : `已更新：進離廠時間，緊急入場 ${formatWorkReportHours(otHours)} 小時。`
-      })
+    const parts = ['已更新進離廠時間']
+    if (earlyCount > 0) {
+      parts.push(
+        earlyCount >= hc
+          ? `全數提早離場（${workDays} 工）`
+          : `提早 ${earlyCount} 人（合計 ${workDays} 工）`
+      )
     } else {
-      setMessage({ type: 'success', text: '已更新進離廠時間，並清除緊急入場。' })
+      parts.push(`出工 ${workDays} 工`)
     }
+    if (otHours > 0) {
+      parts.push(
+        hc > 1
+          ? `緊急入場每人 ${formatWorkReportHours(otHours)}／合計 ${formatWorkReportHours(otTotal)} 小時`
+          : `緊急入場 ${formatWorkReportHours(otHours)} 小時`
+      )
+    } else {
+      parts.push('無緊急入場')
+    }
+    setMessage({ type: 'success', text: `${parts.join('，')}。` })
   }
 
   const handleSubmitOvertimeRequest = (row) => {
@@ -1220,8 +1258,92 @@ function ContractorRegistration() {
                                     <td className="py-2 pr-2">
                                       {isEditing ? (
                                         <div className="space-y-2">
+                                          {isHeadcountWorkLog(row) && (
+                                            <div>
+                                              <label className="block text-gray-400 text-xs mb-1">人數</label>
+                                              <div className="flex flex-wrap gap-1.5">
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                                  <button
+                                                    key={n}
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setEditWorkLogHeadcount(String(n))
+                                                      setEditWorkLogEarlyCount((prev) => Math.min(prev, n))
+                                                    }}
+                                                    className={`min-h-[32px] min-w-[32px] px-2 rounded-lg text-xs font-medium border tabular-nums ${
+                                                      Number(editWorkLogHeadcount) === n
+                                                        ? 'bg-violet-700 border-violet-400 text-white'
+                                                        : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                                    }`}
+                                                  >
+                                                    {n}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
                                           <TimeInput24 label="進廠" value={editWorkLogArrival} onChange={setEditWorkLogArrival} compact />
                                           <TimeInput24 label="離廠" value={editWorkLogDeparture} onChange={setEditWorkLogDeparture} compact />
+                                          <div className="rounded-lg border border-violet-700/40 bg-violet-950/20 p-2">
+                                            <p className="text-violet-200 text-xs mb-2">提早離場（每人 0.5 工）</p>
+                                            {Math.max(1, Math.floor(Number(editWorkLogHeadcount) || Number(row?.headcount) || 1)) > 1 ? (
+                                              <div className="flex flex-wrap gap-1.5">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setEditWorkLogEarlyCount(0)}
+                                                  className={`min-h-[36px] px-2 py-1 rounded-lg text-xs font-medium border ${
+                                                    editWorkLogEarlyCount === 0
+                                                      ? 'bg-teal-800 border-teal-500 text-white'
+                                                      : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                                  }`}
+                                                >
+                                                  無提早
+                                                </button>
+                                                {Array.from(
+                                                  {
+                                                    length: Math.max(
+                                                      1,
+                                                      Math.floor(Number(editWorkLogHeadcount) || Number(row?.headcount) || 1)
+                                                    )
+                                                  },
+                                                  (_, i) => i + 1
+                                                ).map((n) => {
+                                                  const hc = Math.max(
+                                                    1,
+                                                    Math.floor(Number(editWorkLogHeadcount) || Number(row?.headcount) || 1)
+                                                  )
+                                                  const preview =
+                                                    Math.round((hc - n * CONTRACTOR_HALF_DAY_WORK_FACTOR) * 10) / 10
+                                                  return (
+                                                    <button
+                                                      key={n}
+                                                      type="button"
+                                                      onClick={() => setEditWorkLogEarlyCount(n)}
+                                                      className={`min-h-[36px] px-2 py-1 rounded-lg text-xs font-medium border tabular-nums ${
+                                                        editWorkLogEarlyCount === n
+                                                          ? 'bg-violet-700 border-violet-400 text-white'
+                                                          : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                                      }`}
+                                                    >
+                                                      {n} 人 → {preview} 工
+                                                    </button>
+                                                  )
+                                                })}
+                                              </div>
+                                            ) : (
+                                              <label className="flex items-start gap-2 cursor-pointer select-none">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={editWorkLogEarlyCount > 0}
+                                                  onChange={(e) => setEditWorkLogEarlyCount(e.target.checked ? 1 : 0)}
+                                                  className="mt-0.5 h-4 w-4 rounded border-violet-400 text-violet-600 focus:ring-violet-500"
+                                                />
+                                                <span className="text-violet-100 text-xs leading-snug">
+                                                  提早離場（0.5 工）
+                                                </span>
+                                              </label>
+                                            )}
+                                          </div>
                                           <div className="rounded-lg border border-amber-700/40 bg-amber-950/20 p-2">
                                             <p className="text-amber-200 text-xs mb-2">緊急入場時數（每人）</p>
                                             <div className="grid grid-cols-3 gap-1.5">
@@ -1252,18 +1374,30 @@ function ContractorRegistration() {
                                               ))}
                                             </div>
                                             {Number(editWorkLogOvertimeHours) > 0 &&
-                                              Math.max(1, Math.floor(Number(row?.headcount) || 1)) > 1 && (
+                                              Math.max(
+                                                1,
+                                                Math.floor(Number(editWorkLogHeadcount) || Number(row?.headcount) || 1)
+                                              ) > 1 && (
                                                 <p className="text-amber-300/80 text-[11px] mt-1.5">
                                                   合計{' '}
                                                   {formatWorkReportHours(
                                                     Math.round(
                                                       Number(editWorkLogOvertimeHours) *
-                                                        Math.max(1, Math.floor(Number(row?.headcount) || 1)) *
+                                                        Math.max(
+                                                          1,
+                                                          Math.floor(
+                                                            Number(editWorkLogHeadcount) || Number(row?.headcount) || 1
+                                                          )
+                                                        ) *
                                                         10
                                                     ) / 10
                                                   )}{' '}
-                                                  小時（{Math.max(1, Math.floor(Number(row?.headcount) || 1))}人×
-                                                  {formatWorkReportHours(Number(editWorkLogOvertimeHours))}）
+                                                  小時（
+                                                  {Math.max(
+                                                    1,
+                                                    Math.floor(Number(editWorkLogHeadcount) || Number(row?.headcount) || 1)
+                                                  )}
+                                                  人×{formatWorkReportHours(Number(editWorkLogOvertimeHours))}）
                                                 </p>
                                               )}
                                             <p className="text-gray-500 text-[11px] mt-1.5">儲存後直接套用為已核准緊急入場</p>

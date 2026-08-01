@@ -452,7 +452,7 @@ export const registerHeadcountDeparture = ({
   }
 }
 
-/** 管理者更新進離廠時間 */
+/** 管理者更新進離廠時間／提早離場／加班時數 */
 export const updateContractorWorkLog = (id, patch) => {
   try {
     const rid = String(id || '').trim()
@@ -461,12 +461,17 @@ export const updateContractorWorkLog = (id, patch) => {
     const idx = list.findIndex((r) => String(r?.id || '').trim() === rid)
     if (idx < 0 || list[idx]?.deleted) return { success: false, message: '找不到紀錄' }
     const prev = list[idx]
-    const next = { ...prev, ...patch, updatedAt: new Date().toISOString() }
+    const next = { ...prev, updatedAt: new Date().toISOString() }
     if (patch.arrivalTime !== undefined) {
       next.arrivalTime = String(patch.arrivalTime || '').trim()
     }
     if (patch.departureTime !== undefined) {
       next.departureTime = String(patch.departureTime || '').trim()
+    }
+    if (patch.headcount !== undefined && isHeadcountWorkLog(next)) {
+      const hc = Math.max(1, Math.floor(Number(patch.headcount) || 1))
+      next.headcount = hc
+      next.personName = `人數登記（${hc}人）`
     }
     if (patch.overtimeRequestHours !== undefined) {
       next.overtimeRequestHours = Math.max(0, Number(patch.overtimeRequestHours) || 0)
@@ -477,6 +482,31 @@ export const updateContractorWorkLog = (id, patch) => {
     if (patch.approvedOvertimeHours !== undefined) {
       const v = Number(patch.approvedOvertimeHours)
       next.approvedOvertimeHours = Number.isFinite(v) && v > 0 ? v : undefined
+    }
+    if (patch.earlyDepartureCount !== undefined || patch.earlyDeparture !== undefined) {
+      const headcount = Math.max(1, Math.floor(Number(next.headcount) || 1))
+      let earlyCount = 0
+      if (patch.earlyDepartureCount !== undefined) {
+        earlyCount = Math.max(0, Math.min(headcount, Math.floor(Number(patch.earlyDepartureCount) || 0)))
+      } else if (patch.earlyDeparture) {
+        earlyCount = headcount
+      }
+      next.earlyDeparture = earlyCount > 0
+      next.earlyDepartureCount = earlyCount
+      const workDays = roundHours(headcount - earlyCount * CONTRACTOR_HALF_DAY_WORK_FACTOR)
+      next.workDayFactor = earlyCount > 0 ? roundHours(workDays / headcount) : 1
+      // 若未同時改離廠時間：全數提早→12:00，否則維持／改回 17:00（僅當原本是標準半天離廠時）
+      if (patch.departureTime === undefined) {
+        const prevDep = String(next.departureTime || '').trim()
+        if (earlyCount >= headcount) {
+          next.departureTime = CONTRACTOR_HALF_DAY_DEPARTURE
+        } else if (
+          earlyCount === 0 &&
+          (prevDep === CONTRACTOR_HALF_DAY_DEPARTURE || !prevDep)
+        ) {
+          next.departureTime = CONTRACTOR_STANDARD_DEPARTURE
+        }
+      }
     }
     if (!next.arrivalTime && !next.departureTime) {
       return { success: false, message: '進廠與離廠時間不可皆為空' }
