@@ -61,7 +61,10 @@ import {
   getContractorWorkChipsForMonth,
   getContractorWorkLogsForChip,
   deleteContractorWorkLog,
+  requestContractorOvertime,
+  reviewContractorOvertime,
   aggregateContractorWorkLogsSummary,
+  CONTRACTOR_OVERTIME_HOUR_OPTIONS,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { ContractorWorkHoursDetail, ContractorWorkHoursSummaryLine } from '../components/ContractorWorkHoursDetail'
@@ -142,6 +145,8 @@ function Calendar() {
   const [contractorWorkRevision, setContractorWorkRevision] = useState(0) // 承攬商出工同步至月曆
   const [workReportDetail, setWorkReportDetail] = useState(null) // { dateStr, siteName } 點擊月曆「出工」標籤
   const [contractorWorkDetail, setContractorWorkDetail] = useState(null) // { dateStr, siteName, companyId, companyName }
+  const [contractorApplyingOvertimeId, setContractorApplyingOvertimeId] = useState(null)
+  const [contractorApplyOvertimeHours, setContractorApplyOvertimeHours] = useState('')
   const [tripReportFlashAt, setTripReportFlashAt] = useState(0) // 行程回報按鈕火焰閃光觸發時間
   const [exportingPdf, setExportingPdf] = useState(false) // 匯出 PDF 中，避免重複點擊與無反應
   const detailCardRef = useRef(null) // 詳情彈窗卡片，供匯出 PDF 使用
@@ -4883,7 +4888,11 @@ function Calendar() {
       {contractorWorkDetail && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-[55] p-4"
-          onClick={() => setContractorWorkDetail(null)}
+          onClick={() => {
+            setContractorApplyingOvertimeId(null)
+            setContractorApplyOvertimeHours('')
+            setContractorWorkDetail(null)
+          }}
           role="presentation"
         >
           <div
@@ -4903,7 +4912,11 @@ function Calendar() {
               </div>
               <button
                 type="button"
-                onClick={() => setContractorWorkDetail(null)}
+                onClick={() => {
+                  setContractorApplyingOvertimeId(null)
+                  setContractorApplyOvertimeHours('')
+                  setContractorWorkDetail(null)
+                }}
                 className="text-gray-400 hover:text-white shrink-0 p-1"
                 aria-label="關閉"
               >
@@ -4927,38 +4940,180 @@ function Calendar() {
                       <tr className="border-b border-gray-600 text-left text-gray-400">
                         <th className="py-2 pr-2 font-medium">姓名</th>
                         <th className="py-2 pr-2 font-medium">工時明細</th>
-                        {currentRole === 'admin' && <th className="py-2 font-medium text-right">操作</th>}
+                        <th className="py-2 font-medium text-right">操作</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {contractorWorkDetailRows.map((row) => (
-                        <tr key={row.id} className="border-b border-gray-700/60 align-top">
-                          <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
-                          <td className="py-2 pr-2">
-                            <ContractorWorkHoursDetail log={row} />
-                          </td>
-                          {currentRole === 'admin' && (
-                            <td className="py-2 text-right">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!window.confirm(`確定要刪除「${row.personName}」的出工紀錄嗎？`)) return
-                                  const res = deleteContractorWorkLog(row.id)
-                                  if (!res.success) {
-                                    alert(res.message || '刪除失敗')
-                                    return
-                                  }
-                                  setContractorWorkRevision((v) => v + 1)
-                                  if (contractorWorkDetailRows.length <= 1) setContractorWorkDetail(null)
-                                }}
-                                className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-300 border border-red-700/50 hover:bg-red-800/60"
-                              >
-                                刪除
-                              </button>
+                      {contractorWorkDetailRows.map((row) => {
+                        const isApplyingOt = contractorApplyingOvertimeId === row.id
+                        const otStatus = String(row?.overtimeStatus || 'none').trim()
+                        const pendingOvertime = otStatus === 'pending'
+                        const canRequestOvertime =
+                          !!String(row?.arrivalTime || '').trim() &&
+                          !!String(row?.departureTime || '').trim() &&
+                          otStatus !== 'pending' &&
+                          otStatus !== 'approved'
+                        return (
+                          <tr key={row.id} className="border-b border-gray-700/60 align-top">
+                            <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
+                            <td className="py-2 pr-2">
+                              <ContractorWorkHoursDetail log={row} />
+                              {isApplyingOt && (
+                                <div className="mt-2 rounded-lg border border-amber-700/40 bg-amber-950/20 p-2">
+                                  <p className="text-amber-200 text-xs mb-2">申請緊急入場時數</p>
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    {CONTRACTOR_OVERTIME_HOUR_OPTIONS.map((h) => (
+                                      <button
+                                        key={h}
+                                        type="button"
+                                        onClick={() => setContractorApplyOvertimeHours(String(h))}
+                                        className={`min-h-[36px] px-1.5 py-1 rounded-lg text-xs font-medium border tabular-nums ${
+                                          Number(contractorApplyOvertimeHours) === h
+                                            ? 'bg-amber-700 border-amber-500 text-white'
+                                            : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                        }`}
+                                      >
+                                        {formatWorkReportHours(h)} 小時
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </td>
-                          )}
-                        </tr>
-                      ))}
+                            <td className="py-2 text-right">
+                              <div className="flex flex-col gap-1 items-end">
+                                {isApplyingOt ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const hrs = Number(contractorApplyOvertimeHours)
+                                        if (!Number.isFinite(hrs) || hrs <= 0) {
+                                          alert('請選擇申請加班時數')
+                                          return
+                                        }
+                                        const res = requestContractorOvertime(row.id, hrs)
+                                        if (!res.success) {
+                                          alert(res.message || '申請失敗')
+                                          return
+                                        }
+                                        setContractorApplyingOvertimeId(null)
+                                        setContractorApplyOvertimeHours('')
+                                        setContractorWorkRevision((v) => v + 1)
+                                      }}
+                                      disabled={
+                                        !Number(contractorApplyOvertimeHours) ||
+                                        Number(contractorApplyOvertimeHours) <= 0
+                                      }
+                                      className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      送出申請
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setContractorApplyingOvertimeId(null)
+                                        setContractorApplyOvertimeHours('')
+                                      }}
+                                      className="text-xs px-2 py-1 rounded text-gray-400 hover:text-gray-200"
+                                    >
+                                      取消
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {pendingOvertime && currentRole === 'admin' && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const hrs = Number(row?.overtimeRequestHours) || 0
+                                            if (
+                                              !window.confirm(
+                                                `核准「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`
+                                              )
+                                            ) {
+                                              return
+                                            }
+                                            const res = reviewContractorOvertime(row.id, {
+                                              action: 'approve',
+                                              approvedHours: hrs
+                                            })
+                                            if (!res.success) {
+                                              alert(res.message || '核准失敗')
+                                              return
+                                            }
+                                            setContractorWorkRevision((v) => v + 1)
+                                          }}
+                                          className="text-xs px-2 py-1 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/50 hover:bg-emerald-800/60"
+                                        >
+                                          核准加班
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const hrs = Number(row?.overtimeRequestHours) || 0
+                                            if (
+                                              !window.confirm(
+                                                `駁回「${row.personName}」加班申請 ${formatWorkReportHours(hrs)} 小時？`
+                                              )
+                                            ) {
+                                              return
+                                            }
+                                            const res = reviewContractorOvertime(row.id, { action: 'reject' })
+                                            if (!res.success) {
+                                              alert(res.message || '駁回失敗')
+                                              return
+                                            }
+                                            setContractorWorkRevision((v) => v + 1)
+                                          }}
+                                          className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700"
+                                        >
+                                          駁回
+                                        </button>
+                                      </>
+                                    )}
+                                    {canRequestOvertime && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setContractorApplyingOvertimeId(row.id)
+                                          setContractorApplyOvertimeHours('')
+                                        }}
+                                        className="text-xs px-2 py-1 rounded bg-amber-900/50 text-amber-200 border border-amber-700/50 hover:bg-amber-800/60"
+                                      >
+                                        申請加班
+                                      </button>
+                                    )}
+                                    {currentRole === 'admin' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!window.confirm(`確定要刪除「${row.personName}」的出工紀錄嗎？`)) return
+                                          const res = deleteContractorWorkLog(row.id)
+                                          if (!res.success) {
+                                            alert(res.message || '刪除失敗')
+                                            return
+                                          }
+                                          setContractorWorkRevision((v) => v + 1)
+                                          if (contractorWorkDetailRows.length <= 1) {
+                                            setContractorApplyingOvertimeId(null)
+                                            setContractorApplyOvertimeHours('')
+                                            setContractorWorkDetail(null)
+                                          }
+                                        }}
+                                        className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-300 border border-red-700/50 hover:bg-red-800/60"
+                                      >
+                                        刪除
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </>
@@ -4967,7 +5122,11 @@ function Calendar() {
             <div className="p-4 border-t border-gray-700 shrink-0 flex justify-end">
               <button
                 type="button"
-                onClick={() => setContractorWorkDetail(null)}
+                onClick={() => {
+                  setContractorApplyingOvertimeId(null)
+                  setContractorApplyOvertimeHours('')
+                  setContractorWorkDetail(null)
+                }}
                 className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium"
               >
                 關閉

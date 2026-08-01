@@ -475,6 +475,44 @@ export const updateContractorWorkLog = (id, patch) => {
   }
 }
 
+/** 手動申請加班／緊急入場（離廠後補申請） */
+export const requestContractorOvertime = (id, hours) => {
+  try {
+    const rid = String(id || '').trim()
+    if (!rid) return { success: false, message: '紀錄不存在' }
+    const otHours = Math.max(0, Number(hours) || 0)
+    if (!Number.isFinite(otHours) || otHours <= 0) {
+      return { success: false, message: '請填寫申請加班時數' }
+    }
+    const list = readAllContractorWorkLogs()
+    const idx = list.findIndex((r) => String(r?.id || '').trim() === rid)
+    if (idx < 0 || list[idx]?.deleted) return { success: false, message: '找不到紀錄' }
+    const prev = list[idx]
+    if (!String(prev?.arrivalTime || '').trim() || !String(prev?.departureTime || '').trim()) {
+      return { success: false, message: '請先完成進離廠登記再建加班申請' }
+    }
+    const status = String(prev?.overtimeStatus || 'none').trim()
+    if (status === 'pending') {
+      return { success: false, message: '已有待審加班申請，請先審核或駁回後再改申請' }
+    }
+    if (status === 'approved') {
+      return { success: false, message: '此筆加班已核准，如需修改請先駁回後再申請' }
+    }
+    list[idx] = {
+      ...prev,
+      overtimeRequestHours: otHours,
+      overtimeStatus: 'pending',
+      approvedOvertimeHours: undefined,
+      updatedAt: new Date().toISOString()
+    }
+    persist(list)
+    return { success: true, record: list[idx] }
+  } catch (e) {
+    console.error('requestContractorOvertime:', e)
+    return { success: false, message: '申請失敗' }
+  }
+}
+
 /** 管理員審核承攬商加班申請 */
 export const reviewContractorOvertime = (id, { action, approvedHours } = {}) => {
   try {

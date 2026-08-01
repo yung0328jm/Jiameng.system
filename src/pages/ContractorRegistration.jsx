@@ -18,8 +18,10 @@ import {
   getContractorAttendanceByMonth,
   deleteContractorWorkLog,
   updateContractorWorkLog,
+  requestContractorOvertime,
   reviewContractorOvertime,
   aggregateContractorWorkLogsSummary,
+  CONTRACTOR_OVERTIME_HOUR_OPTIONS,
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { ContractorWorkHoursDetail, ContractorWorkHoursSummaryLine } from '../components/ContractorWorkHoursDetail'
@@ -66,6 +68,8 @@ function ContractorRegistration() {
   const [editingWorkLogId, setEditingWorkLogId] = useState(null)
   const [editWorkLogArrival, setEditWorkLogArrival] = useState('')
   const [editWorkLogDeparture, setEditWorkLogDeparture] = useState('')
+  const [applyingOvertimeId, setApplyingOvertimeId] = useState(null)
+  const [applyOvertimeHours, setApplyOvertimeHours] = useState('')
 
   const loadList = () => setList(getContractorRegistrations())
 
@@ -267,10 +271,22 @@ function ContractorRegistration() {
     setEditWorkLogDeparture('')
   }
 
+  const cancelApplyOvertime = () => {
+    setApplyingOvertimeId(null)
+    setApplyOvertimeHours('')
+  }
+
   const startEditWorkLog = (row) => {
+    cancelApplyOvertime()
     setEditingWorkLogId(row.id)
     setEditWorkLogArrival(row.arrivalTime || '')
     setEditWorkLogDeparture(row.departureTime || '')
+  }
+
+  const startApplyOvertime = (row) => {
+    cancelEditWorkLog()
+    setApplyingOvertimeId(row.id)
+    setApplyOvertimeHours('')
   }
 
   const handleSaveWorkLogTimes = (id) => {
@@ -291,6 +307,22 @@ function ContractorRegistration() {
     setMessage({ type: 'success', text: '已更新進離廠時間。' })
   }
 
+  const handleSubmitOvertimeRequest = (row) => {
+    const hrs = Number(applyOvertimeHours)
+    if (!Number.isFinite(hrs) || hrs <= 0) {
+      setMessage({ type: 'error', text: '請選擇申請加班時數' })
+      return
+    }
+    const res = requestContractorOvertime(row.id, hrs)
+    if (!res.success) {
+      setMessage({ type: 'error', text: res.message || '申請失敗' })
+      return
+    }
+    cancelApplyOvertime()
+    setWorkLogRevision((r) => r + 1)
+    setMessage({ type: 'success', text: `已送出加班申請 ${formatWorkReportHours(hrs)} 小時，待核准。` })
+  }
+
   const handleDeleteWorkLog = (row) => {
     if (!window.confirm(`確定要刪除「${row.personName}」${row.date ? `（${String(row.date).replace(/-/g, '/')}）` : ''}的出工紀錄嗎？`)) return
     const res = deleteContractorWorkLog(row.id)
@@ -299,6 +331,7 @@ function ContractorRegistration() {
       return
     }
     if (editingWorkLogId === row.id) cancelEditWorkLog()
+    if (applyingOvertimeId === row.id) cancelApplyOvertime()
     setWorkLogRevision((r) => r + 1)
     setMessage({ type: 'success', text: '已刪除出工紀錄。' })
   }
@@ -813,10 +846,17 @@ function ContractorRegistration() {
                             <tbody>
                               {site.rows.map((row) => {
                                 const isEditing = editingWorkLogId === row.id
+                                const isApplyingOt = applyingOvertimeId === row.id
                                 const canSave =
                                   isWorkReportTimeFilled(editWorkLogArrival) ||
                                   isWorkReportTimeFilled(editWorkLogDeparture)
-                                const pendingOvertime = String(row?.overtimeStatus || '').trim() === 'pending'
+                                const otStatus = String(row?.overtimeStatus || 'none').trim()
+                                const pendingOvertime = otStatus === 'pending'
+                                const canRequestOvertime =
+                                  !!String(row?.arrivalTime || '').trim() &&
+                                  !!String(row?.departureTime || '').trim() &&
+                                  otStatus !== 'pending' &&
+                                  otStatus !== 'approved'
                                 return (
                                   <tr key={row.id} className="border-t border-gray-700/40 align-top">
                                     <td className="py-2 pr-2 text-white">{m(row.personName)}</td>
@@ -826,13 +866,36 @@ function ContractorRegistration() {
                                           <TimeInput24 label="進廠" value={editWorkLogArrival} onChange={setEditWorkLogArrival} compact />
                                           <TimeInput24 label="離廠" value={editWorkLogDeparture} onChange={setEditWorkLogDeparture} compact />
                                         </div>
+                                      ) : isApplyingOt ? (
+                                        <div className="space-y-2">
+                                          <ContractorWorkHoursDetail log={row} />
+                                          <div className="rounded-lg border border-amber-700/40 bg-amber-950/20 p-2">
+                                            <p className="text-amber-200 text-xs mb-2">申請緊急入場時數</p>
+                                            <div className="grid grid-cols-3 gap-1.5">
+                                              {CONTRACTOR_OVERTIME_HOUR_OPTIONS.map((h) => (
+                                                <button
+                                                  key={h}
+                                                  type="button"
+                                                  onClick={() => setApplyOvertimeHours(String(h))}
+                                                  className={`min-h-[36px] px-1.5 py-1 rounded-lg text-xs font-medium border tabular-nums ${
+                                                    Number(applyOvertimeHours) === h
+                                                      ? 'bg-amber-700 border-amber-500 text-white'
+                                                      : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+                                                  }`}
+                                                >
+                                                  {formatWorkReportHours(h)} 小時
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
                                       ) : (
                                         <ContractorWorkHoursDetail log={row} />
                                       )}
                                     </td>
                                     <td className="py-1.5 text-right">
                                       <div className="flex flex-col gap-1 items-end">
-                                        {pendingOvertime && !isEditing && (
+                                        {pendingOvertime && !isEditing && !isApplyingOt && (
                                           <>
                                             <button
                                               type="button"
@@ -868,8 +931,35 @@ function ContractorRegistration() {
                                               取消
                                             </button>
                                           </>
+                                        ) : isApplyingOt ? (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSubmitOvertimeRequest(row)}
+                                              disabled={!Number(applyOvertimeHours) || Number(applyOvertimeHours) <= 0}
+                                              className="text-xs px-2 py-0.5 rounded bg-amber-700/70 text-amber-100 border border-amber-600/50 hover:bg-amber-600/70 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                              送出申請
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={cancelApplyOvertime}
+                                              className="text-xs px-2 py-0.5 rounded text-gray-400 hover:text-gray-200"
+                                            >
+                                              取消
+                                            </button>
+                                          </>
                                         ) : (
                                           <>
+                                            {canRequestOvertime && (
+                                              <button
+                                                type="button"
+                                                onClick={() => startApplyOvertime(row)}
+                                                className="text-xs px-2 py-0.5 rounded bg-amber-900/50 text-amber-200 border border-amber-700/50 hover:bg-amber-800/60"
+                                              >
+                                                申請加班
+                                              </button>
+                                            )}
                                             <button
                                               type="button"
                                               onClick={() => startEditWorkLog(row)}
