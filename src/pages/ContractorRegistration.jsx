@@ -115,19 +115,13 @@ function buildWorkLogPrintLines(log) {
   return lines
 }
 
-async function exportAttendancePdfHtml(html, filename) {
-  const [jspdfMod, h2cMod] = await Promise.all([import('jspdf'), import('html2canvas')])
-  const jsPDF = jspdfMod.jsPDF
-  const html2canvas = h2cMod.default
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const pageW = pdf.internal.pageSize.getWidth()
-  const pageH = pdf.internal.pageSize.getHeight()
+async function renderHtmlBlockToCanvas(html, html2canvas, { padTop = 0, padBottom = 12 } = {}) {
   const wrap = document.createElement('div')
   wrap.style.cssText =
-    'position:fixed;left:-9999px;top:0;width:720px;max-width:720px;background:#fff;padding:28px 32px 40px;font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;font-size:13px;box-sizing:border-box;color:#111;overflow:visible;word-break:break-word;line-height:1.45;'
+    `position:fixed;left:-9999px;top:0;width:720px;max-width:720px;background:#fff;padding:${padTop}px 32px ${padBottom}px;font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;font-size:13px;box-sizing:border-box;color:#111;overflow:visible;word-break:break-word;line-height:1.45;`
   wrap.innerHTML = html
   document.body.appendChild(wrap)
-  await new Promise((r) => setTimeout(r, 120))
+  await new Promise((r) => setTimeout(r, 40))
   const w = Math.max(wrap.scrollWidth, 1)
   const h = Math.max(wrap.scrollHeight, 1)
   const canvas = await html2canvas(wrap, {
@@ -140,19 +134,92 @@ async function exportAttendancePdfHtml(html, filename) {
     windowHeight: h
   })
   document.body.removeChild(wrap)
-  const img = canvas.toDataURL('image/png')
-  const imgW = pageW
-  const imgH = (canvas.height * pageW) / canvas.width
-  let y = 0
-  let hLeft = imgH
-  pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
-  hLeft -= pageH
-  while (hLeft > 0) {
-    y = hLeft - imgH
-    pdf.addPage()
-    pdf.addImage(img, 'PNG', 0, y, imgW, imgH)
-    hLeft -= pageH
+  return canvas
+}
+
+function sliceCanvasVertically(source, srcYpx, heightPx) {
+  const slice = document.createElement('canvas')
+  const h = Math.max(1, Math.ceil(heightPx))
+  slice.width = source.width
+  slice.height = h
+  const ctx = slice.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, slice.width, h)
+  ctx.drawImage(source, 0, srcYpx, source.width, h, 0, 0, source.width, h)
+  return slice
+}
+
+/** 依區塊排版進 PDF：放不下就換頁，避免切開格子 */
+async function exportAttendancePdfBlocks(blocks, filename) {
+  const [jspdfMod, h2cMod] = await Promise.all([import('jspdf'), import('html2canvas')])
+  const jsPDF = jspdfMod.jsPDF
+  const html2canvas = h2cMod.default
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const marginX = 8
+  const marginY = 8
+  const contentW = pageW - marginX * 2
+  const contentH = pageH - marginY * 2
+  const gap = 2
+  let cursorY = marginY
+
+  const drawImage = (canvas, x, y, wMm, hMm) => {
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, wMm, hMm)
   }
+
+  const addCanvas = (canvas) => {
+    const imgW = contentW
+    const imgH = (canvas.height * contentW) / canvas.width
+    const pxPerMm = canvas.height / imgH
+
+    // 超過一頁高：切片（盡量少見；每日區塊通常小於一頁）
+    if (imgH > contentH) {
+      if (cursorY > marginY + 0.5) {
+        pdf.addPage()
+        cursorY = marginY
+      }
+      let srcYpx = 0
+      let remainingMm = imgH
+      let firstSlice = true
+      while (remainingMm > 0.05) {
+        const sliceHmm = Math.min(remainingMm, contentH)
+        const slicePx = sliceHmm * pxPerMm
+        const slice = sliceCanvasVertically(canvas, srcYpx, slicePx)
+        if (!firstSlice) {
+          pdf.addPage()
+          cursorY = marginY
+        }
+        drawImage(slice, marginX, cursorY, imgW, sliceHmm)
+        srcYpx += slicePx
+        remainingMm -= sliceHmm
+        firstSlice = false
+        cursorY = marginY + sliceHmm
+      }
+      cursorY += gap
+      if (cursorY > marginY + contentH - 1) {
+        pdf.addPage()
+        cursorY = marginY
+      }
+      return
+    }
+
+    if (cursorY + imgH > marginY + contentH && cursorY > marginY + 0.5) {
+      pdf.addPage()
+      cursorY = marginY
+    }
+    drawImage(canvas, marginX, cursorY, imgW, imgH)
+    cursorY += imgH + gap
+  }
+
+  for (let i = 0; i < blocks.length; i++) {
+    const canvas = await renderHtmlBlockToCanvas(blocks[i], html2canvas, {
+      padTop: i === 0 ? 8 : 0,
+      padBottom: 6
+    })
+    addCanvas(canvas)
+  }
+
   pdf.save(filename)
 }
 
@@ -295,94 +362,97 @@ function ContractorRegistration() {
       const companyName = String(attendanceCompany.name || '').trim() || '承攬商'
       const year = attendanceMonth.year
       const month = attendanceMonth.month
-      let html = ''
-      html += `<div style="margin-bottom:18px;border-bottom:2px solid #111;padding-bottom:12px;">`
-      html += `<div style="font-size:20px;font-weight:700;">出勤紀錄</div>`
-      html += `<div style="font-size:16px;font-weight:600;margin-top:4px;">${escapeHtml(companyName)}</div>`
-      html += `<div style="font-size:14px;margin-top:4px;color:#333;">${year} 年 ${month} 月</div>`
-      html += `</div>`
+      const blocks = []
 
-      html += `<div style="margin-bottom:16px;padding:10px 12px;border:1px solid #ccc;border-radius:6px;background:#f8f8f8;">`
-      html += `<div style="font-weight:700;margin-bottom:4px;">本月合計</div>`
-      html += `<div>出工 <strong>${attendanceMonthStats.fullDayCount}</strong> 工`
-      html += `　緊急入場 <strong>${formatWorkReportHours(attendanceMonthStats.overtimeHours)}</strong> 小時`
-      html += `　遲到 <strong>${attendanceMonthStats.lateCount}</strong> 次`
+      let headerHtml = ''
+      headerHtml += `<div style="margin-bottom:14px;border-bottom:2px solid #111;padding-bottom:10px;">`
+      headerHtml += `<div style="font-size:20px;font-weight:700;">出勤紀錄</div>`
+      headerHtml += `<div style="font-size:16px;font-weight:600;margin-top:4px;">${escapeHtml(companyName)}</div>`
+      headerHtml += `<div style="font-size:14px;margin-top:4px;color:#333;">${year} 年 ${month} 月</div>`
+      headerHtml += `</div>`
+      headerHtml += `<div style="margin-bottom:12px;padding:10px 12px;border:1px solid #ccc;border-radius:6px;background:#f8f8f8;">`
+      headerHtml += `<div style="font-weight:700;margin-bottom:4px;">本月合計</div>`
+      headerHtml += `<div>出工 <strong>${attendanceMonthStats.fullDayCount}</strong> 工`
+      headerHtml += `　緊急入場 <strong>${formatWorkReportHours(attendanceMonthStats.overtimeHours)}</strong> 小時`
+      headerHtml += `　遲到 <strong>${attendanceMonthStats.lateCount}</strong> 次`
       if (attendanceMonthStats.pendingOvertimeCount > 0) {
-        html += `　待審加班 <strong>${attendanceMonthStats.pendingOvertimeCount}</strong> 筆`
+        headerHtml += `　待審加班 <strong>${attendanceMonthStats.pendingOvertimeCount}</strong> 筆`
       }
-      html += `</div></div>`
-
+      headerHtml += `</div></div>`
       if (attendanceSiteMonthStats.length > 0) {
-        html += `<div style="margin-bottom:18px;">`
-        html += `<div style="font-weight:700;margin-bottom:8px;font-size:14px;">各案場本月合計</div>`
-        html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">`
-        html += `<thead><tr style="background:#eee;text-align:left;">`
-        html += `<th style="border:1px solid #bbb;padding:6px 8px;">案場</th>`
-        html += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">出工（工）</th>`
-        html += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">緊急入場（小時）</th>`
-        html += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">遲到（次）</th>`
-        html += `</tr></thead><tbody>`
+        headerHtml += `<div style="margin-bottom:4px;">`
+        headerHtml += `<div style="font-weight:700;margin-bottom:8px;font-size:14px;">各案場本月合計</div>`
+        headerHtml += `<table style="width:100%;border-collapse:collapse;font-size:12px;">`
+        headerHtml += `<thead><tr style="background:#eee;text-align:left;">`
+        headerHtml += `<th style="border:1px solid #bbb;padding:6px 8px;">案場</th>`
+        headerHtml += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">出工（工）</th>`
+        headerHtml += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">緊急入場（小時）</th>`
+        headerHtml += `<th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">遲到（次）</th>`
+        headerHtml += `</tr></thead><tbody>`
         attendanceSiteMonthStats.forEach((site) => {
-          html += `<tr>`
-          html += `<td style="border:1px solid #bbb;padding:6px 8px;">${escapeHtml(site.siteName)}</td>`
-          html += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${site.fullDayCount}</td>`
-          html += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${formatWorkReportHours(site.overtimeHours)}</td>`
-          html += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${site.lateCount}</td>`
-          html += `</tr>`
+          headerHtml += `<tr>`
+          headerHtml += `<td style="border:1px solid #bbb;padding:6px 8px;">${escapeHtml(site.siteName)}</td>`
+          headerHtml += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${site.fullDayCount}</td>`
+          headerHtml += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${formatWorkReportHours(site.overtimeHours)}</td>`
+          headerHtml += `<td style="border:1px solid #bbb;padding:6px 8px;text-align:right;">${site.lateCount}</td>`
+          headerHtml += `</tr>`
         })
-        html += `</tbody></table></div>`
+        headerHtml += `</tbody></table></div>`
       }
+      headerHtml += `<div style="font-weight:700;margin-top:12px;font-size:14px;">每日明細</div>`
+      blocks.push(headerHtml)
 
-      html += `<div style="font-weight:700;margin-bottom:10px;font-size:14px;">每日明細</div>`
       attendanceDays.forEach((day) => {
         const daySummary = aggregateContractorWorkLogsSummary(day.sites.flatMap((s) => s.rows))
-        html += `<div style="margin-bottom:14px;border:1px solid #ccc;border-radius:6px;overflow:hidden;page-break-inside:avoid;">`
-        html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 10px;background:#f0f0f0;border-bottom:1px solid #ccc;">`
-        html += `<strong>${escapeHtml(String(day.date || '').replace(/-/g, '/'))}</strong>`
-        html += `<span style="font-size:12px;color:#333;">出工 ${day.totalHeadcount} 人`
-        html += `　合計 ${daySummary.fullDayHeadcount || 0} 工`
+        let dayHtml = ''
+        dayHtml += `<div style="border:1px solid #ccc;border-radius:6px;overflow:hidden;">`
+        dayHtml += `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 10px;background:#f0f0f0;border-bottom:1px solid #ccc;">`
+        dayHtml += `<strong>${escapeHtml(String(day.date || '').replace(/-/g, '/'))}</strong>`
+        dayHtml += `<span style="font-size:12px;color:#333;">出工 ${day.totalHeadcount} 人`
+        dayHtml += `　合計 ${daySummary.fullDayHeadcount || 0} 工`
         if (daySummary.hasOvertime) {
-          html += `　緊急入場 ${formatWorkReportHours(daySummary.totalOvertimeHours || 0)} 小時`
+          dayHtml += `　緊急入場 ${formatWorkReportHours(daySummary.totalOvertimeHours || 0)} 小時`
         }
         if (daySummary.lateHeadcount > 0) {
-          html += `　遲到 ${daySummary.lateHeadcount} 人`
+          dayHtml += `　遲到 ${daySummary.lateHeadcount} 人`
         }
-        html += `</span></div>`
+        dayHtml += `</span></div>`
 
         day.sites.forEach((site) => {
           const siteSummary = aggregateContractorWorkLogsSummary(site.rows)
-          html += `<div style="padding:8px 10px;border-top:1px solid #ddd;">`
-          html += `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;">`
-          html += `<strong style="color:#0f766e;">案場：${escapeHtml(site.siteName)}（${site.headcount} 人）</strong>`
-          html += `<span style="font-size:12px;color:#444;">合計 ${siteSummary.fullDayHeadcount || 0} 工`
+          dayHtml += `<div style="padding:8px 10px;border-top:1px solid #ddd;">`
+          dayHtml += `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;">`
+          dayHtml += `<strong style="color:#0f766e;">案場：${escapeHtml(site.siteName)}（${site.headcount} 人）</strong>`
+          dayHtml += `<span style="font-size:12px;color:#444;">合計 ${siteSummary.fullDayHeadcount || 0} 工`
           if (siteSummary.hasOvertime) {
-            html += `　緊急入場 ${formatWorkReportHours(siteSummary.totalOvertimeHours || 0)} 小時`
+            dayHtml += `　緊急入場 ${formatWorkReportHours(siteSummary.totalOvertimeHours || 0)} 小時`
           }
           if (siteSummary.lateHeadcount > 0) {
-            html += `　遲到 ${siteSummary.lateHeadcount} 人`
+            dayHtml += `　遲到 ${siteSummary.lateHeadcount} 人`
           }
-          html += `</span></div>`
-          html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">`
-          html += `<thead><tr style="background:#fafafa;text-align:left;">`
-          html += `<th style="border:1px solid #ddd;padding:5px 6px;width:28%;">姓名</th>`
-          html += `<th style="border:1px solid #ddd;padding:5px 6px;">工時明細</th>`
-          html += `</tr></thead><tbody>`
+          dayHtml += `</span></div>`
+          dayHtml += `<table style="width:100%;border-collapse:collapse;font-size:12px;">`
+          dayHtml += `<thead><tr style="background:#fafafa;text-align:left;">`
+          dayHtml += `<th style="border:1px solid #ddd;padding:5px 6px;width:28%;">姓名</th>`
+          dayHtml += `<th style="border:1px solid #ddd;padding:5px 6px;">工時明細</th>`
+          dayHtml += `</tr></thead><tbody>`
           site.rows.forEach((row) => {
             const detail = buildWorkLogPrintLines(row)
               .map((line) => escapeHtml(line))
               .join('<br/>')
-            html += `<tr>`
-            html += `<td style="border:1px solid #ddd;padding:5px 6px;vertical-align:top;">${escapeHtml(row.personName || '—')}</td>`
-            html += `<td style="border:1px solid #ddd;padding:5px 6px;vertical-align:top;">${detail}</td>`
-            html += `</tr>`
+            dayHtml += `<tr>`
+            dayHtml += `<td style="border:1px solid #ddd;padding:5px 6px;vertical-align:top;">${escapeHtml(row.personName || '—')}</td>`
+            dayHtml += `<td style="border:1px solid #ddd;padding:5px 6px;vertical-align:top;">${detail}</td>`
+            dayHtml += `</tr>`
           })
-          html += `</tbody></table></div>`
+          dayHtml += `</tbody></table></div>`
         })
-        html += `</div>`
+        dayHtml += `</div>`
+        blocks.push(dayHtml)
       })
 
       const safeName = companyName.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40)
-      await exportAttendancePdfHtml(html, `出勤紀錄_${safeName}_${year}年${month}月.pdf`)
+      await exportAttendancePdfBlocks(blocks, `出勤紀錄_${safeName}_${year}年${month}月.pdf`)
     } catch (e) {
       console.error('export attendance pdf:', e)
       alert('匯出 PDF 失敗，請稍後再試。')
