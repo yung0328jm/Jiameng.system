@@ -30,8 +30,8 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
 function formatMoney(n) {
-  const x = Number(n) || 0
-  return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 2 })
+  const x = Math.round(Number(n) || 0)
+  return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 0 })
 }
 
 /** 取得所有在職成員顯示名（participants + responsible_persons，排除 resigned） */

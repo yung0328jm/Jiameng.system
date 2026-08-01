@@ -16,6 +16,8 @@ export const DEFAULT_PAY_RATE = {
 }
 
 const round2 = (x) => Math.round(Number(x) * 100) / 100
+/** 金額四捨五入至整數（無小數） */
+const roundMoney = (x) => Math.round(Number(x) || 0)
 
 const isYearMonthKey = (key) => /^\d{4}-\d{2}$/.test(String(key || '').trim())
 
@@ -144,11 +146,11 @@ export function setPayRate(personName, yearMonth, rate) {
   const all = getAllPayRates()
   if (!all[ym] || typeof all[ym] !== 'object') all[ym] = {}
   all[ym][name] = {
-    dailyRate: round2(rate?.dailyRate),
+    dailyRate: roundMoney(rate?.dailyRate),
     overtimeMultiplier: round2(rate?.overtimeMultiplier),
-    mealAllowancePerDay: round2(rate?.mealAllowancePerDay),
-    nightMealAllowancePerDay: round2(rate?.nightMealAllowancePerDay),
-    insuranceSubsidyPerDay: round2(rate?.insuranceSubsidyPerDay),
+    mealAllowancePerDay: roundMoney(rate?.mealAllowancePerDay),
+    nightMealAllowancePerDay: roundMoney(rate?.nightMealAllowancePerDay),
+    insuranceSubsidyPerDay: roundMoney(rate?.insuranceSubsidyPerDay),
     updatedAt: new Date().toISOString()
   }
   try {
@@ -195,7 +197,7 @@ export function setBonus(personName, yearMonth, amount) {
     delete all[ym][name]
     if (Object.keys(all[ym]).length === 0) delete all[ym]
   } else {
-    all[ym][name] = round2(n)
+    all[ym][name] = roundMoney(n)
   }
   try {
     const val = JSON.stringify(all)
@@ -217,7 +219,7 @@ export function setManualBonus(personName, yearMonth, amount) {
 }
 
 export function calcTotalPayBonus(autoBonus, manualBonus) {
-  return round2((Number(autoBonus) || 0) + (Number(manualBonus) || 0))
+  return roundMoney((Number(autoBonus) || 0) + (Number(manualBonus) || 0))
 }
 
 /* ===== 計算 ===== */
@@ -240,13 +242,13 @@ export function calcPayAmount(stats, rate, bonus = 0) {
   const nightMealDays = Number(stats?.nightMealQualifyingDays) || 0
   const hourly = dailyRate / 8
 
-  const dayAmount = round2(days * dailyRate)
-  const underAmount = round2(uh * hourly)
-  const overtimeAmount = round2(ot * hourly * otMul)
-  const mealAmount = round2(days * mealPerDay + uh * (mealPerDay / 8))
-  const nightMealAmount = round2(nightMealDays * nightMealPerDay)
-  const insuranceAmount = round2(days * insurancePerDay + uh * (insurancePerDay / 8))
-  const bonusAmount = round2(Number(bonus) || 0)
+  const dayAmount = roundMoney(days * dailyRate)
+  const underAmount = roundMoney(uh * hourly)
+  const overtimeAmount = roundMoney(ot * hourly * otMul)
+  const mealAmount = roundMoney(days * mealPerDay + uh * (mealPerDay / 8))
+  const nightMealAmount = roundMoney(nightMealDays * nightMealPerDay)
+  const insuranceAmount = roundMoney(days * insurancePerDay + uh * (insurancePerDay / 8))
+  const bonusAmount = roundMoney(Number(bonus) || 0)
 
   return {
     dayAmount,
@@ -257,7 +259,7 @@ export function calcPayAmount(stats, rate, bonus = 0) {
     nightMealQualifyingDays: nightMealDays,
     insuranceAmount,
     bonusAmount,
-    total: round2(
+    total: roundMoney(
       dayAmount +
         underAmount +
         overtimeAmount +

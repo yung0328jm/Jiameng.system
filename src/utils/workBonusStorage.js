@@ -5,6 +5,8 @@ const CONFIG_KEY = 'jiameng_work_bonus_config'
 const RULES_KEY = 'jiameng_work_bonus_rules'
 
 const round2 = (x) => Math.round(Number(x) * 100) / 100
+/** 金額四捨五入至整數（無小數） */
+const roundMoney = (x) => Math.round(Number(x) || 0)
 
 const safeParse = (raw, fallback) => {
   try {
@@ -100,8 +102,8 @@ function normalizeRule(raw) {
     label,
     type,
     minWorkDays,
-    amount: type === 'fixed' ? Math.max(0, round2(raw.amount)) : 0,
-    overtimeRatePerHour: type === 'overtime_rate' ? Math.max(0, round2(raw.overtimeRatePerHour)) : 0,
+    amount: type === 'fixed' ? Math.max(0, roundMoney(raw.amount)) : 0,
+    overtimeRatePerHour: type === 'overtime_rate' ? Math.max(0, roundMoney(raw.overtimeRatePerHour)) : 0,
     enabled: raw.enabled !== false,
     sortOrder: Math.floor(Number(raw.sortOrder) || 0),
     createdAt: raw.createdAt || '',
@@ -169,7 +171,7 @@ function resolveCountingRuleIds(items, combineMode) {
 
 function calcTotalFromProgressItems(items, combineMode) {
   const countingIds = resolveCountingRuleIds(items, combineMode)
-  return round2(
+  return roundMoney(
     items
       .filter((it) => countingIds.has(it.rule.id))
       .reduce((sum, it) => sum + (it.bonusAmount || 0), 0)
@@ -196,11 +198,11 @@ export function calcPersonBonusProgress(stats, rules, options = {}) {
     let bonusAmount = 0
     let projectedBonus = 0
     if (rule.type === 'fixed') {
-      bonusAmount = achieved ? round2(rule.amount) : 0
-      projectedBonus = round2(rule.amount)
+      bonusAmount = achieved ? roundMoney(rule.amount) : 0
+      projectedBonus = roundMoney(rule.amount)
     } else {
-      bonusAmount = achieved ? round2(overtimeHours * rule.overtimeRatePerHour) : 0
-      projectedBonus = round2(overtimeHours * rule.overtimeRatePerHour)
+      bonusAmount = achieved ? roundMoney(overtimeHours * rule.overtimeRatePerHour) : 0
+      projectedBonus = roundMoney(overtimeHours * rule.overtimeRatePerHour)
     }
 
     return {
@@ -239,6 +241,6 @@ export function describeWorkBonusRule(rule) {
 }
 
 export function formatBonusMoney(n) {
-  const x = Number(n) || 0
-  return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 2 })
+  const x = Math.round(Number(n) || 0)
+  return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 0 })
 }
