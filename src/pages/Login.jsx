@@ -99,10 +99,10 @@ function Login({ onLogin }) {
         <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border-2 border-cn-gold/50 p-5 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,230,200,0.06)]">
           {/* 标题 */}
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-cn-vermilion mb-2 font-serif tracking-widest">
+            <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold mb-2 font-serif tracking-widest">
               毓承事業群
             </h1>
-            <p className="text-cn-vermilion/90 text-sm font-serif">
+            <p className="text-cn-parchment/90 text-sm font-serif">
               企業管理系統
             </p>
           </div>
