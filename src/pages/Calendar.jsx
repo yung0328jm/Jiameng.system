@@ -21,8 +21,10 @@ import { getDisplayNameForAccount, resolveDisplayNameToAccount, resolveApplicant
 import { addAdminToUserMessage } from '../utils/messageStorage'
 import { getUsers } from '../utils/storage'
 import { getProjects } from '../utils/projectStorage'
-import { getLeaveApplications } from '../utils/leaveApplicationStorage'
-import { deleteLeaveApplication } from '../utils/leaveApplicationStorage'
+import {
+  getLeaveApplications,
+  syncLeaveApplicationAfterCalendarDelete
+} from '../utils/leaveApplicationStorage'
 import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
@@ -1823,16 +1825,21 @@ function Calendar() {
           : '確定要刪除此入廠異動排程嗎？'
         if (!window.confirm(msg)) return
 
+        const dateStr = String(selectedDetailItem?.date || '').slice(0, 10)
+        const person = parseLeavePersonFromSiteName(selectedDetailItem?.siteName) || ''
+        const personKeys = [person, selectedDetailItem?.siteName].filter(Boolean)
+
         if (leaveId) {
           // 1) 刪除所有由該 leaveApplicationId 產生的請假排程
           deleteSchedulesByLeaveApplicationId(leaveId)
-          // 2) 刪除請假申請
-          deleteLeaveApplication(leaveId)
+          // 2) 刪除請假申請（整月報表依此更新）
+          syncLeaveApplicationAfterCalendarDelete({ leaveApplicationId: leaveId, dateStr })
         } else {
-          // fallback：只刪單天排程，一併刪除該排程的緊急入場申報申請
+          // fallback：刪單天排程，並同步移除該日請假申請（舊資料可能無 leaveApplicationId）
           const scheduleId = selectedDetailItem.id
           getOvertimeApplicationsByScheduleId(scheduleId).forEach((oa) => deleteOvertimeApplication(oa.id))
           deleteSchedule(scheduleId)
+          syncLeaveApplicationAfterCalendarDelete({ personIdentifiers: personKeys, dateStr })
         }
         const allSchedules = getSchedules()
         setSchedules(allSchedules)

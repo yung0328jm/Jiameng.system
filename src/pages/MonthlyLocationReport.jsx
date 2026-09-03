@@ -13,6 +13,7 @@ import {
   MONTHLY_LOCATION_OVERRIDES_KEY
 } from '../utils/monthlyLocationReportStorage'
 import { getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { LEAVE_APPLICATION_KEY } from '../utils/leaveApplicationMerge'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import {
   getWorkReportsForMonth,
@@ -847,7 +848,8 @@ export default function MonthlyLocationReport() {
       if (
         k === OVERTIME_APPLICATIONS_STORAGE_KEY ||
         k === 'jiameng_engineering_schedules' ||
-        k === 'jiameng_work_reports'
+        k === 'jiameng_work_reports' ||
+        k === LEAVE_APPLICATION_KEY
       ) {
         setRefreshKey((r) => r + 1)
       }
@@ -864,7 +866,10 @@ export default function MonthlyLocationReport() {
 
   const overrides = useMemo(() => getMonthlyOverrides(year, month), [year, month, refreshKey])
 
-  const leaveCellTextMap = useMemo(() => buildLeaveCellTextMap(year, month), [year, month, refreshKey])
+  const leaveCellTextMap = useMemo(
+    () => buildLeaveCellTextMap(year, month),
+    [year, month, refreshKey, syncRevision]
+  )
 
   const dayNatureAll = useMemo(() => getAllDayNatureStorage(), [year, month, refreshKey, syncRevision])
 

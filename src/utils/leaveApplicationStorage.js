@@ -163,6 +163,110 @@ export const getLeaveApplicationById = (id) => {
   return getLeaveApplications().find((r) => r.id === id) || null
 }
 
+function addDaysYmd(ymd, delta) {
+  const d = new Date(`${String(ymd || '').slice(0, 10)}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return ''
+  d.setDate(d.getDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+
+function personKeysSet(personIdentifiers) {
+  const raw = Array.isArray(personIdentifiers) ? personIdentifiers : [personIdentifiers]
+  return new Set(
+    raw.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean)
+  )
+}
+
+/** 已核准請假：指定人員在指定日期的申請（可能多筆） */
+export function findApprovedLeaveApplicationsForPersonOnDate(personIdentifiers, dateStr) {
+  const d = String(dateStr || '').slice(0, 10)
+  const keys = personKeysSet(personIdentifiers)
+  if (!d || keys.size === 0) return []
+  return getLeaveApplications().filter((la) => {
+    if ((la.status || '') !== 'approved') return false
+    const a = String(la.startDate || '').slice(0, 10)
+    const b = String(la.endDate || '').slice(0, 10)
+    if (!a || !b || d < a || d > b) return false
+    const names = [la.userName, la.userId]
+      .map((x) => String(x || '').trim().toLowerCase())
+      .filter(Boolean)
+    return names.some((n) => keys.has(n))
+  })
+}
+
+/**
+ * 從已核准請假區間移除單日；若為區間最後一天則刪除整筆。
+ * 區間中間日：拆成兩筆已核准申請（左段保留原 id，右段新建）。
+ */
+export function removeApprovedLeaveDate(leaveId, dateStr) {
+  const id = String(leaveId || '').trim()
+  const d = String(dateStr || '').slice(0, 10)
+  const rec = getLeaveApplicationById(id)
+  if (!rec || (rec.status || '') !== 'approved') {
+    return { success: false, message: '找不到已核准請假' }
+  }
+  const a = String(rec.startDate || '').slice(0, 10)
+  const b = String(rec.endDate || '').slice(0, 10)
+  if (!d || d < a || d > b) return { success: false, message: '日期不在請假區間內' }
+
+  if (a === b) return deleteLeaveApplication(id)
+
+  if (d === a) {
+    const newStart = addDaysYmd(a, 1)
+    if (!newStart || newStart > b) return deleteLeaveApplication(id)
+    return updateLeaveApplication(id, { startDate: newStart, endDate: b })
+  }
+  if (d === b) {
+    const newEnd = addDaysYmd(b, -1)
+    if (!newEnd || newEnd < a) return deleteLeaveApplication(id)
+    return updateLeaveApplication(id, { startDate: a, endDate: newEnd })
+  }
+
+  const leftEnd = addDaysYmd(d, -1)
+  const rightStart = addDaysYmd(d, 1)
+  const leftResult = updateLeaveApplication(id, { startDate: a, endDate: leftEnd })
+  if (!leftResult.success) return leftResult
+
+  const list = getLeaveApplications()
+  const newId = `leave-${Date.now()}`
+  const rightRec = {
+    ...rec,
+    id: newId,
+    startDate: rightStart,
+    endDate: b,
+    status: 'approved',
+    createdAt: new Date().toISOString(),
+    approvedAt: new Date().toISOString()
+  }
+  list.push(rightRec)
+  persistLeaveList(list)
+  syncLeaveToSupabase(rightRec)
+  return { success: true, record: rightRec, split: true }
+}
+
+/**
+ * 行事曆刪除入廠異動後同步請假申請：
+ * - 有 leaveApplicationId：刪除整筆申請（與多天行事曆連動）
+ * - 無 leaveApplicationId（舊資料）：僅移除該日，不影響同區間其他天
+ */
+export function syncLeaveApplicationAfterCalendarDelete({ leaveApplicationId, personIdentifiers, dateStr }) {
+  const leaveId = String(leaveApplicationId || '').trim()
+  const d = String(dateStr || '').slice(0, 10)
+  if (leaveId) {
+    deleteLeaveApplication(leaveId)
+    return { success: true, mode: 'deleted_application' }
+  }
+  if (!d) return { success: true, mode: 'skipped' }
+
+  const matches = findApprovedLeaveApplicationsForPersonOnDate(personIdentifiers, d)
+  if (matches.length === 0) return { success: true, mode: 'no_application' }
+
+  matches.forEach((app) => {
+    removeApprovedLeaveDate(app.id, d)
+  })
+  return { success: true, mode: 'removed_date', count: matches.length }
+}
+
 /** 管理員刪除請假申請（同時同步刪除到 Supabase leave_applications） */
 export const deleteLeaveApplication = (id) => {
   try {
