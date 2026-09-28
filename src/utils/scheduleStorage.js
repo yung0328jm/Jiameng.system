@@ -1,5 +1,6 @@
 // 工程排程存储工具
 import { getSupabaseClient } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 import { normalizeWorkItem, getWorkItemCollaborators } from './workItemCollaboration'
 
 const SCHEDULE_STORAGE_KEY = 'jiameng_engineering_schedules'
@@ -206,6 +207,7 @@ const mergeWorkItemsWithLock = (prevWorkItems, nextWorkItems, lockAt) => {
 }
 
 const syncScheduleToSupabase = async (schedule) => {
+  if (isGuestCloudWriteBlocked()) return
   const sb = getSupabaseClient()
   if (!sb || !schedule?.id) return
   try {
@@ -220,6 +222,7 @@ const syncScheduleToSupabase = async (schedule) => {
 }
 
 const deleteScheduleFromSupabase = async (scheduleId) => {
+  if (isGuestCloudWriteBlocked()) return
   const sb = getSupabaseClient()
   if (!sb) return
   try {

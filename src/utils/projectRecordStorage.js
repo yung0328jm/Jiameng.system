@@ -1,6 +1,7 @@
 // 專案記錄存储工具
 import { syncKeyToSupabase } from './supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 const PROJECT_RECORD_LOCAL_PREFIX = 'jiameng_project_records:' // 本機快取：每個專案一個 key
 const PROJECT_RECORD_CLOUD_PREFIX = 'jiameng_project_records__' // 雲端同步：避免 key 含 ':' 在某些環境被擋
 const PROJECT_RECORD_LOCAL_BACKUP_PREFIX = 'jiameng_project_records_local_backup__' // 本機備份：永不被雲端覆蓋（防刷新消失）
@@ -24,7 +25,7 @@ const persistProject = (projectId, arr) => {
   // 先用「直接 upsert」(等同你按的「強制」) 確保立即可見；失敗才回退到 outbox/排隊機制
   const cloudKey = cloudKeyForProject(pid)
   try {
-    const sb = isSupabaseEnabled() ? getSupabaseClient() : null
+    const sb = isSupabaseEnabled() && !isGuestCloudWriteBlocked() ? getSupabaseClient() : null
     if (sb) {
       ;(async () => {
         try {

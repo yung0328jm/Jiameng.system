@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getUsers } from '../utils/storage'
 import { getDisplayNameForAccount, resolveDisplayNameToAccount } from '../utils/displayName'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 import { getDropdownOptionsByCategory } from '../utils/dropdownStorage'
 import {
   addLeaveApplication,
@@ -452,13 +453,13 @@ function LeaveApplication() {
                   className="bg-gray-800 border border-gray-600 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3"
                 >
                   <div className="text-xs sm:text-sm min-w-0 flex-1">
-                    <span className="font-semibold text-white block sm:inline">{getDisplayNameForAccount(r.userId || r.userName || '')}</span>
+                    <span className="font-semibold text-white block sm:inline">{m(getDisplayNameForAccount(r.userId || r.userName || ''))}</span>
                     <span className="text-gray-400 hidden sm:inline mx-2">｜</span>
                     <span className="text-gray-300 block sm:inline mt-0.5 sm:mt-0">{r.startDate} ~ {r.endDate}</span>
                     {r.reason && <span className="text-gray-500 block sm:inline sm:ml-2 mt-0.5 sm:mt-0">（{r.reason}）</span>}
                     {r.submittedBy && r.submittedBy !== r.userId && (
                       <span className="text-amber-200/80 block sm:inline sm:ml-2 mt-0.5 sm:mt-0 text-[11px]">
-                        代填：{getDisplayNameForAccount(r.submittedBy)}
+                        代填：{m(getDisplayNameForAccount(r.submittedBy))}
                       </span>
                     )}
                   </div>
@@ -498,13 +499,13 @@ function LeaveApplication() {
                     className="bg-gray-800 border border-gray-600 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-2 min-h-[44px]"
                   >
                     <div className="text-xs sm:text-sm min-w-0 flex-1">
-                      <span className="font-semibold text-white">{getDisplayNameForAccount(r.userId || r.userName || '')}</span>
+                      <span className="font-semibold text-white">{m(getDisplayNameForAccount(r.userId || r.userName || ''))}</span>
                       <span className="text-gray-400 mx-2">｜</span>
                       <span className="text-gray-300">{r.startDate} ~ {r.endDate}</span>
                       {r.reason && <span className="text-gray-500 sm:ml-2">（{r.reason}）</span>}
                       {r.submittedBy && r.submittedBy !== r.userId && (
                         <span className="text-amber-200/70 block sm:inline sm:ml-2 text-[11px]">
-                          代填：{getDisplayNameForAccount(r.submittedBy)}
+                          代填：{m(getDisplayNameForAccount(r.submittedBy))}
                         </span>
                       )}
                     </div>

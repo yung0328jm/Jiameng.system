@@ -23,12 +23,13 @@ import Advance from './pages/Advance'
 import ContractorWorkCheckIn from './pages/ContractorWorkCheckIn'
 import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole, getCurrentUser } from './utils/authStorage'
 import { initializeAdminUser, initializeGuestUser } from './utils/storage'
-import { isGuestSession } from './utils/guestAuth'
+import { isGuestSession, snapshotGuestSandboxIfNeeded, restoreGuestSandboxAndLogout, restoreOrphanGuestSnapshot } from './utils/guestAuth'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
 import { RecordingModeProvider } from './contexts/RecordingModeContext'
 import ClickStarsEffect from './components/ClickStarsEffect'
 import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange, logout } from './utils/authSupabase'
+import { invalidateRecordingMaskCache } from './utils/recordingModeMask'
 import { getSupabaseClient } from './utils/supabaseClient'
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
   const [syncReady, setSyncReady] = useState(() => !isSupabaseEnabled())
 
   useEffect(() => {
+    restoreOrphanGuestSnapshot()
     setIsAuthenticated(getAuthStatus())
     // 僅在「未使用 Supabase Auth」時建立預設 admin，避免兩套用戶邏輯衝突
     if (!isAuthSupabase()) initializeAdminUser()
@@ -73,8 +75,18 @@ function App() {
   useEffect(() => {
     if (isAuthenticated && isSupabaseEnabled()) {
       setSyncReady(false)
-      syncFromSupabase().finally(() => setSyncReady(true))
+      syncFromSupabase().finally(() => {
+        if (isGuestSession()) {
+          snapshotGuestSandboxIfNeeded()
+          invalidateRecordingMaskCache()
+        }
+        setSyncReady(true)
+      })
     } else {
+      if (isAuthenticated && isGuestSession()) {
+        snapshotGuestSandboxIfNeeded()
+        invalidateRecordingMaskCache()
+      }
       setSyncReady(true)
     }
   }, [isAuthenticated])
@@ -85,6 +97,7 @@ function App() {
     let cancelled = false
     const account = getCurrentUser()
     if (!account) return
+    if (isGuestSession()) return
     const initPush = async () => {
       try {
         const { Capacitor } = await import('@capacitor/core')
@@ -127,7 +140,7 @@ function App() {
   const handleLogout = async () => {
     setIsAuthenticated(false)
     if (isGuestSession()) {
-      clearAuthStatus()
+      restoreGuestSandboxAndLogout()
     } else if (isAuthSupabase()) {
       const { logout } = await import('./utils/authSupabase')
       await logout()

@@ -745,7 +745,7 @@ function WorkReport() {
       setMessage({ type: 'error', text: '僅能刪除自己送出的紀錄' })
       return
     }
-    if (!window.confirm(`確定刪除此筆？\n${row.date} ${row.siteName} ${row.personName}`)) return
+    if (!window.confirm(`確定刪除此筆？\n${row.date} ${m(row.siteName)} ${m(row.personName)}`)) return
     const result = deleteWorkReport(row.id)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
@@ -1124,7 +1124,7 @@ function WorkReport() {
                     key={personName}
                     className="rounded border border-cyan-700/50 bg-gray-900/50 px-3 py-2 text-gray-200 min-w-[8rem]"
                   >
-                    <div className="text-white font-semibold mb-1">{personName}</div>
+                    <div className="text-white font-semibold mb-1">{m(personName)}</div>
                     <div className="space-y-0.5 tabular-nums">
                       <div className="text-amber-200/90">
                         出工 <span className="font-semibold">{fullDays}</span> 天
@@ -1206,7 +1206,7 @@ function WorkReport() {
                               >
                                 <td className="py-2.5 pr-3 text-gray-200">{m(group.siteName)}</td>
                                 <td className="py-2.5 pr-3 text-white">
-                                  {group.personName}
+                                  {m(group.personName)}
                                   {isContractor && group.batchCount > 1 && (
                                     <span className="block text-teal-300/80 text-xs mt-0.5">
                                       {group.batchCount} 批
@@ -1220,7 +1220,7 @@ function WorkReport() {
                                   <WorkReportShiftSummary summary={group.shiftSummary} />
                                 </td>
                                 <td className="py-2.5 pr-3 text-gray-400 text-xs">
-                                  {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
+                                  {m(group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—')}
                                 </td>
                                 <td className="py-2.5">
                                   <div className="flex flex-col gap-1 items-end">
@@ -1280,7 +1280,7 @@ function WorkReport() {
           <div className="bg-gray-900 border border-gray-600 rounded-xl p-5 w-full max-w-sm space-y-4">
             <h3 className="text-lg font-semibold text-yellow-400">編輯登記時間</h3>
             <p className="text-gray-400 text-sm">
-              {adminEditRow.date} · {adminEditRow.siteName} · {adminEditRow.personName}
+              {adminEditRow.date} · {m(adminEditRow.siteName)} · {m(adminEditRow.personName)}
             </p>
             <TimeInput24 label="進廠時間" value={adminEditArrival} onChange={setAdminEditArrival} />
             <TimeInput24 label="離廠時間" value={adminEditDeparture} onChange={setAdminEditDeparture} />

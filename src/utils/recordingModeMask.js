@@ -111,8 +111,12 @@ const buildMaskPairs = () => {
     if (!Array.isArray(list)) return
     list.forEach((r) => {
       addEntry(site, r?.siteName)
-      addEntry(person, r?.personName)
+      const pn = String(r?.personName || '').trim()
+      addEntry(person, pn)
+      addEntry(person, pn.replace(/\*\d+$/, ''))
       ;(r?.laborNames || []).forEach((n) => addEntry(person, n))
+      addEntry(person, r?.submittedByName)
+      addEntry(account, r?.submittedBy)
     })
   })
 
@@ -219,6 +223,25 @@ export const maskForRecording = (text) => {
     }
   }
   if (changed) return s
+
+  const contractor = /^(.+?)(\*\d+)$/.exec(s.trim())
+  if (contractor) {
+    const inner = maskForRecording(contractor[1])
+    if (inner !== contractor[1]) return `${inner}${contractor[2]}`
+  }
+
+  const trimmed = s.trim()
+  if (
+    isGuestSession() &&
+    trimmed.length >= 2 &&
+    trimmed.length <= 4 &&
+    /^[\u4e00-\u9fff]+$/.test(trimmed) &&
+    !SKIP_EXACT.has(trimmed)
+  ) {
+    let h = 2166136261
+    for (let i = 0; i < trimmed.length; i++) h ^= trimmed.charCodeAt(i) * (i + 1)
+    return `員工${indexToLabel(Math.abs(h) % 26)}`
+  }
 
   const digits = s.replace(/\D/g, '')
   if (/^09\d{8}$/.test(digits)) return '09**-***-***'

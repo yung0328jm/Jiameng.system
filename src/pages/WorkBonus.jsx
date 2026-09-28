@@ -22,6 +22,7 @@ import {
   findBoundAccountForDisplayName
 } from '../utils/dropdownStorage'
 import { getUsers } from '../utils/storage'
+import { maskForRecording as m } from '../utils/recordingModeMask'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function getActiveMemberNames() {
@@ -598,7 +599,7 @@ export default function WorkBonus() {
                     className="w-full flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-left hover:bg-gray-700/20"
                   >
                     <div>
-                      <span className="font-medium text-white">{row.personName}</span>
+                      <span className="font-medium text-white">{m(row.personName)}</span>
                       <span className="text-xs text-gray-400 ml-2">
                         出工 {row.stats.fullDays} 天
                         {row.stats.overtimeHours > 0 && ` · 加班 ${row.stats.overtimeHours}h`}

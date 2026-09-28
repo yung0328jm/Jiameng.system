@@ -1,10 +1,12 @@
 // 特休天數：管理者設定可休天數，事由為「特休」之核准請假自動計入已休
 import { getLeaveApplications } from './leaveApplicationStorage'
 import { getSupabaseClient } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 
 const SPECIAL_LEAVE_QUOTA_KEY = 'jiameng_special_leave_quota'
 
 const syncQuotaToSupabase = async (account, days) => {
+  if (isGuestCloudWriteBlocked()) return
   const sb = getSupabaseClient()
   if (!sb || account == null) return
   try {

@@ -1,5 +1,6 @@
 // 將 FCM 推播 token 寫入 Supabase push_tokens 表（供後端 send-push 使用）
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 
 const PLATFORM = 'android'
 
@@ -12,6 +13,8 @@ export async function savePushToken(account, token) {
   const acc = String(account || '').trim()
   const t = String(token || '').trim()
   if (!acc || !t) return { ok: false, error: 'account and token required' }
+
+  if (isGuestCloudWriteBlocked()) return { ok: false, error: 'guest' }
 
   const sb = getSupabaseClient()
   if (!sb) return { ok: false, error: 'Supabase not configured' }

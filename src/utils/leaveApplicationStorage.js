@@ -1,5 +1,6 @@
 // 請假申請儲存：記錄請假申請；僅在管理員核准後才由頁面呼叫 saveSchedule 寫入行事曆
 import { getSupabaseClient } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 import { syncKeyToSupabase } from './supabaseSync'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
 import { formatNoLeaveBlockedMessage, hasNoLeaveDateInRange } from './noLeaveDateStorage'
@@ -45,6 +46,7 @@ const persistLeaveList = (list, { notify = true } = {}) => {
 }
 
 const syncLeaveToSupabase = async (rec) => {
+  if (isGuestCloudWriteBlocked()) return
   const sb = getSupabaseClient()
   if (!sb || !rec?.id) return
   try {
@@ -277,7 +279,7 @@ export const deleteLeaveApplication = (id) => {
     persistLeaveList(next)
 
     const sb = getSupabaseClient()
-    if (sb) {
+    if (sb && !isGuestCloudWriteBlocked()) {
       sb.from('leave_applications').delete().eq('id', leaveId).catch((e) => console.warn('deleteLeaveApplication supabase:', e))
     }
     return { success: true }

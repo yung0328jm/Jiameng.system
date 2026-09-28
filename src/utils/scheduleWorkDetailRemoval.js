@@ -1,5 +1,6 @@
 // 個人績效「工作明細」單筆刪除（獨立模組，避免與 scheduleStorage 合併時漏匯出導致建置失敗）
 import { getSupabaseClient } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 import { getSchedules } from './scheduleStorage'
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemCollabMode } from './workItemCollaboration'
 
@@ -7,6 +8,7 @@ import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemCollabMode } fr
 const SCHEDULE_STORAGE_KEY = 'jiameng_engineering_schedules'
 
 const syncScheduleToSupabase = async (schedule) => {
+  if (isGuestCloudWriteBlocked()) return
   const sb = getSupabaseClient()
   if (!sb || !schedule?.id) return
   try {

@@ -1,5 +1,6 @@
 // 即時同步：訂閱 Supabase Realtime，有人改資料時更新本地並通知 UI 重讀
 import { getSupabaseClient } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationMerge'
 
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
@@ -22,6 +23,11 @@ function notify(key) {
   try {
     window.dispatchEvent(new CustomEvent(evt, { detail: { key } }))
   } catch (_) {}
+}
+
+function healAppData(sb, row) {
+  if (isGuestCloudWriteBlocked() || !sb) return
+  sb.from('app_data').upsert(row, { onConflict: 'key' })
 }
 
 /** 訂閱 Realtime，有人改表時更新 localStorage 並觸發 onUpdate(key)。回傳 unsubscribe 函式。 */
@@ -432,7 +438,7 @@ export function subscribeRealtime(onUpdate) {
                 if (hasRecent) {
                   lastDanmuHealAt = now
                   lastDanmuHealSig = sig
-                  sb.from('app_data').upsert({ key: DANMU_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  healAppData(sb, { key: DANMU_KEY, data: merged, updated_at: new Date().toISOString() })
                 }
               }
             } catch (_) {
@@ -463,7 +469,7 @@ export function subscribeRealtime(onUpdate) {
                 if (hasRecent) {
                   lastTripHealAt = now
                   lastTripHealSig = sig
-                  sb.from('app_data').upsert({ key: TRIP_REPORT_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  healAppData(sb, { key: TRIP_REPORT_KEY, data: merged, updated_at: new Date().toISOString() })
                 }
               }
             } catch (_) {
@@ -500,7 +506,7 @@ export function subscribeRealtime(onUpdate) {
                   if (hasRecent) {
                     lastMsgHealAt = now
                     lastMsgHealSig = sig
-                    sb.from('app_data').upsert({ key: MESSAGE_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                    healAppData(sb, { key: MESSAGE_KEY, data: merged, updated_at: new Date().toISOString() })
                   }
                 }
               } catch (_) {
@@ -527,7 +533,7 @@ export function subscribeRealtime(onUpdate) {
                 const bLen = Object.keys(incoming || {}).length
                 const mLen = Object.keys(merged || {}).length
                 if (mLen > bLen && now - lastMsgHealAt > 5000) {
-                  sb.from('app_data').upsert({ key, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  healAppData(sb, { key, data: merged, updated_at: new Date().toISOString() })
                 }
               } catch (_) {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
@@ -583,7 +589,7 @@ export function subscribeRealtime(onUpdate) {
                 const incLen = Array.isArray(globalIncoming?.messages) ? globalIncoming.messages.length : 0
                 const merLen = Array.isArray(globalMerged?.messages) ? globalMerged.messages.length : 0
                 if (merLen > incLen && merLen > 0) {
-                  sb.from('app_data').upsert({ key: MEMOS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                  healAppData(sb, { key: MEMOS_KEY, data: merged, updated_at: new Date().toISOString() })
                 }
               } catch (_) {
                 // 合併失敗時不要用空或無效 payload 覆寫，否則會導致「發送後訊息消失」
@@ -616,7 +622,7 @@ export function subscribeRealtime(onUpdate) {
                   const now = Date.now()
                   const sig = `${merged.length}|${merged.slice(-5).map((d) => d?.id).join('|')}`
                   if (merged.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastMsgHealAt > 5000) {
-                    sb.from('app_data').upsert({ key: LEADERBOARD_ITEMS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                    healAppData(sb, { key: LEADERBOARD_ITEMS_KEY, data: merged, updated_at: new Date().toISOString() })
                   }
                 } catch (_) {
                   const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
@@ -639,7 +645,7 @@ export function subscribeRealtime(onUpdate) {
                   // 若 incoming 少於合併後（可能被覆蓋丟失），嘗試回寫一次修復雲端
                   const now = Date.now()
                   if (merged.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastMsgHealAt > 5000) {
-                    sb.from('app_data').upsert({ key: ITEMS_KEY, data: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                    healAppData(sb, { key: ITEMS_KEY, data: merged, updated_at: new Date().toISOString() })
                   }
                 } catch (_) {
                   const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
@@ -666,7 +672,7 @@ export function subscribeRealtime(onUpdate) {
                   // healing：雲端比本機少時回寫（避免覆蓋丟失）
                   const now = Date.now()
                   if (mergedArr.length > (Array.isArray(incoming) ? incoming.length : 0) && now - lastMsgHealAt > 5000) {
-                    sb.from('app_data').upsert({ key, data: mergedArr, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                    healAppData(sb, { key, data: mergedArr, updated_at: new Date().toISOString() })
                   }
                 } catch (_) {
                   const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
@@ -694,7 +700,7 @@ export function subscribeRealtime(onUpdate) {
                   // migration：嘗試寫到新安全 key（讓之後都走同一路徑）
                   try {
                     const safeKey = `${PROJECT_RECORD_PREFIX}${encodeURIComponent(pid)}`
-                    sb.from('app_data').upsert({ key: safeKey, data: mergedArr, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+                    healAppData(sb, { key: safeKey, data: mergedArr, updated_at: new Date().toISOString() })
                   } catch (_) {}
                 } catch (_) {
                   const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])

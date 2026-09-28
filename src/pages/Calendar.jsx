@@ -5236,7 +5236,7 @@ function Calendar() {
                               <WorkReportShiftSummary summary={group.shiftSummary} />
                             </td>
                             <td className="py-2 text-gray-400 text-xs">
-                              {group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—'}
+                              {m(group.rows[0]?.submittedByName || group.rows[0]?.submittedBy || '—')}
                             </td>
                             <td className="py-2 text-right">
                               {!hasOvertime ? (

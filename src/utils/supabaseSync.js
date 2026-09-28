@@ -1,5 +1,6 @@
 // 從 Supabase 拉一輪資料寫入 localStorage；全站同步（排程／請假／特休＋其餘經 app_data）
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
+import { isGuestCloudWriteBlocked } from './guestAuth'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
 import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationMerge'
 
@@ -68,6 +69,7 @@ function queueOutbox(key, value, err) {
 }
 
 export async function flushSyncOutbox() {
+  if (isGuestCloudWriteBlocked()) return { ok: 0, fail: 0 }
   const sb = getSupabaseClient()
   if (!sb) return { ok: 0, fail: 0 }
   const out = loadOutbox()
@@ -197,6 +199,7 @@ export const APP_DATA_KEYS = [
 
 /** 寫入某 key 的資料到 Supabase app_data（供各 storage 在 setItem 後呼叫） */
 export async function syncKeyToSupabase(key, value) {
+  if (isGuestCloudWriteBlocked()) return
   const sb = getSupabaseClient()
   if (!sb || !key) return
 
@@ -229,6 +232,7 @@ const _inFlight = new Set() // key
 const _waiters = new Map() // key -> Array<{resolve,reject}>
 
 async function _doUpsert(sb, key, value) {
+  if (isGuestCloudWriteBlocked()) return
   let data = typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value ?? {})
 
   const updatedAtOf = (r) => {

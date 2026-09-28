@@ -47,7 +47,7 @@ export function RecordingModeProvider({ children }) {
         >
           <div className="mt-[52px] sm:mt-[48px] bg-rose-950/90 border border-rose-400/50 text-rose-100 text-[11px] sm:text-xs px-3 py-1 rounded-full shadow-lg backdrop-blur-sm font-medium tracking-wide">
             {guest
-              ? '訪客示範模式 · 人員與金額為範例（真實資料未變更）'
+              ? '訪客示範模式 · 姓名為範例；操作僅供體驗、不會儲存'
               : '錄影模式 · 畫面已遮罩（資料未變更）'}
           </div>
         </div>
