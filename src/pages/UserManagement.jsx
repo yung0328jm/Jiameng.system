@@ -14,6 +14,7 @@ import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems } from '../utils/itemStorage'
 import { getPerformanceViewerAccount, setPerformanceViewerAccount } from '../utils/performanceViewerStorage'
+import { isGuestAccount } from '../utils/guestAuth'
 
 function UserAdvanceCell({ account }) {
   const pending = getPendingCountByAccount(account)
@@ -351,9 +352,14 @@ function UserManagement() {
     setUserPerformanceData(performanceData)
   }
 
-  const roleLabel = (r) => (r === 'admin' ? '管理者' : r === 'resigned' ? '離職人員' : '普通用戶')
+  const roleLabel = (r) =>
+    r === 'admin' ? '管理者' : r === 'resigned' ? '離職人員' : r === 'guest' ? '訪客' : '普通用戶'
 
   const handleRoleChange = async (account, newRole) => {
+    if (isGuestAccount(account)) {
+      alert('訪客帳號不可變更角色')
+      return
+    }
     if (!window.confirm(`確定要將用戶 ${account} 的角色更改為 ${roleLabel(newRole)} 嗎？`)) {
       return
     }
@@ -381,6 +387,10 @@ function UserManagement() {
   const handleDeleteUser = async (account, name) => {
     if (account === currentUserAccount) {
       alert('無法刪除當前登錄的用戶')
+      return
+    }
+    if (isGuestAccount(account)) {
+      alert('訪客帳號不可刪除')
       return
     }
     if (isAuthSupabase()) {
@@ -573,7 +583,9 @@ function UserManagement() {
                             ? 'bg-yellow-400 text-gray-800'
                             : user.role === 'resigned'
                               ? 'bg-gray-600 text-gray-200'
-                              : 'bg-blue-500 text-white'
+                              : user.role === 'guest'
+                                ? 'bg-violet-600 text-white'
+                                : 'bg-blue-500 text-white'
                         }`}>
                           {roleLabel(user.role || 'user')}
                         </span>
@@ -597,7 +609,9 @@ function UserManagement() {
                         <UserAdvanceCell account={user.account} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {user.role === 'resigned' ? (
+                        {isGuestAccount(user.account) || user.role === 'guest' ? (
+                          <span className="text-gray-400 text-xs">訪客帳號（固定）</span>
+                        ) : user.role === 'resigned' ? (
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-gray-400 text-xs">離職中</span>
                             <button
@@ -644,9 +658,9 @@ function UserManagement() {
                           <button
                             type="button"
                             onClick={() => handleDeleteUser(user.account, user.name)}
-                            disabled={user.account === currentUserAccount}
+                            disabled={user.account === currentUserAccount || isGuestAccount(user.account)}
                             className={`px-4 py-2 rounded transition-colors text-sm ${
-                              user.account === currentUserAccount
+                              user.account === currentUserAccount || isGuestAccount(user.account)
                                 ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                 : 'bg-red-500 hover:bg-red-600 text-white'
                             }`}

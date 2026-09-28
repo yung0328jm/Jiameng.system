@@ -1,4 +1,5 @@
 import { isRecordingModeEnabled } from './recordingModeStorage'
+import { isGuestSession } from './guestAuth'
 import { getUsers } from './storage'
 import { getDropdownOptionsByCategory } from './dropdownStorage'
 import { getContractorRegistrations } from './contractorRegistrationStorage'
@@ -11,7 +12,8 @@ import { MONTHLY_LOCATION_OVERRIDES_KEY } from './monthlyLocationReportStorage'
 const INDEX_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 const SKIP_EXACT = new Set([
-  '系統', '請假', '使用者', 'admin', 'jiameng.system', '未命名', '—', '-'
+  '系統', '請假', '使用者', 'admin', 'jiameng.system', '未命名', '—', '-',
+  '訪客', 'guest'
 ])
 
 let cachedPairs = null
@@ -63,7 +65,7 @@ const buildMaskPairs = () => {
   ;(getUsers() || []).forEach((u) => {
     addEntry(person, u?.name)
     const acc = String(u?.account || '').trim()
-    if (acc && acc !== 'admin' && acc !== 'jiameng.system') addEntry(account, acc)
+    if (acc && acc !== 'admin' && acc !== 'jiameng.system' && acc.toLowerCase() !== 'guest') addEntry(account, acc)
   })
 
   collectDropdown(person, ['participants', 'responsible_persons'])
@@ -223,4 +225,29 @@ export const maskForRecording = (text) => {
   if (/^\d{8}$/.test(digits) && s.length <= 12) return `${digits.slice(0, 2)}****${digits.slice(-2)}`
 
   return text
+}
+
+const stableDemoInt = (n, span, offset) => {
+  const x = Math.round(Number(n) || 0)
+  if (x === 0) return 0
+  const seed = Math.abs((x * 2654435761) >>> 0) % span
+  return offset + seed
+}
+
+/** 訪客：金額改為範例數字（僅顯示，不寫入） */
+export const maskMoneyForRecording = (n) => {
+  if (!isGuestSession()) return Math.round(Number(n) || 0)
+  return stableDemoInt(n, 97, 1200) * 50
+}
+
+/** 訪客：出工天／時數改為範例（0 維持 0） */
+export const maskQuantityForRecording = (n, kind = 'days') => {
+  if (!isGuestSession()) return Number(n) || 0
+  const x = Number(n) || 0
+  if (x === 0) return 0
+  if (kind === 'hours') {
+    const h = 0.5 + (Math.abs((Math.round(x * 10) * 1103515245) >>> 0) % 40) * 0.5
+    return Math.round(h * 10) / 10
+  }
+  return 1 + (Math.abs((Math.round(x * 10) * 2654435761) >>> 0) % 22)
 }

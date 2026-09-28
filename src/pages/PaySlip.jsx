@@ -28,9 +28,9 @@ import {
 import { getUsers, getAdvanceRepayment } from '../utils/storage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
-import { maskForRecording as m } from '../utils/recordingModeMask'
+import { maskForRecording as m, maskMoneyForRecording, maskQuantityForRecording } from '../utils/recordingModeMask'
 function formatMoney(n) {
-  const x = Math.round(Number(n) || 0)
+  const x = maskMoneyForRecording(Math.round(Number(n) || 0))
   return x.toLocaleString('zh-Hant-TW', { maximumFractionDigits: 0 })
 }
 
@@ -174,6 +174,8 @@ function PaySlip() {
   }, [refetch])
 
   const isAdmin = userRole === 'admin'
+  const isGuest = userRole === 'guest'
+  const canViewAllPaySlips = isAdmin || isGuest
   const yearMonth = `${year}-${String(month).padStart(2, '0')}`
 
   const selfDisplayNames = useMemo(() => {
@@ -197,12 +199,12 @@ function PaySlip() {
   /** 套用權限：admin 全部；user 只看自己 */
   const visiblePersons = useMemo(() => {
     const list = fullPersonList.filter((name) => {
-      if (isAdmin) return true
+      if (canViewAllPaySlips) return true
       return selfDisplayNames.includes(name)
     })
     list.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
     return list
-  }, [fullPersonList, isAdmin, selfDisplayNames])
+  }, [fullPersonList, canViewAllPaySlips, selfDisplayNames])
 
   /** 依顯示條件過濾（顯示無資料的成員與否） */
   const workBonusRules = useMemo(() => getWorkBonusRules(), [revision])
@@ -356,7 +358,8 @@ function PaySlip() {
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">勞務報酬單</h1>
         <p className="text-gray-400 text-sm mt-1">
           依出工回報統計＋每人費用參數計算月度勞務報酬。費用參數依月份獨立儲存，修改其他月份不影響本月。出工獎金依「獎金制度」已達成條件自動帶入，手動獎金可額外設定。
-          {!isAdmin && '（一般使用者僅顯示自己的紀錄）'}
+          {!isAdmin && !isGuest && '（一般使用者僅顯示自己的紀錄）'}
+          {isGuest && '（訪客示範：姓名與金額為範例，真實資料未變更）'}
           夜間誤餐雜支費：當日已核准緊急入場達 {NIGHT_MEAL_OT_THRESHOLD_HOURS} 小時以上計 1 日。
         </p>
       </div>
@@ -413,7 +416,7 @@ function PaySlip() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {isAdmin && (
+            {canViewAllPaySlips && (
               <label className="flex items-center gap-1 text-xs text-gray-400">
                 <input
                   type="checkbox"
@@ -433,7 +436,7 @@ function PaySlip() {
           </div>
         </div>
 
-        {isAdmin && personRows.length > 0 && (
+        {canViewAllPaySlips && personRows.length > 0 && (
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">{yearMonth} 全部人員合計</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 tabular-nums">
@@ -484,7 +487,7 @@ function PaySlip() {
 
       {personRows.length === 0 ? (
         <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-8 text-center text-gray-400">
-          {isAdmin ? '無人員資料' : `${yearMonth} 尚無屬於您的紀錄`}
+          {canViewAllPaySlips ? '無人員資料' : `${yearMonth} 尚無屬於您的紀錄`}
         </div>
       ) : (
         <div className="space-y-4">
@@ -549,18 +552,18 @@ function PaySlip() {
                     <div className="grid grid-cols-3 gap-2 text-sm tabular-nums">
                       <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
                         <div className="text-gray-400 text-xs">出工天</div>
-                        <div className="text-amber-200 font-semibold">{stats.fullDays} 天</div>
+                        <div className="text-amber-200 font-semibold">{maskQuantityForRecording(stats.fullDays, 'days')} 天</div>
                       </div>
                       <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
                         <div className="text-gray-400 text-xs">緊急入場時數</div>
                         <div className="text-red-300 font-semibold">
-                          {formatWorkReportHours(stats.overtimeHours)} 小時
+                          {formatWorkReportHours(maskQuantityForRecording(stats.overtimeHours, 'hours'))} 小時
                         </div>
                       </div>
                       <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
                         <div className="text-gray-400 text-xs">未滿時數</div>
                         <div className="text-orange-300 font-semibold">
-                          {formatWorkReportHours(stats.underHours)} 小時
+                          {formatWorkReportHours(maskQuantityForRecording(stats.underHours, 'hours'))} 小時
                         </div>
                       </div>
                     </div>
@@ -569,7 +572,7 @@ function PaySlip() {
                       <div className="flex justify-between">
                         <span className="text-gray-300">案場出勤基本工程款</span>
                         <span className="text-amber-200">
-                          {stats.fullDays} × ${formatMoney(rate.dailyRate)} =
+                          {maskQuantityForRecording(stats.fullDays, 'days')} × ${formatMoney(rate.dailyRate)} =
                           <span className="ml-1 font-semibold">${formatMoney(amounts.dayAmount)}</span>
                         </span>
                       </div>
@@ -577,7 +580,7 @@ function PaySlip() {
                         <div className="flex justify-between">
                           <span className="text-gray-300">未滿時段工程款</span>
                           <span className="text-orange-300">
-                            {formatWorkReportHours(stats.underHours)} × ${formatMoney(hourly)} =
+                            {formatWorkReportHours(maskQuantityForRecording(stats.underHours, 'hours'))} × ${formatMoney(hourly)} =
                             <span className="ml-1 font-semibold">${formatMoney(amounts.underAmount)}</span>
                           </span>
                         </div>
@@ -586,7 +589,7 @@ function PaySlip() {
                         <div className="flex justify-between">
                           <span className="text-gray-300">緊急追加服務費</span>
                           <span className="text-red-300">
-                            {formatWorkReportHours(stats.overtimeHours)} × ${formatMoney(hourly)} × {rate.overtimeMultiplier} =
+                            {formatWorkReportHours(maskQuantityForRecording(stats.overtimeHours, 'hours'))} × ${formatMoney(hourly)} × {rate.overtimeMultiplier} =
                             <span className="ml-1 font-semibold">${formatMoney(amounts.overtimeAmount)}</span>
                           </span>
                         </div>
@@ -594,9 +597,9 @@ function PaySlip() {
                       <div className="flex justify-between">
                         <span className="text-gray-300">案場誤餐雜支費</span>
                         <span className="text-amber-200">
-                          滿日 {stats.fullDays} × ${formatMoney(rate.mealAllowancePerDay)}
+                          滿日 {maskQuantityForRecording(stats.fullDays, 'days')} × ${formatMoney(rate.mealAllowancePerDay)}
                           {stats.underHours > 0 && (
-                            <> ＋未滿 {formatWorkReportHours(stats.underHours)} × ${formatMoney(rate.mealAllowancePerDay / 8)}</>
+                            <> ＋未滿 {formatWorkReportHours(maskQuantityForRecording(stats.underHours, 'hours'))} × ${formatMoney(rate.mealAllowancePerDay / 8)}</>
                           )} =
                           <span className="ml-1 font-semibold">${formatMoney(amounts.mealAmount)}</span>
                         </span>
@@ -614,9 +617,9 @@ function PaySlip() {
                       <div className="flex justify-between">
                         <span className="text-gray-300">外包商風險管理補貼</span>
                         <span className="text-amber-200">
-                          滿日 {stats.fullDays} × ${formatMoney(rate.insuranceSubsidyPerDay)}
+                          滿日 {maskQuantityForRecording(stats.fullDays, 'days')} × ${formatMoney(rate.insuranceSubsidyPerDay)}
                           {stats.underHours > 0 && (
-                            <> ＋未滿 {formatWorkReportHours(stats.underHours)} × ${formatMoney(rate.insuranceSubsidyPerDay / 8)}</>
+                            <> ＋未滿 {formatWorkReportHours(maskQuantityForRecording(stats.underHours, 'hours'))} × ${formatMoney(rate.insuranceSubsidyPerDay / 8)}</>
                           )} =
                           <span className="ml-1 font-semibold">${formatMoney(amounts.insuranceAmount)}</span>
                         </span>

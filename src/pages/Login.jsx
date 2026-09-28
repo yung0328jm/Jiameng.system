@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { verifyUser } from '../utils/storage'
+import { verifyUser, initializeGuestUser } from '../utils/storage'
 import { saveCurrentUser } from '../utils/authStorage'
 import { isSupabaseEnabled, loginWithAccountOrEmail } from '../utils/authSupabase'
+import {
+  GUEST_ACCOUNT,
+  GUEST_PASSWORD,
+  GUEST_ROLE,
+  isGuestCredentials
+} from '../utils/guestAuth'
+import { RECORDING_MODE_CHANGE_EVENT } from '../utils/recordingModeStorage'
 
 const REMEMBER_ACCOUNT_KEY = 'jiameng_remember_account'
 const REMEMBERED_USERNAME_KEY = 'jiameng_remembered_username'
@@ -36,6 +43,17 @@ function Login({ onLogin }) {
           localStorage.removeItem(REMEMBERED_USERNAME_KEY)
         }
       } catch (_) {}
+
+      if (isGuestCredentials(username.trim(), password)) {
+        initializeGuestUser()
+        saveCurrentUser(GUEST_ACCOUNT, GUEST_ROLE)
+        try {
+          window.dispatchEvent(new CustomEvent(RECORDING_MODE_CHANGE_EVENT))
+        } catch (_) {}
+        onLogin()
+        navigate('/dashboard')
+        return
+      }
 
       if (isSupabaseEnabled()) {
         const result = await loginWithAccountOrEmail(username.trim(), password)
@@ -156,6 +174,27 @@ function Login({ onLogin }) {
             >
               廠商登記入口
             </Link>
+          </div>
+
+          <div className="mt-3">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={async () => {
+                setUsername(GUEST_ACCOUNT)
+                setPassword(GUEST_PASSWORD)
+                initializeGuestUser()
+                saveCurrentUser(GUEST_ACCOUNT, GUEST_ROLE)
+                try {
+                  window.dispatchEvent(new CustomEvent(RECORDING_MODE_CHANGE_EVENT))
+                } catch (_) {}
+                onLogin()
+                navigate('/dashboard')
+              }}
+              className="w-full min-h-[44px] py-2.5 rounded-md border border-cn-gold/35 bg-black/20 text-cn-mist hover:text-cn-parchment hover:border-cn-gold/55 text-sm font-serif touch-manipulation disabled:opacity-60"
+            >
+              訪客參觀（guest / guest）
+            </button>
           </div>
 
           <div className="mt-5 sm:mt-6 text-center">

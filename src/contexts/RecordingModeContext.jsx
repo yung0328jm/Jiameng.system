@@ -5,6 +5,7 @@ import {
   RECORDING_MODE_CHANGE_EVENT
 } from '../utils/recordingModeStorage'
 import { invalidateRecordingMaskCache, maskForRecording } from '../utils/recordingModeMask'
+import { isGuestSession } from '../utils/guestAuth'
 
 const RecordingModeContext = createContext({
   enabled: false,
@@ -16,17 +17,23 @@ export const useRecordingMode = () => useContext(RecordingModeContext)
 
 export function RecordingModeProvider({ children }) {
   const [enabled, setEnabledState] = useState(() => isRecordingModeEnabled())
+  const [guest, setGuest] = useState(() => isGuestSession())
 
   useEffect(() => {
-    const onChange = () => setEnabledState(isRecordingModeEnabled())
+    const onChange = () => {
+      setEnabledState(isRecordingModeEnabled())
+      setGuest(isGuestSession())
+    }
     window.addEventListener(RECORDING_MODE_CHANGE_EVENT, onChange)
     return () => window.removeEventListener(RECORDING_MODE_CHANGE_EVENT, onChange)
   }, [])
 
   const setEnabled = useCallback((next) => {
+    if (isGuestSession() && !next) return
     invalidateRecordingMaskCache()
     setRecordingModeEnabled(!!next)
-    setEnabledState(!!next)
+    setEnabledState(isRecordingModeEnabled())
+    setGuest(isGuestSession())
   }, [])
 
   const mask = useCallback((text) => maskForRecording(text), [enabled])
@@ -39,7 +46,9 @@ export function RecordingModeProvider({ children }) {
           aria-hidden
         >
           <div className="mt-[52px] sm:mt-[48px] bg-rose-950/90 border border-rose-400/50 text-rose-100 text-[11px] sm:text-xs px-3 py-1 rounded-full shadow-lg backdrop-blur-sm font-medium tracking-wide">
-            錄影模式 · 畫面已遮罩（資料未變更）
+            {guest
+              ? '訪客示範模式 · 人員與金額為範例（真實資料未變更）'
+              : '錄影模式 · 畫面已遮罩（資料未變更）'}
           </div>
         </div>
       )}

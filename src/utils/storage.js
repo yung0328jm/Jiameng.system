@@ -1,6 +1,7 @@
 // 本地存储工具函数
 import { syncKeyToSupabase } from './supabaseSync'
 import { getCurrentUser } from './authStorage'
+import { GUEST_ACCOUNT, GUEST_NAME, GUEST_PASSWORD, GUEST_ROLE, isGuestAccount } from './guestAuth'
 const STORAGE_KEY = 'jiameng_users'
 const ADVANCE_KEY = 'jiameng_advances'
 const ADVANCE_REPAYMENTS_KEY = 'jiameng_advance_repayments'
@@ -53,12 +54,38 @@ export const initializeAdminUser = () => {
   }
 }
 
+/** 確保本機有訪客帳號（guest / guest），供參觀系統用 */
+export const initializeGuestUser = () => {
+  try {
+    const users = getUsers()
+    if (users.some((u) => isGuestAccount(u?.account))) {
+      return { success: true, message: '訪客帳號已存在' }
+    }
+    users.push({
+      id: 'guest-account',
+      name: GUEST_NAME,
+      account: GUEST_ACCOUNT,
+      password: GUEST_PASSWORD,
+      role: GUEST_ROLE,
+      createdAt: new Date().toISOString()
+    })
+    setUsersAndSync(users)
+    return { success: true, message: '已建立訪客帳號' }
+  } catch (error) {
+    console.error('Error initializing guest user:', error)
+    return { success: false, message: '初始化訪客失敗' }
+  }
+}
+
 /** 註冊新用戶；會先寫入 localStorage，並等待 Supabase 同步完成再回傳，避免刷新後用戶消失 */
 export const saveUser = async (user) => {
   try {
     const users = getUsers()
     if (users.some(u => u.account === user.account)) {
       return { success: false, message: '該帳號已存在' }
+    }
+    if (isGuestAccount(user.account)) {
+      return { success: false, message: '此帳號名稱保留給訪客' }
     }
     users.push({
       ...user,
@@ -93,6 +120,9 @@ export const updateUserRole = (account, newRole) => {
     return { success: false, message: '無效角色' }
   }
   try {
+    if (isGuestAccount(account)) {
+      return { success: false, message: '訪客帳號不可變更角色' }
+    }
     const users = getUsers()
     const userIndex = users.findIndex(u => u.account === account)
     if (userIndex === -1) {
@@ -120,6 +150,9 @@ export const deleteUser = async (account) => {
     const userIndex = users.findIndex(u => u.account === account)
     if (userIndex === -1) {
       return { success: false, message: '用戶不存在' }
+    }
+    if (isGuestAccount(account)) {
+      return { success: false, message: '訪客帳號不可刪除' }
     }
     
     // 检查是否是最后一个管理者

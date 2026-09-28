@@ -22,7 +22,8 @@ import LeaveApplication from './pages/LeaveApplication'
 import Advance from './pages/Advance'
 import ContractorWorkCheckIn from './pages/ContractorWorkCheckIn'
 import { getAuthStatus, saveAuthStatus, clearAuthStatus, saveCurrentUser, getCurrentUserRole, getCurrentUser } from './utils/authStorage'
-import { initializeAdminUser } from './utils/storage'
+import { initializeAdminUser, initializeGuestUser } from './utils/storage'
+import { isGuestSession } from './utils/guestAuth'
 import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
 import { RecordingModeProvider } from './contexts/RecordingModeContext'
@@ -38,6 +39,7 @@ function App() {
     setIsAuthenticated(getAuthStatus())
     // 僅在「未使用 Supabase Auth」時建立預設 admin，避免兩套用戶邏輯衝突
     if (!isAuthSupabase()) initializeAdminUser()
+    initializeGuestUser()
   }, [])
 
   // 帳號管理邏輯：Supabase Auth 時還原 session 並同步 profile 到本地（確保登入狀態與 is_admin 正確）
@@ -45,6 +47,7 @@ function App() {
     if (!isAuthSupabase()) return
     let mounted = true
     const restore = async () => {
+      if (isGuestSession()) return
       const session = await getSession()
       if (session?.user && mounted) {
         const profile = await getProfile()
@@ -62,7 +65,7 @@ function App() {
     }
     restore()
     const unsub = subscribeAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') setIsAuthenticated(false)
+      if (event === 'SIGNED_OUT' && !isGuestSession()) setIsAuthenticated(false)
     })
     return () => { mounted = false; unsub?.() }
   }, [])
@@ -123,7 +126,9 @@ function App() {
 
   const handleLogout = async () => {
     setIsAuthenticated(false)
-    if (isAuthSupabase()) {
+    if (isGuestSession()) {
+      clearAuthStatus()
+    } else if (isAuthSupabase()) {
       const { logout } = await import('./utils/authSupabase')
       await logout()
     } else {

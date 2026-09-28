@@ -120,8 +120,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       .filter((u) => {
         const acc = String(u?.account || '').trim()
         if (!acc) return false
-        if (acc === 'admin' || acc === 'jiameng.system') return false
-        if (u?.role === 'admin' || u?.is_admin) return false
+        if (acc === 'admin' || acc === 'jiameng.system' || acc === 'guest') return false
+        if (u?.role === 'admin' || u?.is_admin || u?.role === 'guest') return false
         return true
       })
       .map((u) => String(u.account).trim())
@@ -310,6 +310,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       if (!acc) return false
       if (acc === 'admin' && acc !== me) return false
       if (acc === 'jiameng.system') return false
+      if (acc === 'guest' || u?.role === 'guest') return false
       if (u?.role === 'admin' && acc !== me) return false
       return true
     })

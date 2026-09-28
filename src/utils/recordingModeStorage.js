@@ -1,10 +1,12 @@
 /** 錄影模式：僅存本機，刻意不列入 Supabase app_data 同步 */
+import { isGuestSession } from './guestAuth'
 
 export const RECORDING_MODE_STORAGE_KEY = 'jiameng_recording_mode_local_v1'
 export const RECORDING_MODE_CHANGE_EVENT = 'jiameng_recording_mode_change'
 
 export const isRecordingModeEnabled = () => {
   try {
+    if (isGuestSession()) return true
     return localStorage.getItem(RECORDING_MODE_STORAGE_KEY) === '1'
   } catch (_) {
     return false
