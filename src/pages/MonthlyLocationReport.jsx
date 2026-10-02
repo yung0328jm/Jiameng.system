@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
-import { getSchedules } from '../utils/scheduleStorage'
+import { getSchedules, isLeaveScheduleRecord, parseLeavePersonFromSiteName } from '../utils/scheduleStorage'
 import { getCurrentUserRole } from '../utils/authStorage'
 import {
   normalizeWorkItem,
@@ -93,6 +93,7 @@ function buildScheduleMap(year, month) {
   schedules.forEach((schedule) => {
     const dateStr = String(schedule?.date || '').slice(0, 10)
     if (!dateStr || dateStr < startDate || dateStr > endDate) return
+    if (isLeaveScheduleRecord(schedule)) return
     if (String(schedule?.tag || '').trim() === SCHEDULE_TAG_EXCLUDE_FROM_LOCATION_REPORT) return
 
     const segments = getScheduleSegments(schedule)
@@ -747,6 +748,14 @@ function buildLeaveCellTextMap(year, month) {
   const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   const map = new Map()
   const leaves = getLeaveApplications().filter((la) => (la.status || '') === 'approved')
+  const leaveOnCalendar = new Set()
+  ;(getSchedules() || []).forEach((s) => {
+    if (!isLeaveScheduleRecord(s)) return
+    const dateStr = String(s?.date || '').slice(0, 10)
+    if (!dateStr || dateStr < monthStart || dateStr > monthEnd) return
+    const person = parseLeavePersonFromSiteName(s.siteName)
+    if (person) leaveOnCalendar.add(`${person}|${dateStr}`)
+  })
 
   const labelFromReason = () => '不需申請入廠證'
 
@@ -774,7 +783,9 @@ function buildLeaveCellTextMap(year, month) {
     const label = labelFromReason(la)
     while (d <= endD) {
       const ymd = d.toISOString().slice(0, 10)
-      mergeCell(`${nk}|${ymd}`, label)
+      const ck = `${nk}|${ymd}`
+      // 行事曆該日已無此人入廠異動時，不沿用整段核准區間
+      if (leaveOnCalendar.has(ck)) mergeCell(ck, label)
       d.setDate(d.getDate() + 1)
     }
   }
@@ -786,6 +797,35 @@ function buildLeaveCellTextMap(year, month) {
     }
   })
   return map
+}
+
+/** 當日已有出工（行事曆案場或出工回報）時，不以已核准請假覆蓋該格 */
+function personHasWorkOnDate(name, dateStr, scheduleMap, underHoursMap) {
+  const bySite = scheduleMap?.get(name)?.get(dateStr)
+  if (bySite) {
+    for (const [site, wt] of bySite.entries()) {
+      if ((Number(wt) || 0) > 0 && !isLeaveLabel(site)) return true
+    }
+  }
+  return getUnderHourSitesForCell(underHoursMap, name, dateStr).size > 0
+}
+
+function omitLeaveWherePersonWorked(leaveMap, scheduleMap, underHoursMap) {
+  if (!leaveMap || leaveMap.size === 0) return leaveMap || new Map()
+  const next = new Map()
+  leaveMap.forEach((label, ck) => {
+    const key = String(ck || '')
+    const pipe = key.lastIndexOf('|')
+    if (pipe < 0) {
+      next.set(ck, label)
+      return
+    }
+    const name = key.slice(0, pipe)
+    const dateStr = key.slice(pipe + 1)
+    if (personHasWorkOnDate(name, dateStr, scheduleMap, underHoursMap)) return
+    next.set(ck, label)
+  })
+  return next
 }
 
 async function exportPdf(el, filename) {
@@ -867,8 +907,12 @@ export default function MonthlyLocationReport() {
   const overrides = useMemo(() => getMonthlyOverrides(year, month), [year, month, refreshKey])
 
   const leaveCellTextMap = useMemo(
-    () => buildLeaveCellTextMap(year, month),
-    [year, month, refreshKey, syncRevision]
+    () => omitLeaveWherePersonWorked(
+      buildLeaveCellTextMap(year, month),
+      scheduleMap,
+      workReportUnderHoursMap
+    ),
+    [year, month, refreshKey, syncRevision, scheduleMap, workReportUnderHoursMap]
   )
 
   const dayNatureAll = useMemo(() => getAllDayNatureStorage(), [year, month, refreshKey, syncRevision])
@@ -1114,8 +1158,8 @@ export default function MonthlyLocationReport() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
-              已核准請假之日期：顯示<strong>不需申請入廠證</strong>，且<strong className="text-gray-300">不計入</strong>當日行事曆案場加權（避免與藍標排程重複）；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
-              僅在無請假紀錄時才帶入行事曆案場。
+              已核准請假之日期：顯示<strong>不需申請入廠證</strong>，且<strong className="text-gray-300">不計入</strong>當日行事曆案場加權；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
+              當日若已有出工（行事曆或出工回報），改顯示出工，不以請假覆蓋。
               行事曆排程標籤為<strong className="text-gray-300">「行政」</strong>者不列入本表與下方統計。
               {isAdmin
                 ? ' 管理員可點格編輯、點左欄日期設定平日／假日，有案場時可點案場名稱調整加權（0.5／1）。'
