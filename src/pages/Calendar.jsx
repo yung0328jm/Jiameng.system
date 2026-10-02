@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getEventsByDate, saveEvent, deleteEvent, getEvents } from '../utils/calendarStorage'
 import {
@@ -127,6 +127,123 @@ function tagUsesParticipantWorkEntries(tag) {
   return t === 'blue' || t === 'yellow'
 }
 
+function loadSortedPendingOvertime() {
+  return getPendingOvertimeApplications().slice().sort((a, b) => {
+    const da = String(a?.date || '').localeCompare(String(b?.date || ''))
+    if (da !== 0) return da
+    return String(a?.createdAt || '').localeCompare(String(b?.createdAt || ''))
+  })
+}
+
+/** 待審清單獨立更新，核准時保留捲動位置，避免整月曆重繪造成跳動／回朔 */
+function PendingOvertimeReviewBanner({ schedules, getSiteTitle, onOpenSchedule, onReject }) {
+  const [open, setOpen] = useState(true)
+  const [items, setItems] = useState(loadSortedPendingOvertime)
+  const listRef = useRef(null)
+  const scrollTopRef = useRef(0)
+
+  const rememberScroll = () => {
+    if (listRef.current) scrollTopRef.current = listRef.current.scrollTop
+  }
+
+  const refreshItems = useCallback(() => {
+    setItems(loadSortedPendingOvertime())
+  }, [])
+
+  useRealtimeKeys(['jiameng_overtime_applications'], refreshItems)
+
+  useLayoutEffect(() => {
+    const el = listRef.current
+    if (el) el.scrollTop = scrollTopRef.current
+  }, [items])
+
+  const handleApprove = (id) => {
+    rememberScroll()
+    const res = updateOvertimeApplicationStatus(id, 'approved', getCurrentUser())
+    if (!res.success) {
+      alert(res.message || '操作失敗')
+      return
+    }
+    setItems((prev) => prev.filter((x) => String(x.id) !== String(id)))
+  }
+
+  if (items.length === 0) return null
+
+  return (
+    <div className="mb-3 rounded-lg border border-amber-500/60 bg-amber-950/40 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-amber-200 text-sm font-semibold hover:bg-amber-900/30"
+      >
+        <span>待審核緊急入場申報申請（{items.length}）— 點此{open ? '收合' : '展開'}</span>
+        <span className="text-amber-400/90">{open ? '▼' : '▶'}</span>
+      </button>
+      {open && (
+        <div
+          ref={listRef}
+          className="px-3 pb-3 space-y-2 max-h-56 overflow-y-auto border-t border-amber-600/30 [overflow-anchor:none]"
+        >
+          {items.map((oa) => {
+            const sch = schedules.find((s) => String(s?.id) === String(oa?.scheduleId))
+            const fromWorkReport = !sch && !!String(oa?.workReportRowId || '').trim()
+            const siteLabel = sch
+              ? getSiteTitle(sch)
+              : (String(oa?.siteName || '').trim()
+                  ? `${oa.siteName}（進廠管制表）`
+                  : '（找不到對應排程，可能已刪除）')
+            const timeStr = oa.startTime && oa.endTime ? `${oa.startTime}～${oa.endTime}` : ''
+            return (
+              <div key={oa.id} className="rounded-md bg-gray-900/80 border border-amber-700/40 p-2 text-xs text-gray-200">
+                <div className="font-medium text-amber-100/95">{siteLabel}</div>
+                <div className="text-gray-400 mt-0.5">
+                  {oa.date || '—'}
+                  {timeStr ? ` ${timeStr}` : ''}
+                  {oa.hours != null && oa.hours !== '' ? ` · ${oa.hours} 小時` : ''}
+                </div>
+                <div>申請人：{resolveApplicantLabel(oa.applicant) || oa.applicant || '—'}</div>
+                {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
+                  <div className="text-gray-400">緊急入場人員：{oa.overtimePersonnel.join(', ')}</div>
+                )}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {sch && (
+                    <button
+                      type="button"
+                      onClick={(e) => onOpenSchedule(e, sch)}
+                      className="px-2 py-1 rounded bg-gray-600 text-white hover:bg-gray-500"
+                    >
+                      開啟排程詳情
+                    </button>
+                  )}
+                  {fromWorkReport && (
+                    <span className="px-2 py-1 rounded bg-teal-700/40 text-teal-100 text-[11px]">
+                      來自進廠管制表
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleApprove(oa.id)}
+                    className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-500"
+                  >
+                    核准
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onReject(oa.id)}
+                    className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-500"
+                  >
+                    駁回
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Calendar() {
   const navigate = useNavigate()
   useRecordingMode()
@@ -184,8 +301,8 @@ function Calendar() {
   })
   const [showOvertimeForm, setShowOvertimeForm] = useState(false) // 排程詳情內「緊急入場申報申請」是否展開
   const [detailPweDraft, setDetailPweDraft] = useState(null) // 排程詳情內：藍/黃標每人工作內容編輯草稿
-  const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪已送出的申請列表
-  const [overtimePendingBannerOpen, setOvertimePendingBannerOpen] = useState(true) // 管理員：待審緊急入場申報清單是否展開
+  const [overtimeReviewRevision, setOvertimeReviewRevision] = useState(0) // 審核後重繪排程詳情內申請列表
+  const overtimeWinScrollRef = useRef(null)
   const [showCopyScheduleModal, setShowCopyScheduleModal] = useState(false)
   const [copyScheduleTarget, setCopyScheduleTarget] = useState(null) // 要複製的排程
   const [copyScheduleNewDate, setCopyScheduleNewDate] = useState('') // 複製後的新日期 YYYY-MM-DD
@@ -963,7 +1080,16 @@ function Calendar() {
   }
   useRealtimeKeys(['jiameng_engineering_schedules', 'jiameng_calendar_events', 'jiameng_dropdown_options', 'jiameng_projects', NO_LEAVE_DATES_KEY], refetchForRealtime)
   useRealtimeKeys(['jiameng_leave_applications'], refetchForRealtime)
-  useRealtimeKeys(['jiameng_overtime_applications'], () => setOvertimeReviewRevision((r) => r + 1))
+  useRealtimeKeys(['jiameng_overtime_applications'], () => {
+    if (!showDetailModal) return
+    overtimeWinScrollRef.current = window.scrollY || document.documentElement.scrollTop || 0
+    setOvertimeReviewRevision((r) => r + 1)
+  })
+  useLayoutEffect(() => {
+    if (overtimeWinScrollRef.current == null) return
+    window.scrollTo(0, overtimeWinScrollRef.current)
+    overtimeWinScrollRef.current = null
+  }, [overtimeReviewRevision])
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
   useRealtimeKeys(['jiameng_work_reports'], () => setWorkReportsRevision((r) => r + 1))
   useRealtimeKeys([CONTRACTOR_WORK_LOG_KEY], () => setContractorWorkRevision((r) => r + 1))
@@ -3192,90 +3318,14 @@ function Calendar() {
           </button>
         </div>
 
-        {/* 管理員：待審核緊急入場申報申請集中清單（審核按鈕原僅在「點開排程詳情」內，易被忽略） */}
-        {currentRole === 'admin' && (() => {
-          void overtimeReviewRevision
-          const pendingOt = getPendingOvertimeApplications().slice().sort((a, b) => {
-            const da = String(a?.date || '').localeCompare(String(b?.date || ''))
-            if (da !== 0) return da
-            return String(a?.createdAt || '').localeCompare(String(b?.createdAt || ''))
-          })
-          if (pendingOt.length === 0) return null
-          return (
-            <div className="mb-3 rounded-lg border border-amber-500/60 bg-amber-950/40 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setOvertimePendingBannerOpen((o) => !o)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-amber-200 text-sm font-semibold hover:bg-amber-900/30"
-              >
-                <span>待審核緊急入場申報申請（{pendingOt.length}）— 點此{overtimePendingBannerOpen ? '收合' : '展開'}</span>
-                <span className="text-amber-400/90">{overtimePendingBannerOpen ? '▼' : '▶'}</span>
-              </button>
-              {overtimePendingBannerOpen && (
-                <div className="px-3 pb-3 space-y-2 max-h-56 overflow-y-auto border-t border-amber-600/30">
-                  {pendingOt.map((oa) => {
-                    const sch = schedules.find((s) => String(s?.id) === String(oa?.scheduleId))
-                    const fromWorkReport = !sch && !!String(oa?.workReportRowId || '').trim()
-                    const siteLabel = sch
-                      ? getScheduleDisplayTitle(sch)
-                      : (String(oa?.siteName || '').trim()
-                          ? `${oa.siteName}（進廠管制表）`
-                          : '（找不到對應排程，可能已刪除）')
-                    const timeStr = oa.startTime && oa.endTime ? `${oa.startTime}～${oa.endTime}` : ''
-                    return (
-                      <div key={oa.id} className="rounded-md bg-gray-900/80 border border-amber-700/40 p-2 text-xs text-gray-200">
-                        <div className="font-medium text-amber-100/95">{siteLabel}</div>
-                        <div className="text-gray-400 mt-0.5">
-                          {oa.date || '—'}
-                          {timeStr ? ` ${timeStr}` : ''}
-                          {oa.hours != null && oa.hours !== '' ? ` · ${oa.hours} 小時` : ''}
-                        </div>
-                        <div>申請人：{resolveApplicantLabel(oa.applicant) || oa.applicant || '—'}</div>
-                        {oa.overtimePersonnel && oa.overtimePersonnel.length > 0 && (
-                          <div className="text-gray-400">緊急入場人員：{oa.overtimePersonnel.join(', ')}</div>
-                        )}
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {sch && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleScheduleClick(e, sch)}
-                              className="px-2 py-1 rounded bg-gray-600 text-white hover:bg-gray-500"
-                            >
-                              開啟排程詳情
-                            </button>
-                          )}
-                          {fromWorkReport && (
-                            <span className="px-2 py-1 rounded bg-teal-700/40 text-teal-100 text-[11px]">
-                              來自進廠管制表
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const res = updateOvertimeApplicationStatus(oa.id, 'approved', getCurrentUser())
-                              if (res.success) setOvertimeReviewRevision((r) => r + 1)
-                              else alert(res.message || '操作失敗')
-                            }}
-                            className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-500"
-                          >
-                            核准
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openOvertimeRejectModal(oa.id)}
-                            className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-500"
-                          >
-                            駁回
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })()}
+        {currentRole === 'admin' && (
+          <PendingOvertimeReviewBanner
+            schedules={schedules}
+            getSiteTitle={getScheduleDisplayTitle}
+            onOpenSchedule={handleScheduleClick}
+            onReject={openOvertimeRejectModal}
+          />
+        )}
 
         {/* 周标题 */}
         <div className="grid grid-cols-7 gap-px sm:gap-1 mb-1.5 sm:mb-2">

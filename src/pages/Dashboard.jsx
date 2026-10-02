@@ -149,7 +149,6 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const prevMessagesBadgeRef = useRef(0)
 
   const calcNavBadges = (me, role) => {
-    try { backfillWorkReportOvertimeApplications() } catch (_) {}
     const account = String(me || '').trim()
     const r = String(role || '').trim()
 
@@ -438,6 +437,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
   // 初始計算一次徽章（避免等到 realtime 才出現）
   useEffect(() => {
+    try { backfillWorkReportOvertimeApplications() } catch (_) {}
     const user = getCurrentUser()
     const role = getCurrentUserRole()
     const next = calcNavBadges(user, role)
