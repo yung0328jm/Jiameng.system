@@ -339,6 +339,30 @@ export function isWorkReportTimeFilled(hhmm) {
   return timeToMinutes(hhmm) != null
 }
 
+/** 當日此人已登記的案場（同日不可再登記其他案場） */
+export function getPersonSiteMapForDate(date) {
+  const d = String(date || '').trim().slice(0, 10)
+  const map = new Map()
+  if (!d) return map
+  loadAll().forEach((r) => {
+    if (String(r?.date || '').slice(0, 10) !== d) return
+    const person = parseWorkReportBaseName(r?.personName)
+    const site = String(r?.siteName || '').trim()
+    if (person && site && !map.has(person)) map.set(person, site)
+  })
+  return map
+}
+
+/** 若此人當日已在其他案場登記，回傳該案場名稱 */
+export function findWorkReportConflictSite(date, personName, siteName) {
+  const person = parseWorkReportBaseName(personName)
+  const site = String(siteName || '').trim()
+  if (!person) return null
+  const existing = getPersonSiteMapForDate(date).get(person)
+  if (existing && (!site || existing !== site)) return existing
+  return null
+}
+
 /** 同日、同案場、同姓名找既有紀錄 */
 export function findWorkReportByKey(date, siteName, personName) {
   const d = String(date || '').trim().slice(0, 10)
@@ -463,6 +487,10 @@ export function addWorkReports(entries) {
     if (!date || !siteName || !personName) {
       return { success: false, message: '請填寫日期、案場與姓名' }
     }
+    const conflictSite = findWorkReportConflictSite(date, personName, siteName)
+    if (conflictSite) {
+      return { success: false, message: `「${parseWorkReportBaseName(personName)}」當日已在「${conflictSite}」登記，不可再登記其他案場` }
+    }
     if (!arrivalTime && !departureTime) {
       return { success: false, message: '請至少填寫進廠或離廠時間' }
     }
@@ -525,6 +553,10 @@ export function registerWorkReportTime(mode, row) {
 
   if (!date || !siteName || !personName) {
     return { success: false, message: '請填寫日期、案場與姓名' }
+  }
+  const conflictSite = findWorkReportConflictSite(date, personName, siteName)
+  if (conflictSite) {
+    return { success: false, message: `「${parseWorkReportBaseName(personName)}」當日已在「${conflictSite}」登記，不可再登記其他案場` }
   }
 
   const existing = findWorkReportByKey(date, siteName, personName)

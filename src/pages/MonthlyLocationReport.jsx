@@ -12,7 +12,8 @@ import {
   getOverrideNamesForMonth,
   MONTHLY_LOCATION_OVERRIDES_KEY
 } from '../utils/monthlyLocationReportStorage'
-import { getLeaveApplications } from '../utils/leaveApplicationStorage'
+import { getDisplayNamesForAccount, findBoundAccountForDisplayName } from '../utils/dropdownStorage'
+import { getUsers } from '../utils/storage'
 import { LEAVE_APPLICATION_KEY } from '../utils/leaveApplicationMerge'
 import { getOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import {
@@ -737,29 +738,44 @@ function buildPerUserSiteDayStats(userNames, days, year, month, overrides, sched
   })
 }
 
+function personNameAliases(raw) {
+  const t = String(raw || '').trim()
+  if (!t) return []
+  const set = new Set([t])
+  try {
+    const users = getUsers() || []
+    const acc =
+      String(
+        users.find((u) => String(u?.account || '').trim() === t)?.account ||
+        users.find((u) => String(u?.name || '').trim() === t)?.account ||
+        findBoundAccountForDisplayName(t) ||
+        ''
+      ).trim()
+    if (acc) {
+      set.add(acc)
+      const u = users.find((x) => String(x?.account || '').trim() === acc)
+      if (u?.name) set.add(String(u.name).trim())
+      ;(getDisplayNamesForAccount(acc) || []).forEach((n) => {
+        const x = String(n || '').trim()
+        if (x) set.add(x)
+      })
+    }
+  } catch (_) {}
+  return [...set].filter(Boolean)
+}
+
 /**
- * 已核准請假 → Map<"name|dateStr", 假別顯示文字>
- * 已核准請假一律顯示「不需申請入廠證」。
- * 同日多筆不同假別以「、」合併。
+ * 以行事曆「入廠異動」為準（與月曆橘標一致），顯示「不需申請入廠證」。
+ * 帳號／顯示名別名一併寫入，避免對不到整月報表欄位。
  */
 function buildLeaveCellTextMap(year, month) {
   const lastDay = new Date(year, month, 0).getDate()
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
   const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   const map = new Map()
-  const leaves = getLeaveApplications().filter((la) => (la.status || '') === 'approved')
-  const leaveOnCalendar = new Set()
-  ;(getSchedules() || []).forEach((s) => {
-    if (!isLeaveScheduleRecord(s)) return
-    const dateStr = String(s?.date || '').slice(0, 10)
-    if (!dateStr || dateStr < monthStart || dateStr > monthEnd) return
-    const person = parseLeavePersonFromSiteName(s.siteName)
-    if (person) leaveOnCalendar.add(`${person}|${dateStr}`)
-  })
+  const label = '不需申請入廠證'
 
-  const labelFromReason = () => '不需申請入廠證'
-
-  const mergeCell = (ck, label) => {
+  const mergeCell = (ck) => {
     const prev = map.get(ck)
     if (!prev) {
       map.set(ck, label)
@@ -770,31 +786,13 @@ function buildLeaveCellTextMap(year, month) {
     map.set(ck, [...set].join('、'))
   }
 
-  const addRange = (nameKey, la) => {
-    const a = String(la.startDate || '').slice(0, 10)
-    const b = String(la.endDate || '').slice(0, 10)
-    if (!a || !b || b < monthStart || a > monthEnd) return
-    const start = a < monthStart ? monthStart : a
-    const end = b > monthEnd ? monthEnd : b
-    const d = new Date(`${start}T12:00:00`)
-    const endD = new Date(`${end}T12:00:00`)
-    const nk = String(nameKey || '').trim()
-    if (!nk) return
-    const label = labelFromReason(la)
-    while (d <= endD) {
-      const ymd = d.toISOString().slice(0, 10)
-      const ck = `${nk}|${ymd}`
-      // 行事曆該日已無此人入廠異動時，不沿用整段核准區間
-      if (leaveOnCalendar.has(ck)) mergeCell(ck, label)
-      d.setDate(d.getDate() + 1)
-    }
-  }
-
-  leaves.forEach((la) => {
-    addRange(la.userName, la)
-    if (String(la.userId || '').trim() !== String(la.userName || '').trim()) {
-      addRange(la.userId, la)
-    }
+  ;(getSchedules() || []).forEach((s) => {
+    if (!isLeaveScheduleRecord(s)) return
+    const dateStr = String(s?.date || '').slice(0, 10)
+    if (!dateStr || dateStr < monthStart || dateStr > monthEnd) return
+    const person = parseLeavePersonFromSiteName(s.siteName)
+    if (!person) return
+    personNameAliases(person).forEach((n) => mergeCell(`${n}|${dateStr}`))
   })
   return map
 }
@@ -922,9 +920,19 @@ export default function MonthlyLocationReport() {
   const userNames = useMemo(() => {
     const fromSchedule = [...scheduleMap.keys()]
     const fromOverrides = getOverrideNamesForMonth(year, month)
-    const set = new Set([...fromSchedule, ...fromOverrides])
+    const fromLeave = []
+    leaveCellTextMap.forEach((_label, ck) => {
+      const key = String(ck || '')
+      const pipe = key.lastIndexOf('|')
+      if (pipe <= 0) return
+      const n = key.slice(0, pipe)
+      if (/[\u4e00-\u9fff]/.test(n) || fromSchedule.includes(n) || fromOverrides.includes(n)) {
+        fromLeave.push(n)
+      }
+    })
+    const set = new Set([...fromSchedule, ...fromOverrides, ...fromLeave])
     return sortNamesByPreferredOrder([...set])
-  }, [scheduleMap, year, month, refreshKey])
+  }, [scheduleMap, leaveCellTextMap, year, month, refreshKey])
 
   const overtimeHoursMap = useMemo(() => {
     const base = buildOvertimeHoursMap(year, month)
@@ -1158,7 +1166,7 @@ export default function MonthlyLocationReport() {
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-yellow-400">每月份工時匯總報表</h1>
             <p className="text-gray-400 text-[11px] sm:text-sm mt-1">
-              已核准請假之日期：顯示<strong>不需申請入廠證</strong>，且<strong className="text-gray-300">不計入</strong>當日行事曆案場加權；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
+              行事曆上的入廠異動：顯示<strong>不需申請入廠證</strong>；該格若有<strong>手動覆寫</strong>仍以覆寫為準。
               當日若已有出工（行事曆或出工回報），改顯示出工，不以請假覆蓋。
               行事曆排程標籤為<strong className="text-gray-300">「行政」</strong>者不列入本表與下方統計。
               {isAdmin

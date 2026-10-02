@@ -60,7 +60,7 @@ import { getItems } from '../utils/itemStorage'
 import { isSupabaseEnabled as isAuthSupabase, getPublicProfiles } from '../utils/authSupabase'
 import { getAdminUnreadCount, getUserMessages } from '../utils/messageStorage'
 import { getPendingLeaveApplications, getLeaveApplications } from '../utils/leaveApplicationStorage'
-import { getPendingOvertimeApplications } from '../utils/overtimeApplicationStorage'
+import { getPendingOvertimeApplications, backfillWorkReportOvertimeApplications } from '../utils/overtimeApplicationStorage'
 import { getUnreportedOvertimeCount } from '../utils/unreportedOvertime'
 import { getAnnouncements } from '../utils/announcementStorage'
 import { getGlobalMessages } from '../utils/memoStorage'
@@ -149,6 +149,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const prevMessagesBadgeRef = useRef(0)
 
   const calcNavBadges = (me, role) => {
+    try { backfillWorkReportOvertimeApplications() } catch (_) {}
     const account = String(me || '').trim()
     const r = String(role || '').trim()
 

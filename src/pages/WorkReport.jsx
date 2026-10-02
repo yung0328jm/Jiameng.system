@@ -33,14 +33,15 @@ import {
   groupWorkReportRowsForDisplay,
   isWorkReportContractorName,
   getWorkReportRowShiftSummary,
-  formatWorkReportHours
+  formatWorkReportHours,
+  getPersonSiteMapForDate,
+  findWorkReportConflictSite
 } from '../utils/workReportStorage'
 import { getUsers } from '../utils/storage'
 import { isSupabaseEnabled as isAuthSupabase, getAllProfiles } from '../utils/authSupabase'
 import { getSupabaseClient } from '../utils/supabaseClient'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { addOvertimeApplication } from '../utils/overtimeApplicationStorage'
-import { getUnreportedOvertimeItems, formatUnreportedOvertimeLabel } from '../utils/unreportedOvertime'
+import { getOvertimeApplicationsByWorkReportRowId, ensureWorkReportOvertimeApplication } from '../utils/overtimeApplicationStorage'
 
 function WorkReportShiftSummary({ summary, className = '' }) {
   if (!summary || (summary.totalHeadcount == null && summary.headcount == null)) {
@@ -258,9 +259,8 @@ function getSiteNameOptions() {
   return getContractorCheckInSiteNames()
 }
 
-function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, unreportedRowIds, onReportOvertime }) {
+function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes }) {
   const isAdmin = userRole === 'admin'
-  const showOvertimeCol = !!onReportOvertime && rows.some((r) => unreportedRowIds?.has(r.id))
   const [editingId, setEditingId] = useState(null)
   const [editArrival, setEditArrival] = useState('')
   const [editDeparture, setEditDeparture] = useState('')
@@ -297,15 +297,12 @@ function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, un
               <th className="py-2 px-2 font-medium">{labelName}</th>
               <th className="py-2 px-2 font-medium">時間</th>
               <th className="py-2 px-2 font-medium text-right">工時</th>
-              {showOvertimeCol && <th className="py-2 px-2 font-medium text-right w-24">緊急入場</th>}
               {isAdmin && <th className="py-2 px-2 font-medium w-28">操作</th>}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
               const isEditing = editingId === row.id
-              const needsOvertimeReport = unreportedRowIds?.has(row.id)
-              const otSummary = getWorkReportRowShiftSummary(row)
               return (
                 <tr key={row.id} className="border-b border-gray-700/40 align-top">
                   <td className="py-2 px-2 text-gray-400 text-xs">{m(row.siteName)}</td>
@@ -321,23 +318,8 @@ function DayRegisterTable({ rows, labelName, userRole, onDelete, onSaveTimes, un
                     )}
                   </td>
                   <td className="py-2 px-2 text-right">
-                    <WorkReportShiftSummary summary={otSummary} className="text-xs" />
+                    <WorkReportShiftSummary summary={getWorkReportRowShiftSummary(row)} className="text-xs" />
                   </td>
-                  {showOvertimeCol && (
-                    <td className="py-2 px-2 text-right">
-                      {needsOvertimeReport ? (
-                        <button
-                          type="button"
-                          onClick={() => onReportOvertime(row)}
-                          className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white font-medium whitespace-nowrap"
-                        >
-                          申報 {formatWorkReportHours(otSummary?.totalOvertimeHours ?? 0)}h
-                        </button>
-                      ) : (
-                        <span className="text-gray-600 text-xs">—</span>
-                      )}
-                    </td>
-                  )}
                   {isAdmin && (
                     <td className="py-2 px-2">
                       <div className="flex flex-col gap-1 items-end">
@@ -436,7 +418,7 @@ function WorkReport() {
     setParticipantNames(getParticipantNames(snap))
     const sites = getSiteNameOptions()
     setSiteOptions(sites)
-    setSiteSelect((prev) => (prev && sites.includes(prev) ? prev : sites[0] || ''))
+    setSiteSelect((prev) => (prev && sites.includes(prev) ? prev : ''))
     setLaborNames((prev) => {
       const valid = getParticipantNames(snap)
       return Array.isArray(prev) ? prev.filter((n) => valid.includes(n)) : []
@@ -514,6 +496,7 @@ function WorkReport() {
       setMessage({ type: 'error', text: result.message || '儲存失敗' })
       return
     }
+    if (result.record) ensureWorkReportOvertimeApplication(result.record, { replaceRejected: true })
     refreshMonthForDate(date)
     setMessage({ type: 'success', text: '已更新時間' })
   }
@@ -565,6 +548,13 @@ function WorkReport() {
       return
     }
     for (const name of names) {
+      const conflict = findWorkReportConflictSite(date, name, siteName)
+      if (conflict) {
+        setMessage({ type: 'error', text: `「${name}」當日已在「${conflict}」登記，不可再登記其他案場` })
+        return
+      }
+    }
+    for (const name of names) {
       const result = registerWorkReportTime('entry', {
         date,
         siteName,
@@ -576,6 +566,8 @@ function WorkReport() {
         setMessage({ type: 'error', text: result.message || `「${name}」進廠登記失敗` })
         return
       }
+      const rec = result.record || result.records?.[0]
+      if (rec) ensureWorkReportOvertimeApplication(rec, { replaceRejected: true })
     }
     setLaborArrival('')
     refreshMonthForDate(date)
@@ -599,6 +591,13 @@ function WorkReport() {
       return
     }
     for (const name of names) {
+      const conflict = findWorkReportConflictSite(date, name, siteName)
+      if (conflict) {
+        setMessage({ type: 'error', text: `「${name}」當日已在「${conflict}」登記，不可再登記其他案場` })
+        return
+      }
+    }
+    for (const name of names) {
       const result = registerWorkReportTime('exit', {
         date,
         siteName,
@@ -610,11 +609,32 @@ function WorkReport() {
         setMessage({ type: 'error', text: result.message || `「${name}」離廠登記失敗` })
         return
       }
+      const rec = result.record || result.records?.[0]
+      if (rec) ensureWorkReportOvertimeApplication(rec, { replaceRejected: true })
     }
     setLaborDeparture('')
     refreshMonthForDate(date)
     setMessage({ type: 'success', text: `已離廠登記：${names.join('、')}（${date}）` })
   }
+
+  const occupiedSiteByPerson = useMemo(
+    () => getPersonSiteMapForDate(date),
+    [date, monthRecords]
+  )
+
+  const selectableLaborNames = useMemo(
+    () =>
+      participantNames.filter((n) => {
+        const other = occupiedSiteByPerson.get(n)
+        if (!other) return true
+        return !!resolvedSite && other === resolvedSite
+      }),
+    [participantNames, occupiedSiteByPerson, resolvedSite]
+  )
+
+  useEffect(() => {
+    setLaborNames((prev) => prev.filter((n) => selectableLaborNames.includes(n)))
+  }, [selectableLaborNames])
 
   const laborCanEntry =
     !!resolvedSite &&
@@ -624,61 +644,6 @@ function WorkReport() {
     !!resolvedSite &&
     laborNames.length > 0 &&
     isWorkReportTimeFilled(laborDeparture)
-
-  const unreportedOvertimeItems = useMemo(() => {
-    if (!currentUser) return []
-    return getUnreportedOvertimeItems(currentUser)
-  }, [currentUser, monthRecords])
-
-  const unreportedRowIds = useMemo(
-    () => new Set(unreportedOvertimeItems.map((i) => i.rowId)),
-    [unreportedOvertimeItems]
-  )
-
-  const jumpToUnreportedItem = (item) => {
-    const dateStr = String(item?.date || '').slice(0, 10)
-    if (!dateStr) return
-    const d = new Date(`${dateStr}T12:00:00`)
-    if (!Number.isNaN(d.getTime())) {
-      setFilterYear(d.getFullYear())
-      setFilterMonth(d.getMonth() + 1)
-    }
-    setDate(dateStr)
-    const site = String(item?.siteName || '').trim()
-    if (site) {
-      setSiteSelect((prev) => (siteOptions.includes(site) ? site : prev || site))
-    }
-    pendingJumpRef.current = { date: dateStr, siteName: site, rowId: item?.rowId }
-    setFlashDateKey(dateStr)
-  }
-
-  const handleReportOvertime = (row) => {
-    const summary = getWorkReportRowShiftSummary(row)
-    const otHours = summary?.totalOvertimeHours ?? 0
-    if (otHours <= 0) {
-      setMessage({ type: 'error', text: '此筆無須申報緊急入場時數' })
-      return
-    }
-    const result = addOvertimeApplication({
-      workReportRowId: row?.id,
-      applicant: getDisplayNameForAccount(currentUser) || currentUser || '',
-      siteName: row?.siteName || '',
-      date: row?.date,
-      startTime: row?.arrivalTime,
-      endTime: row?.departureTime,
-      hours: otHours,
-      overtimePersonnel: [parseWorkReportBaseName(row?.personName) || row?.personName].filter(Boolean)
-    })
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.message || '申報失敗' })
-      return
-    }
-    refreshMonthForDate(row?.date || date)
-    setMessage({
-      type: 'success',
-      text: `已送出緊急入場申報（${formatWorkReportHours(otHours)} 小時），待管理員審核`
-    })
-  }
 
   const addSiteToList = () => {
     const v = newSiteName.trim()
@@ -833,36 +798,9 @@ function WorkReport() {
       <div className="mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-yellow-400">入廠申請</h1>
         <p className="text-gray-400 text-sm mt-1">
-          選日期與案場後，勞務承攬者填一筆按「登記」即寫入當日。承攬商出工請使用承攬商簽到頁。顯示出工人數與緊急入場時數（每人超過 8 小時）。非下午抵達扣 1 小時午休。
+          先選擇案場（預設空白），再勾選當日人員。同一人當天只能登記一個案場。超過 8 小時會自動送出緊急入場申請，由管理員審核。承攬商出工請使用承攬商簽到頁。非下午抵達扣 1 小時午休。
         </p>
       </div>
-
-      {unreportedOvertimeItems.length > 0 && (
-        <div className="mb-4 rounded-lg border border-amber-600/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-100">
-          <p className="font-medium text-amber-200">
-            您有 {unreportedOvertimeItems.length} 筆緊急入場待申報（近 14 日）
-          </p>
-          <p className="text-amber-200/70 text-xs mt-1">
-            點下方項目可跳到「當月明細」該日卡片；在當日登記表或明細中按「申報」送出。導覽「入廠申請」上的數字為同一批待辦。
-          </p>
-          <ul className="mt-2 space-y-1 text-xs list-disc list-inside text-amber-100/90">
-            {unreportedOvertimeItems.slice(0, 8).map((item) => (
-              <li key={item.rowId}>
-                <button
-                  type="button"
-                  onClick={() => jumpToUnreportedItem(item)}
-                  className="text-left hover:text-amber-50 underline-offset-2 hover:underline"
-                >
-                  {formatUnreportedOvertimeLabel(item)}
-                </button>
-              </li>
-            ))}
-            {unreportedOvertimeItems.length > 8 && (
-              <li className="list-none text-amber-200/60">…另有 {unreportedOvertimeItems.length - 8} 筆</li>
-            )}
-          </ul>
-        </div>
-      )}
 
       {message && (
         <div
@@ -982,8 +920,6 @@ function WorkReport() {
                     userRole={userRole}
                     onDelete={handleDelete}
                     onSaveTimes={handleSaveTimes}
-                    unreportedRowIds={unreportedRowIds}
-                    onReportOvertime={handleReportOvertime}
                   />
                 </div>
               )}
@@ -994,7 +930,7 @@ function WorkReport() {
                     <div className="flex gap-2 text-xs">
                       <button
                         type="button"
-                        onClick={() => setLaborNames(participantNames.slice())}
+                        onClick={() => setLaborNames(selectableLaborNames.slice())}
                         className="text-yellow-300/80 hover:text-yellow-200"
                       >
                         全選
@@ -1016,20 +952,27 @@ function WorkReport() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-gray-900/30 border border-gray-700 rounded p-2">
                     {participantNames.map((n) => {
                       const checked = laborNames.includes(n)
+                      const otherSite = occupiedSiteByPerson.get(n)
+                      const locked = !!otherSite && (!resolvedSite || otherSite !== resolvedSite)
                       return (
                         <label
                           key={n}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm select-none ${
-                            checked
-                              ? 'bg-yellow-600/20 border border-yellow-500/50 text-yellow-100'
-                              : 'border border-gray-700 text-gray-200 hover:bg-gray-800'
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm select-none ${
+                            locked
+                              ? 'opacity-50 cursor-not-allowed border border-gray-800 text-gray-500'
+                              : checked
+                                ? 'bg-yellow-600/20 border border-yellow-500/50 text-yellow-100 cursor-pointer'
+                                : 'border border-gray-700 text-gray-200 hover:bg-gray-800 cursor-pointer'
                           }`}
+                          title={locked ? `當日已在「${otherSite}」登記` : undefined}
                         >
                           <input
                             type="checkbox"
                             className="accent-yellow-500"
                             checked={checked}
+                            disabled={locked}
                             onChange={(e) => {
+                              if (locked) return
                               setLaborNames((prev) =>
                                 e.target.checked
                                   ? [...prev, n]
@@ -1038,6 +981,9 @@ function WorkReport() {
                             }}
                           />
                           <span>{m(n)}</span>
+                          {locked ? (
+                            <span className="text-[10px] text-gray-500 truncate">已在{m(otherSite)}</span>
+                          ) : null}
                         </label>
                       )
                     })}
@@ -1194,15 +1140,12 @@ function WorkReport() {
                           {dayGroups.map((group) => {
                             const isContractor = group.kind === 'contractor'
                             const primaryRowId = group.rows[0]?.id
-                            const needsOvertimeReport = group.rows.some((r) => unreportedRowIds.has(r.id))
                             return (
                               <tr
                                 key={group.id}
                                 data-site-key={group.siteName}
                                 data-row-id={primaryRowId || undefined}
-                                className={`border-b border-gray-700/60 ${
-                                  needsOvertimeReport ? 'bg-amber-950/20' : ''
-                                }`}
+                                className="border-b border-gray-700/60"
                               >
                                 <td className="py-2.5 pr-3 text-gray-200">{m(group.siteName)}</td>
                                 <td className="py-2.5 pr-3 text-white">
@@ -1226,18 +1169,22 @@ function WorkReport() {
                                   <div className="flex flex-col gap-1 items-end">
                                     {group.rows.map((row) => {
                                       const ot = getWorkReportRowShiftSummary(row)?.totalOvertimeHours ?? 0
-                                      const showReport = unreportedRowIds.has(row.id)
+                                      const otApp = ot > 0 ? getOvertimeApplicationsByWorkReportRowId(row.id)[0] : null
                                       return (
-                                        <div key={row.id} className="flex flex-wrap gap-2 justify-end">
-                                          {showReport && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleReportOvertime(row)}
-                                              className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white font-medium whitespace-nowrap"
+                                        <div key={row.id} className="flex flex-wrap gap-2 justify-end items-center">
+                                          {otApp ? (
+                                            <span
+                                              className={`text-xs px-1.5 py-0.5 rounded border ${
+                                                otApp.status === 'approved'
+                                                  ? 'border-emerald-600/50 bg-emerald-950/40 text-emerald-300'
+                                                  : otApp.status === 'rejected'
+                                                    ? 'border-red-600/50 bg-red-950/40 text-red-300'
+                                                    : 'border-amber-600/50 bg-amber-950/40 text-amber-300'
+                                              }`}
                                             >
-                                              申報 {formatWorkReportHours(ot)}h
-                                            </button>
-                                          )}
+                                              {otApp.status === 'approved' ? '已核准' : otApp.status === 'rejected' ? '已駁回' : '待審核'}
+                                            </span>
+                                          ) : null}
                                           {userRole === 'admin' && (
                                             <>
                                               <button

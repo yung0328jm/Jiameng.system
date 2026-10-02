@@ -1,6 +1,7 @@
 // 加班申請儲存：與排程綁定，記錄申請人、日期、開始/結束時間、時數、加班人員
 import { syncKeyToSupabase } from './supabaseSync'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
+import { getWorkReports, getWorkReportRowShiftSummary, parseWorkReportBaseName } from './workReportStorage'
 
 const OVERTIME_APPLICATION_KEY = 'jiameng_overtime_applications'
 
@@ -43,7 +44,7 @@ export const getOvertimeApplicationsByWorkReportRowId = (rowId) => {
 export const addOvertimeApplication = ({ scheduleId, workReportRowId, applicant, date, startTime, endTime, hours, overtimePersonnel, siteName }) => {
   try {
     const list = getOvertimeApplications()
-    const id = `overtime-${Date.now()}`
+    const id = `overtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const rec = {
       id,
       scheduleId: String(scheduleId || '').trim(),
@@ -98,7 +99,82 @@ export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '', rej
   }
 }
 
-/** 待審核的加班申請（管理員用） */export const getPendingOvertimeApplications = () => getOvertimeApplications().filter((r) => (r.status || '') === 'pending')
+/** 待審核的加班申請（管理員用） */
+export const getPendingOvertimeApplications = () => getOvertimeApplications().filter((r) => (r.status || '') === 'pending')
+
+function persistOvertimeList(list) {
+  localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(list))
+  syncKeyToSupabase(OVERTIME_APPLICATION_KEY, list).catch(() => {})
+  notifyOvertimeKeyChanged()
+}
+
+/**
+ * 出工超過 8 小時時自動送出緊急入場申請（待管理員審核）。
+ * 已有待審／已核准則不重複；若僅更新待審單的時數。
+ */
+export function ensureWorkReportOvertimeApplication(row, { replaceRejected = false } = {}) {
+  try {
+    if (!row?.id) return { success: true, skipped: true }
+    const summary = getWorkReportRowShiftSummary(row)
+    const otHours = Number(summary?.totalOvertimeHours ?? 0)
+    if (!summary?.hasOvertime || otHours <= 0) return { success: true, skipped: true }
+
+    const apps = getOvertimeApplicationsByWorkReportRowId(row.id)
+    const pending = apps.find((a) => String(a?.status || 'pending') === 'pending')
+    const approved = apps.find((a) => String(a?.status || '') === 'approved')
+    if (approved) return { success: true, skipped: true }
+
+    const personnel = [parseWorkReportBaseName(row?.personName) || row?.personName].filter(Boolean)
+    const patch = {
+      siteName: String(row?.siteName || '').trim(),
+      date: String(row?.date || '').trim(),
+      startTime: String(row?.arrivalTime || '').trim(),
+      endTime: String(row?.departureTime || '').trim(),
+      hours: otHours,
+      overtimePersonnel: personnel,
+      applicant: String(row?.submittedByName || row?.submittedBy || '').trim()
+    }
+
+    if (pending) {
+      const same =
+        Number(pending.hours) === otHours &&
+        String(pending.startTime || '') === patch.startTime &&
+        String(pending.endTime || '') === patch.endTime &&
+        String(pending.siteName || '') === patch.siteName
+      if (same) return { success: true, skipped: true }
+      const list = getOvertimeApplications()
+      const idx = list.findIndex((r) => String(r?.id || '') === String(pending.id || ''))
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...patch }
+        persistOvertimeList(list)
+      }
+      return { success: true, updated: true }
+    }
+
+    const onlyRejected = apps.length > 0 && apps.every((a) => String(a?.status || '') === 'rejected')
+    if (onlyRejected && !replaceRejected) return { success: true, skipped: true }
+
+    return addOvertimeApplication({
+      workReportRowId: row.id,
+      ...patch
+    })
+  } catch (e) {
+    console.error('ensureWorkReportOvertimeApplication:', e)
+    return { success: false, message: '自動申報失敗' }
+  }
+}
+
+/** 近 N 日有加班時數但尚未送出的出工，補送待審申請 */
+export function backfillWorkReportOvertimeApplications({ days = 14 } = {}) {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  const cutoffStr = cutoff.toISOString().slice(0, 10)
+  ;(getWorkReports() || []).forEach((row) => {
+    const date = String(row?.date || '').slice(0, 10)
+    if (!date || date < cutoffStr) return
+    ensureWorkReportOvertimeApplication(row, { replaceRejected: false })
+  })
+}
 
 /** 刪除一筆加班申請 */
 export const deleteOvertimeApplication = (id) => {

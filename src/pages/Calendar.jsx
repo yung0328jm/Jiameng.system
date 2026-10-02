@@ -25,7 +25,7 @@ import {
   getLeaveApplications,
   syncLeaveApplicationAfterCalendarDelete
 } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
+import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication, ensureWorkReportOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   getNoLeaveDates,
@@ -322,6 +322,20 @@ function Calendar() {
       siteName: workReportDetail.siteName
     })
   }, [workReportDetail, workReportsRevision])
+
+  useEffect(() => {
+    if (!workReportDetail) return
+    const rows = getWorkReports({
+      date: workReportDetail.dateStr,
+      siteName: workReportDetail.siteName
+    })
+    let changed = false
+    rows.forEach((row) => {
+      const r = ensureWorkReportOvertimeApplication(row)
+      if (r?.id || r?.updated) changed = true
+    })
+    if (changed) setWorkReportsRevision((v) => v + 1)
+  }, [workReportDetail?.dateStr, workReportDetail?.siteName])
 
   const workReportDetailGroups = useMemo(
     () => groupWorkReportRowsForDisplay(workReportDetailRows),
@@ -5281,26 +5295,7 @@ function Calendar() {
                                   )}
                                 </div>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const row = group.rows[0]
-                                    const r = addOvertimeApplication({
-                                      workReportRowId: row?.id,
-                                      applicant: getDisplayNameForAccount(currentUser) || currentUser || '',
-                                      siteName: row?.siteName || group.siteName,
-                                      date: row?.date,
-                                      startTime: row?.arrivalTime,
-                                      endTime: row?.departureTime,
-                                      hours: otHours,
-                                      overtimePersonnel: [group.personName]
-                                    })
-                                    if (r?.success) setWorkReportsRevision((v) => v + 1)
-                                  }}
-                                  className="text-xs px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white"
-                                >
-                                  申報 {formatWorkReportHours(otHours)} 小時
-                                </button>
+                                <span className="text-amber-300/80 text-xs">待審核</span>
                               )}
                             </td>
                           </tr>
