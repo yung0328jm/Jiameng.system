@@ -259,6 +259,14 @@ function formatUnderHoursText(h) {
   return `${str} 小時`
 }
 
+/** 未滿時數加總後每滿 8 小時進 1 工，餘數仍計時數 */
+function splitUnderHoursToWorkDays(hours) {
+  const h = Math.max(0, Number(hours) || 0)
+  const days = Math.floor((h + 1e-9) / 8)
+  const remain = Math.round((h - days * 8) * 10) / 10
+  return { days, remain: remain < 1e-6 ? 0 : remain }
+}
+
 /** 與 buildScheduleMap 同規則：該 segment 內參與者＋工項人員 */
 function namesForScheduleSegment(schedule, seg) {
   const namesForSeg = new Set()
@@ -1033,39 +1041,28 @@ export default function MonthlyLocationReport() {
     return s
   }, [overtimeHoursMap])
 
-  /** 各人累積未滿時數（每滿 8 小時自動進 1 工，餘數仍計為未滿時數） */
-  const underHoursCarryByPerson = useMemo(() => {
-    const totalByPerson = new Map()
-    workReportUnderHoursMap?.forEach((h, k) => {
-      const parts = String(k).split('\0')
-      if (parts.length === 3) {
-        const person = parts[0]
-        totalByPerson.set(person, (totalByPerson.get(person) || 0) + (Number(h) || 0))
-      }
+  /** 全部未滿時數加總後每滿 8 小時進 1 工（不限同一人），餘數才計調度時數 */
+  const underHoursCarry = useMemo(() => {
+    let totalHours = 0
+    workReportUnderHoursMap?.forEach((h) => {
+      totalHours += Number(h) || 0
     })
-    let carryDays = 0
-    let remainingHours = 0
-    totalByPerson.forEach((h) => {
-      const days = Math.floor(h / 8)
-      carryDays += days
-      remainingHours += h - days * 8
-    })
-    return { carryDays, remainingHours }
+    return splitUnderHoursToWorkDays(totalHours)
   }, [workReportUnderHoursMap])
 
   /** 全部未滿時數（橘色，已扣除每滿 8 小時進 1 工的部分；只剩餘數） */
   const grandTotalUnderHours = useMemo(
-    () => underHoursCarryByPerson.remainingHours,
-    [underHoursCarryByPerson]
+    () => underHoursCarry.remain,
+    [underHoursCarry]
   )
 
-  /** 全表總工 = 案場權重總和 + 各人未滿時數每 8 小時自動進 1 工 */
+  /** 全表總工 = 案場權重總和 + 未滿時數每 8 小時自動進 1 工 */
   const grandTotalWeightedDays = useMemo(
-    () => (Number(siteWeightedDaysBase) || 0) + (Number(underHoursCarryByPerson.carryDays) || 0),
-    [siteWeightedDaysBase, underHoursCarryByPerson]
+    () => (Number(siteWeightedDaysBase) || 0) + (Number(underHoursCarry.days) || 0),
+    [siteWeightedDaysBase, underHoursCarry]
   )
 
-  /** 各案場未滿時數彙總 */
+  /** 各案場未滿時數彙總（原始時數；顯示時再每滿 8 小時進 1 工） */
   const siteUnderHoursTotals = useMemo(() => {
     const m = new Map()
     workReportUnderHoursMap?.forEach((hrs, key) => {
@@ -1241,7 +1238,9 @@ export default function MonthlyLocationReport() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm">
               {siteStatsSorted.map(([site, count]) => {
                 const otH = siteOvertimeTotals.get(site) || 0
-                const uH = siteUnderHoursTotals.get(site) || 0
+                const underSplit = splitUnderHoursToWorkDays(siteUnderHoursTotals.get(site) || 0)
+                const uH = underSplit.remain
+                const siteDays = (Number(count) || 0) + underSplit.days
                 return (
                   <button
                     key={site}
@@ -1252,8 +1251,8 @@ export default function MonthlyLocationReport() {
                   >
                     <span className="text-gray-200 truncate min-w-0">{m(site)}</span>
                     <span className="shrink-0 flex flex-col items-end font-mono tabular-nums leading-tight">
-                      {Number(count) > 0 && (
-                        <span className="text-yellow-400">{formatSiteStatNumber(count)} 工</span>
+                      {siteDays > 0 && (
+                        <span className="text-yellow-400">{formatSiteStatNumber(siteDays)} 工</span>
                       )}
                       {uH > 0 && (
                         <span className="text-orange-400 text-[10px] font-medium">
