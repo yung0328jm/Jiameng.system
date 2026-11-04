@@ -3,6 +3,7 @@ import { syncKeyToSupabase } from './supabaseSync'
 
 const PAY_RATES_STORAGE_KEY = 'jiameng_pay_rates'
 const PAY_BONUS_STORAGE_KEY = 'jiameng_pay_bonuses'
+const EARLY_SALARY_STORAGE_KEY = 'jiameng_early_salary'
 
 /** 當日已核准緊急入場時數達此門檻（含）才計夜間誤餐雜支費 */
 export const NIGHT_MEAL_OT_THRESHOLD_HOURS = 3
@@ -216,6 +217,81 @@ export function getManualBonus(personName, yearMonth) {
 
 export function setManualBonus(personName, yearMonth, amount) {
   return setBonus(personName, yearMonth, amount)
+}
+
+/* ===== 提前領薪（本月已先發放，勞務單從實際扣除） ===== */
+
+function getAllEarlySalary() {
+  try {
+    const raw = localStorage.getItem(EARLY_SALARY_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch (e) {
+    return []
+  }
+}
+
+function saveEarlySalaryList(list) {
+  const data = Array.isArray(list) ? list : []
+  const val = JSON.stringify(data)
+  localStorage.setItem(EARLY_SALARY_STORAGE_KEY, val)
+  syncKeyToSupabase(EARLY_SALARY_STORAGE_KEY, val)
+}
+
+export function getEarlySalaryRecords(personName, yearMonth) {
+  const name = String(personName || '').trim()
+  const ym = String(yearMonth || '').trim()
+  if (!name || !ym) return []
+  return getAllEarlySalary()
+    .filter((r) => String(r?.personName || '').trim() === name && String(r?.yearMonth || '').trim() === ym)
+    .sort((a, b) => String(b.paidAt || b.createdAt || '').localeCompare(String(a.paidAt || a.createdAt || '')))
+}
+
+export function getEarlySalaryTotal(personName, yearMonth) {
+  return getEarlySalaryRecords(personName, yearMonth).reduce(
+    (s, r) => s + Math.max(0, roundMoney(r?.amount)),
+    0
+  )
+}
+
+export function addEarlySalary({ personName, yearMonth, amount, paidAt, note, createdBy }) {
+  const name = String(personName || '').trim()
+  const ym = String(yearMonth || '').trim()
+  const amt = roundMoney(amount)
+  if (!name || !ym) return { success: false, message: '參數不正確' }
+  if (!(amt > 0)) return { success: false, message: '請輸入有效金額' }
+  const rec = {
+    id: `es-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    personName: name,
+    yearMonth: ym,
+    amount: amt,
+    paidAt: String(paidAt || '').trim().slice(0, 10),
+    note: String(note || '').trim(),
+    createdAt: new Date().toISOString(),
+    createdBy: String(createdBy || '').trim()
+  }
+  try {
+    const list = getAllEarlySalary()
+    list.push(rec)
+    saveEarlySalaryList(list)
+    return { success: true, record: rec }
+  } catch (e) {
+    console.error('Error saving early salary:', e)
+    return { success: false, message: '儲存失敗' }
+  }
+}
+
+export function deleteEarlySalary(id) {
+  const rid = String(id || '').trim()
+  if (!rid) return { success: false, message: '紀錄無效' }
+  try {
+    const next = getAllEarlySalary().filter((r) => String(r?.id || '') !== rid)
+    saveEarlySalaryList(next)
+    return { success: true }
+  } catch (e) {
+    console.error('Error deleting early salary:', e)
+    return { success: false, message: '刪除失敗' }
+  }
 }
 
 export function calcTotalPayBonus(autoBonus, manualBonus) {

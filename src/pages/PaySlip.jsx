@@ -16,7 +16,11 @@ import {
   getPayRateSource,
   getAllBonuses,
   DEFAULT_PAY_RATE,
-  NIGHT_MEAL_OT_THRESHOLD_HOURS
+  NIGHT_MEAL_OT_THRESHOLD_HOURS,
+  getEarlySalaryRecords,
+  getEarlySalaryTotal,
+  addEarlySalary,
+  deleteEarlySalary
 } from '../utils/paySlipStorage'
 import { calcPersonTotalBonus, getWorkBonusRules } from '../utils/workBonusStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
@@ -35,6 +39,11 @@ function formatMoney(n) {
 }
 
 /** 勞務單年月 YYYY-MM → 下一曆月（隔月5號發薪時登記還款） */
+function todayDateStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function nextYearMonth(ymKey) {
   if (!ymKey || ymKey.length < 7) return ''
   const y = Number(ymKey.slice(0, 4))
@@ -135,6 +144,7 @@ function PaySlip() {
   const [openIds, setOpenIds] = useState({})
   const [editingRate, setEditingRate] = useState({})
   const [editingBonus, setEditingBonus] = useState({})
+  const [earlyDraft, setEarlyDraft] = useState({})
   const [revision, setRevision] = useState(0)
   const [message, setMessage] = useState(null)
   const [showZero, setShowZero] = useState(true)
@@ -158,7 +168,8 @@ function PaySlip() {
       'jiameng_dropdown_options',
       'jiameng_users',
       'jiameng_advance_repayments',
-      'jiameng_advances'
+      'jiameng_advances',
+      'jiameng_early_salary'
     ],
     refetch
   )
@@ -237,7 +248,12 @@ function PaySlip() {
         const totalBonus = calcTotalPayBonus(autoBonus, manualBonus)
         const amounts = calcPayAmount(stats, rate, totalBonus)
         const advanceDeduction = getAdvanceDeductionForPerson(name, yearMonth)
-        const netPay = Math.max(0, Math.round(Number(amounts.total) || 0) - advanceDeduction)
+        const earlySalaryRecords = getEarlySalaryRecords(name, yearMonth)
+        const earlySalary = getEarlySalaryTotal(name, yearMonth)
+        const netPay = Math.max(
+          0,
+          Math.round(Number(amounts.total) || 0) - advanceDeduction - earlySalary
+        )
         return {
           personName: name,
           stats,
@@ -247,12 +263,14 @@ function PaySlip() {
           totalBonus,
           amounts,
           advanceDeduction,
+          earlySalary,
+          earlySalaryRecords,
           netPay,
           rateLockedForMonth: hasPayRateForMonth(name, yearMonth),
           rateSource: getPayRateSource(name, yearMonth)
         }
       })
-      .filter((p) => showZero || p.stats.fullDays || p.stats.overtimeHours || p.stats.underHours || p.amounts.total || p.advanceDeduction)
+      .filter((p) => showZero || p.stats.fullDays || p.stats.overtimeHours || p.stats.underHours || p.amounts.total || p.advanceDeduction || p.earlySalary)
       .sort((a, b) => {
         const bd = (b.stats.fullDays || 0) - (a.stats.fullDays || 0)
         if (bd !== 0) return bd
@@ -269,6 +287,7 @@ function PaySlip() {
     let insur = 0
     let bonus = 0
     let advance = 0
+    let early = 0
     let net = 0
     personRows.forEach((p) => {
       day += p.amounts.dayAmount
@@ -279,10 +298,11 @@ function PaySlip() {
       insur += p.amounts.insuranceAmount
       bonus += p.amounts.bonusAmount
       advance += p.advanceDeduction || 0
+      early += p.earlySalary || 0
       net += p.netPay || 0
     })
     const total = day + under + ot + meal + nightMeal + insur + bonus
-    return { day, under, ot, meal, nightMeal, insur, bonus, total, advance, net }
+    return { day, under, ot, meal, nightMeal, insur, bonus, total, advance, early, net }
   }, [personRows])
 
   const startEditRate = (name) => {
@@ -351,6 +371,40 @@ function PaySlip() {
   }
 
   const toggleOpen = (name) => setOpenIds((prev) => ({ ...prev, [name]: !prev[name] }))
+
+  const saveEarlySalaryRecord = (name) => {
+    const d = earlyDraft[name] || {}
+    const result = addEarlySalary({
+      personName: name,
+      yearMonth,
+      amount: d.amount,
+      paidAt: d.paidAt || todayDateStr(),
+      note: d.note,
+      createdBy: currentUser
+    })
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '登記失敗' })
+      return
+    }
+    setEarlyDraft((prev) => {
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
+    setRevision((v) => v + 1)
+    setMessage({ type: 'success', text: `已登記 ${name} 提前領薪 $${Math.round(Number(d.amount) || 0).toLocaleString()}` })
+  }
+
+  const removeEarlySalaryRecord = (name, id) => {
+    if (!window.confirm(`確定刪除 ${name} 這筆提前領薪紀錄？`)) return
+    const result = deleteEarlySalary(id)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '刪除失敗' })
+      return
+    }
+    setRevision((v) => v + 1)
+    setMessage({ type: 'success', text: `已刪除 ${name} 的提前領薪紀錄` })
+  }
 
   return (
     <div className="max-w-6xl mx-auto text-white">
@@ -439,7 +493,7 @@ function PaySlip() {
         {canViewAllPaySlips && personRows.length > 0 && (
           <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 px-3 py-3">
             <h3 className="text-sm font-medium text-cyan-300 mb-2">{yearMonth} 全部人員合計</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 tabular-nums">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-11 gap-3 tabular-nums">
               <div>
                 <div className="text-gray-400 text-xs">出勤基本工程款</div>
                 <div className="text-amber-200 font-semibold">${formatMoney(grandTotal.day)}</div>
@@ -477,6 +531,10 @@ function PaySlip() {
                 <div className="text-rose-300 font-semibold">${formatMoney(grandTotal.advance)}</div>
               </div>
               <div>
+                <div className="text-gray-400 text-xs">提前領薪</div>
+                <div className="text-orange-300 font-semibold">${formatMoney(grandTotal.early)}</div>
+              </div>
+              <div>
                 <div className="text-gray-400 text-xs">實際發放</div>
                 <div className="text-emerald-200 text-lg font-bold">${formatMoney(grandTotal.net)}</div>
               </div>
@@ -501,6 +559,8 @@ function PaySlip() {
               totalBonus,
               amounts,
               advanceDeduction,
+              earlySalary,
+              earlySalaryRecords,
               netPay,
               rateLockedForMonth,
               rateSource
@@ -533,14 +593,21 @@ function PaySlip() {
                         本月無出工
                       </span>
                     )}
+                    {earlySalary > 0 && (
+                      <span className="text-orange-300 text-xs bg-orange-900/30 border border-orange-700/50 px-1.5 py-0.5 rounded">
+                        已提前領薪
+                      </span>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="text-emerald-300 text-xl font-bold tabular-nums">
                       ${formatMoney(netPay)}
                     </div>
-                    {advanceDeduction > 0 && (
+                    {(advanceDeduction > 0 || earlySalary > 0) && (
                       <div className="text-gray-400 text-xs tabular-nums">
-                        合計 ${formatMoney(amounts.total)} − 借支 ${formatMoney(advanceDeduction)}
+                        合計 ${formatMoney(amounts.total)}
+                        {advanceDeduction > 0 ? ` − 借支 ${formatMoney(advanceDeduction)}` : ''}
+                        {earlySalary > 0 ? ` − 提前領 ${formatMoney(earlySalary)}` : ''}
                       </div>
                     )}
                   </div>
@@ -658,11 +725,15 @@ function PaySlip() {
                           <span className="text-rose-300 font-semibold">− ${formatMoney(advanceDeduction)}</span>
                         </div>
                         <div className="flex justify-between">
+                          <span className="text-gray-300">提前領薪</span>
+                          <span className="text-orange-300 font-semibold">− ${formatMoney(earlySalary)}</span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-gray-100 font-medium">實際</span>
                           <span className="text-emerald-200 font-bold">${formatMoney(netPay)}</span>
                         </div>
                         <p className="text-[10px] text-gray-500 pt-0.5">
-                          借支扣款＝隔月（發薪月）在工程款借貸手填的「實際還款」；實際＝合計 − 借支扣款
+                          借支扣款＝隔月在工程款借貸手填的「實際還款」。提前領薪＝本月已先發放、發薪時不再付的金額。實際＝合計 − 借支 − 提前領薪
                         </p>
                       </div>
                     </div>
@@ -851,6 +922,109 @@ function PaySlip() {
                           </button>
                         </div>
                       ) : null}
+                    </div>
+
+                    <div className="rounded-lg border border-orange-800/40 bg-orange-950/15 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-gray-400">提前領薪（{yearMonth}）</div>
+                        <div className="text-orange-300 text-sm font-semibold tabular-nums">
+                          ${formatMoney(earlySalary)}
+                        </div>
+                      </div>
+                      {earlySalaryRecords.length === 0 ? (
+                        <p className="text-[11px] text-gray-500">本月尚未登記先領金額</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {earlySalaryRecords.map((rec) => (
+                            <li
+                              key={rec.id}
+                              className="flex items-start justify-between gap-2 text-xs border-b border-orange-900/30 last:border-0 pb-1 last:pb-0"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-orange-200 tabular-nums">
+                                  ${formatMoney(rec.amount)}
+                                  {rec.paidAt ? (
+                                    <span className="text-gray-500 ml-1">{rec.paidAt}</span>
+                                  ) : null}
+                                </div>
+                                {rec.note ? (
+                                  <div className="text-gray-400 truncate">{rec.note}</div>
+                                ) : null}
+                              </div>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeEarlySalaryRecord(personName, rec.id)}
+                                  className="shrink-0 text-rose-300/80 hover:text-rose-200"
+                                >
+                                  刪除
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {isAdmin && (
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-orange-900/30">
+                          <NumberField
+                            label="金額"
+                            suffix="元"
+                            value={earlyDraft[personName]?.amount ?? ''}
+                            onChange={(v) =>
+                              setEarlyDraft((prev) => ({
+                                ...prev,
+                                [personName]: { paidAt: todayDateStr(), note: '', ...(prev[personName] || {}), amount: v }
+                              }))
+                            }
+                          />
+                          <label className="block">
+                            <span className="text-gray-400 text-xs">領取日期</span>
+                            <input
+                              type="date"
+                              value={earlyDraft[personName]?.paidAt || todayDateStr()}
+                              onChange={(e) =>
+                                setEarlyDraft((prev) => ({
+                                  ...prev,
+                                  [personName]: {
+                                    amount: '',
+                                    note: '',
+                                    ...(prev[personName] || {}),
+                                    paidAt: e.target.value
+                                  }
+                                }))
+                              }
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-sm"
+                            />
+                          </label>
+                          <label className="col-span-2 block">
+                            <span className="text-gray-400 text-xs">備註（可空）</span>
+                            <input
+                              type="text"
+                              value={earlyDraft[personName]?.note || ''}
+                              onChange={(e) =>
+                                setEarlyDraft((prev) => ({
+                                  ...prev,
+                                  [personName]: {
+                                    amount: '',
+                                    paidAt: todayDateStr(),
+                                    ...(prev[personName] || {}),
+                                    note: e.target.value
+                                  }
+                                }))
+                              }
+                              placeholder="例如：11/3 先領一半"
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-sm"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => saveEarlySalaryRecord(personName)}
+                            className="col-span-2 text-xs px-3 py-1.5 rounded bg-orange-800 hover:bg-orange-700 text-white"
+                          >
+                            登記提前領薪
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
