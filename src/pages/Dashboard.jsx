@@ -25,6 +25,7 @@ import PaySlip from './PaySlip'
 import WorkBonus from './WorkBonus'
 import ContractorRegistration from './ContractorRegistration'
 import FoodOrderAdmin from './FoodOrderAdmin'
+import SpotWorkLog from './SpotWorkLog'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { isNavHidden } from '../config/hiddenNavTabs'
 import {
@@ -129,6 +130,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const [availableItems, setAvailableItems] = useState([])
   const [showTopMenu, setShowTopMenu] = useState(false) // 手機版「更多」選單
   const topMenuButtonRef = useRef(null)
+  const latticeClicksRef = useRef({ n: 0, t: 0 })
   const [topMenuPosition, setTopMenuPosition] = useState({ top: 0, right: 0 })
   const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
   const personalServiceButtonRef = useRef(null)
@@ -676,6 +678,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('pay-slip')) return 'pay-slip'
     if (path.includes('work-bonus')) return 'work-bonus'
     if (path.includes('work-report')) return 'work-report'
+    if (path.includes('spot-work')) return 'spot-work'
     if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
   }
@@ -704,6 +707,16 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     }
   }
 
+  const onLatticeSecretClick = () => {
+    const now = Date.now()
+    if (now - latticeClicksRef.current.t > 2000) latticeClicksRef.current.n = 0
+    latticeClicksRef.current.t = now
+    latticeClicksRef.current.n += 1
+    if (latticeClicksRef.current.n < 6) return
+    latticeClicksRef.current.n = 0
+    handleTabClick('spot-work', '/spot-work')
+  }
+
   // 依目前分頁回傳標題（上方導覽列中央顯示用）
   const getTabTitle = (tab) => {
     const titles = {
@@ -730,6 +743,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'work-report': '入廠申請',
       'pay-slip': '勞務報酬單',
       'work-bonus': '獎金制度',
+      'spot-work': '點工紀錄',
       'change-password': '修改密碼'
     }
     return titles[tab] || '毓承事業群'
@@ -806,6 +820,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <PaySlip />
       case 'work-bonus':
         return <WorkBonus />
+      case 'spot-work':
+        return <SpotWorkLog />
       default:
         return <Home />
     }
@@ -816,12 +832,17 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       {/* 上方導覽列：手機版精簡；選單開啟時 overflow-visible + z-[100] 讓「更多」選單不被裁切且浮在主題／內容之上可點 */}
       <div className={`bg-gradient-to-b from-[#2e241c] to-cn-lacquer border-b border-cn-gold/35 px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 min-h-[48px] sm:min-h-[44px] relative shadow-[inset_0_1px_0_rgba(255,230,200,0.05)] ${showTopMenu ? 'z-[100] overflow-visible' : 'overflow-hidden'}`}>
         {/* 左：僅圖示（手機隱藏「主題篩選」文字以留空間） */}
-        <div className="flex items-center shrink-0 min-w-0 w-8 sm:w-auto sm:max-w-none">
+        <button
+          type="button"
+          onClick={onLatticeSecretClick}
+          className="flex items-center shrink-0 min-w-0 w-8 sm:w-auto sm:max-w-none bg-transparent border-0 p-0 cursor-default touch-manipulation"
+          aria-label="窗花"
+        >
           <svg className="w-5 h-5 sm:w-5 sm:h-5 text-cn-gold/70 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 5h6v6H4V5zm10 0h6v6h-6V5zM4 15h6v6H4v-6zm10 0h6v6h-6v-6z" />
           </svg>
           <span className="text-cn-mist text-xs whitespace-nowrap truncate hidden sm:inline ml-1 font-serif">窗花</span>
-        </div>
+        </button>
         {/* 中：目前分頁標題＋日期時間 */}
         <div className="flex flex-col items-center justify-center min-w-0 flex-1 px-1 sm:px-2 overflow-hidden">
           <h1 className="text-sm sm:text-lg font-bold text-cn-gold truncate w-full text-center font-serif tracking-wide drop-shadow-sm">
