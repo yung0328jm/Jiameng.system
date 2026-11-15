@@ -136,6 +136,7 @@ export const APP_DATA_KEYS = [
     'jiameng_projects', 'jiameng_calendar_events', 'jiameng_engineering_records', 'jiameng_pay_rates', 'jiameng_pay_bonuses', 'jiameng_early_salary',
   'jiameng_spot_work_logs',
   'jiameng_spot_work_people',
+  'jiameng_spot_work_groups',
   'jiameng_work_bonus_config', 'jiameng_work_bonus_rules',
   'jiameng_registration_password',
   // 排行榜：刪除黑名單 + 獎勵去重記錄（避免多裝置同步造成復活/重複發放）
