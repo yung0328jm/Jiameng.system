@@ -1,35 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getCurrentUser } from '../utils/authStorage'
-import { getDropdownOptionsByCategory } from '../utils/dropdownStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
 import {
   SPOT_WORK_STORAGE_KEY,
+  SPOT_WORK_PEOPLE_KEY,
   getSpotWorkLogs,
   getSpotWorkLogByDate,
   upsertSpotWorkLog,
-  deleteSpotWorkLog
+  deleteSpotWorkLog,
+  getSpotWorkPeople,
+  addSpotWorkPerson,
+  deleteSpotWorkPerson
 } from '../utils/spotWorkStorage'
 
 function todayDateStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function rosterNames() {
-  const seen = new Set()
-  const out = []
-  const add = (n) => {
-    const t = String(n || '').trim()
-    if (!t || seen.has(t)) return
-    seen.add(t)
-    out.push(t)
-  }
-  ;(getDropdownOptionsByCategory('participants') || []).forEach((o) => add(o?.value))
-  ;(getDropdownOptionsByCategory('responsible_persons') || []).forEach((o) => add(o?.value))
-  out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
-  return out
 }
 
 export default function SpotWorkLog() {
@@ -41,7 +29,7 @@ export default function SpotWorkLog() {
   const [customName, setCustomName] = useState('')
   const [logs, setLogs] = useState(() => getSpotWorkLogs())
   const [message, setMessage] = useState(null)
-  const [roster, setRoster] = useState(() => rosterNames())
+  const [roster, setRoster] = useState(() => getSpotWorkPeople())
 
   const loadDate = useCallback((d) => {
     const rec = getSpotWorkLogByDate(d)
@@ -53,20 +41,15 @@ export default function SpotWorkLog() {
 
   const refetch = useCallback(() => {
     setLogs(getSpotWorkLogs())
-    setRoster(rosterNames())
+    setRoster(getSpotWorkPeople())
     loadDate(date)
   }, [date, loadDate])
 
-  useRealtimeKeys([SPOT_WORK_STORAGE_KEY, 'jiameng_dropdown_options'], refetch)
+  useRealtimeKeys([SPOT_WORK_STORAGE_KEY, SPOT_WORK_PEOPLE_KEY], refetch)
 
   useEffect(() => {
     loadDate(date)
   }, [date, loadDate])
-
-  const extraNames = useMemo(
-    () => names.filter((n) => !roster.includes(n)),
-    [names, roster]
-  )
 
   const toggleName = (name) => {
     const t = String(name || '').trim()
@@ -83,11 +66,29 @@ export default function SpotWorkLog() {
     })
   }
 
-  const addCustom = () => {
+  const addPerson = () => {
     const t = customName.trim()
-    if (!t) return
+    const result = addSpotWorkPerson(t)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '新增失敗' })
+      return
+    }
+    setRoster(result.names)
     toggleName(t)
     setCustomName('')
+    setMessage({ type: 'success', text: `已新增 ${t}` })
+  }
+
+  const removePerson = (name) => {
+    if (!window.confirm(`從點工名單刪除「${name}」？當天若已勾選也會取消。`)) return
+    const result = deleteSpotWorkPerson(name)
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.message || '刪除失敗' })
+      return
+    }
+    setRoster(result.names)
+    setNames((prev) => prev.filter((n) => n !== name))
+    setMessage({ type: 'success', text: `已刪除 ${name}` })
   }
 
   const save = () => {
@@ -171,62 +172,52 @@ export default function SpotWorkLog() {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-cn-mist text-xs">出工有誰（可勾選）</span>
+            <span className="text-cn-mist text-xs">出工有誰（本系統獨立名單）</span>
             <span className="text-amber-200 text-xs tabular-nums">已選 {names.length} 人</span>
           </div>
-          {names.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {names.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => toggleName(n)}
-                  className="text-xs px-2 py-1 rounded-full bg-amber-900/40 border border-amber-600/50 text-amber-100"
-                >
-                  {recording ? m(n) : n} ×
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/40 p-2 grid grid-cols-2 sm:grid-cols-3 gap-1">
+          <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/40 p-2 space-y-1">
             {roster.map((n) => {
               const on = names.includes(n)
               return (
-                <label
+                <div
                   key={n}
-                  className={`flex items-center gap-1.5 text-sm px-2 py-1.5 rounded cursor-pointer ${
-                    on ? 'bg-amber-900/35 text-amber-100' : 'text-gray-300 hover:bg-gray-800/80'
+                  className={`flex items-center gap-2 text-sm px-2 py-1.5 rounded ${
+                    on ? 'bg-amber-900/35 text-amber-100' : 'text-gray-300'
                   }`}
                 >
-                  <input type="checkbox" checked={on} onChange={() => toggleName(n)} className="accent-amber-500" />
-                  <span className="truncate">{recording ? m(n) : n}</span>
-                </label>
+                  <label className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer">
+                    <input type="checkbox" checked={on} onChange={() => toggleName(n)} className="accent-amber-500" />
+                    <span className="truncate">{recording ? m(n) : n}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removePerson(n)}
+                    className="shrink-0 text-xs text-rose-300/90 hover:text-rose-200"
+                  >
+                    刪除
+                  </button>
+                </div>
               )
             })}
             {roster.length === 0 && (
-              <p className="col-span-full text-gray-500 text-sm px-2 py-3">尚無名單，可在下方自行輸入</p>
+              <p className="text-gray-500 text-sm px-2 py-3">尚無名單，請在下方新增人員</p>
             )}
           </div>
-          {extraNames.map((n) => (
-            <p key={n} className="text-[11px] text-gray-500 mt-1">
-              名單外：{recording ? m(n) : n}
-            </p>
-          ))}
           <div className="flex gap-2 mt-2">
             <input
               type="text"
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustom())}
-              placeholder="輸入姓名後新增"
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPerson())}
+              placeholder="輸入姓名後新增到點工名單"
               className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
             />
             <button
               type="button"
-              onClick={addCustom}
+              onClick={addPerson}
               className="shrink-0 px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-sm text-white"
             >
-              新增
+              新增人員
             </button>
           </div>
         </div>

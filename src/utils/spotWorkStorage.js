@@ -2,6 +2,7 @@ import { syncKeyToSupabase } from './supabaseSync'
 import { isGuestCloudWriteBlocked } from './guestAuth'
 
 export const SPOT_WORK_STORAGE_KEY = 'jiameng_spot_work_logs'
+export const SPOT_WORK_PEOPLE_KEY = 'jiameng_spot_work_people'
 
 function todayDateStr() {
   const d = new Date()
@@ -76,6 +77,53 @@ export function upsertSpotWorkLog({ date, names, count, note, createdBy }) {
   } catch (e) {
     console.error('Error saving spot work log:', e)
     return { success: false, message: '儲存失敗' }
+  }
+}
+
+export function getSpotWorkPeople() {
+  try {
+    const raw = localStorage.getItem(SPOT_WORK_PEOPLE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    const names = normalizeNames(parsed)
+    names.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+    return names
+  } catch (e) {
+    return []
+  }
+}
+
+function saveSpotWorkPeople(names) {
+  const data = normalizeNames(names)
+  data.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+  const val = JSON.stringify(data)
+  localStorage.setItem(SPOT_WORK_PEOPLE_KEY, val)
+  if (!isGuestCloudWriteBlocked()) {
+    syncKeyToSupabase(SPOT_WORK_PEOPLE_KEY, val)
+  }
+  return data
+}
+
+export function addSpotWorkPerson(name) {
+  const t = String(name || '').trim()
+  if (!t) return { success: false, message: '請輸入姓名' }
+  const list = getSpotWorkPeople()
+  if (list.includes(t)) return { success: false, message: '這個人已經在名單裡' }
+  try {
+    const next = saveSpotWorkPeople([...list, t])
+    return { success: true, names: next }
+  } catch (e) {
+    return { success: false, message: '新增失敗' }
+  }
+}
+
+export function deleteSpotWorkPerson(name) {
+  const t = String(name || '').trim()
+  if (!t) return { success: false, message: '姓名無效' }
+  try {
+    const next = saveSpotWorkPeople(getSpotWorkPeople().filter((n) => n !== t))
+    return { success: true, names: next }
+  } catch (e) {
+    return { success: false, message: '刪除失敗' }
   }
 }
 
