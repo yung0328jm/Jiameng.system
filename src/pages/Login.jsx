@@ -10,6 +10,7 @@ import {
   isGuestCredentials
 } from '../utils/guestAuth'
 import { RECORDING_MODE_CHANGE_EVENT } from '../utils/recordingModeStorage'
+import { SHOW_CONTRACTOR_ENTRY, SHOW_GUEST_LOGIN } from '../utils/loginPublicFeatures'
 
 const REMEMBER_ACCOUNT_KEY = 'jiameng_remember_account'
 const REMEMBERED_USERNAME_KEY = 'jiameng_remembered_username'
@@ -44,7 +45,7 @@ function Login({ onLogin }) {
         }
       } catch (_) {}
 
-      if (isGuestCredentials(username.trim(), password)) {
+      if (SHOW_GUEST_LOGIN && isGuestCredentials(username.trim(), password)) {
         initializeGuestUser()
         saveCurrentUser(GUEST_ACCOUNT, GUEST_ROLE)
         try {
@@ -167,35 +168,39 @@ function Login({ onLogin }) {
             </button>
           </form>
 
-          <div className="mt-4">
-            <Link
-              to="/contractor-work"
-              className="login-contractor-glow flex items-center justify-center w-full min-h-[48px] py-3 rounded-md border-2 border-teal-400/80 bg-teal-950/40 text-teal-200 hover:bg-teal-900/50 hover:border-teal-300 active:bg-teal-900/60 transition-all text-base font-serif touch-manipulation"
-            >
-              廠商登記入口
-            </Link>
-          </div>
+          {SHOW_CONTRACTOR_ENTRY && (
+            <div className="mt-4">
+              <Link
+                to="/contractor-work"
+                className="login-contractor-glow flex items-center justify-center w-full min-h-[48px] py-3 rounded-md border-2 border-teal-400/80 bg-teal-950/40 text-teal-200 hover:bg-teal-900/50 hover:border-teal-300 active:bg-teal-900/60 transition-all text-base font-serif touch-manipulation"
+              >
+                廠商登記入口
+              </Link>
+            </div>
+          )}
 
-          <div className="mt-3">
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={async () => {
-                setUsername(GUEST_ACCOUNT)
-                setPassword(GUEST_PASSWORD)
-                initializeGuestUser()
-                saveCurrentUser(GUEST_ACCOUNT, GUEST_ROLE)
-                try {
-                  window.dispatchEvent(new CustomEvent(RECORDING_MODE_CHANGE_EVENT))
-                } catch (_) {}
-                onLogin()
-                navigate('/dashboard')
-              }}
-              className="w-full min-h-[44px] py-2.5 rounded-md border border-cn-gold/35 bg-black/20 text-cn-mist hover:text-cn-parchment hover:border-cn-gold/55 text-sm font-serif touch-manipulation disabled:opacity-60"
-            >
-              訪客參觀（guest / guest）
-            </button>
-          </div>
+          {SHOW_GUEST_LOGIN && (
+            <div className="mt-3">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={async () => {
+                  setUsername(GUEST_ACCOUNT)
+                  setPassword(GUEST_PASSWORD)
+                  initializeGuestUser()
+                  saveCurrentUser(GUEST_ACCOUNT, GUEST_ROLE)
+                  try {
+                    window.dispatchEvent(new CustomEvent(RECORDING_MODE_CHANGE_EVENT))
+                  } catch (_) {}
+                  onLogin()
+                  navigate('/dashboard')
+                }}
+                className="w-full min-h-[44px] py-2.5 rounded-md border border-cn-gold/35 bg-black/20 text-cn-mist hover:text-cn-parchment hover:border-cn-gold/55 text-sm font-serif touch-manipulation disabled:opacity-60"
+              >
+                訪客參觀（guest / guest）
+              </button>
+            </div>
+          )}
 
           <div className="mt-5 sm:mt-6 text-center">
             <span className="text-cn-mist text-sm">還沒有帳號? </span>

@@ -40,6 +40,7 @@ import {
   FOOD_ORDER_RECORDS_KEY
 } from '../utils/foodOrderStorage'
 import { formatWorkReportHours } from '../utils/workReportStorage'
+import { SHOW_CONTRACTOR_ENTRY } from '../utils/loginPublicFeatures'
 
 const CHECKIN_SESSION_KEY = 'jiameng_contractor_checkin_auth'
 const MEAL_MODE_SESSION_PREFIX = 'jiameng_contractor_meal_mode_'
@@ -701,6 +702,10 @@ function ContractorWorkCheckIn() {
 
   if (isInternalProxy && !internalLoggedIn) {
     return <Navigate to="/login" replace state={{ from: `/contractor-work?${searchParams.toString()}` }} />
+  }
+
+  if (!isInternalProxy && !SHOW_CONTRACTOR_ENTRY) {
+    return <Navigate to="/login" replace />
   }
 
   if (!authenticatedCompanyId || !authenticatedCompany) {

@@ -30,7 +30,7 @@ import { RecordingModeProvider } from './contexts/RecordingModeContext'
 import ClickStarsEffect from './components/ClickStarsEffect'
 import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange, logout } from './utils/authSupabase'
 import { invalidateRecordingMaskCache } from './utils/recordingModeMask'
-import { getSupabaseClient } from './utils/supabaseClient'
+import { savePushToken } from './utils/pushTokenStorage'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => getAuthStatus())
@@ -91,7 +91,7 @@ function App() {
     }
   }, [isAuthenticated])
 
-  // 後端推播：在 Android/iOS 上註冊 FCM token 並寫入 Supabase（僅 native，需 Firebase google-services.json）
+  // 後端推播：Android / iOS App 登入後向 FCM 註冊 token（網頁不跑）
   useEffect(() => {
     if (!isAuthenticated) return
     let cancelled = false
@@ -101,18 +101,15 @@ function App() {
     const initPush = async () => {
       try {
         const { Capacitor } = await import('@capacitor/core')
-        if (Capacitor.getPlatform() === 'web') return
+        const platform = Capacitor.getPlatform()
+        if (platform === 'web') return
         const { PushNotifications } = await import('@capacitor/push-notifications')
         const perm = await PushNotifications.requestPermissions()
         if (perm.receive !== 'granted') return
         PushNotifications.addListener('registration', async (token) => {
           if (cancelled) return
-          const sb = getSupabaseClient()
-          if (sb && account && token?.value) {
-            await sb.from('push_tokens').upsert(
-              { account: account.trim(), token: String(token.value).trim(), platform: 'android', updated_at: new Date().toISOString() },
-              { onConflict: 'account,platform' }
-            )
+          if (account && token?.value) {
+            await savePushToken(account, token.value, platform)
           }
         })
         PushNotifications.addListener('registrationError', (err) => console.warn('Push registration error', err))

@@ -2,14 +2,18 @@
 import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 import { isGuestCloudWriteBlocked } from './guestAuth'
 
-const PLATFORM = 'android'
-
 export function isPushBackendEnabled() {
   return isSupabaseEnabled()
 }
 
+function normalizePlatform(platform) {
+  const p = String(platform || '').trim().toLowerCase()
+  if (p === 'ios') return 'ios'
+  return 'android'
+}
+
 /** 將目前裝置的 FCM token 與帳號綁定並寫入 Supabase */
-export async function savePushToken(account, token) {
+export async function savePushToken(account, token, platform = 'android') {
   const acc = String(account || '').trim()
   const t = String(token || '').trim()
   if (!acc || !t) return { ok: false, error: 'account and token required' }
@@ -22,7 +26,12 @@ export async function savePushToken(account, token) {
   const { error } = await sb
     .from('push_tokens')
     .upsert(
-      { account: acc, token: t, platform: PLATFORM, updated_at: new Date().toISOString() },
+      {
+        account: acc,
+        token: t,
+        platform: normalizePlatform(platform),
+        updated_at: new Date().toISOString()
+      },
       { onConflict: 'account,platform' }
     )
 

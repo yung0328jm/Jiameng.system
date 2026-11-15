@@ -4,6 +4,7 @@
   "webDir": "dist",
   "server": {
     "url": "https://jiameng-system.vercel.app",
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "iosScheme": "https"
   }
 }
