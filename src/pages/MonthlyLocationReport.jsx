@@ -1612,7 +1612,7 @@ export default function MonthlyLocationReport() {
         <div className="mt-6 rounded-lg border border-fuchsia-700/45 bg-fuchsia-950/15 p-3 sm:p-4">
           <h2 className="text-sm sm:text-base font-semibold text-fuchsia-300 mb-1">點工整月報表</h2>
           <p className="text-gray-400 text-[11px] sm:text-xs mb-3">
-            獨立統計行事曆「點工登記」，不計入上方案場出勤基本工程款。依群組、人員、案場加總。
+            獨立統計行事曆「點工登記」，不計入上方案場出勤基本工程款。
           </p>
           {dianWorkReport.logCount === 0 ? (
             <p className="text-gray-500 text-sm">此月份尚無點工登記。</p>
@@ -1683,31 +1683,15 @@ export default function MonthlyLocationReport() {
                     <table className="w-full text-[11px] sm:text-sm border-collapse">
                       <thead>
                         <tr className="text-left text-gray-400 border-b border-gray-700">
-                          <th className="px-3 py-1.5 font-medium">誰</th>
-                          <th className="px-3 py-1.5 font-medium">去哪</th>
+                          <th className="px-3 py-1.5 font-medium">姓名</th>
                           <th className="px-3 py-1.5 font-medium text-right">工</th>
                           <th className="px-3 py-1.5 font-medium text-right">加班</th>
                         </tr>
                       </thead>
                       <tbody>
                         {g.people.map((p) => (
-                          <tr key={p.name} className="border-b border-gray-800/80 last:border-0 align-top">
+                          <tr key={p.name} className="border-b border-gray-800/80 last:border-0">
                             <td className="px-3 py-1.5 text-white whitespace-nowrap">{m(p.name)}</td>
-                            <td className="px-3 py-1.5 text-gray-200">
-                              {p.sites.map((st) => (
-                                <span key={st.siteName} className="inline-block mr-2 mb-0.5">
-                                  {m(st.siteName)}
-                                  <span className="text-fuchsia-300/90 font-mono tabular-nums ml-1">
-                                    {formatSiteStatNumber(st.days)}
-                                  </span>
-                                  {st.overtimeHours > 0 && (
-                                    <span className="text-red-400 font-mono tabular-nums ml-1 text-[10px]">
-                                      +{formatSiteStatNumber(st.overtimeHours)}h
-                                    </span>
-                                  )}
-                                </span>
-                              ))}
-                            </td>
                             <td className="px-3 py-1.5 text-right font-mono tabular-nums text-fuchsia-200">
                               {formatSiteStatNumber(p.days)}
                             </td>
@@ -1721,39 +1705,6 @@ export default function MonthlyLocationReport() {
                   </div>
                 </div>
               ))}
-
-              <h3 className="text-xs sm:text-sm font-medium text-fuchsia-200/90 mb-2">群組－誰－去哪</h3>
-              <div className="overflow-x-auto rounded border border-gray-700 bg-gray-900/40">
-                <table className="w-full text-[11px] sm:text-sm border-collapse min-w-[480px]">
-                  <thead>
-                    <tr className="text-left text-gray-400 border-b border-gray-700 bg-gray-900/70">
-                      <th className="px-3 py-1.5 font-medium">群組</th>
-                      <th className="px-3 py-1.5 font-medium">誰</th>
-                      <th className="px-3 py-1.5 font-medium">去哪</th>
-                      <th className="px-3 py-1.5 font-medium text-right">工</th>
-                      <th className="px-3 py-1.5 font-medium text-right">加班</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dianWorkReport.rows.map((r) => (
-                      <tr
-                        key={`${r.groupId}-${r.personName}-${r.siteName}`}
-                        className="border-b border-gray-800/80 last:border-0"
-                      >
-                        <td className="px-3 py-1.5 text-fuchsia-100">{m(r.groupName)}</td>
-                        <td className="px-3 py-1.5 text-white">{m(r.personName)}</td>
-                        <td className="px-3 py-1.5 text-gray-200">{m(r.siteName)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono tabular-nums text-fuchsia-200">
-                          {formatSiteStatNumber(r.days)}
-                        </td>
-                        <td className="px-3 py-1.5 text-right font-mono tabular-nums text-red-400">
-                          {r.overtimeHours > 0 ? `${formatSiteStatNumber(r.overtimeHours)} 小時` : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </>
           )}
         </div>
