@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
@@ -69,26 +69,50 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
   const [logs, setLogs] = useState(() => store.getLogs())
   const [message, setMessage] = useState(null)
   const [roster, setRoster] = useState([])
+  const [editingLogId, setEditingLogId] = useState('')
+  const editingLogIdRef = useRef('')
 
   const group = groups.find((g) => g.id === groupId) || null
 
-  const loadDate = useCallback((gid, d, site) => {
-    const rec = store.getLogByDate(gid, d, site)
-    setDate(d)
-    if (site != null) setSiteName(site)
-    const map = {}
-    ;(rec?.entries || []).forEach((e) => {
-      if (!e?.name) return
-      map[e.name] = {
-        startTime: e.startTime || '',
-        overtimeHours: e.overtimeHours > 0 ? String(e.overtimeHours) : '',
-        overtime: (Number(e.overtimeHours) || 0) > 0
-      }
-    })
-    setEntriesByName(map)
-    setCount(rec ? String(rec.count ?? '') : '')
-    setNote(rec?.note || '')
-  }, [store])
+  const setEditId = (id) => {
+    const tid = String(id || '')
+    editingLogIdRef.current = tid
+    setEditingLogId(tid)
+  }
+
+  const fillFromRecord = useCallback((rec, d, site, { preserveSite } = {}) => {
+    if (rec) {
+      setEditId(rec.id)
+      setDate(String(rec.date || d || '').slice(0, 10))
+      const storedSite = String(rec.siteName || '').trim()
+      if (!preserveSite || storedSite) setSiteName(storedSite)
+      const map = {}
+      ;(rec.entries || []).forEach((e) => {
+        if (!e?.name) return
+        map[e.name] = {
+          startTime: e.startTime || '',
+          overtimeHours: e.overtimeHours > 0 ? String(e.overtimeHours) : '',
+          overtime: (Number(e.overtimeHours) || 0) > 0
+        }
+      })
+      setEntriesByName(map)
+      setCount(String(rec.count ?? ''))
+      setNote(rec.note || '')
+      return
+    }
+    setEditId('')
+    if (d) setDate(d)
+    if (!preserveSite && site != null) setSiteName(site)
+    setEntriesByName({})
+    setCount('')
+    setNote('')
+  }, [])
+
+  const loadDate = useCallback((gid, d, site, logId) => {
+    let rec = logId ? store.getLogById(logId) : null
+    if (!rec) rec = store.getLogByDate(gid, d, site)
+    fillFromRecord(rec, d, site)
+  }, [store, fillFromRecord])
 
   const refetch = useCallback(() => {
     const gs = store.getGroups()
@@ -96,9 +120,10 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
     setLogs(store.getLogs())
     if (groupId) {
       setRoster(store.getPeople(groupId))
-      loadDate(groupId, date, siteName)
+      const rec = editingLogIdRef.current ? store.getLogById(editingLogIdRef.current) : null
+      if (rec) fillFromRecord(rec, rec.date, rec.siteName || '', { preserveSite: true })
     }
-  }, [groupId, date, siteName, loadDate, store])
+  }, [groupId, fillFromRecord, store])
 
   const settleKey = variant === 'hidden' ? SPOT_WORK_SETTLE_KEY : DIAN_WORK_SETTLE_KEY
 
@@ -127,11 +152,25 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
   useEffect(() => {
     if (!groupId) {
       setRoster([])
+      setEditId('')
       return
     }
     setRoster(store.getPeople(groupId))
-    loadDate(groupId, date, siteName)
-  }, [groupId, date, siteName, loadDate, store])
+    const current = editingLogIdRef.current ? store.getLogById(editingLogIdRef.current) : null
+    if (
+      current &&
+      String(current.groupId || '') === String(groupId) &&
+      String(current.date || '').slice(0, 10) === String(date).slice(0, 10)
+    ) {
+      fillFromRecord(current, date, siteName, { preserveSite: true })
+      return
+    }
+    let rec = store.getLogByDate(groupId, date, siteName)
+    if (!rec) rec = store.getLogByDate(groupId, date, '')
+    fillFromRecord(rec, date, siteName, { preserveSite: Boolean(siteName) && !rec })
+    // 案場下拉只改 siteName，不可重載當天檔案
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit siteName on purpose
+  }, [groupId, date, fillFromRecord, store])
 
   const selectedNames = useMemo(() => Object.keys(entriesByName), [entriesByName])
 
@@ -228,6 +267,7 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
       }
     })
     const result = store.upsertLog({
+      id: editingLogId,
       groupId,
       date,
       siteName,
@@ -240,19 +280,24 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
       setMessage({ type: 'error', text: result.message || '儲存失敗' })
       return
     }
+    setEditId(result.record.id)
     setLogs(store.getLogs())
     setCount(String(result.record.count))
     setMessage({ type: 'success', text: `已記錄 ${date}：${result.record.count} 人` })
   }
 
   const removeDay = () => {
-    if (!store.getLogByDate(groupId, date, siteName)) return
-    if (!window.confirm(`確定刪除 ${group?.name || ''} ${date}「${siteName || '未填案場'}」的點工紀錄？`)) return
-    const result = store.deleteLog(groupId, date, siteName)
+    const rec =
+      (editingLogId && store.getLogById(editingLogId)) || store.getLogByDate(groupId, date, siteName)
+    if (!rec) return
+    const label = rec.siteName || siteName || '未填案場'
+    if (!window.confirm(`確定刪除 ${group?.name || ''} ${rec.date || date}「${label}」的點工紀錄？`)) return
+    const result = store.deleteLog(groupId, rec.date || date, rec.siteName || siteName, rec.id)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
       return
     }
+    setEditId('')
     setEntriesByName({})
     setCount('')
     setNote('')
@@ -348,7 +393,11 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
                 <li key={g.id} className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setGroupId(g.id)}
+                    onClick={() => {
+                      setEditId('')
+                      setSiteName(siteFromQuery || '')
+                      setGroupId(g.id)
+                    }}
                     className="flex-1 text-left rounded-lg border border-gray-600 bg-gray-900/50 px-3 py-2.5 hover:border-amber-500/50"
                   >
                     <span className="text-amber-100 font-medium">{m(g.name)}</span>
@@ -380,7 +429,10 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
         </div>
         <button
           type="button"
-          onClick={() => setGroupId('')}
+          onClick={() => {
+            setEditId('')
+            setGroupId('')
+          }}
           className="shrink-0 text-sm text-cn-gold hover:text-amber-200"
         >
           回群組
@@ -478,6 +530,10 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
               <option value={siteName}>{recording ? m(siteName) : siteName}</option>
             )}
           </select>
+          {editingLogId &&
+            !String(logs.find((r) => r.id === editingLogId)?.siteName || '').trim() && (
+              <p className="text-amber-300/90 text-xs mt-1">此筆尚未選案場，請選擇後按「儲存當天紀錄」。</p>
+            )}
         </label>
         <label className="block">
           <span className="text-cn-mist text-xs">預設上班時間（勾選人員時帶入）</span>
@@ -623,9 +679,9 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
                 <li key={r.id}>
                   <button
                     type="button"
-                    onClick={() => loadDate(groupId, r.date, r.siteName || '')}
+                    onClick={() => loadDate(groupId, r.date, r.siteName || '', r.id)}
                     className={`w-full text-left rounded px-2 py-1.5 text-sm hover:bg-gray-800/80 ${
-                      r.date === date && String(r.siteName || '') === String(siteName || '')
+                      r.id === editingLogId
                         ? 'bg-amber-950/40 border border-amber-700/40'
                         : ''
                     }`}
@@ -633,7 +689,9 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
                     <span className="text-amber-200 tabular-nums">{r.date}</span>
                     {r.siteName ? (
                       <span className="text-sky-300 ml-2">{recording ? m(r.siteName) : r.siteName}</span>
-                    ) : null}
+                    ) : (
+                      <span className="text-amber-400/90 ml-2">未填案場</span>
+                    )}
                     <span className="text-white font-medium ml-2">{r.count} 人</span>
                     {ot > 0 && (
                       <span className="text-red-300 ml-2">加班 {formatHours(ot)}h</span>

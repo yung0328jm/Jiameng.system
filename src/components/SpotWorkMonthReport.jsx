@@ -32,9 +32,11 @@ export default function SpotWorkMonthReport({
   showMonthPicker = false,
   yearMonthValue = '',
   onYearMonthChange,
+  defaultOpen = false,
   className = ''
 }) {
   useRecordingMode()
+  const [open, setOpen] = useState(() => !!defaultOpen)
   const [expanded, setExpanded] = useState(() => new Set())
   const [tick, setTick] = useState(0)
 
@@ -68,8 +70,24 @@ export default function SpotWorkMonthReport({
 
   return (
     <div className={`rounded-lg border border-fuchsia-700/45 bg-fuchsia-950/15 p-3 sm:p-4 ${className}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-        <h2 className="text-sm sm:text-base font-semibold text-fuchsia-300">{title}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 min-w-0 text-left"
+          aria-expanded={open}
+        >
+          <span className="text-fuchsia-400/90 text-xs tabular-nums w-3 shrink-0" aria-hidden>
+            {open ? '▾' : '▸'}
+          </span>
+          <h2 className="text-sm sm:text-base font-semibold text-fuchsia-300">{title}</h2>
+          {!open && report.logCount > 0 && (
+            <span className="text-[11px] text-fuchsia-200/80 font-mono tabular-nums truncate">
+              {formatSiteStatNumber(report.totalWork)} 工
+              {report.overtimeHours > 0 ? ` · 加班 ${formatSiteStatNumber(report.overtimeHours)}h` : ''}
+            </span>
+          )}
+        </button>
         {showMonthPicker && (
           <input
             type="month"
@@ -79,8 +97,8 @@ export default function SpotWorkMonthReport({
           />
         )}
       </div>
-      {hint ? <p className="text-gray-400 text-[11px] sm:text-xs mb-3">{hint}</p> : <div className="mb-3" />}
-      {report.logCount === 0 ? (
+      {open && hint ? <p className="text-gray-400 text-[11px] sm:text-xs mt-1 mb-3">{hint}</p> : null}
+      {open && (report.logCount === 0 ? (
         <p className="text-gray-500 text-sm">{emptyText}</p>
       ) : (
         <>
@@ -235,7 +253,7 @@ export default function SpotWorkMonthReport({
             </div>
           ))}
         </>
-      )}
+      ))}
     </div>
   )
 }

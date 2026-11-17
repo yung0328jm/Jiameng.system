@@ -190,6 +190,11 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
         return { success: false, message: '刪除失敗' }
       }
     },
+    getLogById(id) {
+      const tid = String(id || '').trim()
+      if (!tid) return null
+      return getLogs().find((r) => String(r?.id || '') === tid) || null
+    },
     getLogByDate(groupId, dateStr, siteName) {
       const gid = String(groupId || '').trim()
       const d = String(dateStr || '').trim().slice(0, 10)
@@ -263,10 +268,11 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
       })
       return map
     },
-    upsertLog({ groupId, date, siteName, entries, count, note, createdBy }) {
+    upsertLog({ id, groupId, date, siteName, entries, count, note, createdBy }) {
       const gid = String(groupId || '').trim()
       const d = String(date || todayDateStr()).trim().slice(0, 10)
       const site = String(siteName || '').trim()
+      const editId = String(id || '').trim()
       if (!gid) return { success: false, message: '請先選擇群組' }
       if (!site) return { success: false, message: '請選擇案場' }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return { success: false, message: '日期無效' }
@@ -278,12 +284,15 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
       }
       const now = new Date().toISOString()
       const logs = getLogs()
-      const idx = logs.findIndex(
-        (r) =>
-          String(r?.groupId || '') === gid &&
-          String(r?.date || '').slice(0, 10) === d &&
-          normalizeSite(r?.siteName) === normalizeSite(site)
-      )
+      let idx = editId ? logs.findIndex((r) => String(r?.id || '') === editId) : -1
+      if (idx < 0) {
+        idx = logs.findIndex(
+          (r) =>
+            String(r?.groupId || '') === gid &&
+            String(r?.date || '').slice(0, 10) === d &&
+            normalizeSite(r?.siteName) === normalizeSite(site)
+        )
+      }
       const rec = {
         id: idx >= 0 ? logs[idx].id : newId('sw'),
         groupId: gid,
@@ -299,21 +308,42 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
       }
       if (idx >= 0) logs[idx] = rec
       else logs.push(rec)
-      logs.sort(
+      const next = logs.filter(
+        (r) =>
+          String(r?.id || '') === rec.id ||
+          !(
+            String(r?.groupId || '') === gid &&
+            String(r?.date || '').slice(0, 10) === d &&
+            normalizeSite(r?.siteName) === normalizeSite(site)
+          )
+      )
+      next.sort(
         (a, b) => String(b.date).localeCompare(String(a.date)) || String(a.groupId).localeCompare(String(b.groupId))
       )
       try {
-        writeJson(logsKey, logs)
+        writeJson(logsKey, next)
         return { success: true, record: rec }
       } catch (e) {
         console.error('Error saving spot work log:', e)
         return { success: false, message: '儲存失敗' }
       }
     },
-    deleteLog(groupId, dateStr, siteName) {
+    deleteLog(groupId, dateStr, siteName, id) {
+      const tid = String(id || '').trim()
       const gid = String(groupId || '').trim()
       const d = String(dateStr || '').trim().slice(0, 10)
       const site = normalizeSite(siteName)
+      if (tid) {
+        try {
+          writeJson(
+            logsKey,
+            getLogs().filter((r) => String(r?.id || '') !== tid)
+          )
+          return { success: true }
+        } catch (e) {
+          return { success: false, message: '刪除失敗' }
+        }
+      }
       if (!gid || !d) return { success: false, message: '參數無效' }
       try {
         writeJson(

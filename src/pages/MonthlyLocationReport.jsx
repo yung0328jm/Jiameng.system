@@ -1614,6 +1614,7 @@ export default function MonthlyLocationReport() {
           settleKey={DIAN_WORK_SETTLE_KEY}
           year={year}
           month={month}
+          defaultOpen
           title="點工整月報表"
           hint="獨立統計行事曆「點工登記」，不計入上方案場出勤基本工程款。"
         />
