@@ -876,6 +876,7 @@ export default function MonthlyLocationReport() {
   const [siteWeightModal, setSiteWeightModal] = useState(null) // { personName, dateStr, siteName, weightInput }
   const [siteBreakdownModal, setSiteBreakdownModal] = useState(null) // 案場名稱
   const [dayNatureModal, setDayNatureModal] = useState(null) // { day, dateStr }
+  const [dianWorkExpanded, setDianWorkExpanded] = useState(() => new Set())
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -1156,6 +1157,19 @@ export default function MonthlyLocationReport() {
     () => getDianWorkMonthReport(year, month),
     [year, month, refreshKey, syncRevision]
   )
+
+  useEffect(() => {
+    setDianWorkExpanded(new Set())
+  }, [year, month])
+
+  const toggleDianWorkPerson = useCallback((key) => {
+    setDianWorkExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   const handlePdf = async () => {
     if (!pdfRef.current || pdfBusy) return
@@ -1679,29 +1693,63 @@ export default function MonthlyLocationReport() {
                       ) : null}
                     </span>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-[11px] sm:text-sm border-collapse">
-                      <thead>
-                        <tr className="text-left text-gray-400 border-b border-gray-700">
-                          <th className="px-3 py-1.5 font-medium">姓名</th>
-                          <th className="px-3 py-1.5 font-medium text-right">工</th>
-                          <th className="px-3 py-1.5 font-medium text-right">加班</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.people.map((p) => (
-                          <tr key={p.name} className="border-b border-gray-800/80 last:border-0">
-                            <td className="px-3 py-1.5 text-white whitespace-nowrap">{m(p.name)}</td>
-                            <td className="px-3 py-1.5 text-right font-mono tabular-nums text-fuchsia-200">
+                  <div className="px-1 pb-1">
+                    <div className="flex text-[11px] sm:text-xs text-gray-500 px-2 pt-1.5 pb-1">
+                      <span className="flex-1">姓名</span>
+                      <span className="w-16 text-right shrink-0">工</span>
+                      <span className="w-20 text-right shrink-0">加班</span>
+                    </div>
+                    {g.people.map((p) => {
+                      const personKey = `${g.groupId}\0${p.name}`
+                      const open = dianWorkExpanded.has(personKey)
+                      const sites = Array.isArray(p.sites) ? p.sites : []
+                      return (
+                        <div key={p.name} className="border-t border-gray-800/80">
+                          <button
+                            type="button"
+                            onClick={() => toggleDianWorkPerson(personKey)}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-gray-800/60"
+                            aria-expanded={open}
+                          >
+                            <span className="flex-1 min-w-0 text-white text-[11px] sm:text-sm truncate">
+                              {m(p.name)}
+                            </span>
+                            <span className="w-16 text-right shrink-0 font-mono tabular-nums text-fuchsia-200 text-[11px] sm:text-sm">
                               {formatSiteStatNumber(p.days)}
-                            </td>
-                            <td className="px-3 py-1.5 text-right font-mono tabular-nums text-red-400">
+                            </span>
+                            <span className="w-20 text-right shrink-0 font-mono tabular-nums text-red-400 text-[11px] sm:text-sm">
                               {p.overtimeHours > 0 ? `${formatSiteStatNumber(p.overtimeHours)} 小時` : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </span>
+                          </button>
+                          {open && (
+                            <ul className="list-none m-0 px-2 pb-2 space-y-1">
+                              {sites.length === 0 ? (
+                                <li className="text-gray-500 text-[11px] sm:text-sm py-1">無案場明細</li>
+                              ) : (
+                                sites.map((st) => (
+                                  <li
+                                    key={st.siteName}
+                                    className="flex justify-between gap-2 text-[11px] sm:text-sm text-gray-200 border-b border-gray-800/60 last:border-0 pb-1 last:pb-0"
+                                  >
+                                    <span className="truncate min-w-0">{m(st.siteName)}</span>
+                                    <span className="shrink-0 font-mono tabular-nums text-right">
+                                      <span className="text-fuchsia-200/90">
+                                        {formatSiteStatNumber(st.days)} 天
+                                      </span>
+                                      {st.overtimeHours > 0 && (
+                                        <span className="text-red-400 font-medium ml-1.5">
+                                          {formatOvertimePlusHours(st.overtimeHours)}h
+                                        </span>
+                                      )}
+                                    </span>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
