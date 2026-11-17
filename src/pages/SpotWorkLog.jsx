@@ -1,27 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
-import {
-  SPOT_WORK_STORAGE_KEY,
-  SPOT_WORK_GROUPS_KEY,
-  getSpotWorkLogs,
-  getSpotWorkLogByDate,
-  upsertSpotWorkLog,
-  deleteSpotWorkLog,
-  getSpotWorkPeople,
-  addSpotWorkPerson,
-  deleteSpotWorkPerson,
-  getSpotWorkGroups,
-  addSpotWorkGroup,
-  deleteSpotWorkGroup,
-  getSpotWorkMonthStats
-} from '../utils/spotWorkStorage'
+import { hiddenSpotWorkStore } from '../utils/spotWorkStorage'
 
 function todayDateStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function normalizeDateParam(raw) {
+  const d = String(raw || '').trim().replace(/\//g, '-').slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ''
 }
 
 function currentYearMonth() {
@@ -36,26 +28,28 @@ function formatHours(n) {
   return Number.isInteger(r) ? String(r) : String(r)
 }
 
-export default function SpotWorkLog() {
+export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hidden' }) {
   const { enabled: recording } = useRecordingMode()
-  const [groups, setGroups] = useState(() => getSpotWorkGroups())
+  const [searchParams] = useSearchParams()
+  const dateFromQuery = normalizeDateParam(searchParams.get('date'))
+  const [groups, setGroups] = useState(() => store.getGroups())
   const [groupId, setGroupId] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
-  const [date, setDate] = useState(todayDateStr)
-  const [yearMonth, setYearMonth] = useState(currentYearMonth)
+  const [date, setDate] = useState(() => dateFromQuery || todayDateStr())
+  const [yearMonth, setYearMonth] = useState(() => (dateFromQuery || currentYearMonth()).slice(0, 7))
   const [entriesByName, setEntriesByName] = useState({})
   const [count, setCount] = useState('')
   const [defaultStart, setDefaultStart] = useState('08:00')
   const [note, setNote] = useState('')
   const [customName, setCustomName] = useState('')
-  const [logs, setLogs] = useState(() => getSpotWorkLogs())
+  const [logs, setLogs] = useState(() => store.getLogs())
   const [message, setMessage] = useState(null)
   const [roster, setRoster] = useState([])
 
   const group = groups.find((g) => g.id === groupId) || null
 
   const loadDate = useCallback((gid, d) => {
-    const rec = getSpotWorkLogByDate(gid, d)
+    const rec = store.getLogByDate(gid, d)
     setDate(d)
     const map = {}
     ;(rec?.entries || []).forEach((e) => {
@@ -69,28 +63,34 @@ export default function SpotWorkLog() {
     setEntriesByName(map)
     setCount(rec ? String(rec.count ?? '') : '')
     setNote(rec?.note || '')
-  }, [])
+  }, [store])
 
   const refetch = useCallback(() => {
-    const gs = getSpotWorkGroups()
+    const gs = store.getGroups()
     setGroups(gs)
-    setLogs(getSpotWorkLogs())
+    setLogs(store.getLogs())
     if (groupId) {
-      setRoster(getSpotWorkPeople(groupId))
+      setRoster(store.getPeople(groupId))
       loadDate(groupId, date)
     }
-  }, [groupId, date, loadDate])
+  }, [groupId, date, loadDate, store])
 
-  useRealtimeKeys([SPOT_WORK_STORAGE_KEY, SPOT_WORK_GROUPS_KEY], refetch)
+  useRealtimeKeys(store.syncKeys, refetch)
+
+  useEffect(() => {
+    if (!dateFromQuery) return
+    setDate(dateFromQuery)
+    setYearMonth(dateFromQuery.slice(0, 7))
+  }, [dateFromQuery])
 
   useEffect(() => {
     if (!groupId) {
       setRoster([])
       return
     }
-    setRoster(getSpotWorkPeople(groupId))
+    setRoster(store.getPeople(groupId))
     loadDate(groupId, date)
-  }, [groupId, date, loadDate])
+  }, [groupId, date, loadDate, store])
 
   const selectedNames = useMemo(() => Object.keys(entriesByName), [entriesByName])
 
@@ -124,12 +124,12 @@ export default function SpotWorkLog() {
   }
 
   const addGroup = () => {
-    const result = addSpotWorkGroup(newGroupName)
+    const result = store.addGroup(newGroupName)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '新增失敗' })
       return
     }
-    setGroups(getSpotWorkGroups())
+    setGroups(store.getGroups())
     setNewGroupName('')
     setGroupId(result.group.id)
     setMessage({ type: 'success', text: `已新增群組 ${result.group.name}` })
@@ -137,20 +137,20 @@ export default function SpotWorkLog() {
 
   const removeGroup = (id, name) => {
     if (!window.confirm(`確定刪除群組「${name}」？該群人員與出工紀錄都會刪除。`)) return
-    const result = deleteSpotWorkGroup(id)
+    const result = store.deleteGroup(id)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
       return
     }
     if (groupId === id) setGroupId('')
-    setGroups(getSpotWorkGroups())
-    setLogs(getSpotWorkLogs())
+    setGroups(store.getGroups())
+    setLogs(store.getLogs())
     setMessage({ type: 'success', text: `已刪除 ${name}` })
   }
 
   const addPerson = () => {
     const t = customName.trim()
-    const result = addSpotWorkPerson(groupId, t)
+    const result = store.addPerson(groupId, t)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '新增失敗' })
       return
@@ -163,7 +163,7 @@ export default function SpotWorkLog() {
 
   const removePerson = (name) => {
     if (!window.confirm(`從「${group?.name || ''}」名單刪除「${name}」？`)) return
-    const result = deleteSpotWorkPerson(groupId, name)
+    const result = store.deletePerson(groupId, name)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
       return
@@ -186,7 +186,7 @@ export default function SpotWorkLog() {
         overtimeHours: e.overtime ? Number(e.overtimeHours) || 0 : 0
       }
     })
-    const result = upsertSpotWorkLog({
+    const result = store.upsertLog({
       groupId,
       date,
       entries,
@@ -198,15 +198,15 @@ export default function SpotWorkLog() {
       setMessage({ type: 'error', text: result.message || '儲存失敗' })
       return
     }
-    setLogs(getSpotWorkLogs())
+    setLogs(store.getLogs())
     setCount(String(result.record.count))
     setMessage({ type: 'success', text: `已記錄 ${date}：${result.record.count} 人` })
   }
 
   const removeDay = () => {
-    if (!getSpotWorkLogByDate(groupId, date)) return
+    if (!store.getLogByDate(groupId, date)) return
     if (!window.confirm(`確定刪除 ${group?.name || ''} ${date} 的點工紀錄？`)) return
-    const result = deleteSpotWorkLog(groupId, date)
+    const result = store.deleteLog(groupId, date)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
       return
@@ -214,7 +214,7 @@ export default function SpotWorkLog() {
     setEntriesByName({})
     setCount('')
     setNote('')
-    setLogs(getSpotWorkLogs())
+    setLogs(store.getLogs())
     setMessage({ type: 'success', text: `已刪除 ${date}` })
   }
 
@@ -224,7 +224,7 @@ export default function SpotWorkLog() {
   )
 
   const stats = useMemo(
-    () => (groupId ? getSpotWorkMonthStats(groupId, yearMonth) : null),
+    () => (groupId ? store.getMonthStats(groupId, yearMonth) : null),
     [groupId, yearMonth, logs]
   )
 
@@ -248,8 +248,17 @@ export default function SpotWorkLog() {
   if (!group) {
     return (
       <div className="max-w-3xl mx-auto text-cn-parchment">
-        <h1 className="text-xl sm:text-2xl font-bold text-cn-gold font-serif mb-1">點工紀錄系統</h1>
-        <p className="text-cn-mist text-sm mb-4">先選公司／群組，進去後再新增人員與當日出工。</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-cn-gold font-serif mb-1">
+          {variant === 'hidden' ? '點工紀錄系統' : '點工登記'}
+        </h1>
+        <p className="text-cn-mist text-sm mb-4">
+          {variant === 'hidden'
+            ? '隱藏入口。先選公司／群組，進去後再新增人員與當日出工。'
+            : '先選公司／群組，進去後再新增人員與當日出工。'}
+        </p>
+        {dateFromQuery && (
+          <p className="text-amber-200/90 text-sm mb-3 tabular-nums">行事曆帶入日期：{dateFromQuery.replace(/-/g, '/')}</p>
+        )}
         {flash}
         <div className="rounded-xl border border-cn-gold/35 bg-cn-panel/40 p-4 sm:p-5 space-y-3">
           <div className="flex gap-2">

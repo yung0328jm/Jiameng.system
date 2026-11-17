@@ -1502,13 +1502,13 @@ function Calendar() {
     navigate('/leave-application', dateStr ? { state: { date: dateStr } } : undefined)
   }
 
-  /** 內部幫承攬商補登記（免代碼） */
-  const goToContractorWorkFromCalendar = () => {
+  /** 點工登記（與窗花連點進入同一套） */
+  const goToSpotWorkFromCalendar = () => {
     const dateStr = selectedDateForSchedule
     closeEntryChoiceModal()
-    const q = new URLSearchParams({ internal: '1' })
+    const q = new URLSearchParams()
     if (dateStr) q.set('date', dateStr)
-    navigate(`/contractor-work?${q.toString()}`)
+    navigate(q.toString() ? `/dian-work?${q.toString()}` : '/dian-work')
   }
 
   const handleToggleNoLeaveForSelectedDate = () => {
@@ -5419,11 +5419,11 @@ function Calendar() {
               </button>
               <button
                 type="button"
-                onClick={goToContractorWorkFromCalendar}
+                onClick={goToSpotWorkFromCalendar}
                 className="w-full min-h-[48px] py-3 rounded-xl font-semibold bg-violet-700 text-white hover:bg-violet-600 transition-colors"
               >
-                承攬商登記
-                <span className="block text-xs font-normal text-violet-200/90 mt-0.5">內部補登記（免代碼）</span>
+                點工登記
+                <span className="block text-xs font-normal text-violet-200/90 mt-0.5">公司群組 · 出工與加班</span>
               </button>
               {currentRole === 'admin' && selectedDateForSchedule && (
                 <button

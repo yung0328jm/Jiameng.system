@@ -26,6 +26,7 @@ import WorkBonus from './WorkBonus'
 import ContractorRegistration from './ContractorRegistration'
 import FoodOrderAdmin from './FoodOrderAdmin'
 import SpotWorkLog from './SpotWorkLog'
+import { hiddenSpotWorkStore, dianWorkStore } from '../utils/spotWorkStorage'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { isNavHidden } from '../config/hiddenNavTabs'
 import {
@@ -679,6 +680,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('work-bonus')) return 'work-bonus'
     if (path.includes('work-report')) return 'work-report'
     if (path.includes('spot-work')) return 'spot-work'
+    if (path.includes('dian-work')) return 'dian-work'
     if (path.includes('developing') || path.includes('mini-games')) return 'developing'
     return 'home'
   }
@@ -744,6 +746,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'pay-slip': '勞務報酬單',
       'work-bonus': '獎金制度',
       'spot-work': '點工紀錄',
+      'dian-work': '點工登記',
       'change-password': '修改密碼'
     }
     return titles[tab] || '毓承事業群'
@@ -821,7 +824,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       case 'work-bonus':
         return <WorkBonus />
       case 'spot-work':
-        return <SpotWorkLog />
+        return <SpotWorkLog store={hiddenSpotWorkStore} variant="hidden" />
+      case 'dian-work':
+        return <SpotWorkLog store={dianWorkStore} variant="public" />
       default:
         return <Home />
     }
