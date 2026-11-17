@@ -33,10 +33,12 @@ import {
   setMonthlyDayNatureOverride,
   MONTHLY_DAY_NATURE_KEY
 } from '../utils/monthlyDayNatureStorage'
+import SpotWorkMonthReport from '../components/SpotWorkMonthReport'
 import {
-  getDianWorkMonthReport,
+  dianWorkStore,
   DIAN_WORK_STORAGE_KEY,
-  DIAN_WORK_GROUPS_KEY
+  DIAN_WORK_GROUPS_KEY,
+  DIAN_WORK_SETTLE_KEY
 } from '../utils/spotWorkStorage'
 
 const OVERTIME_APPLICATIONS_STORAGE_KEY = 'jiameng_overtime_applications'
@@ -876,7 +878,6 @@ export default function MonthlyLocationReport() {
   const [siteWeightModal, setSiteWeightModal] = useState(null) // { personName, dateStr, siteName, weightInput }
   const [siteBreakdownModal, setSiteBreakdownModal] = useState(null) // 案場名稱
   const [dayNatureModal, setDayNatureModal] = useState(null) // { day, dateStr }
-  const [dianWorkExpanded, setDianWorkExpanded] = useState(() => new Set())
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -887,7 +888,8 @@ export default function MonthlyLocationReport() {
         e.key === OVERTIME_APPLICATIONS_STORAGE_KEY ||
         e.key === MONTHLY_DAY_NATURE_KEY ||
         e.key === DIAN_WORK_STORAGE_KEY ||
-        e.key === DIAN_WORK_GROUPS_KEY
+        e.key === DIAN_WORK_GROUPS_KEY ||
+        e.key === DIAN_WORK_SETTLE_KEY
       ) {
         setRefreshKey((k) => k + 1)
       }
@@ -905,7 +907,8 @@ export default function MonthlyLocationReport() {
         k === 'jiameng_work_reports' ||
         k === LEAVE_APPLICATION_KEY ||
         k === DIAN_WORK_STORAGE_KEY ||
-        k === DIAN_WORK_GROUPS_KEY
+        k === DIAN_WORK_GROUPS_KEY ||
+        k === DIAN_WORK_SETTLE_KEY
       ) {
         setRefreshKey((r) => r + 1)
       }
@@ -1152,24 +1155,6 @@ export default function MonthlyLocationReport() {
     setEditCell(null)
     setRefreshKey((k) => k + 1)
   }
-
-  const dianWorkReport = useMemo(
-    () => getDianWorkMonthReport(year, month),
-    [year, month, refreshKey, syncRevision]
-  )
-
-  useEffect(() => {
-    setDianWorkExpanded(new Set())
-  }, [year, month])
-
-  const toggleDianWorkPerson = useCallback((key) => {
-    setDianWorkExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
 
   const handlePdf = async () => {
     if (!pdfRef.current || pdfBusy) return
@@ -1623,139 +1608,15 @@ export default function MonthlyLocationReport() {
         )}
         </div>
 
-        <div className="mt-6 rounded-lg border border-fuchsia-700/45 bg-fuchsia-950/15 p-3 sm:p-4">
-          <h2 className="text-sm sm:text-base font-semibold text-fuchsia-300 mb-1">點工整月報表</h2>
-          <p className="text-gray-400 text-[11px] sm:text-xs mb-3">
-            獨立統計行事曆「點工登記」，不計入上方案場出勤基本工程款。
-          </p>
-          {dianWorkReport.logCount === 0 ? (
-            <p className="text-gray-500 text-sm">此月份尚無點工登記。</p>
-          ) : (
-            <>
-              <div className="mb-3 flex flex-wrap gap-2 text-[11px] sm:text-sm">
-                <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
-                  <span className="text-gray-400">總工 </span>
-                  <span className="font-mono font-semibold text-fuchsia-200 tabular-nums">
-                    {formatSiteStatNumber(dianWorkReport.totalWork)} 工
-                  </span>
-                </div>
-                <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
-                  <span className="text-gray-400">加班 </span>
-                  <span className="font-mono font-semibold text-red-400 tabular-nums">
-                    {formatSiteStatNumber(dianWorkReport.overtimeHours)} 小時
-                  </span>
-                </div>
-                <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
-                  <span className="text-gray-400">登記筆數 </span>
-                  <span className="font-mono font-semibold text-gray-200 tabular-nums">
-                    {dianWorkReport.logCount}
-                  </span>
-                </div>
-                {dianWorkReport.unnamedDays > 0 && (
-                  <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
-                    <span className="text-gray-400">未具名 </span>
-                    <span className="font-mono font-semibold text-amber-200 tabular-nums">
-                      {formatSiteStatNumber(dianWorkReport.unnamedDays)} 工
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <h3 className="text-xs sm:text-sm font-medium text-fuchsia-200/90 mb-2">案場合計</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm mb-4">
-                {dianWorkReport.sites.map((s) => (
-                  <div
-                    key={s.siteName}
-                    className="flex justify-between gap-2 rounded border border-fuchsia-800/40 bg-gray-900/50 px-2 py-1.5"
-                    title={(s.people || []).map((p) => `${p.groupName} · ${p.name} ${p.days}工`).join('\n')}
-                  >
-                    <span className="text-gray-200 truncate min-w-0">{m(s.siteName)}</span>
-                    <span className="shrink-0 flex flex-col items-end font-mono tabular-nums leading-tight">
-                      <span className="text-fuchsia-200">{formatSiteStatNumber(s.workDays)} 工</span>
-                      {s.overtimeHours > 0 && (
-                        <span className="text-red-400 text-[10px] font-medium">
-                          {formatOvertimePlusHours(s.overtimeHours)}h
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {dianWorkReport.groups.map((g) => (
-                <div key={g.groupId} className="mb-4 last:mb-0 rounded border border-gray-700 bg-gray-900/40 overflow-hidden">
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-gray-700 bg-gray-900/60">
-                    <span className="text-fuchsia-100 font-medium text-sm">{m(g.groupName)}</span>
-                    <span className="text-xs font-mono tabular-nums text-gray-300">
-                      {formatSiteStatNumber(g.workDays)} 工
-                      {g.overtimeHours > 0 ? (
-                        <span className="text-red-400 ml-2">加班 {formatSiteStatNumber(g.overtimeHours)} 小時</span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <div className="px-1 pb-1">
-                    <div className="flex text-[11px] sm:text-xs text-gray-500 px-2 pt-1.5 pb-1">
-                      <span className="flex-1">姓名</span>
-                      <span className="w-16 text-right shrink-0">工</span>
-                      <span className="w-20 text-right shrink-0">加班</span>
-                    </div>
-                    {g.people.map((p) => {
-                      const personKey = `${g.groupId}\0${p.name}`
-                      const open = dianWorkExpanded.has(personKey)
-                      const sites = Array.isArray(p.sites) ? p.sites : []
-                      return (
-                        <div key={p.name} className="border-t border-gray-800/80">
-                          <button
-                            type="button"
-                            onClick={() => toggleDianWorkPerson(personKey)}
-                            className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-gray-800/60"
-                            aria-expanded={open}
-                          >
-                            <span className="flex-1 min-w-0 text-white text-[11px] sm:text-sm truncate">
-                              {m(p.name)}
-                            </span>
-                            <span className="w-16 text-right shrink-0 font-mono tabular-nums text-fuchsia-200 text-[11px] sm:text-sm">
-                              {formatSiteStatNumber(p.days)}
-                            </span>
-                            <span className="w-20 text-right shrink-0 font-mono tabular-nums text-red-400 text-[11px] sm:text-sm">
-                              {p.overtimeHours > 0 ? `${formatSiteStatNumber(p.overtimeHours)} 小時` : '—'}
-                            </span>
-                          </button>
-                          {open && (
-                            <ul className="list-none m-0 px-2 pb-2 space-y-1">
-                              {sites.length === 0 ? (
-                                <li className="text-gray-500 text-[11px] sm:text-sm py-1">無案場明細</li>
-                              ) : (
-                                sites.map((st) => (
-                                  <li
-                                    key={st.siteName}
-                                    className="flex justify-between gap-2 text-[11px] sm:text-sm text-gray-200 border-b border-gray-800/60 last:border-0 pb-1 last:pb-0"
-                                  >
-                                    <span className="truncate min-w-0">{m(st.siteName)}</span>
-                                    <span className="shrink-0 font-mono tabular-nums text-right">
-                                      <span className="text-fuchsia-200/90">
-                                        {formatSiteStatNumber(st.days)} 天
-                                      </span>
-                                      {st.overtimeHours > 0 && (
-                                        <span className="text-red-400 font-medium ml-1.5">
-                                          {formatOvertimePlusHours(st.overtimeHours)}h
-                                        </span>
-                                      )}
-                                    </span>
-                                  </li>
-                                ))
-                              )}
-                            </ul>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
+        <SpotWorkMonthReport
+          className="mt-6"
+          store={dianWorkStore}
+          settleKey={DIAN_WORK_SETTLE_KEY}
+          year={year}
+          month={month}
+          title="點工整月報表"
+          hint="獨立統計行事曆「點工登記」，不計入上方案場出勤基本工程款。"
+        />
       </div>
 
       {dayNatureModal && (

@@ -4,8 +4,13 @@ import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
-import { hiddenSpotWorkStore } from '../utils/spotWorkStorage'
+import {
+  hiddenSpotWorkStore,
+  SPOT_WORK_SETTLE_KEY,
+  DIAN_WORK_SETTLE_KEY
+} from '../utils/spotWorkStorage'
 import { getContractorCheckInSiteNames, getDropdownOptionsByCategory } from '../utils/dropdownStorage'
+import SpotWorkMonthReport from '../components/SpotWorkMonthReport'
 
 function todayDateStr() {
   const d = new Date()
@@ -95,7 +100,9 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
     }
   }, [groupId, date, siteName, loadDate, store])
 
-  useRealtimeKeys([...store.syncKeys, 'jiameng_dropdown_options'], refetch)
+  const settleKey = variant === 'hidden' ? SPOT_WORK_SETTLE_KEY : DIAN_WORK_SETTLE_KEY
+
+  useRealtimeKeys([...store.syncKeys, 'jiameng_dropdown_options', settleKey], refetch)
 
   useEffect(() => {
     setSiteOptions(getSpotWorkSiteOptions())
@@ -263,6 +270,26 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
     [groupId, yearMonth, logs]
   )
 
+  const reportYear = Number(String(yearMonth || '').slice(0, 4)) || new Date().getFullYear()
+  const reportMonth = Number(String(yearMonth || '').slice(5, 7)) || new Date().getMonth() + 1
+
+  const monthReportBlock =
+    variant === 'hidden' ? (
+      <SpotWorkMonthReport
+        className="mb-4"
+        store={store}
+        settleKey={SPOT_WORK_SETTLE_KEY}
+        year={reportYear}
+        month={reportMonth}
+        showMonthPicker
+        yearMonthValue={yearMonth}
+        onYearMonthChange={(v) => setYearMonth(v || currentYearMonth())}
+        title="點工整月報表"
+        hint="窗花隱藏點工，與行事曆點工登記分開統計。"
+        emptyText="此月份尚無點工紀錄。"
+      />
+    ) : null
+
   const flash = message && (
     <div
       className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
@@ -339,6 +366,7 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
             </ul>
           )}
         </div>
+        {monthReportBlock}
       </div>
     )
   }
@@ -360,7 +388,9 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
       </div>
       {flash}
 
-      {stats && (
+      {monthReportBlock}
+
+      {variant !== 'hidden' && stats && (
         <div className="mb-4 rounded-xl border border-amber-700/40 bg-amber-950/20 p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <h2 className="text-sm font-semibold text-cn-gold">整月統計</h2>

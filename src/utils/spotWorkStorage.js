@@ -6,6 +6,8 @@ export const SPOT_WORK_PEOPLE_KEY = 'jiameng_spot_work_people'
 export const SPOT_WORK_GROUPS_KEY = 'jiameng_spot_work_groups'
 export const DIAN_WORK_STORAGE_KEY = 'jiameng_dian_work_logs'
 export const DIAN_WORK_GROUPS_KEY = 'jiameng_dian_work_groups'
+export const DIAN_WORK_SETTLE_KEY = 'jiameng_dian_work_settle'
+export const SPOT_WORK_SETTLE_KEY = 'jiameng_spot_work_settle'
 
 function todayDateStr() {
   const d = new Date()
@@ -557,4 +559,57 @@ export function getSpotWorkMonthStats(groupId, yearMonth) {
 
 export function getDianWorkMonthReport(year, month) {
   return dianWorkStore.getMonthReport(year, month)
+}
+
+function settleMonthKey(year, month) {
+  return `${Number(year)}-${String(Number(month)).padStart(2, '0')}`
+}
+
+function settleCellKey(groupId, personName, siteName) {
+  return `${String(groupId || '').trim()}|${String(personName || '').trim()}|${String(siteName || '').trim()}`
+}
+
+export function getSpotWorkSettleMap(year, month, settleKey = DIAN_WORK_SETTLE_KEY) {
+  const all = readJson(settleKey, {})
+  const data = all && typeof all === 'object' ? all[settleMonthKey(year, month)] : null
+  return data && typeof data === 'object' ? { ...data } : {}
+}
+
+export function getDianWorkSettleMap(year, month) {
+  return getSpotWorkSettleMap(year, month, DIAN_WORK_SETTLE_KEY)
+}
+
+export function isDianWorkSiteSettled(year, month, groupId, personName, siteName) {
+  const map = getDianWorkSettleMap(year, month)
+  return map[settleCellKey(groupId, personName, siteName)] === 'settled'
+}
+
+export function setSpotWorkSiteSettled(
+  year,
+  month,
+  groupId,
+  personName,
+  siteName,
+  settled,
+  settleKey = DIAN_WORK_SETTLE_KEY
+) {
+  const allRaw = readJson(settleKey, {})
+  const all = allRaw && typeof allRaw === 'object' && !Array.isArray(allRaw) ? allRaw : {}
+  const mk = settleMonthKey(year, month)
+  if (!all[mk] || typeof all[mk] !== 'object') all[mk] = {}
+  const ck = settleCellKey(groupId, personName, siteName)
+  if (settled) all[mk][ck] = 'settled'
+  else delete all[mk][ck]
+  if (Object.keys(all[mk]).length === 0) delete all[mk]
+  try {
+    writeJson(settleKey, all)
+    return { success: true }
+  } catch (e) {
+    console.error('Error saving spot work settle status:', e)
+    return { success: false, message: '儲存失敗' }
+  }
+}
+
+export function setDianWorkSiteSettled(year, month, groupId, personName, siteName, settled) {
+  return setSpotWorkSiteSettled(year, month, groupId, personName, siteName, settled, DIAN_WORK_SETTLE_KEY)
 }
