@@ -337,6 +337,174 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
         unnamedDays,
         people
       }
+    },
+    getMonthReport(year, month) {
+      const y = Number(year)
+      const mo = Number(month)
+      const empty = {
+        year: y,
+        month: mo,
+        logCount: 0,
+        totalWork: 0,
+        overtimeHours: 0,
+        unnamedDays: 0,
+        sites: [],
+        groups: [],
+        rows: []
+      }
+      if (!Number.isFinite(y) || !Number.isFinite(mo)) return empty
+      const prefix = `${y}-${String(mo).padStart(2, '0')}`
+      const nameById = new Map(getGroups().map((g) => [g.id, g.name]))
+      const logs = getLogs().filter((r) => String(r?.date || '').slice(0, 10).startsWith(prefix))
+      if (logs.length === 0) return empty
+
+      const siteMap = new Map()
+      const groupMap = new Map()
+      const rowMap = new Map()
+
+      const bumpSite = (siteName, { work = 0, ot = 0, unnamed = 0, groupName, personName, days = 0, personOt = 0 } = {}) => {
+        if (!siteMap.has(siteName)) {
+          siteMap.set(siteName, { siteName, workDays: 0, overtimeHours: 0, unnamedDays: 0, people: new Map() })
+        }
+        const s = siteMap.get(siteName)
+        s.workDays += work
+        s.overtimeHours += ot
+        s.unnamedDays += unnamed
+        if (personName) {
+          const pk = `${groupName}\0${personName}`
+          const prev = s.people.get(pk) || { groupName, name: personName, days: 0, overtimeHours: 0 }
+          prev.days += days
+          prev.overtimeHours += personOt
+          s.people.set(pk, prev)
+        }
+      }
+
+      const bumpGroupPerson = (gid, groupName, personName, siteName, days, ot) => {
+        if (!groupMap.has(gid)) {
+          groupMap.set(gid, {
+            groupId: gid,
+            groupName,
+            workDays: 0,
+            overtimeHours: 0,
+            unnamedDays: 0,
+            people: new Map()
+          })
+        }
+        const g = groupMap.get(gid)
+        g.workDays += days
+        g.overtimeHours += ot
+        if (personName === '未具名') g.unnamedDays += days
+        if (!g.people.has(personName)) {
+          g.people.set(personName, { name: personName, days: 0, overtimeHours: 0, sites: new Map() })
+        }
+        const p = g.people.get(personName)
+        p.days += days
+        p.overtimeHours += ot
+        const prevSite = p.sites.get(siteName) || { siteName, days: 0, overtimeHours: 0 }
+        prevSite.days += days
+        prevSite.overtimeHours += ot
+        p.sites.set(siteName, prevSite)
+      }
+
+      const bumpRow = (groupId, groupName, personName, siteName, days, ot) => {
+        const k = `${groupId}\0${personName}\0${siteName}`
+        const prev = rowMap.get(k) || {
+          groupId,
+          groupName,
+          personName,
+          siteName,
+          days: 0,
+          overtimeHours: 0
+        }
+        prev.days += days
+        prev.overtimeHours += ot
+        rowMap.set(k, prev)
+      }
+
+      logs.forEach((r) => {
+        const gid = String(r?.groupId || '').trim() || '_'
+        const groupName = nameById.get(gid) || '未分群'
+        const site = normalizeSite(r.siteName)
+        const entries = normalizeEntries(r)
+        const named = new Set()
+        entries.forEach((e) => {
+          named.add(e.name)
+          const ot = roundHours(e.overtimeHours)
+          bumpSite(site, {
+            work: 1,
+            ot,
+            groupName,
+            personName: e.name,
+            days: 1,
+            personOt: ot
+          })
+          bumpGroupPerson(gid, groupName, e.name, site, 1, ot)
+          bumpRow(gid, groupName, e.name, site, 1, ot)
+        })
+        const extra = Math.max(0, (Number(r.count) || 0) - named.size)
+        if (extra > 0) {
+          bumpSite(site, { work: extra, unnamed: extra, groupName, personName: '未具名', days: extra })
+          bumpGroupPerson(gid, groupName, '未具名', site, extra, 0)
+          bumpRow(gid, groupName, '未具名', site, extra, 0)
+        }
+      })
+
+      const roundObjOt = (o) => ({ ...o, overtimeHours: roundHours(o.overtimeHours) })
+      const sites = [...siteMap.values()]
+        .map((s) =>
+          roundObjOt({
+            ...s,
+            workDays: s.workDays,
+            people: [...s.people.values()]
+              .map(roundObjOt)
+              .sort(
+                (a, b) =>
+                  b.days - a.days ||
+                  String(a.groupName).localeCompare(String(b.groupName), 'zh-Hant') ||
+                  String(a.name).localeCompare(String(b.name), 'zh-Hant')
+              )
+          })
+        )
+        .sort((a, b) => b.workDays - a.workDays || a.siteName.localeCompare(b.siteName, 'zh-Hant'))
+
+      const groups = [...groupMap.values()]
+        .map((g) =>
+          roundObjOt({
+            ...g,
+            people: [...g.people.values()]
+              .map((p) =>
+                roundObjOt({
+                  ...p,
+                  sites: [...p.sites.values()]
+                    .map(roundObjOt)
+                    .sort((a, b) => b.days - a.days || a.siteName.localeCompare(b.siteName, 'zh-Hant'))
+                })
+              )
+              .sort((a, b) => b.days - a.days || a.name.localeCompare(b.name, 'zh-Hant'))
+          })
+        )
+        .sort((a, b) => String(a.groupName).localeCompare(String(b.groupName), 'zh-Hant'))
+
+      const rows = [...rowMap.values()]
+        .map(roundObjOt)
+        .sort(
+          (a, b) =>
+            String(a.groupName).localeCompare(String(b.groupName), 'zh-Hant') ||
+            String(a.personName).localeCompare(String(b.personName), 'zh-Hant') ||
+            String(a.siteName).localeCompare(String(b.siteName), 'zh-Hant')
+        )
+
+      return {
+        year: y,
+        month: mo,
+        logCount: logs.length,
+        totalWork: sites.reduce((s, x) => s + x.workDays, 0),
+        overtimeHours: roundHours(sites.reduce((s, x) => s + x.overtimeHours, 0)),
+        unnamedDays: sites.reduce((s, x) => s + x.unnamedDays, 0),
+        sites,
+        groups,
+        rows
+      }
     }
   }
 }
@@ -386,4 +554,8 @@ export function deleteSpotWorkLog(groupId, dateStr, siteName) {
 }
 export function getSpotWorkMonthStats(groupId, yearMonth) {
   return hiddenSpotWorkStore.getMonthStats(groupId, yearMonth)
+}
+
+export function getDianWorkMonthReport(year, month) {
+  return dianWorkStore.getMonthReport(year, month)
 }

@@ -33,6 +33,11 @@ import {
   setMonthlyDayNatureOverride,
   MONTHLY_DAY_NATURE_KEY
 } from '../utils/monthlyDayNatureStorage'
+import {
+  getDianWorkMonthReport,
+  DIAN_WORK_STORAGE_KEY,
+  DIAN_WORK_GROUPS_KEY
+} from '../utils/spotWorkStorage'
 
 const OVERTIME_APPLICATIONS_STORAGE_KEY = 'jiameng_overtime_applications'
 
@@ -879,7 +884,9 @@ export default function MonthlyLocationReport() {
         e.key === 'jiameng_leave_applications' ||
         e.key === 'jiameng_engineering_schedules' ||
         e.key === OVERTIME_APPLICATIONS_STORAGE_KEY ||
-        e.key === MONTHLY_DAY_NATURE_KEY
+        e.key === MONTHLY_DAY_NATURE_KEY ||
+        e.key === DIAN_WORK_STORAGE_KEY ||
+        e.key === DIAN_WORK_GROUPS_KEY
       ) {
         setRefreshKey((k) => k + 1)
       }
@@ -895,7 +902,9 @@ export default function MonthlyLocationReport() {
         k === OVERTIME_APPLICATIONS_STORAGE_KEY ||
         k === 'jiameng_engineering_schedules' ||
         k === 'jiameng_work_reports' ||
-        k === LEAVE_APPLICATION_KEY
+        k === LEAVE_APPLICATION_KEY ||
+        k === DIAN_WORK_STORAGE_KEY ||
+        k === DIAN_WORK_GROUPS_KEY
       ) {
         setRefreshKey((r) => r + 1)
       }
@@ -1142,6 +1151,11 @@ export default function MonthlyLocationReport() {
     setEditCell(null)
     setRefreshKey((k) => k + 1)
   }
+
+  const dianWorkReport = useMemo(
+    () => getDianWorkMonthReport(year, month),
+    [year, month, refreshKey, syncRevision]
+  )
 
   const handlePdf = async () => {
     if (!pdfRef.current || pdfBusy) return
@@ -1593,6 +1607,155 @@ export default function MonthlyLocationReport() {
         {userNames.length === 0 && (
           <p className="text-gray-500 text-sm">此月份尚無資料。</p>
         )}
+        </div>
+
+        <div className="mt-6 rounded-lg border border-fuchsia-700/45 bg-fuchsia-950/15 p-3 sm:p-4">
+          <h2 className="text-sm sm:text-base font-semibold text-fuchsia-300 mb-1">點工整月報表</h2>
+          <p className="text-gray-400 text-[11px] sm:text-xs mb-3">
+            獨立統計行事曆「點工登記」，不計入上方案場出勤基本工程款。依群組、人員、案場加總。
+          </p>
+          {dianWorkReport.logCount === 0 ? (
+            <p className="text-gray-500 text-sm">此月份尚無點工登記。</p>
+          ) : (
+            <>
+              <div className="mb-3 flex flex-wrap gap-2 text-[11px] sm:text-sm">
+                <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
+                  <span className="text-gray-400">總工 </span>
+                  <span className="font-mono font-semibold text-fuchsia-200 tabular-nums">
+                    {formatSiteStatNumber(dianWorkReport.totalWork)} 工
+                  </span>
+                </div>
+                <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
+                  <span className="text-gray-400">加班 </span>
+                  <span className="font-mono font-semibold text-red-400 tabular-nums">
+                    {formatSiteStatNumber(dianWorkReport.overtimeHours)} 小時
+                  </span>
+                </div>
+                <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
+                  <span className="text-gray-400">登記筆數 </span>
+                  <span className="font-mono font-semibold text-gray-200 tabular-nums">
+                    {dianWorkReport.logCount}
+                  </span>
+                </div>
+                {dianWorkReport.unnamedDays > 0 && (
+                  <div className="rounded border border-fuchsia-800/50 bg-gray-900/50 px-3 py-2">
+                    <span className="text-gray-400">未具名 </span>
+                    <span className="font-mono font-semibold text-amber-200 tabular-nums">
+                      {formatSiteStatNumber(dianWorkReport.unnamedDays)} 工
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <h3 className="text-xs sm:text-sm font-medium text-fuchsia-200/90 mb-2">案場合計</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[11px] sm:text-sm mb-4">
+                {dianWorkReport.sites.map((s) => (
+                  <div
+                    key={s.siteName}
+                    className="flex justify-between gap-2 rounded border border-fuchsia-800/40 bg-gray-900/50 px-2 py-1.5"
+                    title={(s.people || []).map((p) => `${p.groupName} · ${p.name} ${p.days}工`).join('\n')}
+                  >
+                    <span className="text-gray-200 truncate min-w-0">{m(s.siteName)}</span>
+                    <span className="shrink-0 flex flex-col items-end font-mono tabular-nums leading-tight">
+                      <span className="text-fuchsia-200">{formatSiteStatNumber(s.workDays)} 工</span>
+                      {s.overtimeHours > 0 && (
+                        <span className="text-red-400 text-[10px] font-medium">
+                          {formatOvertimePlusHours(s.overtimeHours)}h
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {dianWorkReport.groups.map((g) => (
+                <div key={g.groupId} className="mb-4 last:mb-0 rounded border border-gray-700 bg-gray-900/40 overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-gray-700 bg-gray-900/60">
+                    <span className="text-fuchsia-100 font-medium text-sm">{m(g.groupName)}</span>
+                    <span className="text-xs font-mono tabular-nums text-gray-300">
+                      {formatSiteStatNumber(g.workDays)} 工
+                      {g.overtimeHours > 0 ? (
+                        <span className="text-red-400 ml-2">加班 {formatSiteStatNumber(g.overtimeHours)} 小時</span>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px] sm:text-sm border-collapse">
+                      <thead>
+                        <tr className="text-left text-gray-400 border-b border-gray-700">
+                          <th className="px-3 py-1.5 font-medium">誰</th>
+                          <th className="px-3 py-1.5 font-medium">去哪</th>
+                          <th className="px-3 py-1.5 font-medium text-right">工</th>
+                          <th className="px-3 py-1.5 font-medium text-right">加班</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {g.people.map((p) => (
+                          <tr key={p.name} className="border-b border-gray-800/80 last:border-0 align-top">
+                            <td className="px-3 py-1.5 text-white whitespace-nowrap">{m(p.name)}</td>
+                            <td className="px-3 py-1.5 text-gray-200">
+                              {p.sites.map((st) => (
+                                <span key={st.siteName} className="inline-block mr-2 mb-0.5">
+                                  {m(st.siteName)}
+                                  <span className="text-fuchsia-300/90 font-mono tabular-nums ml-1">
+                                    {formatSiteStatNumber(st.days)}
+                                  </span>
+                                  {st.overtimeHours > 0 && (
+                                    <span className="text-red-400 font-mono tabular-nums ml-1 text-[10px]">
+                                      +{formatSiteStatNumber(st.overtimeHours)}h
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-mono tabular-nums text-fuchsia-200">
+                              {formatSiteStatNumber(p.days)}
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-mono tabular-nums text-red-400">
+                              {p.overtimeHours > 0 ? `${formatSiteStatNumber(p.overtimeHours)} 小時` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+
+              <h3 className="text-xs sm:text-sm font-medium text-fuchsia-200/90 mb-2">群組－誰－去哪</h3>
+              <div className="overflow-x-auto rounded border border-gray-700 bg-gray-900/40">
+                <table className="w-full text-[11px] sm:text-sm border-collapse min-w-[480px]">
+                  <thead>
+                    <tr className="text-left text-gray-400 border-b border-gray-700 bg-gray-900/70">
+                      <th className="px-3 py-1.5 font-medium">群組</th>
+                      <th className="px-3 py-1.5 font-medium">誰</th>
+                      <th className="px-3 py-1.5 font-medium">去哪</th>
+                      <th className="px-3 py-1.5 font-medium text-right">工</th>
+                      <th className="px-3 py-1.5 font-medium text-right">加班</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dianWorkReport.rows.map((r) => (
+                      <tr
+                        key={`${r.groupId}-${r.personName}-${r.siteName}`}
+                        className="border-b border-gray-800/80 last:border-0"
+                      >
+                        <td className="px-3 py-1.5 text-fuchsia-100">{m(r.groupName)}</td>
+                        <td className="px-3 py-1.5 text-white">{m(r.personName)}</td>
+                        <td className="px-3 py-1.5 text-gray-200">{m(r.siteName)}</td>
+                        <td className="px-3 py-1.5 text-right font-mono tabular-nums text-fuchsia-200">
+                          {formatSiteStatNumber(r.days)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono tabular-nums text-red-400">
+                          {r.overtimeHours > 0 ? `${formatSiteStatNumber(r.overtimeHours)} 小時` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

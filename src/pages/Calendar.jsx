@@ -264,6 +264,7 @@ function Calendar() {
   const [workReportsRevision, setWorkReportsRevision] = useState(0) // 出工回報同步至月曆
   const [contractorWorkRevision, setContractorWorkRevision] = useState(0) // 承攬商出工同步至月曆
   const [dianWorkRevision, setDianWorkRevision] = useState(0) // 點工登記同步至月曆
+  const [dianWorkDetail, setDianWorkDetail] = useState(null) // { dateStr, groupId, groupName, siteName }
   const [workReportDetail, setWorkReportDetail] = useState(null) // { dateStr, siteName } 點擊月曆「出工」標籤
   const [contractorWorkDetail, setContractorWorkDetail] = useState(null) // { dateStr, siteName, companyId, companyName }
   const [contractorApplyingOvertimeId, setContractorApplyingOvertimeId] = useState(null)
@@ -431,6 +432,25 @@ function Calendar() {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     return dianWorkChipsByDate.get(dateStr) || []
   }
+
+  const openDianWorkDetail = (dateStr, chip) => {
+    setDianWorkDetail({
+      dateStr,
+      groupId: chip.groupId,
+      groupName: chip.groupName || '點工',
+      siteName: chip.siteName || ''
+    })
+  }
+
+  const dianWorkDetailLog = useMemo(() => {
+    if (!dianWorkDetail) return null
+    void dianWorkRevision
+    return dianWorkStore.getLogByDate(
+      dianWorkDetail.groupId,
+      dianWorkDetail.dateStr,
+      dianWorkDetail.siteName === '（未填案場）' ? '' : dianWorkDetail.siteName
+    )
+  }, [dianWorkDetail, dianWorkRevision])
 
   const contractorWorkDetailRows = useMemo(() => {
     if (!contractorWorkDetail) return []
@@ -3602,21 +3622,13 @@ function Calendar() {
                       title={`點工登記：${m(chip.groupName || '點工')}${siteLabel ? ` · ${m(siteLabel)}` : ''}${chip.count ? ` · ${chip.count}人` : ''}`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        const q = new URLSearchParams()
-                        q.set('date', cellDateStr)
-                        if (chip.groupId) q.set('group', chip.groupId)
-                        if (siteLabel) q.set('site', siteLabel)
-                        navigate(`/dian-work?${q.toString()}`)
+                        openDianWorkDetail(cellDateStr, chip)
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()
                           e.stopPropagation()
-                          const q = new URLSearchParams()
-                          q.set('date', cellDateStr)
-                          if (chip.groupId) q.set('group', chip.groupId)
-                          if (siteLabel) q.set('site', siteLabel)
-                          navigate(`/dian-work?${q.toString()}`)
+                          openDianWorkDetail(cellDateStr, chip)
                         }
                       }}
                     >
@@ -5412,6 +5424,139 @@ function Calendar() {
                 type="button"
                 onClick={() => setWorkReportDetail(null)}
                 className="px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm"
+              >
+                關閉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dianWorkDetail && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[55] p-4"
+          onClick={() => setDianWorkDetail(null)}
+          role="presentation"
+        >
+          <div
+            className="bg-gray-900 border border-fuchsia-600/60 rounded-lg shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="dian-work-detail-title"
+          >
+            <div className="flex items-start justify-between gap-3 p-4 border-b border-gray-700 shrink-0">
+              <div>
+                <h3 id="dian-work-detail-title" className="text-lg font-semibold text-fuchsia-300">
+                  點工登記
+                </h3>
+                <p className="text-gray-300 text-sm mt-1 tabular-nums">{dianWorkDetail.dateStr}</p>
+                <p className="text-white font-medium">
+                  {m(
+                    dianWorkDetail.siteName && dianWorkDetail.siteName !== '（未填案場）'
+                      ? dianWorkDetail.siteName
+                      : dianWorkDetail.groupName
+                  )}
+                </p>
+                {dianWorkDetail.siteName && dianWorkDetail.siteName !== '（未填案場）' && (
+                  <p className="text-fuchsia-200/80 text-xs mt-0.5">{m(dianWorkDetail.groupName)}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDianWorkDetail(null)}
+                className="text-gray-400 hover:text-white shrink-0 p-1"
+                aria-label="關閉"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              {!dianWorkDetailLog ? (
+                <p className="text-gray-500 text-sm">尚無紀錄。</p>
+              ) : (
+                (() => {
+                  const entries = Array.isArray(dianWorkDetailLog.entries) ? dianWorkDetailLog.entries : []
+                  const namedCount = entries.length
+                  const totalCount = Math.max(Number(dianWorkDetailLog.count) || 0, namedCount)
+                  const extra = Math.max(0, totalCount - namedCount)
+                  const totalOt = entries.reduce((s, e) => s + (Number(e.overtimeHours) || 0), 0)
+                  const rows = [
+                    ...entries.map((e) => ({
+                      key: e.name,
+                      name: e.name,
+                      startTime: String(e.startTime || '').trim(),
+                      overtimeHours: Number(e.overtimeHours) || 0
+                    })),
+                    ...(extra > 0
+                      ? [
+                          {
+                            key: '__unnamed__',
+                            name: extra === 1 ? '未具名' : `未具名 ${extra} 人`,
+                            startTime: '',
+                            overtimeHours: 0,
+                            unnamed: extra
+                          }
+                        ]
+                      : [])
+                  ]
+                  return (
+                    <>
+                      <p className="text-sm text-fuchsia-300/90 mb-3">
+                        合計出工 <strong className="text-amber-200">{totalCount}</strong> 人
+                        {totalOt > 0 && (
+                          <>
+                            {' · 加班 '}
+                            <strong className="text-red-400">{formatWorkReportHours(totalOt)}</strong>
+                            {' 小時'}
+                          </>
+                        )}
+                      </p>
+                      {dianWorkDetailLog.note ? (
+                        <p className="text-gray-400 text-xs mb-3">備註：{dianWorkDetailLog.note}</p>
+                      ) : null}
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-600 text-left text-gray-400">
+                            <th className="py-2 pr-2 font-medium">姓名</th>
+                            <th className="py-2 pr-2 font-medium">時間</th>
+                            <th className="py-2 pr-2 font-medium text-right">工時</th>
+                            <th className="py-2 font-medium">填寫人</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row) => (
+                            <tr key={row.key} className="border-b border-gray-700/60 align-top">
+                              <td className="py-2 pr-2 text-white">{m(row.name)}</td>
+                              <td className="py-2 pr-2 text-fuchsia-200 tabular-nums text-xs">
+                                {row.startTime || '—'}
+                              </td>
+                              <td className="py-2 pr-2 text-right font-medium">
+                                <span className="text-amber-200">
+                                  出工 {row.unnamed ? row.unnamed : 1} 人
+                                </span>
+                                {row.overtimeHours > 0 && (
+                                  <span className="block text-red-400 text-xs mt-0.5">
+                                    加班 {formatWorkReportHours(row.overtimeHours)} 小時
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 text-gray-400 text-xs">
+                                {m(dianWorkDetailLog.createdBy || '—')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )
+                })()
+              )}
+            </div>
+            <div className="p-3 border-t border-gray-700 shrink-0 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDianWorkDetail(null)}
+                className="px-4 py-2 rounded-lg bg-fuchsia-700 hover:bg-fuchsia-600 text-white text-sm"
               >
                 關閉
               </button>
