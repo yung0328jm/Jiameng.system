@@ -123,6 +123,34 @@ const CAL_DAY_CHIP_LABEL =
   'min-w-0 w-full text-[9px] max-sm:leading-[1.2] sm:text-[10px] text-left font-medium line-clamp-2 max-sm:line-clamp-3 sm:truncate sm:flex-1'
 
 /** 藍標（工作/項目）與黃標（住宿）皆可使用 participantWorkEntries 由每人填寫當日工作 */
+function buildDianWorkDetailRows(log) {
+  const entries = Array.isArray(log?.entries) ? log.entries : []
+  const namedCount = entries.length
+  const totalCount = Math.max(Number(log?.count) || 0, namedCount)
+  const extra = Math.max(0, totalCount - namedCount)
+  const totalOt = entries.reduce((s, e) => s + (Number(e.overtimeHours) || 0), 0)
+  const rows = [
+    ...entries.map((e, i) => ({
+      key: `${e.name || 'n'}-${i}`,
+      name: e.name,
+      startTime: String(e.startTime || '').trim(),
+      overtimeHours: Number(e.overtimeHours) || 0
+    })),
+    ...(extra > 0
+      ? [
+          {
+            key: '__unnamed__',
+            name: extra === 1 ? '未具名' : `未具名 ${extra} 人`,
+            startTime: '',
+            overtimeHours: 0,
+            unnamed: extra
+          }
+        ]
+      : [])
+  ]
+  return { totalCount, totalOt, rows, note: log?.note || '', createdBy: log?.createdBy || '' }
+}
+
 function tagUsesParticipantWorkEntries(tag) {
   const t = String(tag || '').trim()
   return t === 'blue' || t === 'yellow'
@@ -436,17 +464,14 @@ function Calendar() {
   const openDianWorkDetail = (dateStr, chip) => {
     setDianWorkDetail({
       dateStr,
-      groupId: chip.groupId,
-      groupName: chip.groupName || '點工',
       siteName: chip.siteName || ''
     })
   }
 
-  const dianWorkDetailLog = useMemo(() => {
-    if (!dianWorkDetail) return null
+  const dianWorkDetailLogs = useMemo(() => {
+    if (!dianWorkDetail) return []
     void dianWorkRevision
-    return dianWorkStore.getLogByDate(
-      dianWorkDetail.groupId,
+    return dianWorkStore.getLogsForDateSite(
       dianWorkDetail.dateStr,
       dianWorkDetail.siteName === '（未填案場）' ? '' : dianWorkDetail.siteName
     )
@@ -3612,14 +3637,16 @@ function Calendar() {
                   ))}
                   {dianWorkChips.map((chip) => {
                     const siteLabel = chip.siteName && chip.siteName !== '（未填案場）' ? chip.siteName : ''
-                    const label = siteLabel || chip.groupName || '點工'
+                    const groupNames = (chip.groups || []).map((g) => g.groupName).filter(Boolean)
+                    const label = siteLabel || groupNames[0] || '點工'
+                    const titleGroups = groupNames.length ? groupNames.map((n) => m(n)).join('、') : ''
                     return (
                     <div
-                      key={`dw-${cellDateStr}-${chip.groupId}-${chip.siteName}`}
+                      key={`dw-${cellDateStr}-${chip.siteName}`}
                       role="button"
                       tabIndex={0}
                       className={`${CAL_DAY_CHIP_ROW} border border-fuchsia-600/50 bg-fuchsia-950/70 hover:bg-fuchsia-900/55 hover:border-fuchsia-500/70`}
-                      title={`點工登記：${m(chip.groupName || '點工')}${siteLabel ? ` · ${m(siteLabel)}` : ''}${chip.count ? ` · ${chip.count}人` : ''}`}
+                      title={`點工登記${siteLabel ? `：${m(siteLabel)}` : ''}${titleGroups ? ` · ${titleGroups}` : ''}${chip.count ? ` · ${chip.count}人` : ''}`}
                       onClick={(e) => {
                         e.stopPropagation()
                         openDianWorkDetail(cellDateStr, chip)
@@ -5454,12 +5481,9 @@ function Calendar() {
                   {m(
                     dianWorkDetail.siteName && dianWorkDetail.siteName !== '（未填案場）'
                       ? dianWorkDetail.siteName
-                      : dianWorkDetail.groupName
+                      : dianWorkDetailLogs[0]?.groupName || '點工'
                   )}
                 </p>
-                {dianWorkDetail.siteName && dianWorkDetail.siteName !== '（未填案場）' && (
-                  <p className="text-fuchsia-200/80 text-xs mt-0.5">{m(dianWorkDetail.groupName)}</p>
-                )}
               </div>
               <button
                 type="button"
@@ -5471,34 +5495,16 @@ function Calendar() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto flex-1">
-              {!dianWorkDetailLog ? (
+              {dianWorkDetailLogs.length === 0 ? (
                 <p className="text-gray-500 text-sm">尚無紀錄。</p>
               ) : (
                 (() => {
-                  const entries = Array.isArray(dianWorkDetailLog.entries) ? dianWorkDetailLog.entries : []
-                  const namedCount = entries.length
-                  const totalCount = Math.max(Number(dianWorkDetailLog.count) || 0, namedCount)
-                  const extra = Math.max(0, totalCount - namedCount)
-                  const totalOt = entries.reduce((s, e) => s + (Number(e.overtimeHours) || 0), 0)
-                  const rows = [
-                    ...entries.map((e) => ({
-                      key: e.name,
-                      name: e.name,
-                      startTime: String(e.startTime || '').trim(),
-                      overtimeHours: Number(e.overtimeHours) || 0
-                    })),
-                    ...(extra > 0
-                      ? [
-                          {
-                            key: '__unnamed__',
-                            name: extra === 1 ? '未具名' : `未具名 ${extra} 人`,
-                            startTime: '',
-                            overtimeHours: 0,
-                            unnamed: extra
-                          }
-                        ]
-                      : [])
-                  ]
+                  const blocks = dianWorkDetailLogs.map((log) => ({
+                    log,
+                    ...buildDianWorkDetailRows(log)
+                  }))
+                  const totalCount = blocks.reduce((s, b) => s + b.totalCount, 0)
+                  const totalOt = blocks.reduce((s, b) => s + b.totalOt, 0)
                   return (
                     <>
                       <p className="text-sm text-fuchsia-300/90 mb-3">
@@ -5511,42 +5517,57 @@ function Calendar() {
                           </>
                         )}
                       </p>
-                      {dianWorkDetailLog.note ? (
-                        <p className="text-gray-400 text-xs mb-3">備註：{dianWorkDetailLog.note}</p>
-                      ) : null}
-                      <table className="w-full text-sm border-collapse">
-                        <thead>
-                          <tr className="border-b border-gray-600 text-left text-gray-400">
-                            <th className="py-2 pr-2 font-medium">姓名</th>
-                            <th className="py-2 pr-2 font-medium">時間</th>
-                            <th className="py-2 pr-2 font-medium text-right">工時</th>
-                            <th className="py-2 font-medium">填寫人</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((row) => (
-                            <tr key={row.key} className="border-b border-gray-700/60 align-top">
-                              <td className="py-2 pr-2 text-white">{m(row.name)}</td>
-                              <td className="py-2 pr-2 text-fuchsia-200 tabular-nums text-xs">
-                                {row.startTime || '—'}
-                              </td>
-                              <td className="py-2 pr-2 text-right font-medium">
-                                <span className="text-amber-200">
-                                  出工 {row.unnamed ? row.unnamed : 1} 人
-                                </span>
-                                {row.overtimeHours > 0 && (
-                                  <span className="block text-red-400 text-xs mt-0.5">
-                                    加班 {formatWorkReportHours(row.overtimeHours)} 小時
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2 text-gray-400 text-xs">
-                                {m(dianWorkDetailLog.createdBy || '—')}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {blocks.map((b, idx) => (
+                        <div
+                          key={b.log.id || `${b.log.groupId}-${idx}`}
+                          className={idx > 0 ? 'mt-4 pt-3 border-t border-gray-700/80' : ''}
+                        >
+                          {blocks.length > 1 && (
+                            <p className="text-fuchsia-200 text-sm font-medium mb-2">
+                              {m(b.log.groupName || '點工')}
+                              <span className="text-gray-400 font-normal ml-2 tabular-nums">
+                                {b.totalCount} 人
+                              </span>
+                            </p>
+                          )}
+                          {b.note ? (
+                            <p className="text-gray-400 text-xs mb-2">備註：{b.note}</p>
+                          ) : null}
+                          <table className="w-full text-sm border-collapse">
+                            <thead>
+                              <tr className="border-b border-gray-600 text-left text-gray-400">
+                                <th className="py-2 pr-2 font-medium">姓名</th>
+                                <th className="py-2 pr-2 font-medium">時間</th>
+                                <th className="py-2 pr-2 font-medium text-right">工時</th>
+                                <th className="py-2 font-medium">填寫人</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {b.rows.map((row) => (
+                                <tr key={row.key} className="border-b border-gray-700/60 align-top">
+                                  <td className="py-2 pr-2 text-white">{m(row.name)}</td>
+                                  <td className="py-2 pr-2 text-fuchsia-200 tabular-nums text-xs">
+                                    {row.startTime || '—'}
+                                  </td>
+                                  <td className="py-2 pr-2 text-right font-medium">
+                                    <span className="text-amber-200">
+                                      出工 {row.unnamed ? row.unnamed : 1} 人
+                                    </span>
+                                    {row.overtimeHours > 0 && (
+                                      <span className="block text-red-400 text-xs mt-0.5">
+                                        加班 {formatWorkReportHours(row.overtimeHours)} 小時
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2 text-gray-400 text-xs">
+                                    {m(b.createdBy || '—')}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ))}
                     </>
                   )
                 })()

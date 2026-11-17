@@ -202,33 +202,61 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
         ) || null
       )
     },
+    getLogsForDateSite(dateStr, siteName) {
+      const d = String(dateStr || '').trim().slice(0, 10)
+      const site = normalizeSite(siteName)
+      if (!d) return []
+      const nameById = new Map(getGroups().map((g) => [g.id, g.name]))
+      return getLogs()
+        .filter(
+          (r) =>
+            String(r?.date || '').slice(0, 10) === d && normalizeSite(r?.siteName) === site
+        )
+        .map((r) => ({
+          ...r,
+          groupName: nameById.get(String(r?.groupId || '').trim()) || '點工'
+        }))
+        .sort((a, b) => String(a.groupName).localeCompare(String(b.groupName), 'zh-Hant'))
+    },
     getMonthChips(year, month) {
       const y = Number(year)
       const mo = Number(month)
       if (!Number.isFinite(y) || !Number.isFinite(mo)) return new Map()
       const prefix = `${y}-${String(mo).padStart(2, '0')}`
       const nameById = new Map(getGroups().map((g) => [g.id, g.name]))
-      const map = new Map()
+      const byDateSite = new Map()
       getLogs().forEach((r) => {
         const d = String(r?.date || '').slice(0, 10)
         if (!d.startsWith(prefix)) return
         const gid = String(r?.groupId || '').trim()
         if (!gid) return
-        const chip = {
+        const siteName = normalizeSite(r.siteName)
+        const k = `${d}\0${siteName}`
+        if (!byDateSite.has(k)) {
+          byDateSite.set(k, {
+            date: d,
+            siteName,
+            count: 0,
+            groups: []
+          })
+        }
+        const chip = byDateSite.get(k)
+        const n = Number(r.count) || 0
+        chip.count += n
+        chip.groups.push({
           groupId: gid,
           groupName: nameById.get(gid) || '點工',
-          siteName: normalizeSite(r.siteName),
-          count: Number(r.count) || 0
-        }
-        if (!map.has(d)) map.set(d, [])
-        map.get(d).push(chip)
+          count: n
+        })
+      })
+      const map = new Map()
+      byDateSite.forEach((chip) => {
+        chip.groups.sort((a, b) => String(a.groupName).localeCompare(String(b.groupName), 'zh-Hant'))
+        if (!map.has(chip.date)) map.set(chip.date, [])
+        map.get(chip.date).push(chip)
       })
       map.forEach((list, d) => {
-        list.sort(
-          (a, b) =>
-            String(a.groupName).localeCompare(String(b.groupName), 'zh-Hant') ||
-            String(a.siteName).localeCompare(String(b.siteName), 'zh-Hant')
-        )
+        list.sort((a, b) => String(a.siteName).localeCompare(String(b.siteName), 'zh-Hant'))
         map.set(d, list)
       })
       return map
