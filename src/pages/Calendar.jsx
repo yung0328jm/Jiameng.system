@@ -5539,7 +5539,7 @@ function Calendar() {
                                 <th className="py-2 pr-2 font-medium">姓名</th>
                                 <th className="py-2 pr-2 font-medium">時間</th>
                                 <th className="py-2 pr-2 font-medium text-right">工時</th>
-                                <th className="py-2 font-medium">填寫人</th>
+                                <th className="py-2 font-medium">公司</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -5559,8 +5559,8 @@ function Calendar() {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-2 text-gray-400 text-xs">
-                                    {m(b.createdBy || '—')}
+                                  <td className="py-2 text-fuchsia-100 text-xs">
+                                    {m(b.log.groupName || '點工')}
                                   </td>
                                 </tr>
                               ))}
