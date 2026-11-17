@@ -70,6 +70,7 @@ import {
   CONTRACTOR_WORK_LOG_KEY
 } from '../utils/contractorWorkCheckInStorage'
 import { ContractorWorkHoursDetail, ContractorWorkHoursSummaryLine } from '../components/ContractorWorkHoursDetail'
+import { dianWorkStore, DIAN_WORK_STORAGE_KEY, DIAN_WORK_GROUPS_KEY } from '../utils/spotWorkStorage'
 
 function WorkReportShiftSummary({ summary, className = '' }) {
   if (!summary || (summary.totalHeadcount == null && summary.headcount == null)) {
@@ -262,6 +263,7 @@ function Calendar() {
   const [tripReportsRevision, setTripReportsRevision] = useState(0) // 行程回報點擊後重讀列表
   const [workReportsRevision, setWorkReportsRevision] = useState(0) // 出工回報同步至月曆
   const [contractorWorkRevision, setContractorWorkRevision] = useState(0) // 承攬商出工同步至月曆
+  const [dianWorkRevision, setDianWorkRevision] = useState(0) // 點工登記同步至月曆
   const [workReportDetail, setWorkReportDetail] = useState(null) // { dateStr, siteName } 點擊月曆「出工」標籤
   const [contractorWorkDetail, setContractorWorkDetail] = useState(null) // { dateStr, siteName, companyId, companyName }
   const [contractorApplyingOvertimeId, setContractorApplyingOvertimeId] = useState(null)
@@ -418,6 +420,16 @@ function Calendar() {
   const getContractorWorkChipsForDay = (day) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     return contractorWorkChipsByDate.get(dateStr) || []
+  }
+
+  const dianWorkChipsByDate = useMemo(() => {
+    void dianWorkRevision
+    return dianWorkStore.getMonthChips(year, month + 1)
+  }, [year, month, dianWorkRevision])
+
+  const getDianWorkChipsForDay = (day) => {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return dianWorkChipsByDate.get(dateStr) || []
   }
 
   const contractorWorkDetailRows = useMemo(() => {
@@ -1093,6 +1105,7 @@ function Calendar() {
   useRealtimeKeys(['jiameng_trip_reports'], () => setTripReportsRevision((r) => r + 1))
   useRealtimeKeys(['jiameng_work_reports'], () => setWorkReportsRevision((r) => r + 1))
   useRealtimeKeys([CONTRACTOR_WORK_LOG_KEY], () => setContractorWorkRevision((r) => r + 1))
+  useRealtimeKeys([DIAN_WORK_STORAGE_KEY, DIAN_WORK_GROUPS_KEY], () => setDianWorkRevision((r) => r + 1))
 
   // 編輯表單開啟時：從排程列表同步表單資料（避免點編輯後表單空白）
   useEffect(() => {
@@ -3371,6 +3384,7 @@ function Calendar() {
             const daySchedules = getSchedulesForDay(day, true)
             const workReportSites = getWorkReportSitesForDay(day)
             const contractorWorkChips = getContractorWorkChipsForDay(day)
+            const dianWorkChips = getDianWorkChipsForDay(day)
             const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             const today = isToday(day)
             const holiday = isHoliday(day)
@@ -3576,6 +3590,43 @@ function Calendar() {
                       <span className={`${CAL_DAY_CHIP_LABEL} text-violet-50`}>{m(chip.companyName)}</span>
                     </div>
                   ))}
+                  {dianWorkChips.map((chip) => {
+                    const siteLabel = chip.siteName && chip.siteName !== '（未填案場）' ? chip.siteName : ''
+                    const label = siteLabel || chip.groupName || '點工'
+                    return (
+                    <div
+                      key={`dw-${cellDateStr}-${chip.groupId}-${chip.siteName}`}
+                      role="button"
+                      tabIndex={0}
+                      className={`${CAL_DAY_CHIP_ROW} border border-fuchsia-600/50 bg-fuchsia-950/70 hover:bg-fuchsia-900/55 hover:border-fuchsia-500/70`}
+                      title={`點工登記：${m(chip.groupName || '點工')}${siteLabel ? ` · ${m(siteLabel)}` : ''}${chip.count ? ` · ${chip.count}人` : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const q = new URLSearchParams()
+                        q.set('date', cellDateStr)
+                        if (chip.groupId) q.set('group', chip.groupId)
+                        if (siteLabel) q.set('site', siteLabel)
+                        navigate(`/dian-work?${q.toString()}`)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const q = new URLSearchParams()
+                          q.set('date', cellDateStr)
+                          if (chip.groupId) q.set('group', chip.groupId)
+                          if (siteLabel) q.set('site', siteLabel)
+                          navigate(`/dian-work?${q.toString()}`)
+                        }
+                      }}
+                    >
+                      <span className={`${CAL_DAY_CHIP_BADGE} bg-fuchsia-700/60 text-fuchsia-100`}>
+                        點工
+                      </span>
+                      <span className={`${CAL_DAY_CHIP_LABEL} text-fuchsia-50`}>{m(label)}</span>
+                    </div>
+                    )
+                  })}
                   {/* 显示其他事件 */}
                   {events.map((event) => (
                     <div

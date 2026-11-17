@@ -5,6 +5,7 @@ import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
 import { hiddenSpotWorkStore } from '../utils/spotWorkStorage'
+import { getContractorCheckInSiteNames, getDropdownOptionsByCategory } from '../utils/dropdownStorage'
 
 function todayDateStr() {
   const d = new Date()
@@ -21,6 +22,20 @@ function currentYearMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+function getSpotWorkSiteOptions() {
+  const checked = getContractorCheckInSiteNames()
+  if (checked.length > 0) return checked
+  const seen = new Set()
+  const out = []
+  ;(getDropdownOptionsByCategory('work_report_sites') || []).forEach((o) => {
+    const v = String(o?.value || '').trim()
+    if (!v || seen.has(v)) return
+    seen.add(v)
+    out.push(v)
+  })
+  return out.sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+}
+
 function formatHours(n) {
   const x = Number(n) || 0
   if (x <= 0) return '0'
@@ -32,11 +47,15 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
   const { enabled: recording } = useRecordingMode()
   const [searchParams] = useSearchParams()
   const dateFromQuery = normalizeDateParam(searchParams.get('date'))
+  const groupFromQuery = String(searchParams.get('group') || '').trim()
+  const siteFromQuery = String(searchParams.get('site') || '').trim()
   const [groups, setGroups] = useState(() => store.getGroups())
   const [groupId, setGroupId] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
   const [date, setDate] = useState(() => dateFromQuery || todayDateStr())
   const [yearMonth, setYearMonth] = useState(() => (dateFromQuery || currentYearMonth()).slice(0, 7))
+  const [siteName, setSiteName] = useState(() => siteFromQuery)
+  const [siteOptions, setSiteOptions] = useState(() => getSpotWorkSiteOptions())
   const [entriesByName, setEntriesByName] = useState({})
   const [count, setCount] = useState('')
   const [defaultStart, setDefaultStart] = useState('08:00')
@@ -48,9 +67,10 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
 
   const group = groups.find((g) => g.id === groupId) || null
 
-  const loadDate = useCallback((gid, d) => {
-    const rec = store.getLogByDate(gid, d)
+  const loadDate = useCallback((gid, d, site) => {
+    const rec = store.getLogByDate(gid, d, site)
     setDate(d)
+    if (site != null) setSiteName(site)
     const map = {}
     ;(rec?.entries || []).forEach((e) => {
       if (!e?.name) return
@@ -71,11 +91,15 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
     setLogs(store.getLogs())
     if (groupId) {
       setRoster(store.getPeople(groupId))
-      loadDate(groupId, date)
+      loadDate(groupId, date, siteName)
     }
-  }, [groupId, date, loadDate, store])
+  }, [groupId, date, siteName, loadDate, store])
 
-  useRealtimeKeys(store.syncKeys, refetch)
+  useRealtimeKeys([...store.syncKeys, 'jiameng_dropdown_options'], refetch)
+
+  useEffect(() => {
+    setSiteOptions(getSpotWorkSiteOptions())
+  }, [logs])
 
   useEffect(() => {
     if (!dateFromQuery) return
@@ -84,13 +108,23 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
   }, [dateFromQuery])
 
   useEffect(() => {
+    if (groupFromQuery && store.getGroups().some((g) => g.id === groupFromQuery)) {
+      setGroupId(groupFromQuery)
+    }
+  }, [groupFromQuery, store])
+
+  useEffect(() => {
+    if (siteFromQuery) setSiteName(siteFromQuery)
+  }, [siteFromQuery])
+
+  useEffect(() => {
     if (!groupId) {
       setRoster([])
       return
     }
     setRoster(store.getPeople(groupId))
-    loadDate(groupId, date)
-  }, [groupId, date, loadDate, store])
+    loadDate(groupId, date, siteName)
+  }, [groupId, date, siteName, loadDate, store])
 
   const selectedNames = useMemo(() => Object.keys(entriesByName), [entriesByName])
 
@@ -189,6 +223,7 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
     const result = store.upsertLog({
       groupId,
       date,
+      siteName,
       entries,
       count,
       note,
@@ -204,9 +239,9 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
   }
 
   const removeDay = () => {
-    if (!store.getLogByDate(groupId, date)) return
-    if (!window.confirm(`確定刪除 ${group?.name || ''} ${date} 的點工紀錄？`)) return
-    const result = store.deleteLog(groupId, date)
+    if (!store.getLogByDate(groupId, date, siteName)) return
+    if (!window.confirm(`確定刪除 ${group?.name || ''} ${date}「${siteName || '未填案場'}」的點工紀錄？`)) return
+    const result = store.deleteLog(groupId, date, siteName)
     if (!result.success) {
       setMessage({ type: 'error', text: result.message || '刪除失敗' })
       return
@@ -397,6 +432,24 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
           </label>
         </div>
         <label className="block">
+          <span className="text-cn-mist text-xs">案場</span>
+          <select
+            value={siteName}
+            onChange={(e) => setSiteName(e.target.value)}
+            className="w-full mt-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white"
+          >
+            <option value="">請選擇案場</option>
+            {siteOptions.map((s) => (
+              <option key={s} value={s}>
+                {recording ? m(s) : s}
+              </option>
+            ))}
+            {siteName && !siteOptions.includes(siteName) && (
+              <option value={siteName}>{recording ? m(siteName) : siteName}</option>
+            )}
+          </select>
+        </label>
+        <label className="block">
           <span className="text-cn-mist text-xs">預設上班時間（勾選人員時帶入）</span>
           <input
             type="time"
@@ -540,12 +593,17 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
                 <li key={r.id}>
                   <button
                     type="button"
-                    onClick={() => loadDate(groupId, r.date)}
+                    onClick={() => loadDate(groupId, r.date, r.siteName || '')}
                     className={`w-full text-left rounded px-2 py-1.5 text-sm hover:bg-gray-800/80 ${
-                      r.date === date ? 'bg-amber-950/40 border border-amber-700/40' : ''
+                      r.date === date && String(r.siteName || '') === String(siteName || '')
+                        ? 'bg-amber-950/40 border border-amber-700/40'
+                        : ''
                     }`}
                   >
                     <span className="text-amber-200 tabular-nums">{r.date}</span>
+                    {r.siteName ? (
+                      <span className="text-sky-300 ml-2">{recording ? m(r.siteName) : r.siteName}</span>
+                    ) : null}
                     <span className="text-white font-medium ml-2">{r.count} 人</span>
                     {ot > 0 && (
                       <span className="text-red-300 ml-2">加班 {formatHours(ot)}h</span>

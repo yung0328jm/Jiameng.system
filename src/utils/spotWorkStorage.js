@@ -50,6 +50,10 @@ function writeJson(key, data) {
   if (!isGuestCloudWriteBlocked()) syncKeyToSupabase(key, val)
 }
 
+function normalizeSite(siteName) {
+  return String(siteName || '').trim() || '（未填案場）'
+}
+
 function normalizeEntries(rec) {
   if (Array.isArray(rec?.entries) && rec.entries.length > 0) {
     return rec.entries
@@ -184,20 +188,57 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
         return { success: false, message: '刪除失敗' }
       }
     },
-    getLogByDate(groupId, dateStr) {
+    getLogByDate(groupId, dateStr, siteName) {
       const gid = String(groupId || '').trim()
       const d = String(dateStr || '').trim().slice(0, 10)
+      const site = normalizeSite(siteName)
       if (!gid || !d) return null
       return (
         getLogs().find(
-          (r) => String(r?.groupId || '') === gid && String(r?.date || '').slice(0, 10) === d
+          (r) =>
+            String(r?.groupId || '') === gid &&
+            String(r?.date || '').slice(0, 10) === d &&
+            normalizeSite(r?.siteName) === site
         ) || null
       )
     },
-    upsertLog({ groupId, date, entries, count, note, createdBy }) {
+    getMonthChips(year, month) {
+      const y = Number(year)
+      const mo = Number(month)
+      if (!Number.isFinite(y) || !Number.isFinite(mo)) return new Map()
+      const prefix = `${y}-${String(mo).padStart(2, '0')}`
+      const nameById = new Map(getGroups().map((g) => [g.id, g.name]))
+      const map = new Map()
+      getLogs().forEach((r) => {
+        const d = String(r?.date || '').slice(0, 10)
+        if (!d.startsWith(prefix)) return
+        const gid = String(r?.groupId || '').trim()
+        if (!gid) return
+        const chip = {
+          groupId: gid,
+          groupName: nameById.get(gid) || '點工',
+          siteName: normalizeSite(r.siteName),
+          count: Number(r.count) || 0
+        }
+        if (!map.has(d)) map.set(d, [])
+        map.get(d).push(chip)
+      })
+      map.forEach((list, d) => {
+        list.sort(
+          (a, b) =>
+            String(a.groupName).localeCompare(String(b.groupName), 'zh-Hant') ||
+            String(a.siteName).localeCompare(String(b.siteName), 'zh-Hant')
+        )
+        map.set(d, list)
+      })
+      return map
+    },
+    upsertLog({ groupId, date, siteName, entries, count, note, createdBy }) {
       const gid = String(groupId || '').trim()
       const d = String(date || todayDateStr()).trim().slice(0, 10)
+      const site = String(siteName || '').trim()
       if (!gid) return { success: false, message: '請先選擇群組' }
+      if (!site) return { success: false, message: '請選擇案場' }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return { success: false, message: '日期無效' }
       const listEntries = normalizeEntries({ entries })
       const n = Math.max(0, Math.floor(Number(count) || 0))
@@ -208,12 +249,16 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
       const now = new Date().toISOString()
       const logs = getLogs()
       const idx = logs.findIndex(
-        (r) => String(r?.groupId || '') === gid && String(r?.date || '').slice(0, 10) === d
+        (r) =>
+          String(r?.groupId || '') === gid &&
+          String(r?.date || '').slice(0, 10) === d &&
+          normalizeSite(r?.siteName) === normalizeSite(site)
       )
       const rec = {
         id: idx >= 0 ? logs[idx].id : newId('sw'),
         groupId: gid,
         date: d,
+        siteName: site,
         names: listEntries.map((e) => e.name),
         entries: listEntries,
         count: people,
@@ -235,15 +280,21 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
         return { success: false, message: '儲存失敗' }
       }
     },
-    deleteLog(groupId, dateStr) {
+    deleteLog(groupId, dateStr, siteName) {
       const gid = String(groupId || '').trim()
       const d = String(dateStr || '').trim().slice(0, 10)
+      const site = normalizeSite(siteName)
       if (!gid || !d) return { success: false, message: '參數無效' }
       try {
         writeJson(
           logsKey,
           getLogs().filter(
-            (r) => !(String(r?.groupId || '') === gid && String(r?.date || '').slice(0, 10) === d)
+            (r) =>
+              !(
+                String(r?.groupId || '') === gid &&
+                String(r?.date || '').slice(0, 10) === d &&
+                normalizeSite(r?.siteName) === site
+              )
           )
         )
         return { success: true }
@@ -324,14 +375,14 @@ export function deleteSpotWorkPerson(groupId, name) {
 export function getSpotWorkLogs() {
   return hiddenSpotWorkStore.getLogs()
 }
-export function getSpotWorkLogByDate(groupId, dateStr) {
-  return hiddenSpotWorkStore.getLogByDate(groupId, dateStr)
+export function getSpotWorkLogByDate(groupId, dateStr, siteName) {
+  return hiddenSpotWorkStore.getLogByDate(groupId, dateStr, siteName)
 }
 export function upsertSpotWorkLog(payload) {
   return hiddenSpotWorkStore.upsertLog(payload)
 }
-export function deleteSpotWorkLog(groupId, dateStr) {
-  return hiddenSpotWorkStore.deleteLog(groupId, dateStr)
+export function deleteSpotWorkLog(groupId, dateStr, siteName) {
+  return hiddenSpotWorkStore.deleteLog(groupId, dateStr, siteName)
 }
 export function getSpotWorkMonthStats(groupId, yearMonth) {
   return hiddenSpotWorkStore.getMonthStats(groupId, yearMonth)
