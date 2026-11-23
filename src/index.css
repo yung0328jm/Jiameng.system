@@ -258,13 +258,61 @@ body {
   }
 }
 
+.ocean-feed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 9px;
+  height: 7px;
+  margin-left: -4px;
+  margin-top: -3px;
+  border-radius: 60% 45% 55% 50%;
+  background: radial-gradient(circle at 35% 30%, #f3d089, #c2781a 62%, #7a4a0c 100%);
+  box-shadow: 0 0 5px rgba(194, 120, 26, 0.45);
+  pointer-events: none;
+}
+
+.ocean-fish-actor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.ocean-fish-face {
+  display: inline-block;
+  -webkit-transform-origin: 50% 50%;
+  transform-origin: 50% 50%;
+}
+
+.ocean-fish-actor.is-dash .ocean-betta-tail {
+  -webkit-animation-duration: 0.22s;
+  animation-duration: 0.22s;
+}
+
+.ocean-fish-actor.is-eating .ocean-betta {
+  -webkit-animation: ocean-eat 0.22s ease-out;
+  animation: ocean-eat 0.22s ease-out;
+}
+
+@-webkit-keyframes ocean-eat {
+  0% { -webkit-transform: scale(1); transform: scale(1); }
+  40% { -webkit-transform: scale(1.12); transform: scale(1.12); }
+  100% { -webkit-transform: scale(1); transform: scale(1); }
+}
+
+@keyframes ocean-eat {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
 .ocean-fish-lane {
   position: absolute;
   left: 0;
   width: 100%;
   height: 96px;
-  -webkit-animation: ocean-fish-cruise 42s linear infinite;
-  animation: ocean-fish-cruise 42s linear infinite;
 }
 
 .ocean-fish-lane-a {
@@ -419,6 +467,55 @@ body {
 .ocean-betta-b .ocean-betta-tail {
   -webkit-animation-duration: 0.7s;
   animation-duration: 0.7s;
+}
+
+@media (max-width: 640px) {
+  .ocean-fish-lane {
+    height: 52px;
+    -webkit-animation-duration: 16s;
+    animation-duration: 16s;
+  }
+
+  .ocean-fish-lane-a {
+    top: 7%;
+  }
+
+  .ocean-fish-lane-b {
+    top: 86%;
+    height: 42px;
+    -webkit-animation-duration: 20s;
+    animation-duration: 20s;
+    -webkit-animation-delay: -7s;
+    animation-delay: -7s;
+  }
+
+  .ocean-fish-flip {
+    -webkit-animation-duration: 16s;
+    animation-duration: 16s;
+  }
+
+  .ocean-fish-lane-b .ocean-fish-flip {
+    -webkit-animation-duration: 20s;
+    animation-duration: 20s;
+    -webkit-animation-delay: -7s;
+    animation-delay: -7s;
+  }
+
+  .ocean-betta {
+    width: 92px;
+    height: 48px;
+    opacity: 0.5;
+  }
+
+  .ocean-betta-b {
+    width: 76px;
+    height: 40px;
+    opacity: 0.42;
+  }
+
+  .ocean-betta-body {
+    opacity: 0.85;
+  }
 }
 
 @-webkit-keyframes ocean-betta-tail {

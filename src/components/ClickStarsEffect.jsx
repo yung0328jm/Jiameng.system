@@ -79,6 +79,9 @@ export default function ClickStarsEffect() {
 
   const handleClick = useCallback((e) => {
     const next = createRipple(e.clientX, e.clientY)
+    try {
+      window.dispatchEvent(new CustomEvent('ocean-feed', { detail: { x: e.clientX, y: e.clientY } }))
+    } catch (_) {}
     setRipples((prev) => {
       const combined = [...prev, next]
       return combined.length > MAX_RIPPLES ? combined.slice(-MAX_RIPPLES) : combined
