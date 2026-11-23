@@ -82,7 +82,7 @@ export default function OceanAmbience() {
       if (!state) return
 
       state.food = state.food.filter((p) => {
-        p.vy += 220 * dt
+        p.vy += 85 * dt
         p.x += p.vx * dt
         p.y += p.vy * dt
         p.life -= dt
@@ -170,7 +170,7 @@ export default function OceanAmbience() {
         x: x + (Math.random() - 0.5) * 28,
         y: y + (Math.random() - 0.2) * 10,
         vx: (Math.random() - 0.5) * 40,
-        vy: 40 + Math.random() * 50,
+        vy: 12 + Math.random() * 22,
         life: 6,
         eaten: false
       }))
