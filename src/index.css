@@ -18,11 +18,13 @@ body {
   font-family: 'Noto Serif TC', STSong, SimSun, -apple-system, BlinkMacSystemFont, 'Segoe UI', serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0f0c0a;
+  background-color: #061820;
   background-image:
-    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(184, 50, 38, 0.12) 0%, transparent 55%),
-    linear-gradient(180deg, #120f0c 0%, #0f0c0a 45%, #0a0807 100%);
-  color: #f5ede0;
+    radial-gradient(ellipse 110% 70% at 50% -15%, rgba(56, 189, 176, 0.22) 0%, transparent 52%),
+    radial-gradient(ellipse 70% 45% at 100% 100%, rgba(14, 116, 144, 0.28) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 35% at 0% 80%, rgba(8, 47, 73, 0.45) 0%, transparent 50%),
+    linear-gradient(180deg, #0a2838 0%, #061820 48%, #041018 100%);
+  color: #e6f4f2;
   /* 防止手機橫向縮放導致版面錯亂 */
   -webkit-text-size-adjust: 100%;
 }
@@ -175,10 +177,10 @@ body {
 .click-star-char {
   font-size: var(--size);
   line-height: 1;
-  color: hsl(var(--hue, 50), 85%, 92%);
+  color: hsl(var(--hue, 175), 80%, 88%);
   text-shadow:
     0 0 4px rgba(255, 255, 255, 0.9),
-    0 0 8px rgba(255, 230, 150, 0.7),
-    0 0 12px rgba(255, 220, 120, 0.4);
+    0 0 8px rgba(125, 211, 252, 0.75),
+    0 0 12px rgba(45, 212, 191, 0.45);
   display: block;
 }

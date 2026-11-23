@@ -25,7 +25,7 @@ function createParticles(clientX, clientY) {
       ty,
       size,
       delay,
-      hue: Math.random() > 0.15 ? 40 + Math.random() * 18 : 12 + Math.random() * 8
+      hue: Math.random() > 0.2 ? 168 + Math.random() * 28 : 195 + Math.random() * 18
     }
   })
 }

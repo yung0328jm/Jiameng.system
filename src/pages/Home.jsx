@@ -1976,64 +1976,60 @@ function Home() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-3 sm:mb-4 shrink-0">
         <div className="flex-shrink-0 min-w-0">
           <h2 className="text-xl sm:text-2xl font-bold text-cn-gold mb-1 truncate font-serif tracking-wide">首頁 · 公佈欄</h2>
-          <p className="text-cn-mist text-sm truncate">水墨意趣 · 公司公告與重要訊息</p>
+          <p className="text-cn-mist text-sm truncate">潮汐意趣 · 公司公告與重要訊息</p>
         </div>
       </div>
 
-      {/* 交流區公布欄（水墨橫幅背景 + 燈籠／扇子點綴） */}
-      <div className="relative rounded-xl overflow-hidden border border-amber-900/25 shadow-[0_8px_32px_rgba(0,0,0,0.35)] flex flex-col flex-1 min-h-0">
+      {/* 交流區公布欄（潮汐橫幅 + 錨／貝殼點綴） */}
+      <div className="relative rounded-xl overflow-hidden border border-cyan-800/30 shadow-[0_8px_32px_rgba(0,20,32,0.4)] flex flex-col flex-1 min-h-0">
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: "url('/images/announcement-board-bg.png')" }}
           aria-hidden
         />
         <div
-          className="absolute inset-0 bg-gradient-to-b from-stone-100/25 via-transparent to-stone-200/35 pointer-events-none"
+          className="absolute inset-0 bg-gradient-to-b from-cyan-200/30 via-sky-100/10 to-teal-900/25 pointer-events-none"
           aria-hidden
         />
-        {/* 燈籠（左上） */}
+        {/* 錨（左上） */}
         <svg
-          className="absolute top-3 left-3 sm:top-4 sm:left-4 w-9 h-12 sm:w-11 sm:h-14 text-amber-900/85 drop-shadow-md pointer-events-none z-[1]"
+          className="absolute top-3 left-3 sm:top-4 sm:left-4 w-9 h-12 sm:w-11 sm:h-14 text-teal-900/80 drop-shadow-md pointer-events-none z-[1]"
           viewBox="0 0 44 60"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           aria-hidden
         >
-          <ellipse cx="22" cy="10" rx="9" ry="3.5" fill="currentColor" opacity="0.92" />
-          <rect x="11" y="10" width="22" height="30" rx="2.5" stroke="currentColor" strokeWidth="1.8" fill="rgba(254, 243, 199, 0.35)" />
-          <line x1="15" y1="17" x2="29" y2="17" stroke="currentColor" strokeWidth="1.2" opacity="0.85" />
-          <line x1="15" y1="24" x2="29" y2="24" stroke="currentColor" strokeWidth="1.2" opacity="0.85" />
-          <line x1="15" y1="31" x2="29" y2="31" stroke="currentColor" strokeWidth="1.2" opacity="0.85" />
-          <path d="M22 40v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          <path d="M17 52h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <circle cx="22" cy="56" r="2.2" fill="currentColor" />
+          <circle cx="22" cy="10" r="5" stroke="currentColor" strokeWidth="2.2" fill="none" />
+          <path d="M22 15v28" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M16 24h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M8 38c2 10 8 14 14 14s12-4 14-14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+          <path d="M8 38h6M36 38h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        {/* 折扇（右上） */}
+        {/* 貝殼（右上） */}
         <svg
-          className="absolute top-2 right-2 sm:top-3 sm:right-4 w-14 h-10 sm:w-[4.5rem] sm:h-12 text-stone-800/80 drop-shadow pointer-events-none z-[1]"
+          className="absolute top-2 right-2 sm:top-3 sm:right-4 w-14 h-10 sm:w-[4.5rem] sm:h-12 text-sky-900/75 drop-shadow pointer-events-none z-[1]"
           viewBox="0 0 72 52"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           aria-hidden
         >
-          <path d="M10 42c18-28 36-32 54-8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <path d="M10 40c6-22 20-32 26-32s20 10 26 32c-8-8-16-10-26-10S18 32 10 40z" stroke="currentColor" strokeWidth="1.6" fill="rgba(125, 211, 252, 0.22)" />
+          {[0, 1, 2, 3, 4].map((i) => (
             <line
               key={i}
-              x1={12 + i * 8}
-              y1={40 - i * 1.2}
-              x2={18 + i * 7.5}
-              y2={12 + i * 2.8}
+              x1="36"
+              y1="30"
+              x2={16 + i * 10}
+              y2={14 + (i % 2) * 3}
               stroke="currentColor"
               strokeWidth="1"
-              opacity={0.35 + i * 0.08}
+              opacity={0.4 + i * 0.08}
             />
           ))}
-          <circle cx="12" cy="41" r="3" fill="rgba(120, 53, 15, 0.25)" stroke="currentColor" strokeWidth="1.2" />
         </svg>
-        {/* 祥雲角飾（下方若隱若現） */}
+        {/* 浪紋角飾 */}
         <svg
-          className="absolute bottom-2 left-4 w-16 h-8 text-stone-700/25 pointer-events-none z-[1]"
+          className="absolute bottom-2 left-4 w-16 h-8 text-cyan-800/30 pointer-events-none z-[1]"
           viewBox="0 0 64 32"
           fill="none"
           aria-hidden
@@ -2042,7 +2038,7 @@ function Home() {
           <path d="M12 26c6-8 14-10 20-2" stroke="currentColor" strokeWidth="0.9" opacity="0.7" strokeLinecap="round" />
         </svg>
         <svg
-          className="absolute bottom-3 right-6 w-14 h-7 text-stone-700/25 pointer-events-none z-[1]"
+          className="absolute bottom-3 right-6 w-14 h-7 text-cyan-800/30 pointer-events-none z-[1]"
           viewBox="0 0 56 28"
           fill="none"
           aria-hidden
@@ -2063,7 +2059,7 @@ function Home() {
                   setEditingAnnouncementId(null)
                   setAnnouncementForm({ title: '', content: '', priority: 'normal', videoUrl: '' })
                 }}
-                className="shrink-0 bg-amber-900/90 hover:bg-amber-950 text-amber-50 px-3 py-2 rounded-md font-semibold text-sm transition-colors shadow-md border border-amber-950/30"
+                className="shrink-0 bg-teal-800/90 hover:bg-teal-900 text-cyan-50 px-3 py-2 rounded-md font-semibold text-sm transition-colors shadow-md border border-teal-950/30"
               >
                 {showAnnouncementForm ? '取消' : '+ 新增公告'}
               </button>
@@ -2080,7 +2076,7 @@ function Home() {
                     value={announcementForm.title}
                     onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
                     placeholder="輸入公告標題"
-                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-800/40 focus:border-amber-800"
+                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-700/40 focus:border-teal-700"
                   />
                 </div>
                 <div>
@@ -2090,7 +2086,7 @@ function Home() {
                     onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
                     placeholder="輸入公告內容"
                     rows="4"
-                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-800/40 focus:border-amber-800 resize-none"
+                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-700/40 focus:border-teal-700 resize-none"
                   />
                 </div>
                 <div>
@@ -2100,7 +2096,7 @@ function Home() {
                     value={announcementForm.videoUrl}
                     onChange={(e) => setAnnouncementForm({ ...announcementForm, videoUrl: e.target.value })}
                     placeholder="YouTube、TikTok 或抖音網址"
-                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-800/40 focus:border-amber-800"
+                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-700/40 focus:border-teal-700"
                   />
                   <p className="text-stone-500 text-xs mt-1">支援 YouTube、TikTok 直接嵌入播放（含短連結）；抖音多為外部連結開啟。</p>
                 </div>
@@ -2109,7 +2105,7 @@ function Home() {
                   <select
                     value={announcementForm.priority}
                     onChange={(e) => setAnnouncementForm({ ...announcementForm, priority: e.target.value })}
-                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-800/40 focus:border-amber-800"
+                    className="w-full bg-white/95 border border-stone-400 rounded px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-700/40 focus:border-teal-700"
                   >
                     <option value="normal">一般</option>
                     <option value="high">重要</option>

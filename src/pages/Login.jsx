@@ -115,7 +115,7 @@ function Login({ onLogin }) {
         }
       `}</style>
       <div className="w-full max-w-md">
-        <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border-2 border-cn-gold/50 p-5 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,230,200,0.06)]">
+        <div className="bg-gradient-to-b from-cn-panel/95 to-cn-lacquer rounded-xl border-2 border-cn-gold/50 p-5 sm:p-8 shadow-[0_20px_60px_rgba(0,20,32,0.5),inset_0_1px_0_rgba(160,240,230,0.1)]">
           {/* 标题 */}
           <div className="text-center mb-6 sm:mb-8">
             <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold mb-2 font-serif tracking-widest">
@@ -155,14 +155,14 @@ function Login({ onLogin }) {
                 type="checkbox"
                 checked={rememberAccount}
                 onChange={(e) => setRememberAccount(e.target.checked)}
-                className="w-4 h-4 accent-amber-500"
+                className="w-4 h-4 accent-teal-400"
               />
               記住帳號
             </label>
             <button
               type="submit"
               disabled={submitting}
-              className="w-full min-h-[48px] bg-gradient-to-b from-amber-200 to-amber-400 text-cn-ink font-semibold py-3 rounded-md hover:from-amber-100 hover:to-amber-300 active:brightness-95 transition-colors border border-amber-900/35 shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed font-serif"
+              className="w-full min-h-[48px] bg-gradient-to-b from-cyan-100 to-teal-300 text-cn-ink font-semibold py-3 rounded-md hover:from-cyan-50 hover:to-teal-200 active:brightness-95 transition-colors border border-teal-900/35 shadow-lg mt-4 touch-manipulation text-base disabled:opacity-60 disabled:cursor-not-allowed font-serif"
             >
               {submitting ? '登入中…' : '登錄'}
             </button>
@@ -204,7 +204,7 @@ function Login({ onLogin }) {
 
           <div className="mt-5 sm:mt-6 text-center">
             <span className="text-cn-mist text-sm">還沒有帳號? </span>
-            <Link to="/register" className="text-cn-gold text-sm hover:text-amber-200 active:text-amber-200 transition-colors touch-manipulation inline-block py-2 font-serif">
+            <Link to="/register" className="text-cn-gold text-sm hover:text-cyan-200 active:text-cyan-200 transition-colors touch-manipulation inline-block py-2 font-serif">
               立即註冊
             </Link>
           </div>

@@ -7,19 +7,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        gold: '#FFD700',
-        'dark-gray': '#252018',
-        charcoal: '#14110e',
+        gold: '#7ee0d2',
+        'dark-gray': '#0f2a38',
+        charcoal: '#06151f',
         cn: {
-          ink: '#0f0c0a',
-          lacquer: '#1c1512',
-          panel: '#231c18',
-          vermilion: '#b83226',
-          gold: '#d4af37',
-          'gold-dim': '#9a7b2c',
-          parchment: '#f0e6d4',
-          jade: '#2f6f5e',
-          mist: '#8a8078',
+          ink: '#061820',
+          lacquer: '#0a2838',
+          panel: '#113948',
+          vermilion: '#e05d4c',
+          gold: '#7fd4c8',
+          'gold-dim': '#3d9a8e',
+          parchment: '#e6f4f2',
+          jade: '#2a9d8f',
+          mist: '#8fb3c0',
         },
       },
       fontFamily: {

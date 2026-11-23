@@ -380,7 +380,7 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
             <button
               type="button"
               onClick={addGroup}
-              className="shrink-0 px-3 py-2 rounded bg-gradient-to-b from-amber-200 to-amber-400 text-cn-ink font-semibold text-sm"
+              className="shrink-0 px-3 py-2 rounded bg-gradient-to-b from-cyan-100 to-teal-300 text-cn-ink font-semibold text-sm"
             >
               新增群組
             </button>
@@ -653,7 +653,7 @@ export default function SpotWorkLog({ store = hiddenSpotWorkStore, variant = 'hi
           <button
             type="button"
             onClick={save}
-            className="px-4 py-2 rounded-md bg-gradient-to-b from-amber-200 to-amber-400 text-cn-ink font-semibold text-sm"
+            className="px-4 py-2 rounded-md bg-gradient-to-b from-cyan-100 to-teal-300 text-cn-ink font-semibold text-sm"
           >
             儲存當天紀錄
           </button>

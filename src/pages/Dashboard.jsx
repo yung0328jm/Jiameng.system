@@ -835,7 +835,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col bg-gradient-to-b from-cn-ink via-cn-lacquer/95 to-cn-ink">
       {/* 上方導覽列：手機版精簡；選單開啟時 overflow-visible + z-[100] 讓「更多」選單不被裁切且浮在主題／內容之上可點 */}
-      <div className={`bg-gradient-to-b from-[#2e241c] to-cn-lacquer border-b border-cn-gold/35 px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 min-h-[48px] sm:min-h-[44px] relative shadow-[inset_0_1px_0_rgba(255,230,200,0.05)] ${showTopMenu ? 'z-[100] overflow-visible' : 'overflow-hidden'}`}>
+      <div className={`bg-gradient-to-b from-[#15556c] to-cn-lacquer border-b border-cn-gold/35 px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 min-h-[48px] sm:min-h-[44px] relative shadow-[inset_0_1px_0_rgba(160,240,230,0.08)] ${showTopMenu ? 'z-[100] overflow-visible' : 'overflow-hidden'}`}>
         {/* 左：僅圖示（手機隱藏「主題篩選」文字以留空間） */}
         <button
           type="button"
@@ -862,7 +862,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
           {/* 佳盟幣：手機只顯示圖示＋數字，桌面顯示「佳盟幣: 數字」 */}
           <button
             onClick={() => { setShowWalletModal(!showWalletModal); setShowTopMenu(false) }}
-            className="bg-gradient-to-b from-amber-200 to-amber-400 hover:from-amber-100 hover:to-amber-300 active:brightness-95 text-cn-ink font-semibold px-2.5 py-2 sm:px-3 sm:py-1.5 rounded-md border border-amber-900/35 shadow transition-colors flex items-center justify-center gap-1 min-h-[40px] min-w-[40px] sm:min-h-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm flex-shrink-0"
+            className="bg-gradient-to-b from-cyan-100 to-teal-300 hover:from-cyan-50 hover:to-teal-200 active:brightness-95 text-cn-ink font-semibold px-2.5 py-2 sm:px-3 sm:py-1.5 rounded-md border border-teal-900/35 shadow transition-colors flex items-center justify-center gap-1 min-h-[40px] min-w-[40px] sm:min-h-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm flex-shrink-0"
           >
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1299,7 +1299,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       )}
 
       {/* 導航列：手機橫向捲動、每顆至少 44px 觸控區 */}
-      <div className="bg-gradient-to-b from-[#2e231c] via-[#221a15] to-cn-lacquer border-b-2 border-cn-gold/40 shrink-0 shadow-[0_4px_20px_rgba(0,0,0,0.35)]">
+      <div className="bg-gradient-to-b from-[#17627c] via-[#0e3d50] to-cn-lacquer border-b-2 border-cn-gold/40 shrink-0 shadow-[0_4px_20px_rgba(0,20,32,0.4)]">
         <nav className="flex items-stretch flex-nowrap overflow-x-auto scroll-touch px-2 py-2 sm:px-6 sm:py-3 gap-2 sm:gap-1">
           <NavItem
             icon={<HomeIcon />}
@@ -1363,7 +1363,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
                 ${MORE_FEATURES_TABS.includes(activeTab)
-                  ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/40 shadow-inner'
+                  ? 'bg-gradient-to-b from-cyan-100 to-teal-300 text-cn-ink font-semibold border-teal-800/40 shadow-inner'
                   : 'text-cn-parchment border-transparent hover:bg-black/25 hover:border-cn-gold/25 active:bg-black/35'
                 }
               `}
@@ -1450,7 +1450,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
                 ${PERSONAL_SERVICE_TABS.includes(activeTab)
-                  ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/40 shadow-inner'
+                  ? 'bg-gradient-to-b from-cyan-100 to-teal-300 text-cn-ink font-semibold border-teal-800/40 shadow-inner'
                   : 'text-cn-parchment border-transparent hover:bg-black/25 hover:border-cn-gold/25 active:bg-black/35'
                 }
               `}
@@ -1545,7 +1545,7 @@ function NavItem({ icon, label, isActive, onClick, badge }) {
       className={`
         flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap relative min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base shrink-0 overflow-visible font-serif border
         ${isActive
-          ? 'bg-gradient-to-b from-amber-100 to-amber-300 text-cn-ink font-semibold border-amber-800/35 shadow-inner'
+          ? 'bg-gradient-to-b from-cyan-100 to-teal-300 text-cn-ink font-semibold border-teal-800/35 shadow-inner'
           : 'text-cn-parchment border-transparent hover:bg-black/22 hover:border-cn-gold/20 active:bg-black/30'
         }
       `}

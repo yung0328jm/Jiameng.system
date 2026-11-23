@@ -108,7 +108,7 @@ function ChangePassword() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 rounded-lg bg-gradient-to-b from-amber-200 to-amber-400 text-cn-ink font-semibold hover:from-amber-100 hover:to-amber-300 disabled:opacity-60 disabled:cursor-not-allowed touch-manipulation"
+            className="w-full py-3 rounded-lg bg-gradient-to-b from-cyan-100 to-teal-300 text-cn-ink font-semibold hover:from-cyan-50 hover:to-teal-200 disabled:opacity-60 disabled:cursor-not-allowed touch-manipulation"
           >
             {submitting ? '更新中…' : '更新密碼'}
           </button>
