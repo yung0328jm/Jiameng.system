@@ -99,10 +99,10 @@ export default function OceanAmbience() {
             left: b.left,
             width: b.size,
             height: b.size,
+            WebkitAnimationDuration: b.duration,
             animationDuration: b.duration,
-            animationDelay: b.delay,
-            '--drift': b.drift,
-            opacity: b.opacity
+            WebkitAnimationDelay: b.delay,
+            animationDelay: b.delay
           }}
         />
       ))}
