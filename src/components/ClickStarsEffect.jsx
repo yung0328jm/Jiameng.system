@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
-const RIPPLE_DURATION_MS = 780
-const MAX_RIPPLES = 10
+const RIPPLE_DURATION_MS = 520
+const MAX_RIPPLES = 14
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -20,16 +20,27 @@ function ClickRipple({ ripple, onEnd }) {
       style={{ left: ripple.x, top: ripple.y }}
       aria-hidden
     >
-      <span className="ocean-ripple-ring" style={{ '--ripple-delay': '0ms', '--ripple-size': '108px' }} />
-      <span className="ocean-ripple-ring" style={{ '--ripple-delay': '90ms', '--ripple-size': '168px' }} />
-      <span className="ocean-ripple-ring" style={{ '--ripple-delay': '180ms', '--ripple-size': '232px' }} />
+      {ripple.rings.map((ring) => (
+        <span
+          key={ring.id}
+          className="ocean-ripple-ring"
+          style={{
+            '--ripple-delay': `${ring.delay}ms`,
+            '--ripple-w': `${ring.w}px`,
+            '--ripple-h': `${ring.h}px`,
+            '--ripple-rot': `${ring.rot}deg`,
+            '--ripple-spin': `${ring.spin}deg`
+          }}
+        />
+      ))}
       {ripple.droplets.map((d) => (
         <span
           key={d.id}
           className="ocean-click-droplet"
           style={{
             '--tx': `${d.tx}px`,
-            '--ty': `${d.ty}px`,
+            '--up': `${d.up}px`,
+            '--fall': `${d.fall}px`,
             '--size': `${d.size}px`,
             '--delay': `${d.delay}ms`
           }}
@@ -39,22 +50,35 @@ function ClickRipple({ ripple, onEnd }) {
   )
 }
 
+function createRipple(clientX, clientY) {
+  const rings = [0, 1, 2].map((i) => ({
+    id: `r${i}`,
+    delay: i * 55,
+    w: 28 + i * 12 + Math.random() * 6,
+    h: 22 + i * 9 + Math.random() * 6,
+    rot: (Math.random() * 24) - 12,
+    spin: (Math.random() * 28) - 14
+  }))
+  const droplets = Array.from({ length: 8 }, (_, i) => {
+    const angle = -Math.PI * 0.92 + (i / 7) * Math.PI * 0.84 + (Math.random() - 0.5) * 0.28
+    const dist = 10 + Math.random() * 18
+    return {
+      id: `d${i}`,
+      tx: Math.cos(angle) * dist,
+      up: Math.abs(Math.sin(angle)) * dist + 6 + Math.random() * 10,
+      fall: 10 + Math.random() * 14,
+      size: 2.5 + Math.random() * 3.2,
+      delay: Math.random() * 40
+    }
+  })
+  return { id: genId(), x: clientX, y: clientY, rings, droplets }
+}
+
 export default function ClickStarsEffect() {
   const [ripples, setRipples] = useState([])
 
   const handleClick = useCallback((e) => {
-    const droplets = Array.from({ length: 5 }, (_, i) => {
-      const angle = (i / 5) * Math.PI * 2 + Math.random() * 0.4
-      const dist = 18 + Math.random() * 28
-      return {
-        id: `${i}`,
-        tx: Math.cos(angle) * dist,
-        ty: Math.sin(angle) * dist - 10,
-        size: 4 + Math.random() * 5,
-        delay: Math.random() * 60
-      }
-    })
-    const next = { id: genId(), x: e.clientX, y: e.clientY, droplets }
+    const next = createRipple(e.clientX, e.clientY)
     setRipples((prev) => {
       const combined = [...prev, next]
       return combined.length > MAX_RIPPLES ? combined.slice(-MAX_RIPPLES) : combined
