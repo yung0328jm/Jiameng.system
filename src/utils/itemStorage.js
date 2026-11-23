@@ -9,7 +9,37 @@ export const ITEM_TYPES = {
   DANMU: 'danmu', // 彈幕道具
   NAME_EFFECT: 'name_effect', // 名子特效道具
   MESSAGE_EFFECT: 'message_effect', // 發話特效道具
-  TITLE: 'title' // 稱號道具
+  TITLE: 'title', // 稱號道具
+  FISH_SKIN: 'fish_skin' // 水族外觀（套用後僅自己畫面顯示）
+}
+
+export const FISH_AROANA_ITEM_ID = 'fish_arowana'
+
+const AROWANA_SHOP_ITEM = {
+  id: FISH_AROANA_ITEM_ID,
+  name: '龍魚',
+  type: 'fish_skin',
+  fishKey: 'arowana',
+  description: '套用後，僅你的畫面會游龍魚；未套用或未購買者仍為預設鬥魚。',
+  icon: '🐉',
+  image: '/images/arowana-a.png',
+  price: 88,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true }) {
+  const list = Array.isArray(items) ? items : []
+  if (list.some((it) => String(it?.id || '') === FISH_AROANA_ITEM_ID)) return list
+  const looksPlaceholder = list.length <= 1 && (!list[0] || String(list[0].id) === 'danmu_item')
+  if (isSupabaseEnabled() && looksPlaceholder) return list
+  const next = [...list, { ...AROWANA_SHOP_ITEM, createdAt: new Date().toISOString() }]
+  try {
+    const val = JSON.stringify(next)
+    localStorage.setItem(ITEM_STORAGE_KEY, val)
+    if (allowCloudWrite) syncKeyToSupabase(ITEM_STORAGE_KEY, val)
+  } catch (_) {}
+  return next
 }
 
 // 獲取所有道具定義（保證回傳陣列）
@@ -18,7 +48,7 @@ export const getItems = () => {
     const data = localStorage.getItem(ITEM_STORAGE_KEY)
     if (data) {
       const parsed = JSON.parse(data)
-      return Array.isArray(parsed) ? parsed : []
+      return seedFishSkinItems(Array.isArray(parsed) ? parsed : [])
     }
     // 初始化默認道具
     const defaultItems = [
@@ -38,6 +68,7 @@ export const getItems = () => {
     // 只有在非 Supabase 模式才主動把預設道具寫回雲端
     if (!isSupabaseEnabled()) {
       syncKeyToSupabase(ITEM_STORAGE_KEY, val)
+      return seedFishSkinItems(defaultItems, { allowCloudWrite: true })
     }
     return defaultItems
   } catch (error) {

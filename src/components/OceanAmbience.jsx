@@ -1,5 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { getCurrentUser } from '../utils/authStorage'
+import { getEquippedAmbientFishPack, FISH_PACKS } from '../utils/fishSkinStorage'
+import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
   id: i,
@@ -17,7 +20,7 @@ function isMobile() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
 }
 
-function fishLayout() {
+function fishLayout(wide) {
   const mobile = isMobile()
   const w = window.innerWidth
   const h = window.innerHeight
@@ -25,13 +28,18 @@ function fishLayout() {
     mobile,
     w,
     h,
-    sizes: mobile
-      ? [{ width: 92, height: 48 }, { width: 76, height: 40 }]
-      : [{ width: 168, height: 88 }, { width: 140, height: 72 }],
+    sizes: wide
+      ? (mobile
+        ? [{ width: 132, height: 42 }, { width: 114, height: 36 }]
+        : [{ width: 220, height: 70 }, { width: 188, height: 60 }])
+      : (mobile
+        ? [{ width: 92, height: 48 }, { width: 76, height: 40 }]
+        : [{ width: 168, height: 88 }, { width: 140, height: 72 }]),
     lanes: mobile ? [h * 0.12, h * 0.62] : [h * 0.18, h * 0.55],
     cruise: mobile ? 52 : 78,
     dash: mobile ? 260 : 380,
-    eatRange: mobile ? 22 : 32
+    eatRange: mobile ? 22 : 32,
+    mouthX: wide ? 0.9 : 0.84
   }
 }
 
@@ -43,9 +51,9 @@ function pickWander(fish, L, size) {
   fish.turnAt = performance.now() + 1600 + Math.random() * 4200
 }
 
-function Betta({ src, variant }) {
+function Betta({ src, variant, wide }) {
   return (
-    <div className={`ocean-betta ocean-betta-${variant}`}>
+    <div className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}`}>
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-body" draggable={false} />
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-tail" draggable={false} />
     </div>
@@ -60,9 +68,34 @@ export default function OceanAmbience() {
     { id: 'b', x: 220, y: 360, face: -1, tilt: 0, dash: false, eating: false }
   ]))
   const sim = useRef(null)
+  const packRef = useRef(FISH_PACKS.betta)
+  const [pack, setPack] = useState(FISH_PACKS.betta)
 
   useEffect(() => {
-    const layout = fishLayout()
+    const refreshPack = () => {
+      const next = getEquippedAmbientFishPack(getCurrentUser())
+      if (!next) return
+      if (packRef.current.key !== next.key) {
+        packRef.current = next
+        setPack(next)
+      }
+    }
+    refreshPack()
+    const onRt = (e) => {
+      const key = e?.detail?.key
+      if (key && key !== '__ALL__' && key !== 'jiameng_equipped_effects' && key !== 'jiameng_inventories' && key !== 'jiameng_items') return
+      refreshPack()
+    }
+    const timer = window.setInterval(refreshPack, 1200)
+    window.addEventListener(REALTIME_UPDATE_EVENT, onRt)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
+    }
+  }, [])
+
+  useEffect(() => {
+    const layout = fishLayout(packRef.current.wide)
     sim.current = {
       food: [],
       fish: [
@@ -77,7 +110,7 @@ export default function OceanAmbience() {
     const tick = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const L = fishLayout()
+      const L = fishLayout(packRef.current.wide)
       const state = sim.current
       if (!state) return
 
@@ -98,7 +131,7 @@ export default function OceanAmbience() {
 
       state.fish.forEach((fish, i) => {
         const size = L.sizes[i]
-        const mouthX = fish.face === 1 ? fish.x + size.width * 0.84 : fish.x + size.width * 0.16
+        const mouthX = fish.face === 1 ? fish.x + size.width * L.mouthX : fish.x + size.width * (1 - L.mouthX)
         const mouthY = fish.y + size.height * 0.5
         const live = state.food.filter((p) => !p.eaten)
         let target = null
@@ -235,8 +268,9 @@ export default function OceanAmbience() {
           >
             <div className="ocean-fish-bob">
               <Betta
-                src={fish.id === 'a' ? '/images/betta-a.png' : '/images/betta-b.png'}
+                src={fish.id === 'a' ? pack.a : pack.b}
                 variant={fish.id}
+                wide={pack.wide}
               />
             </div>
           </div>

@@ -235,6 +235,10 @@ function ExchangeShop() {
     }
     const priceNum = itemForm.price === '' ? 0 : (typeof itemForm.price === 'number' ? itemForm.price : (parseFloat(itemForm.price) || 0))
     const normalizedForm = { ...itemForm, price: priceNum, category: String(itemForm.category || '').trim() }
+    if (normalizedForm.type === ITEM_TYPES.FISH_SKIN) {
+      normalizedForm.fishKey = editingItem?.fishKey || 'arowana'
+      normalizedForm.image = editingItem?.image || normalizedForm.image || '/images/arowana-a.png'
+    }
     if (priceNum < 0) {
       alert('價格不能為負數')
       return
@@ -274,6 +278,7 @@ function ExchangeShop() {
         if (e?.nameEffect === itemId) unequipEffect(username, 'name')
         if (e?.messageEffect === itemId) unequipEffect(username, 'message')
         if (e?.title === itemId) unequipEffect(username, 'title')
+        if (e?.fish === itemId) unequipEffect(username, 'fish')
       })
     } catch (e) {
       console.warn('Delete item: unequip failed', e)
@@ -596,6 +601,7 @@ function ExchangeShop() {
                       checkSlot('nameEffect', ITEM_TYPES.NAME_EFFECT, 'name')
                       checkSlot('messageEffect', ITEM_TYPES.MESSAGE_EFFECT, 'message')
                       checkSlot('title', ITEM_TYPES.TITLE, 'title')
+                      checkSlot('fish', ITEM_TYPES.FISH_SKIN, 'fish')
                       equipped[username] = e
                     })
 
@@ -676,7 +682,11 @@ function ExchangeShop() {
               >
                 {/* 道具圖標和名稱 */}
                 <div className="text-center mb-5 sm:mb-4">
-                  <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{item.icon}</div>
+                  {(item.image || item.imageUrl) ? (
+                    <img src={item.image || item.imageUrl} alt="" className="mx-auto mb-3 sm:mb-2 h-20 w-auto object-contain" />
+                  ) : (
+                    <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{item.icon}</div>
+                  )}
                   <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{item.name}</h3>
                       {String(item.category || '').trim() && (
                         <div className="mb-2">
@@ -786,7 +796,11 @@ function ExchangeShop() {
                     </div>
                   )}
                   <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
-                    <div className="text-4xl sm:text-5xl">{item.icon}</div>
+                    {(item.image || item.imageUrl) ? (
+                      <img src={item.image || item.imageUrl} alt="" className="h-10 w-auto object-contain" />
+                    ) : (
+                      <div className="text-4xl sm:text-5xl">{item.icon}</div>
+                    )}
                     <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{item.name}</p>
                     <p className="text-yellow-400 text-[10px] sm:text-xs font-bold">{item.price || 0} 幣</p>
                     {String(item.category || '').trim() && (
@@ -942,6 +956,7 @@ function ExchangeShop() {
                     <option value="general">一般道具</option>
                     <option value="danmu">彈幕道具</option>
                     <option value="special">特殊道具</option>
+                    <option value="fish_skin">魚類外觀</option>
                   </select>
                 </div>
 

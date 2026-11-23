@@ -1,11 +1,22 @@
 // 特效裝備系統存儲工具
 import { syncKeyToSupabase } from './supabaseSync'
+import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
 const EFFECT_STORAGE_KEY = 'jiameng_equipped_effects'
+
+const emptyEquip = () => ({
+  nameEffect: null,
+  messageEffect: null,
+  title: null,
+  fish: null
+})
 
 const persist = (effects) => {
   const val = JSON.stringify(effects)
   localStorage.setItem(EFFECT_STORAGE_KEY, val)
   syncKeyToSupabase(EFFECT_STORAGE_KEY, val)
+  try {
+    window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key: EFFECT_STORAGE_KEY } }))
+  } catch (_) {}
 }
 
 // 獲取用戶裝備的特效
@@ -13,18 +24,10 @@ export const getEquippedEffects = (username) => {
   try {
     const data = localStorage.getItem(EFFECT_STORAGE_KEY)
     const effects = data ? JSON.parse(data) : {}
-    return effects[username] || {
-      nameEffect: null, // 裝備的名子特效道具ID
-      messageEffect: null, // 裝備的發話特效道具ID
-      title: null // 裝備的稱號道具ID
-    }
+    return { ...emptyEquip(), ...(effects[username] || {}) }
   } catch (error) {
     console.error('Error getting equipped effects:', error)
-    return {
-      nameEffect: null,
-      messageEffect: null,
-      title: null
-    }
+    return emptyEquip()
   }
 }
 
@@ -35,11 +38,7 @@ export const equipEffect = (username, itemId, effectType) => {
     const effects = data ? JSON.parse(data) : {}
     
     if (!effects[username]) {
-      effects[username] = {
-        nameEffect: null,
-        messageEffect: null,
-        title: null
-      }
+      effects[username] = emptyEquip()
     }
     
     if (effectType === 'name') {
@@ -48,6 +47,8 @@ export const equipEffect = (username, itemId, effectType) => {
       effects[username].messageEffect = itemId
     } else if (effectType === 'title') {
       effects[username].title = itemId
+    } else if (effectType === 'fish') {
+      effects[username].fish = itemId
     }
     
     persist(effects)
@@ -74,6 +75,8 @@ export const unequipEffect = (username, effectType) => {
       effects[username].messageEffect = null
     } else if (effectType === 'title') {
       effects[username].title = null
+    } else if (effectType === 'fish') {
+      effects[username].fish = null
     }
     
     persist(effects)
@@ -111,6 +114,7 @@ export const cleanupEquippedEffectsByItemIds = (itemIds) => {
       if (next.nameEffect && ids.has(next.nameEffect)) { next.nameEffect = null; touched = true }
       if (next.messageEffect && ids.has(next.messageEffect)) { next.messageEffect = null; touched = true }
       if (next.title && ids.has(next.title)) { next.title = null; touched = true }
+      if (next.fish && ids.has(next.fish)) { next.fish = null; touched = true }
       if (touched) {
         all[username] = next
         cleanedUsers += 1

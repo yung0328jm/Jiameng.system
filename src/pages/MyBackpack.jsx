@@ -29,6 +29,7 @@ function MyBackpack() {
           item: item || null,
           name: item ? item.name : '未知道具',
           icon: item ? item.icon : '❓',
+          image: item ? (item.image || item.imageUrl || '') : '',
           description: item ? item.description : ''
         }
       })
@@ -242,7 +243,11 @@ function MyBackpack() {
                 >
                   {/* 道具圖標和名稱 */}
                   <div className="text-center mb-5 sm:mb-4">
-                    <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{invItem.icon}</div>
+                    {invItem.image ? (
+                      <img src={invItem.image} alt="" className="mx-auto mb-3 sm:mb-2 h-20 w-auto object-contain" />
+                    ) : (
+                      <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{invItem.icon}</div>
+                    )}
                     <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{invItem.name}</h3>
                     {invItem.description && (
                       <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{invItem.description}</p>
@@ -345,6 +350,31 @@ function MyBackpack() {
                         )}
                         <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">特殊道具，不可刪除、不可交易</div>
                       </div>
+                    ) : invItem.item && invItem.item.type === ITEM_TYPES.FISH_SKIN ? (
+                      <div className="space-y-3 sm:space-y-2">
+                        {equippedEffects.fish === invItem.itemId ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleUnequipEffect('fish')
+                            }}
+                            className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            卸下水族外觀
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEquipEffect(invItem.itemId, 'fish')
+                            }}
+                            className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                          >
+                            套用水族外觀
+                          </button>
+                        )}
+                        <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">僅自己畫面顯示，未套用為預設鬥魚</div>
+                      </div>
                     ) : hasPendingExchangeRequest(invItem.itemId) ? (
                       <button
                         disabled
@@ -398,7 +428,11 @@ function MyBackpack() {
                     className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-purple-400 transition-colors cursor-pointer bg-gray-800"
                   >
                     <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
-                      <div className="text-4xl sm:text-5xl">{invItem.icon}</div>
+                      {invItem.image ? (
+                        <img src={invItem.image} alt="" className="h-10 w-auto object-contain" />
+                      ) : (
+                        <div className="text-4xl sm:text-5xl">{invItem.icon}</div>
+                      )}
                       <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{invItem.name}</p>
                       <p className="text-purple-400 text-[10px] sm:text-xs font-bold">{invItem.quantity || 0} 個</p>
                       <p className="text-gray-400 text-[10px] mt-0.5">點擊預覽</p>
