@@ -56,8 +56,8 @@ export default function OceanAmbience() {
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
   const [actors, setActors] = useState(() => ([
-    { id: 'a', x: 40, y: 120, face: 1, dash: false, eating: false },
-    { id: 'b', x: 220, y: 360, face: -1, dash: false, eating: false }
+    { id: 'a', x: 40, y: 120, face: 1, tilt: 0, dash: false, eating: false },
+    { id: 'b', x: 220, y: 360, face: -1, tilt: 0, dash: false, eating: false }
   ]))
   const sim = useRef(null)
 
@@ -66,8 +66,8 @@ export default function OceanAmbience() {
     sim.current = {
       food: [],
       fish: [
-        { x: 24, y: layout.lanes[0], face: 1, eatUntil: 0, tx: layout.w * 0.7, ty: layout.lanes[0], turnAt: 0 },
-        { x: Math.max(80, layout.w * 0.45), y: layout.lanes[1], face: -1, eatUntil: 0, tx: 40, ty: layout.lanes[1], turnAt: 0 }
+        { x: 24, y: layout.lanes[0], face: 1, tilt: 0, eatUntil: 0, tx: layout.w * 0.7, ty: layout.lanes[0], turnAt: 0 },
+        { x: Math.max(80, layout.w * 0.45), y: layout.lanes[1], face: -1, tilt: 0, eatUntil: 0, tx: 40, ty: layout.lanes[1], turnAt: 0 }
       ]
     }
 
@@ -81,12 +81,19 @@ export default function OceanAmbience() {
       const state = sim.current
       if (!state) return
 
+      const tiltToward = (fish, dx, dy) => {
+        const want = Math.atan2(dy, Math.abs(dx) + 8) * (180 / Math.PI)
+        const clamped = Math.max(-58, Math.min(58, want))
+        fish.tilt += (clamped - (fish.tilt || 0)) * Math.min(1, 9 * dt)
+      }
+
       state.food = state.food.filter((p) => {
-        p.vy += 85 * dt
+        p.vy += 90 * dt
+        if (p.vy > 62) p.vy = 62
         p.x += p.vx * dt
         p.y += p.vy * dt
         p.life -= dt
-        return p.y < L.h + 20 && p.life > 0 && !p.eaten
+        return p.y < L.h + 20 && p.y > -40 && p.life > 0 && !p.eaten
       })
 
       state.fish.forEach((fish, i) => {
@@ -108,6 +115,7 @@ export default function OceanAmbience() {
 
         if (now < fish.eatUntil) {
           fish.dash = false
+          fish.tilt += (0 - (fish.tilt || 0)) * Math.min(1, 8 * dt)
           return
         }
 
@@ -124,6 +132,7 @@ export default function OceanAmbience() {
           }
           fish.dash = true
           fish.face = dx >= 0 ? 1 : -1
+          tiltToward(fish, dx, dy)
           const speed = L.dash
           fish.x += (dx / dist) * speed * dt
           fish.y += (dy / dist) * speed * dt
@@ -139,6 +148,7 @@ export default function OceanAmbience() {
           const wy = (fish.ty ?? fish.y) - fish.y
           const wd = Math.sqrt(wx * wx + wy * wy) || 1
           fish.face = wx >= 0 ? 1 : -1
+          tiltToward(fish, wx, wy)
           fish.x += (wx / wd) * L.cruise * dt
           fish.y += (wy / wd) * L.cruise * dt
           fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
@@ -152,6 +162,7 @@ export default function OceanAmbience() {
         x: f.x,
         y: f.y,
         face: f.face,
+        tilt: f.tilt || 0,
         dash: f.dash,
         eating: now < f.eatUntil
       })))
@@ -169,8 +180,8 @@ export default function OceanAmbience() {
         id: genId() + i,
         x: x + (Math.random() - 0.5) * 28,
         y: y + (Math.random() - 0.2) * 10,
-        vx: (Math.random() - 0.5) * 40,
-        vy: 12 + Math.random() * 22,
+        vx: (Math.random() - 0.5) * 18,
+        vy: -240 - Math.random() * 90,
         life: 6,
         eaten: false
       }))
@@ -218,7 +229,10 @@ export default function OceanAmbience() {
           className={`ocean-fish-actor${fish.dash ? ' is-dash' : ''}${fish.eating ? ' is-eating' : ''}`}
           style={{ transform: `translate3d(${fish.x}px, ${fish.y}px, 0)` }}
         >
-          <div className="ocean-fish-face" style={{ transform: `scaleX(${fish.face})` }}>
+          <div
+            className="ocean-fish-face"
+            style={{ transform: `scaleX(${fish.face}) rotate(${fish.tilt || 0}deg)` }}
+          >
             <div className="ocean-fish-bob">
               <Betta
                 src={fish.id === 'a' ? '/images/betta-a.png' : '/images/betta-b.png'}
