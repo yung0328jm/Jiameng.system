@@ -262,22 +262,22 @@ body {
   position: absolute;
   left: 0;
   width: 100%;
-  height: 48px;
-  -webkit-animation: ocean-fish-cruise 28s linear infinite;
-  animation: ocean-fish-cruise 28s linear infinite;
+  height: 96px;
+  -webkit-animation: ocean-fish-cruise 42s linear infinite;
+  animation: ocean-fish-cruise 42s linear infinite;
 }
 
 .ocean-fish-lane-a {
-  top: 18%;
+  top: 16%;
 }
 
 .ocean-fish-lane-b {
-  top: 62%;
-  height: 36px;
-  -webkit-animation-duration: 38s;
-  animation-duration: 38s;
-  -webkit-animation-delay: -12s;
-  animation-delay: -12s;
+  top: 58%;
+  height: 78px;
+  -webkit-animation-duration: 56s;
+  animation-duration: 56s;
+  -webkit-animation-delay: -18s;
+  animation-delay: -18s;
 }
 
 @-webkit-keyframes ocean-fish-cruise {
@@ -312,15 +312,15 @@ body {
 
 .ocean-fish-flip {
   display: inline-block;
-  -webkit-animation: ocean-fish-face 28s linear infinite;
-  animation: ocean-fish-face 28s linear infinite;
+  -webkit-animation: ocean-fish-face 42s linear infinite;
+  animation: ocean-fish-face 42s linear infinite;
 }
 
 .ocean-fish-lane-b .ocean-fish-flip {
-  -webkit-animation-duration: 38s;
-  animation-duration: 38s;
-  -webkit-animation-delay: -12s;
-  animation-delay: -12s;
+  -webkit-animation-duration: 56s;
+  animation-duration: 56s;
+  -webkit-animation-delay: -18s;
+  animation-delay: -18s;
 }
 
 @-webkit-keyframes ocean-fish-face {
@@ -378,44 +378,20 @@ body {
   }
 }
 
-.ocean-fish-tail {
-  transform-origin: 90% 50%;
-  -webkit-animation: ocean-fish-tail 0.32s ease-in-out infinite;
-  animation: ocean-fish-tail 0.32s ease-in-out infinite;
-}
-
-@-webkit-keyframes ocean-fish-tail {
-  0%,
-  100% {
-    -webkit-transform: rotate(-9deg);
-    transform: rotate(-9deg);
-  }
-  50% {
-    -webkit-transform: rotate(9deg);
-    transform: rotate(9deg);
-  }
-}
-
-@keyframes ocean-fish-tail {
-  0%,
-  100% {
-    transform: rotate(-9deg);
-  }
-  50% {
-    transform: rotate(9deg);
-  }
-}
-
-.ocean-fish-svg {
-  width: 108px;
-  height: 42px;
+.ocean-fish-photo {
   display: block;
-  overflow: visible;
-  opacity: 0.9;
+  height: 88px;
+  width: auto;
+  max-width: 168px;
+  object-fit: contain;
+  opacity: 0.92;
+  pointer-events: none;
+  -webkit-filter: drop-shadow(0 8px 10px rgba(0, 12, 20, 0.45));
+  filter: drop-shadow(0 8px 10px rgba(0, 12, 20, 0.45));
 }
 
-.ocean-fish-lane-b .ocean-fish-svg {
-  width: 92px;
-  height: 30px;
-  opacity: 0.82;
+.ocean-fish-photo-b {
+  height: 72px;
+  max-width: 140px;
+  opacity: 0.88;
 }
