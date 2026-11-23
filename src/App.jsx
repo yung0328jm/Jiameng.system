@@ -28,6 +28,7 @@ import { isSupabaseEnabled, syncFromSupabase } from './utils/supabaseSync'
 import { SyncProvider } from './contexts/SyncContext'
 import { RecordingModeProvider } from './contexts/RecordingModeContext'
 import ClickStarsEffect from './components/ClickStarsEffect'
+import OceanAmbience from './components/OceanAmbience'
 import { isSupabaseEnabled as isAuthSupabase, getSession, getProfile, subscribeAuthStateChange, logout } from './utils/authSupabase'
 import { invalidateRecordingMaskCache } from './utils/recordingModeMask'
 import { savePushToken } from './utils/pushTokenStorage'
@@ -156,6 +157,7 @@ function App() {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <OceanAmbience />
       <ClickStarsEffect />
       <SyncProvider syncReady={syncReady}>
       <RecordingModeProvider>

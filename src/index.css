@@ -134,53 +134,175 @@ body {
   animation: trip-report-flame-burst 0.55s ease-out forwards;
 }
 
-/* 點擊星星噴出效果（白金色） */
-@keyframes click-star-burst {
-  0% {
-    transform: translate(-50%, -50%) translate(0, 0) scale(0.6);
-    opacity: 1;
-  }
-  25% {
-    transform: translate(-50%, -50%) translate(
-        calc(var(--tx) * 0.4 * 1px),
-        calc(var(--ty) * 0.4 * 1px)
-      )
-      scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-50%, -50%) translate(
-        calc(var(--tx) * 1px),
-        calc(var(--ty) * 1px)
-      )
-      scale(0.15);
-    opacity: 0;
-  }
-}
-
-.click-star-particle {
+/* 點擊水波紋 */
+.ocean-ripple-burst {
   position: fixed;
-  width: var(--size);
-  height: var(--size);
-  margin-left: 0;
-  margin-top: 0;
-  left: 0;
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: click-star-burst 0.65s ease-out var(--delay) forwards;
+  width: 0;
+  height: 0;
   pointer-events: none;
   z-index: 9999;
 }
 
-.click-star-char {
-  font-size: var(--size);
-  line-height: 1;
-  color: hsl(var(--hue, 175), 80%, 88%);
-  text-shadow:
-    0 0 4px rgba(255, 255, 255, 0.9),
-    0 0 8px rgba(125, 211, 252, 0.75),
-    0 0 12px rgba(45, 212, 191, 0.45);
+.ocean-ripple-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--ripple-size);
+  height: var(--ripple-size);
+  margin-left: calc(var(--ripple-size) / -2);
+  margin-top: calc(var(--ripple-size) / -2);
+  border-radius: 9999px;
+  border: 2px solid rgba(165, 243, 252, 0.55);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+  animation: ocean-ripple 0.78s ease-out var(--ripple-delay) forwards;
+}
+
+@keyframes ocean-ripple {
+  0% {
+    transform: scale(0.12);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.ocean-click-droplet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--size);
+  height: var(--size);
+  margin-left: calc(var(--size) / -2);
+  margin-top: calc(var(--size) / -2);
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(125, 211, 252, 0.55) 55%, rgba(34, 211, 238, 0.15) 100%);
+  animation: ocean-click-droplet 0.7s ease-out var(--delay) forwards;
+}
+
+@keyframes ocean-click-droplet {
+  0% {
+    transform: translate(0, 0) scale(0.7);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0.2);
+    opacity: 0;
+  }
+}
+
+/* 背景氣泡 + 游魚 */
+.ocean-ambience {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  overflow: hidden;
+}
+
+.ocean-bubble {
+  position: absolute;
+  bottom: -12px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.7), rgba(165, 243, 252, 0.18) 42%, rgba(8, 47, 73, 0.05) 100%);
+  border: 1px solid rgba(186, 230, 253, 0.35);
+  animation-name: ocean-bubble-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes ocean-bubble-rise {
+  0% {
+    transform: translate(0, 8vh) scale(0.7);
+  }
+  100% {
+    transform: translate(var(--drift, 16px), -108vh) scale(1.05);
+  }
+}
+
+.ocean-fish-lane {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  animation: ocean-fish-cruise linear infinite;
+}
+
+.ocean-fish-lane-a {
+  top: 18%;
+  animation-duration: 28s;
+}
+
+.ocean-fish-lane-b {
+  top: 62%;
+  animation-duration: 38s;
+  animation-delay: -12s;
+}
+
+@keyframes ocean-fish-cruise {
+  0% {
+    transform: translateX(-12%);
+  }
+  50% {
+    transform: translateX(112%);
+  }
+  100% {
+    transform: translateX(-12%);
+  }
+}
+
+.ocean-fish-flip {
+  width: fit-content;
+  animation: ocean-fish-face 28s linear infinite;
+}
+
+.ocean-fish-lane-b .ocean-fish-flip {
+  animation-duration: 38s;
+  animation-delay: -12s;
+}
+
+@keyframes ocean-fish-face {
+  0%,
+  49.9% {
+    transform: scaleX(1);
+  }
+  50%,
+  100% {
+    transform: scaleX(-1);
+  }
+}
+
+.ocean-fish-bob {
+  animation: ocean-fish-bob 3.2s ease-in-out infinite;
+}
+
+@keyframes ocean-fish-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+.ocean-fish-svg {
+  width: 72px;
+  height: 36px;
   display: block;
+  filter: drop-shadow(0 4px 8px rgba(8, 47, 73, 0.45));
+  opacity: 0.82;
+}
+
+.ocean-fish-lane-b .ocean-fish-svg {
+  width: 56px;
+  height: 28px;
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ocean-ambience,
+  .ocean-ripple-burst {
+    display: none;
+  }
 }

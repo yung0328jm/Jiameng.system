@@ -1,73 +1,68 @@
 import { useState, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
-const STAR_COUNT = 12
-const PARTICLE_DURATION_MS = 650
-const MAX_PARTICLES = 50
+const RIPPLE_DURATION_MS = 780
+const MAX_RIPPLES = 10
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function createParticles(clientX, clientY) {
-  return Array.from({ length: STAR_COUNT }, (_, i) => {
-    const angle = (i / STAR_COUNT) * Math.PI * 2 + Math.random() * 0.5
-    const dist = 28 + Math.random() * 40
-    const tx = Math.cos(angle) * dist
-    const ty = Math.sin(angle) * dist
-    const size = 6 + Math.random() * 6
-    const delay = Math.random() * 80
-    return {
-      id: genId(),
-      x: clientX,
-      y: clientY,
-      tx,
-      ty,
-      size,
-      delay,
-      hue: Math.random() > 0.2 ? 168 + Math.random() * 28 : 195 + Math.random() * 18
-    }
-  })
-}
-
-function StarParticle({ particle, onEnd }) {
+function ClickRipple({ ripple, onEnd }) {
   useEffect(() => {
-    const t = setTimeout(() => onEnd(particle.id), PARTICLE_DURATION_MS + particle.delay + 50)
+    const t = setTimeout(() => onEnd(ripple.id), RIPPLE_DURATION_MS)
     return () => clearTimeout(t)
-  }, [particle.id, particle.delay, onEnd])
+  }, [ripple.id, onEnd])
 
   return (
     <div
-      className="click-star-particle"
-      style={{
-        left: particle.x,
-        top: particle.y,
-        '--tx': particle.tx,
-        '--ty': particle.ty,
-        '--size': `${particle.size}px`,
-        '--delay': `${particle.delay}ms`,
-        '--hue': particle.hue
-      }}
+      className="ocean-ripple-burst"
+      style={{ left: ripple.x, top: ripple.y }}
       aria-hidden
     >
-      <span className="click-star-char">★</span>
+      <span className="ocean-ripple-ring" style={{ '--ripple-delay': '0ms', '--ripple-size': '108px' }} />
+      <span className="ocean-ripple-ring" style={{ '--ripple-delay': '90ms', '--ripple-size': '168px' }} />
+      <span className="ocean-ripple-ring" style={{ '--ripple-delay': '180ms', '--ripple-size': '232px' }} />
+      {ripple.droplets.map((d) => (
+        <span
+          key={d.id}
+          className="ocean-click-droplet"
+          style={{
+            '--tx': `${d.tx}px`,
+            '--ty': `${d.ty}px`,
+            '--size': `${d.size}px`,
+            '--delay': `${d.delay}ms`
+          }}
+        />
+      ))}
     </div>
   )
 }
 
 export default function ClickStarsEffect() {
-  const [particles, setParticles] = useState([])
+  const [ripples, setRipples] = useState([])
 
   const handleClick = useCallback((e) => {
-    const next = createParticles(e.clientX, e.clientY)
-    setParticles((prev) => {
-      const combined = [...prev, ...next]
-      return combined.length > MAX_PARTICLES ? combined.slice(-MAX_PARTICLES) : combined
+    const droplets = Array.from({ length: 5 }, (_, i) => {
+      const angle = (i / 5) * Math.PI * 2 + Math.random() * 0.4
+      const dist = 18 + Math.random() * 28
+      return {
+        id: `${i}`,
+        tx: Math.cos(angle) * dist,
+        ty: Math.sin(angle) * dist - 10,
+        size: 4 + Math.random() * 5,
+        delay: Math.random() * 60
+      }
+    })
+    const next = { id: genId(), x: e.clientX, y: e.clientY, droplets }
+    setRipples((prev) => {
+      const combined = [...prev, next]
+      return combined.length > MAX_RIPPLES ? combined.slice(-MAX_RIPPLES) : combined
     })
   }, [])
 
-  const removeParticle = useCallback((id) => {
-    setParticles((prev) => prev.filter((p) => p.id !== id))
+  const removeRipple = useCallback((id) => {
+    setRipples((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
   useEffect(() => {
@@ -75,18 +70,14 @@ export default function ClickStarsEffect() {
     return () => document.removeEventListener('click', handleClick, true)
   }, [handleClick])
 
-  if (particles.length === 0) return null
+  if (ripples.length === 0) return null
 
-  const overlay = (
-    <div
-      className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden"
-      aria-hidden
-    >
-      {particles.map((p) => (
-        <StarParticle key={p.id} particle={p} onEnd={removeParticle} />
+  return createPortal(
+    <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden" aria-hidden>
+      {ripples.map((r) => (
+        <ClickRipple key={r.id} ripple={r} onEnd={removeRipple} />
       ))}
-    </div>
+    </div>,
+    document.body
   )
-
-  return createPortal(overlay, document.body)
 }
