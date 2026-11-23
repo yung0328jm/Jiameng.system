@@ -28,11 +28,19 @@ function fishLayout() {
     sizes: mobile
       ? [{ width: 92, height: 48 }, { width: 76, height: 40 }]
       : [{ width: 168, height: 88 }, { width: 140, height: 72 }],
-    lanes: mobile ? [h * 0.07, h * 0.86] : [h * 0.16, h * 0.58],
-    cruise: mobile ? 170 : 95,
-    dash: mobile ? 520 : 430,
+    lanes: mobile ? [h * 0.12, h * 0.62] : [h * 0.18, h * 0.55],
+    cruise: mobile ? 52 : 78,
+    dash: mobile ? 260 : 380,
     eatRange: mobile ? 22 : 32
   }
+}
+
+function pickWander(fish, L, size) {
+  const padX = 16
+  const padY = 28
+  fish.tx = padX + Math.random() * Math.max(40, L.w - size.width - padX * 2)
+  fish.ty = padY + Math.random() * Math.max(40, L.h - size.height - padY * 2)
+  fish.turnAt = performance.now() + 1600 + Math.random() * 4200
 }
 
 function Betta({ src, variant }) {
@@ -58,8 +66,8 @@ export default function OceanAmbience() {
     sim.current = {
       food: [],
       fish: [
-        { x: 24, y: layout.lanes[0], face: 1, eatUntil: 0, target: null },
-        { x: Math.max(80, layout.w * 0.45), y: layout.lanes[1], face: -1, eatUntil: 0, target: null }
+        { x: 24, y: layout.lanes[0], face: 1, eatUntil: 0, tx: layout.w * 0.7, ty: layout.lanes[0], turnAt: 0 },
+        { x: Math.max(80, layout.w * 0.45), y: layout.lanes[1], face: -1, eatUntil: 0, tx: 40, ty: layout.lanes[1], turnAt: 0 }
       ]
     }
 
@@ -111,6 +119,7 @@ export default function OceanAmbience() {
             target.eaten = true
             fish.eatUntil = now + 220
             fish.dash = false
+            pickWander(fish, L, size)
             return
           }
           fish.dash = true
@@ -120,11 +129,20 @@ export default function OceanAmbience() {
           fish.y += (dy / dist) * speed * dt
         } else {
           fish.dash = false
-          const homeY = L.lanes[i]
-          fish.y += (homeY - fish.y) * Math.min(1, 2.4 * dt)
-          fish.x += fish.face * L.cruise * dt
-          if (fish.x > L.w - size.width * 0.35) fish.face = -1
-          if (fish.x < -size.width * 0.2) fish.face = 1
+          const dx = (fish.tx ?? fish.x) - fish.x
+          const dy = (fish.ty ?? fish.y) - fish.y
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1
+          if (!fish.turnAt || now > fish.turnAt || dist < 18) {
+            pickWander(fish, L, size)
+          }
+          const wx = (fish.tx ?? fish.x) - fish.x
+          const wy = (fish.ty ?? fish.y) - fish.y
+          const wd = Math.sqrt(wx * wx + wy * wy) || 1
+          fish.face = wx >= 0 ? 1 : -1
+          fish.x += (wx / wd) * L.cruise * dt
+          fish.y += (wy / wd) * L.cruise * dt
+          fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
+          fish.y = Math.max(8, Math.min(L.h - size.height - 8, fish.y))
         }
       })
 
