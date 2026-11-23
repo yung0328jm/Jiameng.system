@@ -181,7 +181,7 @@ export default function OceanAmbience() {
         x: x + (Math.random() - 0.5) * 28,
         y: y + (Math.random() - 0.2) * 10,
         vx: (Math.random() - 0.5) * 18,
-        vy: -240 - Math.random() * 90,
+        vy: -42 - Math.random() * 28,
         life: 6,
         eaten: false
       }))
