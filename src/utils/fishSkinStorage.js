@@ -18,6 +18,12 @@ export const FISH_PACKS = {
     wide: true,
     a: '/images/arowana-a.png',
     b: '/images/arowana-b.png'
+  },
+  arowana_blue: {
+    key: 'arowana_blue',
+    wide: true,
+    a: '/images/arowana-blue-a.png',
+    b: '/images/arowana-blue-b.png'
   }
 }
 

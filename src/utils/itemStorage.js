@@ -15,6 +15,7 @@ export const ITEM_TYPES = {
 }
 
 export const FISH_AROANA_ITEM_ID = 'fish_arowana'
+export const FISH_AROANA_BLUE_ITEM_ID = 'fish_arowana_blue'
 export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
 
 const AROWANA_SHOP_ITEM = {
@@ -26,6 +27,19 @@ const AROWANA_SHOP_ITEM = {
   icon: '🐉',
   image: '/images/arowana-a.png',
   price: 88,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const AROWANA_BLUE_SHOP_ITEM = {
+  id: FISH_AROANA_BLUE_ITEM_ID,
+  name: '藍底過背',
+  type: 'fish_skin',
+  fishKey: 'arowana_blue',
+  description: '藍底過背金龍。每套用 1 隻只替換 1 欄魚，可與其他魚種混搭。',
+  icon: '🐉',
+  image: '/images/arowana-blue-b.png',
+  price: 98,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -47,6 +61,7 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (isSupabaseEnabled() && looksPlaceholder) return list
   const extras = []
   if (!list.some((it) => String(it?.id || '') === FISH_AROANA_ITEM_ID)) extras.push({ ...AROWANA_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_AROANA_BLUE_ITEM_ID)) extras.push({ ...AROWANA_BLUE_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_SLOT_EXPAND_ITEM_ID)) extras.push({ ...FISH_SLOT_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (extras.length === 0) return list
   const next = [...list, ...extras]
