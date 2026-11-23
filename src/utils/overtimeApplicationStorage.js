@@ -108,21 +108,60 @@ function persistOvertimeList(list) {
   notifyOvertimeKeyChanged()
 }
 
+function isOpenOvertimeStatus(status) {
+  const s = String(status || 'pending').trim()
+  return s === 'pending' || s === 'approved'
+}
+
+function voidOpenOvertimeApps(apps, reason) {
+  const ids = new Set((apps || []).map((a) => String(a?.id || '')).filter(Boolean))
+  if (ids.size === 0) return false
+  const list = getOvertimeApplications()
+  let changed = false
+  const next = list.map((r) => {
+    if (!ids.has(String(r?.id || ''))) return r
+    if (!isOpenOvertimeStatus(r?.status)) return r
+    changed = true
+    return {
+      ...r,
+      status: 'voided',
+      voidReason: String(reason || '').trim(),
+      voidedAt: new Date().toISOString()
+    }
+  })
+  if (changed) persistOvertimeList(next)
+  return changed
+}
+
+function patchOvertimeAppById(id, patch) {
+  const list = getOvertimeApplications()
+  const idx = list.findIndex((r) => String(r?.id || '') === String(id || ''))
+  if (idx < 0) return false
+  list[idx] = { ...list[idx], ...patch }
+  persistOvertimeList(list)
+  return true
+}
+
 /**
- * 出工超過 8 小時時自動送出緊急入場申請（待管理員審核）。
- * 已有待審／已核准則不重複；若僅更新待審單的時數。
+ * 依目前進離廠時間同步緊急入場申請：
+ * - 已無加班：作廢待審／已核准單（工時打錯核准後改回來也會清掉）
+ * - 仍有加班：待審單更新時數；已核准單若超過實際加班則下修
  */
 export function ensureWorkReportOvertimeApplication(row, { replaceRejected = false } = {}) {
   try {
     if (!row?.id) return { success: true, skipped: true }
     const summary = getWorkReportRowShiftSummary(row)
     const otHours = Number(summary?.totalOvertimeHours ?? 0)
-    if (!summary?.hasOvertime || otHours <= 0) return { success: true, skipped: true }
-
     const apps = getOvertimeApplicationsByWorkReportRowId(row.id)
     const pending = apps.find((a) => String(a?.status || 'pending') === 'pending')
     const approved = apps.find((a) => String(a?.status || '') === 'approved')
-    if (approved) return { success: true, skipped: true }
+    const openApps = [pending, approved].filter(Boolean)
+
+    if (!summary?.hasOvertime || otHours <= 0) {
+      if (openApps.length === 0) return { success: true, skipped: true }
+      voidOpenOvertimeApps(openApps, '工時已更正，已無加班')
+      return { success: true, voided: true }
+    }
 
     const personnel = [parseWorkReportBaseName(row?.personName) || row?.personName].filter(Boolean)
     const patch = {
@@ -135,24 +174,32 @@ export function ensureWorkReportOvertimeApplication(row, { replaceRejected = fal
       applicant: String(row?.submittedByName || row?.submittedBy || '').trim()
     }
 
-    if (pending) {
-      const same =
-        Number(pending.hours) === otHours &&
-        String(pending.startTime || '') === patch.startTime &&
-        String(pending.endTime || '') === patch.endTime &&
-        String(pending.siteName || '') === patch.siteName
-      if (same) return { success: true, skipped: true }
-      const list = getOvertimeApplications()
-      const idx = list.findIndex((r) => String(r?.id || '') === String(pending.id || ''))
-      if (idx >= 0) {
-        list[idx] = { ...list[idx], ...patch }
-        persistOvertimeList(list)
+    const sameTimes = (app) =>
+      Number(app?.hours) === otHours &&
+      String(app?.startTime || '') === patch.startTime &&
+      String(app?.endTime || '') === patch.endTime &&
+      String(app?.siteName || '') === patch.siteName
+
+    if (approved) {
+      const stored = Number(approved.hours) || 0
+      if (stored > otHours || !sameTimes(approved)) {
+        patchOvertimeAppById(approved.id, {
+          ...patch,
+          hours: Math.min(stored, otHours)
+        })
+        return { success: true, updated: true }
       }
+      return { success: true, skipped: true }
+    }
+
+    if (pending) {
+      if (sameTimes(pending)) return { success: true, skipped: true }
+      patchOvertimeAppById(pending.id, patch)
       return { success: true, updated: true }
     }
 
-    const onlyRejected = apps.length > 0 && apps.every((a) => String(a?.status || '') === 'rejected')
-    if (onlyRejected && !replaceRejected) return { success: true, skipped: true }
+    const hasRejected = apps.some((a) => String(a?.status || '') === 'rejected')
+    if (hasRejected && !replaceRejected) return { success: true, skipped: true }
 
     return addOvertimeApplication({
       workReportRowId: row.id,
@@ -164,8 +211,8 @@ export function ensureWorkReportOvertimeApplication(row, { replaceRejected = fal
   }
 }
 
-/** 近 N 日有加班時數但尚未送出的出工，補送待審申請 */
-export function backfillWorkReportOvertimeApplications({ days = 14 } = {}) {
+/** 近 N 日同步加班單（含：工時改回後作廢已核准／待審） */
+export function backfillWorkReportOvertimeApplications({ days = 60 } = {}) {
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - days)
   const cutoffStr = cutoff.toISOString().slice(0, 10)

@@ -353,6 +353,9 @@ function buildOvertimeHoursMap(year, month) {
       const row = workReportRows.find((r) => String(r?.id || '') === wrRowId)
       if (!row) return
       const siteName = String(row?.siteName || oa?.siteName || '').trim() || '（未填案場）'
+      const actualOt = Number(getWorkReportRowShiftSummary(row)?.totalOvertimeHours || 0)
+      const payableHours = Math.min(hours, actualOt)
+      if (!Number.isFinite(payableHours) || payableHours <= 0) return
       const personnel = (Array.isArray(oa.overtimePersonnel) ? oa.overtimePersonnel : [])
         .map((x) => String(x || '').trim())
         .filter(Boolean)
@@ -361,7 +364,7 @@ function buildOvertimeHoursMap(year, month) {
           ? personnel
           : [getWorkReportStatsPersonKey(row?.personName)].filter(Boolean)
       if (list.length === 0) return
-      list.forEach((personName) => add(personName, dateStr, siteName, hours / list.length))
+      list.forEach((personName) => add(personName, dateStr, siteName, payableHours / list.length))
       return
     }
 

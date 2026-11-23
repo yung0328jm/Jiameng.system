@@ -1169,7 +1169,12 @@ function WorkReport() {
                                   <div className="flex flex-col gap-1 items-end">
                                     {group.rows.map((row) => {
                                       const ot = getWorkReportRowShiftSummary(row)?.totalOvertimeHours ?? 0
-                                      const otApp = ot > 0 ? getOvertimeApplicationsByWorkReportRowId(row.id)[0] : null
+                                      const otApp = ot > 0
+                                        ? getOvertimeApplicationsByWorkReportRowId(row.id).find((a) => {
+                                            const s = String(a?.status || 'pending')
+                                            return s === 'pending' || s === 'approved'
+                                          })
+                                        : null
                                       return (
                                         <div key={row.id} className="flex flex-wrap gap-2 justify-end items-center">
                                           {otApp ? (

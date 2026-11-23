@@ -30,7 +30,9 @@ export function buildPersonStatsMap(monthRecords) {
     if (!person) return
     const shift = getWorkReportRowShiftSummary(row)
     if (!shift) return
-    const approvedOvertimeHours = round1(approvedOvertimeByRowId.get(String(row?.id || '').trim()) || 0)
+    const storedApproved = round1(approvedOvertimeByRowId.get(String(row?.id || '').trim()) || 0)
+    const actualOt = round1(shift.totalOvertimeHours || 0)
+    const approvedOvertimeHours = round1(Math.min(storedApproved, actualOt))
     const prev = map.get(person) || {
       personName: person,
       isContractor: isWorkReportContractorName(row?.personName),

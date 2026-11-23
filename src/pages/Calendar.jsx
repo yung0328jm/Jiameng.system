@@ -5375,7 +5375,10 @@ function Calendar() {
                       {workReportDetailGroups.map((group) => {
                         const hasOvertime = (group.shiftSummary?.totalOvertimeHours || 0) > 0
                         const otHours = group.shiftSummary?.totalOvertimeHours || 0
-                        const allApps = group.rows.flatMap((r) => getOvertimeApplicationsByWorkReportRowId(r.id))
+                        const allApps = group.rows.flatMap((r) => getOvertimeApplicationsByWorkReportRowId(r.id)).filter((a) => {
+                          const s = String(a?.status || 'pending')
+                          return s === 'pending' || s === 'approved'
+                        })
                         const anyApp = allApps[0]
                         return (
                           <tr key={group.id} className="border-b border-gray-700/60 align-top">
