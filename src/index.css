@@ -451,7 +451,6 @@ body {
 .ocean-betta-body {
   -webkit-clip-path: inset(0 0 0 42%);
   clip-path: inset(0 0 0 42%);
-  opacity: 0.94;
 }
 
 .ocean-betta-tail {
@@ -504,17 +503,11 @@ body {
   .ocean-betta {
     width: 92px;
     height: 48px;
-    opacity: 0.5;
   }
 
   .ocean-betta-b {
     width: 76px;
     height: 40px;
-    opacity: 0.42;
-  }
-
-  .ocean-betta-body {
-    opacity: 0.85;
   }
 }
 
