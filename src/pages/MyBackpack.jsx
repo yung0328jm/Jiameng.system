@@ -4,6 +4,17 @@ import { getItems, getItem, ITEM_TYPES } from '../utils/itemStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { createExchangeRequest, getUserExchangeRequests } from '../utils/exchangeRequestStorage'
 import { getEquippedEffects, equipEffect, unequipEffect } from '../utils/effectStorage'
+import {
+  DEFAULT_FISH_SLOTS,
+  MAX_FISH_SLOTS,
+  countAppliedFishSlot,
+  countEquippedFishSkin,
+  equipOneFishSkin,
+  equipOneFishSlot,
+  getFishSlotCount,
+  unequipOneFishSkin,
+  unequipOneFishSlot
+} from '../utils/fishSkinStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function MyBackpack() {
@@ -128,6 +139,50 @@ function MyBackpack() {
     if (result.success) {
       loadEquippedEffects()
       alert('卸下成功！')
+    } else {
+      alert(result.message || '卸下失敗')
+    }
+  }
+
+  const handleEquipFishSkin = (itemId) => {
+    if (!currentUser) return
+    const result = equipOneFishSkin(currentUser, itemId)
+    if (result.success) {
+      loadEquippedEffects()
+      alert('已套用 1 隻（只更換一欄，其餘欄位不變）')
+    } else {
+      alert(result.message || '套用失敗')
+    }
+  }
+
+  const handleUnequipFishSkin = (itemId) => {
+    if (!currentUser) return
+    const result = unequipOneFishSkin(currentUser, itemId)
+    if (result.success) {
+      loadEquippedEffects()
+      alert('已卸下 1 隻，該欄恢復為鬥魚')
+    } else {
+      alert(result.message || '卸下失敗')
+    }
+  }
+
+  const handleEquipFishSlot = (itemId) => {
+    if (!currentUser) return
+    const result = equipOneFishSlot(currentUser, itemId)
+    if (result.success) {
+      loadEquippedEffects()
+      alert(`已套用擴充，現在可同時顯示 ${getFishSlotCount(currentUser)} 隻魚`)
+    } else {
+      alert(result.message || '套用失敗')
+    }
+  }
+
+  const handleUnequipFishSlot = (itemId) => {
+    if (!currentUser) return
+    const result = unequipOneFishSlot(currentUser, itemId)
+    if (result.success) {
+      loadEquippedEffects()
+      alert(`已卸下擴充，現在可同時顯示 ${getFishSlotCount(currentUser)} 隻魚`)
     } else {
       alert(result.message || '卸下失敗')
     }
@@ -352,28 +407,75 @@ function MyBackpack() {
                       </div>
                     ) : invItem.item && invItem.item.type === ITEM_TYPES.FISH_SKIN ? (
                       <div className="space-y-3 sm:space-y-2">
-                        {equippedEffects.fish === invItem.itemId ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleUnequipEffect('fish')
-                            }}
-                            className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                          >
-                            卸下水族外觀
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEquipEffect(invItem.itemId, 'fish')
-                            }}
-                            className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
-                          >
-                            套用水族外觀
-                          </button>
-                        )}
-                        <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">僅自己畫面顯示，未套用為預設鬥魚</div>
+                        {(() => {
+                          const used = countEquippedFishSkin(currentUser, invItem.itemId)
+                          const cap = getFishSlotCount(currentUser)
+                          const own = invItem.quantity || 0
+                          return (
+                            <>
+                              <p className="text-cyan-300 text-sm text-center">
+                                已套用 {used} / 持有 {own}　魚欄 {cap}/{MAX_FISH_SLOTS}
+                              </p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEquipFishSkin(invItem.itemId)
+                                }}
+                                disabled={used >= own}
+                                className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:text-gray-400 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                              >
+                                套用一隻（只換一欄）
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleUnequipFishSkin(invItem.itemId)
+                                }}
+                                disabled={used <= 0}
+                                className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-600 disabled:text-gray-400 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                              >
+                                卸下一隻（該欄變回鬥魚）
+                              </button>
+                            </>
+                          )
+                        })()}
+                        <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">每套用 1 隻只換 1 欄，可混搭不同魚種</div>
+                      </div>
+                    ) : invItem.item && invItem.item.type === ITEM_TYPES.FISH_SLOT ? (
+                      <div className="space-y-3 sm:space-y-2">
+                        {(() => {
+                          const used = countAppliedFishSlot(currentUser, invItem.itemId)
+                          const cap = getFishSlotCount(currentUser)
+                          const own = invItem.quantity || 0
+                          return (
+                            <>
+                              <p className="text-cyan-300 text-sm text-center">
+                                已套用 {used} / 持有 {own}　目前 {cap}/{MAX_FISH_SLOTS} 隻
+                              </p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEquipFishSlot(invItem.itemId)
+                                }}
+                                disabled={used >= own || cap >= MAX_FISH_SLOTS}
+                                className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:text-gray-400 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                              >
+                                套用擴充（+1 隻）
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleUnequipFishSlot(invItem.itemId)
+                                }}
+                                disabled={used <= 0}
+                                className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-600 disabled:text-gray-400 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                              >
+                                卸下擴充（-1 隻）
+                              </button>
+                            </>
+                          )
+                        })()}
+                        <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">買了還要自行套用；預設 {DEFAULT_FISH_SLOTS} 隻，最多 {MAX_FISH_SLOTS} 隻</div>
                       </div>
                     ) : hasPendingExchangeRequest(invItem.itemId) ? (
                       <button

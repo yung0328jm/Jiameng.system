@@ -7,7 +7,9 @@ const emptyEquip = () => ({
   nameEffect: null,
   messageEffect: null,
   title: null,
-  fish: null
+  fish: null,
+  fishSlots: [],
+  fishSlotExpansions: []
 })
 
 const persist = (effects) => {
@@ -19,23 +21,57 @@ const persist = (effects) => {
   } catch (_) {}
 }
 
+export const normalizeFishSlots = (userEffects) => {
+  const raw = userEffects || {}
+  if (Array.isArray(raw.fishSlots) && raw.fishSlots.length > 0) {
+    return raw.fishSlots.map((id) => String(id || '').trim()).filter(Boolean)
+  }
+  if (raw.fish) return [String(raw.fish)]
+  return []
+}
+
+export const normalizeFishSlotExpansions = (userEffects) => {
+  const raw = userEffects || {}
+  if (Array.isArray(raw.fishSlotExpansions)) {
+    return raw.fishSlotExpansions.map((id) => String(id || '').trim()).filter(Boolean)
+  }
+  const n = Math.max(0, Number(raw.fishSlotExpansions) || 0)
+  return n > 0 ? Array.from({ length: n }, () => 'fish_slot_expand') : []
+}
+
+const readAll = () => {
+  try {
+    const data = localStorage.getItem(EFFECT_STORAGE_KEY)
+    return data ? JSON.parse(data) : {}
+  } catch (_) {
+    return {}
+  }
+}
+
 // 獲取用戶裝備的特效
 export const getEquippedEffects = (username) => {
   try {
-    const data = localStorage.getItem(EFFECT_STORAGE_KEY)
-    const effects = data ? JSON.parse(data) : {}
-    return { ...emptyEquip(), ...(effects[username] || {}) }
+    const effects = readAll()
+    const merged = { ...emptyEquip(), ...(effects[username] || {}) }
+    merged.fishSlots = normalizeFishSlots(merged)
+    merged.fishSlotExpansions = normalizeFishSlotExpansions(merged)
+    return merged
   } catch (error) {
     console.error('Error getting equipped effects:', error)
     return emptyEquip()
   }
 }
 
+const writeUser = (username, nextUser) => {
+  const effects = readAll()
+  effects[username] = nextUser
+  persist(effects)
+}
+
 // 裝備特效道具
 export const equipEffect = (username, itemId, effectType) => {
   try {
-    const data = localStorage.getItem(EFFECT_STORAGE_KEY)
-    const effects = data ? JSON.parse(data) : {}
+    const effects = readAll()
     
     if (!effects[username]) {
       effects[username] = emptyEquip()
@@ -48,7 +84,10 @@ export const equipEffect = (username, itemId, effectType) => {
     } else if (effectType === 'title') {
       effects[username].title = itemId
     } else if (effectType === 'fish') {
-      effects[username].fish = itemId
+      const slots = normalizeFishSlots(effects[username])
+      slots.push(itemId)
+      effects[username].fishSlots = slots
+      effects[username].fish = null
     }
     
     persist(effects)
@@ -59,11 +98,39 @@ export const equipEffect = (username, itemId, effectType) => {
   }
 }
 
+export const setFishSlots = (username, slots) => {
+  try {
+    const current = getEquippedEffects(username)
+    writeUser(username, {
+      ...current,
+      fish: null,
+      fishSlots: (Array.isArray(slots) ? slots : []).map((id) => String(id || '').trim()).filter(Boolean)
+    })
+    return { success: true }
+  } catch (error) {
+    console.error('Error setting fish slots:', error)
+    return { success: false, message: '更新魚欄失敗' }
+  }
+}
+
+export const setFishSlotExpansions = (username, expansions) => {
+  try {
+    const current = getEquippedEffects(username)
+    writeUser(username, {
+      ...current,
+      fishSlotExpansions: (Array.isArray(expansions) ? expansions : []).map((id) => String(id || '').trim()).filter(Boolean)
+    })
+    return { success: true }
+  } catch (error) {
+    console.error('Error setting fish slot expansions:', error)
+    return { success: false, message: '更新擴充欄失敗' }
+  }
+}
+
 // 卸下特效道具
 export const unequipEffect = (username, effectType) => {
   try {
-    const data = localStorage.getItem(EFFECT_STORAGE_KEY)
-    const effects = data ? JSON.parse(data) : {}
+    const effects = readAll()
     
     if (!effects[username]) {
       return { success: false, message: '沒有裝備特效' }
@@ -77,6 +144,7 @@ export const unequipEffect = (username, effectType) => {
       effects[username].title = null
     } else if (effectType === 'fish') {
       effects[username].fish = null
+      effects[username].fishSlots = []
     }
     
     persist(effects)
@@ -115,6 +183,19 @@ export const cleanupEquippedEffectsByItemIds = (itemIds) => {
       if (next.messageEffect && ids.has(next.messageEffect)) { next.messageEffect = null; touched = true }
       if (next.title && ids.has(next.title)) { next.title = null; touched = true }
       if (next.fish && ids.has(next.fish)) { next.fish = null; touched = true }
+      const slots = normalizeFishSlots(next)
+      const filtered = slots.filter((id) => !ids.has(id))
+      if (filtered.length !== slots.length) {
+        next.fishSlots = filtered
+        next.fish = null
+        touched = true
+      }
+      const expansions = normalizeFishSlotExpansions(next)
+      const filteredExp = expansions.filter((id) => !ids.has(id))
+      if (filteredExp.length !== expansions.length) {
+        next.fishSlotExpansions = filteredExp
+        touched = true
+      }
       if (touched) {
         all[username] = next
         cleanedUsers += 1

@@ -10,17 +10,19 @@ export const ITEM_TYPES = {
   NAME_EFFECT: 'name_effect', // 名子特效道具
   MESSAGE_EFFECT: 'message_effect', // 發話特效道具
   TITLE: 'title', // 稱號道具
-  FISH_SKIN: 'fish_skin' // 水族外觀（套用後僅自己畫面顯示）
+  FISH_SKIN: 'fish_skin', // 水族外觀（每套用 1 隻只換 1 欄）
+  FISH_SLOT: 'fish_slot' // 魚隻擴充欄（增加同時顯示的魚數量）
 }
 
 export const FISH_AROANA_ITEM_ID = 'fish_arowana'
+export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
 
 const AROWANA_SHOP_ITEM = {
   id: FISH_AROANA_ITEM_ID,
   name: '龍魚',
   type: 'fish_skin',
   fishKey: 'arowana',
-  description: '套用後，僅你的畫面會游龍魚；未套用或未購買者仍為預設鬥魚。',
+  description: '每套用 1 隻只替換 1 欄魚；另一欄仍是預設鬥魚。可同時套用不同魚種。',
   icon: '🐉',
   image: '/images/arowana-a.png',
   price: 88,
@@ -28,12 +30,26 @@ const AROWANA_SHOP_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const FISH_SLOT_SHOP_ITEM = {
+  id: FISH_SLOT_EXPAND_ITEM_ID,
+  name: '魚隻擴充欄',
+  type: 'fish_slot',
+  description: '購買後請到背包自行套用。每套用 1 個，畫面多游 1 隻魚（預設 2 隻，最多 6 隻）。',
+  icon: '➕',
+  price: 68,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
 function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true }) {
   const list = Array.isArray(items) ? items : []
-  if (list.some((it) => String(it?.id || '') === FISH_AROANA_ITEM_ID)) return list
   const looksPlaceholder = list.length <= 1 && (!list[0] || String(list[0].id) === 'danmu_item')
   if (isSupabaseEnabled() && looksPlaceholder) return list
-  const next = [...list, { ...AROWANA_SHOP_ITEM, createdAt: new Date().toISOString() }]
+  const extras = []
+  if (!list.some((it) => String(it?.id || '') === FISH_AROANA_ITEM_ID)) extras.push({ ...AROWANA_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_SLOT_EXPAND_ITEM_ID)) extras.push({ ...FISH_SLOT_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (extras.length === 0) return list
+  const next = [...list, ...extras]
   try {
     const val = JSON.stringify(next)
     localStorage.setItem(ITEM_STORAGE_KEY, val)

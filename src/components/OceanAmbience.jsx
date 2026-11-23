@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCurrentUser } from '../utils/authStorage'
-import { getEquippedAmbientFishPack, FISH_PACKS } from '../utils/fishSkinStorage'
+import { getAmbientFishRoster } from '../utils/fishSkinStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
@@ -20,7 +20,7 @@ function isMobile() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
 }
 
-function fishLayout(wide) {
+function layout() {
   const mobile = isMobile()
   const w = window.innerWidth
   const h = window.innerHeight
@@ -28,18 +28,34 @@ function fishLayout(wide) {
     mobile,
     w,
     h,
-    sizes: wide
-      ? (mobile
-        ? [{ width: 132, height: 42 }, { width: 114, height: 36 }]
-        : [{ width: 220, height: 70 }, { width: 188, height: 60 }])
-      : (mobile
-        ? [{ width: 92, height: 48 }, { width: 76, height: 40 }]
-        : [{ width: 168, height: 88 }, { width: 140, height: 72 }]),
-    lanes: mobile ? [h * 0.12, h * 0.62] : [h * 0.18, h * 0.55],
     cruise: mobile ? 52 : 78,
     dash: mobile ? 260 : 380,
-    eatRange: mobile ? 22 : 32,
-    mouthX: wide ? 0.9 : 0.84
+    eatRange: mobile ? 22 : 32
+  }
+}
+
+function fishSize(wide, index, mobile) {
+  if (wide) {
+    return index % 2 === 0
+      ? (mobile ? { width: 132, height: 42 } : { width: 220, height: 70 })
+      : (mobile ? { width: 114, height: 36 } : { width: 188, height: 60 })
+  }
+  return index % 2 === 0
+    ? (mobile ? { width: 92, height: 48 } : { width: 168, height: 88 })
+    : (mobile ? { width: 76, height: 40 } : { width: 140, height: 72 })
+}
+
+function spawnFish(i, count, L, size) {
+  const t = count <= 1 ? 0.35 : i / (count - 1)
+  return {
+    x: 18 + ((i * 97) % Math.max(60, L.w - size.width - 24)),
+    y: 28 + t * Math.max(80, L.h * 0.72),
+    face: i % 2 === 0 ? 1 : -1,
+    tilt: 0,
+    eatUntil: 0,
+    tx: L.w * (0.2 + (i * 0.13) % 0.6),
+    ty: 28 + t * Math.max(80, L.h * 0.72),
+    turnAt: 0
   }
 }
 
@@ -49,6 +65,10 @@ function pickWander(fish, L, size) {
   fish.tx = padX + Math.random() * Math.max(40, L.w - size.width - padX * 2)
   fish.ty = padY + Math.random() * Math.max(40, L.h - size.height - padY * 2)
   fish.turnAt = performance.now() + 1600 + Math.random() * 4200
+}
+
+function rosterKey(roster) {
+  return (roster || []).map((f) => `${f.key}:${f.src}`).join('|')
 }
 
 function Betta({ src, variant, wide }) {
@@ -63,30 +83,31 @@ function Betta({ src, variant, wide }) {
 export default function OceanAmbience() {
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
-  const [actors, setActors] = useState(() => ([
-    { id: 'a', x: 40, y: 120, face: 1, tilt: 0, dash: false, eating: false },
-    { id: 'b', x: 220, y: 360, face: -1, tilt: 0, dash: false, eating: false }
-  ]))
+  const [actors, setActors] = useState(() => getAmbientFishRoster(getCurrentUser()).map((f, i) => ({
+    ...f,
+    x: 40 + i * 80,
+    y: 120 + i * 80,
+    face: i % 2 === 0 ? 1 : -1,
+    tilt: 0,
+    dash: false,
+    eating: false
+  })))
   const sim = useRef(null)
-  const packRef = useRef(FISH_PACKS.betta)
-  const [pack, setPack] = useState(FISH_PACKS.betta)
+  const rosterRef = useRef(getAmbientFishRoster(getCurrentUser()))
 
   useEffect(() => {
-    const refreshPack = () => {
-      const next = getEquippedAmbientFishPack(getCurrentUser())
-      if (!next) return
-      if (packRef.current.key !== next.key) {
-        packRef.current = next
-        setPack(next)
-      }
+    const refresh = () => {
+      const next = getAmbientFishRoster(getCurrentUser())
+      if (rosterKey(rosterRef.current) === rosterKey(next)) return
+      rosterRef.current = next
     }
-    refreshPack()
+    refresh()
     const onRt = (e) => {
       const key = e?.detail?.key
       if (key && key !== '__ALL__' && key !== 'jiameng_equipped_effects' && key !== 'jiameng_inventories' && key !== 'jiameng_items') return
-      refreshPack()
+      refresh()
     }
-    const timer = window.setInterval(refreshPack, 1200)
+    const timer = window.setInterval(refresh, 1200)
     window.addEventListener(REALTIME_UPDATE_EVENT, onRt)
     return () => {
       window.clearInterval(timer)
@@ -95,13 +116,11 @@ export default function OceanAmbience() {
   }, [])
 
   useEffect(() => {
-    const layout = fishLayout(packRef.current.wide)
+    const L0 = layout()
+    const startRoster = rosterRef.current
     sim.current = {
       food: [],
-      fish: [
-        { x: 24, y: layout.lanes[0], face: 1, tilt: 0, eatUntil: 0, tx: layout.w * 0.7, ty: layout.lanes[0], turnAt: 0 },
-        { x: Math.max(80, layout.w * 0.45), y: layout.lanes[1], face: -1, tilt: 0, eatUntil: 0, tx: 40, ty: layout.lanes[1], turnAt: 0 }
-      ]
+      fish: startRoster.map((entry, i) => spawnFish(i, startRoster.length, L0, fishSize(entry.wide, i, L0.mobile)))
     }
 
     let last = performance.now()
@@ -110,9 +129,19 @@ export default function OceanAmbience() {
     const tick = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const L = fishLayout(packRef.current.wide)
+      const L = layout()
       const state = sim.current
       if (!state) return
+      const currentRoster = rosterRef.current || []
+
+      while (state.fish.length < currentRoster.length) {
+        const i = state.fish.length
+        const size = fishSize(currentRoster[i]?.wide, i, L.mobile)
+        state.fish.push(spawnFish(i, currentRoster.length, L, size))
+      }
+      if (state.fish.length > currentRoster.length) {
+        state.fish.length = currentRoster.length
+      }
 
       const tiltToward = (fish, dx, dy) => {
         const want = Math.atan2(dy, Math.abs(dx) + 8) * (180 / Math.PI)
@@ -130,8 +159,10 @@ export default function OceanAmbience() {
       })
 
       state.fish.forEach((fish, i) => {
-        const size = L.sizes[i]
-        const mouthX = fish.face === 1 ? fish.x + size.width * L.mouthX : fish.x + size.width * (1 - L.mouthX)
+        const entry = currentRoster[i]
+        const size = fishSize(entry?.wide, i, L.mobile)
+        const mouthRatio = entry?.wide ? 0.9 : 0.84
+        const mouthX = fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio)
         const mouthY = fish.y + size.height * 0.5
         const live = state.food.filter((p) => !p.eaten)
         let target = null
@@ -190,15 +221,21 @@ export default function OceanAmbience() {
       })
 
       setFood(state.food.map((p) => ({ id: p.id, x: p.x, y: p.y })))
-      setActors(state.fish.map((f, i) => ({
-        id: i === 0 ? 'a' : 'b',
-        x: f.x,
-        y: f.y,
-        face: f.face,
-        tilt: f.tilt || 0,
-        dash: f.dash,
-        eating: now < f.eatUntil
-      })))
+      setActors(state.fish.map((f, i) => {
+        const entry = currentRoster[i] || {}
+        return {
+          id: entry.id || `fish-${i}`,
+          src: entry.src,
+          wide: !!entry.wide,
+          variant: entry.variant || (i % 2 === 0 ? 'a' : 'b'),
+          x: f.x,
+          y: f.y,
+          face: f.face,
+          tilt: f.tilt || 0,
+          dash: f.dash,
+          eating: now < f.eatUntil
+        }
+      }))
 
       raf = requestAnimationFrame(tick)
     }
@@ -268,9 +305,9 @@ export default function OceanAmbience() {
           >
             <div className="ocean-fish-bob">
               <Betta
-                src={fish.id === 'a' ? pack.a : pack.b}
-                variant={fish.id}
-                wide={pack.wide}
+                src={fish.src}
+                variant={fish.variant}
+                wide={fish.wide}
               />
             </div>
           </div>

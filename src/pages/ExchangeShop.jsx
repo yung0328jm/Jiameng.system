@@ -4,7 +4,7 @@ import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { getAllEquippedEffects, unequipEffect } from '../utils/effectStorage'
+import { getAllEquippedEffects, unequipEffect, setFishSlots, setFishSlotExpansions, normalizeFishSlots, normalizeFishSlotExpansions } from '../utils/effectStorage'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
@@ -278,7 +278,14 @@ function ExchangeShop() {
         if (e?.nameEffect === itemId) unequipEffect(username, 'name')
         if (e?.messageEffect === itemId) unequipEffect(username, 'message')
         if (e?.title === itemId) unequipEffect(username, 'title')
-        if (e?.fish === itemId) unequipEffect(username, 'fish')
+        const slots = normalizeFishSlots(e)
+        if (slots.includes(itemId) || e?.fish === itemId) {
+          setFishSlots(username, slots.filter((id) => id !== itemId))
+        }
+        const expansions = normalizeFishSlotExpansions(e)
+        if (expansions.includes(itemId)) {
+          setFishSlotExpansions(username, expansions.filter((id) => id !== itemId))
+        }
       })
     } catch (e) {
       console.warn('Delete item: unequip failed', e)
@@ -602,6 +609,65 @@ function ExchangeShop() {
                       checkSlot('messageEffect', ITEM_TYPES.MESSAGE_EFFECT, 'message')
                       checkSlot('title', ITEM_TYPES.TITLE, 'title')
                       checkSlot('fish', ITEM_TYPES.FISH_SKIN, 'fish')
+                      const ownedQty = (uid, itemId) => {
+                        const arr = Array.isArray(inventories?.[uid]) ? inventories[uid] : []
+                        const row = arr.find((x) => String(x?.itemId || '').trim() === itemId)
+                        return Math.max(0, Number(row?.quantity) || 0)
+                      }
+                      const rawSlots = Array.isArray(e.fishSlots) ? e.fishSlots : (e.fish ? [e.fish] : [])
+                      const used = {}
+                      const nextSlots = []
+                      rawSlots.forEach((id) => {
+                        const sid = String(id || '').trim()
+                        if (!sid) return
+                        const it = itemById.get(sid)
+                        if (!it || it.type !== ITEM_TYPES.FISH_SKIN) {
+                          changed = true
+                          clearedCount++
+                          return
+                        }
+                        used[sid] = (used[sid] || 0) + 1
+                        if (used[sid] > ownedQty(username, sid)) {
+                          changed = true
+                          clearedCount++
+                          return
+                        }
+                        nextSlots.push(sid)
+                      })
+                      if (e.fish || JSON.stringify(rawSlots) !== JSON.stringify(nextSlots)) {
+                        e.fish = null
+                        e.fishSlots = nextSlots
+                        changed = true
+                      }
+                      const rawExp = Array.isArray(e.fishSlotExpansions) ? e.fishSlotExpansions : []
+                      const usedExp = {}
+                      const nextExp = []
+                      rawExp.forEach((id) => {
+                        if (nextExp.length >= 4) {
+                          changed = true
+                          clearedCount++
+                          return
+                        }
+                        const sid = String(id || '').trim()
+                        if (!sid) return
+                        const it = itemById.get(sid)
+                        if (!it || it.type !== ITEM_TYPES.FISH_SLOT) {
+                          changed = true
+                          clearedCount++
+                          return
+                        }
+                        usedExp[sid] = (usedExp[sid] || 0) + 1
+                        if (usedExp[sid] > ownedQty(username, sid)) {
+                          changed = true
+                          clearedCount++
+                          return
+                        }
+                        nextExp.push(sid)
+                      })
+                      if (JSON.stringify(rawExp) !== JSON.stringify(nextExp)) {
+                        e.fishSlotExpansions = nextExp
+                        changed = true
+                      }
                       equipped[username] = e
                     })
 
@@ -957,6 +1023,7 @@ function ExchangeShop() {
                     <option value="danmu">彈幕道具</option>
                     <option value="special">特殊道具</option>
                     <option value="fish_skin">魚類外觀</option>
+                    <option value="fish_slot">魚隻擴充欄</option>
                   </select>
                 </div>
 
