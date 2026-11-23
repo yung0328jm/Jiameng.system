@@ -437,7 +437,7 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
         }
       }
 
-      const bumpGroupPerson = (gid, groupName, personName, siteName, days, ot) => {
+      const bumpGroupPerson = (gid, groupName, personName, siteName, dateStr, days, ot) => {
         if (!groupMap.has(gid)) {
           groupMap.set(gid, {
             groupId: gid,
@@ -458,16 +458,19 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
         const p = g.people.get(personName)
         p.days += days
         p.overtimeHours += ot
-        const prevSite = p.sites.get(siteName) || { siteName, days: 0, overtimeHours: 0 }
+        const date = String(dateStr || '').slice(0, 10)
+        const rowKey = `${siteName}\0${date}`
+        const prevSite = p.sites.get(rowKey) || { siteName, date, days: 0, overtimeHours: 0 }
         prevSite.days += days
         prevSite.overtimeHours += ot
-        p.sites.set(siteName, prevSite)
+        p.sites.set(rowKey, prevSite)
       }
 
       logs.forEach((r) => {
         const gid = String(r?.groupId || '').trim() || '_'
         const groupName = nameById.get(gid) || '未分群'
         const site = normalizeSite(r.siteName)
+        const dateStr = String(r?.date || '').slice(0, 10)
         const entries = normalizeEntries(r)
         const named = new Set()
         entries.forEach((e) => {
@@ -481,12 +484,12 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
             days: 1,
             personOt: ot
           })
-          bumpGroupPerson(gid, groupName, e.name, site, 1, ot)
+          bumpGroupPerson(gid, groupName, e.name, site, dateStr, 1, ot)
         })
         const extra = Math.max(0, (Number(r.count) || 0) - named.size)
         if (extra > 0) {
           bumpSite(site, { work: extra, unnamed: extra, groupName, personName: '未具名', days: extra })
-          bumpGroupPerson(gid, groupName, '未具名', site, extra, 0)
+          bumpGroupPerson(gid, groupName, '未具名', site, dateStr, extra, 0)
         }
       })
 
@@ -518,7 +521,11 @@ export function createSpotWorkStore({ logsKey, groupsKey, peopleLegacyKey = '' }
                   ...p,
                   sites: [...p.sites.values()]
                     .map(roundObjOt)
-                    .sort((a, b) => b.days - a.days || a.siteName.localeCompare(b.siteName, 'zh-Hant'))
+                    .sort(
+                      (a, b) =>
+                        String(a.date || '').localeCompare(String(b.date || '')) ||
+                        a.siteName.localeCompare(b.siteName, 'zh-Hant')
+                    )
                 })
               )
               .sort((a, b) => b.days - a.days || a.name.localeCompare(b.name, 'zh-Hant'))
@@ -595,8 +602,10 @@ function settleMonthKey(year, month) {
   return `${Number(year)}-${String(Number(month)).padStart(2, '0')}`
 }
 
-function settleCellKey(groupId, personName, siteName) {
-  return `${String(groupId || '').trim()}|${String(personName || '').trim()}|${String(siteName || '').trim()}`
+function settleCellKey(groupId, personName, siteName, dateStr = '') {
+  const base = `${String(groupId || '').trim()}|${String(personName || '').trim()}|${String(siteName || '').trim()}`
+  const d = String(dateStr || '').slice(0, 10)
+  return d ? `${base}|${d}` : base
 }
 
 export function getSpotWorkSettleMap(year, month, settleKey = DIAN_WORK_SETTLE_KEY) {
@@ -609,9 +618,9 @@ export function getDianWorkSettleMap(year, month) {
   return getSpotWorkSettleMap(year, month, DIAN_WORK_SETTLE_KEY)
 }
 
-export function isDianWorkSiteSettled(year, month, groupId, personName, siteName) {
+export function isDianWorkSiteSettled(year, month, groupId, personName, siteName, dateStr = '') {
   const map = getDianWorkSettleMap(year, month)
-  return map[settleCellKey(groupId, personName, siteName)] === 'settled'
+  return map[settleCellKey(groupId, personName, siteName, dateStr)] === 'settled'
 }
 
 export function setSpotWorkSiteSettled(
@@ -621,13 +630,14 @@ export function setSpotWorkSiteSettled(
   personName,
   siteName,
   settled,
-  settleKey = DIAN_WORK_SETTLE_KEY
+  settleKey = DIAN_WORK_SETTLE_KEY,
+  dateStr = ''
 ) {
   const allRaw = readJson(settleKey, {})
   const all = allRaw && typeof allRaw === 'object' && !Array.isArray(allRaw) ? allRaw : {}
   const mk = settleMonthKey(year, month)
   if (!all[mk] || typeof all[mk] !== 'object') all[mk] = {}
-  const ck = settleCellKey(groupId, personName, siteName)
+  const ck = settleCellKey(groupId, personName, siteName, dateStr)
   if (settled) all[mk][ck] = 'settled'
   else delete all[mk][ck]
   if (Object.keys(all[mk]).length === 0) delete all[mk]
@@ -640,6 +650,6 @@ export function setSpotWorkSiteSettled(
   }
 }
 
-export function setDianWorkSiteSettled(year, month, groupId, personName, siteName, settled) {
-  return setSpotWorkSiteSettled(year, month, groupId, personName, siteName, settled, DIAN_WORK_SETTLE_KEY)
+export function setDianWorkSiteSettled(year, month, groupId, personName, siteName, settled, dateStr = '') {
+  return setSpotWorkSiteSettled(year, month, groupId, personName, siteName, settled, DIAN_WORK_SETTLE_KEY, dateStr)
 }

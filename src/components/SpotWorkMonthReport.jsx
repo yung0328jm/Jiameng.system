@@ -12,6 +12,13 @@ function formatSiteStatNumber(n) {
   return String(Math.round(r * 100) / 100).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
 }
 
+function formatMd(dateStr) {
+  const s = String(dateStr || '').slice(0, 10)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (!m) return s || '—'
+  return `${Number(m[2])}/${Number(m[3])}`
+}
+
 function formatOvertimePlusHours(n) {
   const x = Number(n) || 0
   if (!Number.isFinite(x) || x <= 0) return ''
@@ -193,14 +200,18 @@ export default function SpotWorkMonthReport({
                             <li className="text-gray-500 text-[11px] sm:text-sm py-1">無案場明細</li>
                           ) : (
                             sites.map((st) => {
-                              const settleCell = `${g.groupId}|${p.name}|${st.siteName}`
+                              const dateStr = String(st.date || '').slice(0, 10)
+                              const settleCell = `${g.groupId}|${p.name}|${st.siteName}|${dateStr}`
                               const settled = settleMap[settleCell] === 'settled'
                               return (
                                 <li
-                                  key={st.siteName}
+                                  key={`${st.siteName}|${dateStr}`}
                                   className="flex items-center justify-between gap-2 text-[11px] sm:text-sm border-b border-gray-800/60 last:border-0 pb-1 last:pb-0"
                                 >
                                   <span className="flex items-center gap-2 min-w-0">
+                                    <span className="shrink-0 font-mono tabular-nums text-gray-400 w-10 sm:w-12">
+                                      {formatMd(dateStr)}
+                                    </span>
                                     <span className="truncate text-yellow-400">{m(st.siteName)}</span>
                                     <select
                                       value={settled ? 'settled' : 'open'}
@@ -212,7 +223,8 @@ export default function SpotWorkMonthReport({
                                           p.name,
                                           st.siteName,
                                           e.target.value === 'settled',
-                                          settleKey
+                                          settleKey,
+                                          dateStr
                                         )
                                         if (!res.success) {
                                           alert(res.message || '儲存失敗')
@@ -226,7 +238,7 @@ export default function SpotWorkMonthReport({
                                           ? 'border-emerald-700/60 bg-emerald-950/50 text-emerald-300'
                                           : 'border-amber-700/60 bg-amber-950/40 text-amber-200'
                                       }`}
-                                      aria-label={`${m(st.siteName)} 結算狀態`}
+                                      aria-label={`${m(st.siteName)} ${formatMd(dateStr)} 結算狀態`}
                                     >
                                       <option value="open">未結</option>
                                       <option value="settled">已結</option>
