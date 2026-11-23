@@ -9,14 +9,12 @@ const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
   delay: `${-(i * 1.3)}s`
 }))
 
-function Betta({ src, className }) {
+function Betta({ src, variant }) {
   return (
-    <img
-      src={src}
-      alt=""
-      className={className}
-      draggable={false}
-    />
+    <div className={`ocean-betta ocean-betta-${variant}`}>
+      <img src={src} alt="" className="ocean-betta-layer ocean-betta-body" draggable={false} />
+      <img src={src} alt="" className="ocean-betta-layer ocean-betta-tail" draggable={false} />
+    </div>
   )
 }
 
@@ -46,14 +44,14 @@ export default function OceanAmbience() {
       <div className="ocean-fish-lane ocean-fish-lane-a">
         <div className="ocean-fish-flip">
           <div className="ocean-fish-bob">
-            <Betta src="/images/betta-a.png" className="ocean-fish-photo ocean-fish-photo-a" />
+            <Betta src="/images/betta-a.png" variant="a" />
           </div>
         </div>
       </div>
       <div className="ocean-fish-lane ocean-fish-lane-b">
         <div className="ocean-fish-flip">
           <div className="ocean-fish-bob">
-            <Betta src="/images/betta-b.png" className="ocean-fish-photo ocean-fish-photo-b" />
+            <Betta src="/images/betta-b.png" variant="b" />
           </div>
         </div>
       </div>
