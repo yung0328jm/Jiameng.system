@@ -24,6 +24,20 @@ export const FISH_PACKS = {
     wide: true,
     a: '/images/arowana-blue-a.png',
     b: '/images/arowana-blue-b.png'
+  },
+  ray_crown: {
+    key: 'ray_crown',
+    wide: false,
+    shape: 'ray',
+    a: '/images/ray-crown-a.png',
+    b: '/images/ray-crown-b.png'
+  },
+  ray_albino: {
+    key: 'ray_albino',
+    wide: false,
+    shape: 'ray',
+    a: '/images/ray-albino-a.png',
+    b: '/images/ray-albino-b.png'
   }
 }
 
@@ -186,6 +200,7 @@ export function getAmbientFishRoster(username = getCurrentUser()) {
       itemId: slots[i] || null,
       key: pack.key,
       wide: pack.wide,
+      shape: pack.shape || 'fish',
       src: variant === 'a' ? pack.a : pack.b,
       variant
     }

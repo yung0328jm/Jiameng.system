@@ -448,6 +448,28 @@ body {
   height: 60px;
 }
 
+.ocean-betta-ray {
+  width: 176px;
+  height: 100px;
+}
+
+.ocean-betta-ray.ocean-betta-b {
+  width: 154px;
+  height: 88px;
+}
+
+.ocean-betta-ray .ocean-betta-body {
+  -webkit-clip-path: inset(0 0 0 28%);
+  clip-path: inset(0 0 0 28%);
+}
+
+.ocean-betta-ray .ocean-betta-tail {
+  -webkit-clip-path: inset(0 58% 0 0);
+  clip-path: inset(0 58% 0 0);
+  -webkit-transform-origin: 42% 50%;
+  transform-origin: 42% 50%;
+}
+
 .ocean-betta-wide .ocean-betta-body {
   -webkit-clip-path: inset(0 0 0 22%);
   clip-path: inset(0 0 0 22%);
@@ -540,6 +562,16 @@ body {
   .ocean-betta-wide.ocean-betta-b {
     width: 114px;
     height: 36px;
+  }
+
+  .ocean-betta-ray {
+    width: 118px;
+    height: 66px;
+  }
+
+  .ocean-betta-ray.ocean-betta-b {
+    width: 102px;
+    height: 58px;
   }
 }
 

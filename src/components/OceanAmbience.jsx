@@ -34,8 +34,13 @@ function layout() {
   }
 }
 
-function fishSize(wide, index, mobile) {
-  if (wide) {
+function fishSize(entry, index, mobile) {
+  if (entry?.shape === 'ray') {
+    return index % 2 === 0
+      ? (mobile ? { width: 118, height: 66 } : { width: 176, height: 100 })
+      : (mobile ? { width: 102, height: 58 } : { width: 154, height: 88 })
+  }
+  if (entry?.wide) {
     return index % 2 === 0
       ? (mobile ? { width: 132, height: 42 } : { width: 220, height: 70 })
       : (mobile ? { width: 114, height: 36 } : { width: 188, height: 60 })
@@ -71,9 +76,9 @@ function rosterKey(roster) {
   return (roster || []).map((f) => `${f.key}:${f.src}`).join('|')
 }
 
-function Betta({ src, variant, wide }) {
+function Betta({ src, variant, wide, shape }) {
   return (
-    <div className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}`}>
+    <div className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}`}>
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-body" draggable={false} />
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-tail" draggable={false} />
     </div>
@@ -120,7 +125,7 @@ export default function OceanAmbience() {
     const startRoster = rosterRef.current
     sim.current = {
       food: [],
-      fish: startRoster.map((entry, i) => spawnFish(i, startRoster.length, L0, fishSize(entry.wide, i, L0.mobile)))
+      fish: startRoster.map((entry, i) => spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile)))
     }
 
     let last = performance.now()
@@ -136,7 +141,7 @@ export default function OceanAmbience() {
 
       while (state.fish.length < currentRoster.length) {
         const i = state.fish.length
-        const size = fishSize(currentRoster[i]?.wide, i, L.mobile)
+        const size = fishSize(currentRoster[i], i, L.mobile)
         state.fish.push(spawnFish(i, currentRoster.length, L, size))
       }
       if (state.fish.length > currentRoster.length) {
@@ -160,8 +165,8 @@ export default function OceanAmbience() {
 
       state.fish.forEach((fish, i) => {
         const entry = currentRoster[i]
-        const size = fishSize(entry?.wide, i, L.mobile)
-        const mouthRatio = entry?.wide ? 0.9 : 0.84
+        const size = fishSize(entry, i, L.mobile)
+        const mouthRatio = entry?.shape === 'ray' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
         const mouthX = fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio)
         const mouthY = fish.y + size.height * 0.5
         const live = state.food.filter((p) => !p.eaten)
@@ -227,6 +232,7 @@ export default function OceanAmbience() {
           id: entry.id || `fish-${i}`,
           src: entry.src,
           wide: !!entry.wide,
+          shape: entry.shape || 'fish',
           variant: entry.variant || (i % 2 === 0 ? 'a' : 'b'),
           x: f.x,
           y: f.y,
@@ -308,6 +314,7 @@ export default function OceanAmbience() {
                 src={fish.src}
                 variant={fish.variant}
                 wide={fish.wide}
+                shape={fish.shape}
               />
             </div>
           </div>

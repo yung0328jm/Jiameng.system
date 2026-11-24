@@ -16,6 +16,8 @@ export const ITEM_TYPES = {
 
 export const FISH_AROANA_ITEM_ID = 'fish_arowana'
 export const FISH_AROANA_BLUE_ITEM_ID = 'fish_arowana_blue'
+export const FISH_RAY_CROWN_ITEM_ID = 'fish_ray_crown'
+export const FISH_RAY_ALBINO_ITEM_ID = 'fish_ray_albino'
 export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
 
 const AROWANA_SHOP_ITEM = {
@@ -44,6 +46,32 @@ const AROWANA_BLUE_SHOP_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const RAY_CROWN_SHOP_ITEM = {
+  id: FISH_RAY_CROWN_ITEM_ID,
+  name: '皇冠魟',
+  type: 'fish_skin',
+  fishKey: 'ray_crown',
+  description: '皇冠魟。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  icon: '🐟',
+  image: '/images/ray-crown-a.png',
+  price: 108,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const RAY_ALBINO_SHOP_ITEM = {
+  id: FISH_RAY_ALBINO_ITEM_ID,
+  name: '黃冠白子魟',
+  type: 'fish_skin',
+  fishKey: 'ray_albino',
+  description: '黃冠白子魟。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  icon: '🐟',
+  image: '/images/ray-albino-a.png',
+  price: 118,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
 const FISH_SLOT_SHOP_ITEM = {
   id: FISH_SLOT_EXPAND_ITEM_ID,
   name: '魚隻擴充欄',
@@ -62,6 +90,8 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   const extras = []
   if (!list.some((it) => String(it?.id || '') === FISH_AROANA_ITEM_ID)) extras.push({ ...AROWANA_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_AROANA_BLUE_ITEM_ID)) extras.push({ ...AROWANA_BLUE_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_RAY_CROWN_ITEM_ID)) extras.push({ ...RAY_CROWN_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_RAY_ALBINO_ITEM_ID)) extras.push({ ...RAY_ALBINO_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_SLOT_EXPAND_ITEM_ID)) extras.push({ ...FISH_SLOT_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (extras.length === 0) return list
   const next = [...list, ...extras]
