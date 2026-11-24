@@ -448,6 +448,16 @@ body {
   height: 60px;
 }
 
+.ocean-betta-giant {
+  width: 300px;
+  height: 86px;
+}
+
+.ocean-betta-giant.ocean-betta-b {
+  width: 268px;
+  height: 76px;
+}
+
 .ocean-betta-ray {
   width: 176px;
   height: 100px;
@@ -562,6 +572,16 @@ body {
   .ocean-betta-wide.ocean-betta-b {
     width: 114px;
     height: 36px;
+  }
+
+  .ocean-betta-giant {
+    width: 176px;
+    height: 50px;
+  }
+
+  .ocean-betta-giant.ocean-betta-b {
+    width: 158px;
+    height: 44px;
   }
 
   .ocean-betta-ray {

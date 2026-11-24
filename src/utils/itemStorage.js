@@ -18,6 +18,7 @@ export const FISH_AROANA_ITEM_ID = 'fish_arowana'
 export const FISH_AROANA_BLUE_ITEM_ID = 'fish_arowana_blue'
 export const FISH_RAY_CROWN_ITEM_ID = 'fish_ray_crown'
 export const FISH_RAY_ALBINO_ITEM_ID = 'fish_ray_albino'
+export const FISH_ARAPAIMA_ITEM_ID = 'fish_arapaima'
 export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
 
 const AROWANA_SHOP_ITEM = {
@@ -72,6 +73,19 @@ const RAY_ALBINO_SHOP_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const ARAPAIMA_SHOP_ITEM = {
+  id: FISH_ARAPAIMA_ITEM_ID,
+  name: '巨骨蛇魚',
+  type: 'fish_skin',
+  fishKey: 'arapaima',
+  description: '巨骨蛇魚，體型比一般魚種更大。每套用 1 隻只替換 1 欄。',
+  icon: '🐟',
+  image: '/images/arapaima-a.png',
+  price: 128,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
 const FISH_SLOT_SHOP_ITEM = {
   id: FISH_SLOT_EXPAND_ITEM_ID,
   name: '魚隻擴充欄',
@@ -92,6 +106,7 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_AROANA_BLUE_ITEM_ID)) extras.push({ ...AROWANA_BLUE_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_RAY_CROWN_ITEM_ID)) extras.push({ ...RAY_CROWN_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_RAY_ALBINO_ITEM_ID)) extras.push({ ...RAY_ALBINO_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_ARAPAIMA_ITEM_ID)) extras.push({ ...ARAPAIMA_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_SLOT_EXPAND_ITEM_ID)) extras.push({ ...FISH_SLOT_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (extras.length === 0) return list
   const next = [...list, ...extras]

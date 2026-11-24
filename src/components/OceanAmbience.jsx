@@ -40,6 +40,11 @@ function fishSize(entry, index, mobile) {
       ? (mobile ? { width: 118, height: 66 } : { width: 176, height: 100 })
       : (mobile ? { width: 102, height: 58 } : { width: 154, height: 88 })
   }
+  if (entry?.shape === 'giant') {
+    return index % 2 === 0
+      ? (mobile ? { width: 176, height: 50 } : { width: 300, height: 86 })
+      : (mobile ? { width: 158, height: 44 } : { width: 268, height: 76 })
+  }
   if (entry?.wide) {
     return index % 2 === 0
       ? (mobile ? { width: 132, height: 42 } : { width: 220, height: 70 })
@@ -78,7 +83,7 @@ function rosterKey(roster) {
 
 function Betta({ src, variant, wide, shape }) {
   return (
-    <div className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}`}>
+    <div className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''}`}>
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-body" draggable={false} />
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-tail" draggable={false} />
     </div>

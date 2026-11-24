@@ -38,6 +38,13 @@ export const FISH_PACKS = {
     shape: 'ray',
     a: '/images/ray-albino-a.png',
     b: '/images/ray-albino-b.png'
+  },
+  arapaima: {
+    key: 'arapaima',
+    wide: true,
+    shape: 'giant',
+    a: '/images/arapaima-a.png',
+    b: '/images/arapaima-b.png'
   }
 }
 
