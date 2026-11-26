@@ -4,7 +4,7 @@ import { getUserInventory } from './inventoryStorage'
 import { getItem, ITEM_TYPES } from './itemStorage'
 
 export const DEFAULT_FISH_SLOTS = 2
-export const MAX_FISH_SLOTS = 6
+export const MAX_FISH_SLOTS = 50
 
 /** Typical adult size in cm (betta TL, ray disc, arowana/arapaima TL). */
 export const FISH_ADULT_CM = {

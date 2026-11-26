@@ -207,7 +207,7 @@ const FISH_SLOT_SHOP_ITEM = {
   id: FISH_SLOT_EXPAND_ITEM_ID,
   name: '魚隻擴充欄',
   type: 'fish_slot',
-  description: '購買後請到背包自行套用。每套用 1 個，畫面多游 1 隻魚（預設 2 隻，最多 6 隻）。',
+  description: '購買後請到背包自行套用。每套用 1 個，畫面多游 1 隻魚（預設 2 隻，最多 50 隻）。',
   icon: '➕',
   price: 68,
   category: '特殊道具',
@@ -276,8 +276,15 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_HEAT_ID)) extras.push({ ...FISH_POTION_HEAT_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_AFFECTION_ID)) extras.push({ ...FISH_POTION_AFFECTION_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_BIRTH_ID)) extras.push({ ...FISH_POTION_BIRTH_ITEM, createdAt: new Date().toISOString() })
-  if (extras.length === 0 && !pruned) return list
-  const next = [...list, ...extras]
+  const slotWanted = FISH_SLOT_SHOP_ITEM.description
+  const patched = list.map((it) => {
+    if (String(it?.id || '') !== FISH_SLOT_EXPAND_ITEM_ID) return it
+    if (String(it?.description || '') === slotWanted) return it
+    return { ...it, description: slotWanted }
+  })
+  const descChanged = patched.some((it, i) => it !== list[i])
+  if (extras.length === 0 && !pruned && !descChanged) return list
+  const next = [...patched, ...extras]
   try {
     const val = JSON.stringify(next)
     localStorage.setItem(ITEM_STORAGE_KEY, val)
