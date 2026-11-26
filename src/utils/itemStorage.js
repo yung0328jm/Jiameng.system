@@ -257,7 +257,7 @@ const FISH_POTION_BIRTH_ITEM = {
   name: '催生藥水',
   type: 'fish_potion',
   potion: 'birth',
-  description: '給懷孕中的母魚使用，立刻產下魚苗，不必等五日。魚苗進寵物格，不占魚缸欄位。請點畫面上自己的母魚。',
+  description: '給懷孕中的母魚使用，立刻產下魚苗，不必等懷孕期結束。魚苗進寵物格，不占魚缸欄位。請點畫面上自己的母魚。',
   icon: '🫧',
   price: 22,
   category: '水族藥水',

@@ -26,9 +26,11 @@ export const PET_ADULT_MEALS = 45
 export const PET_DAILY_GROWTH_CAP = 5
 export const PET_GROWTH_GAP_MS = 90 * 1000
 
-export const PET_PAIR_MS = 7 * 24 * 60 * 60 * 1000
-export const PET_PREGNANT_MS = 5 * 24 * 60 * 60 * 1000
-export const PET_BIRTH_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000
+const PET_DAY_MS = 24 * 60 * 60 * 1000
+/** One birth cycle = 7 days: courtship + pregnancy + cooldown. */
+export const PET_PAIR_MS = 2 * PET_DAY_MS
+export const PET_PREGNANT_MS = 3 * PET_DAY_MS
+export const PET_BIRTH_COOLDOWN_MS = 2 * PET_DAY_MS
 export const PET_RELEASE_RATE = 0.3
 export const MAX_ROAM_FISH = 10
 
