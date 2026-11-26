@@ -64,10 +64,10 @@ function baseFishSize(entry, index, mobile) {
 function fishSize(entry, index, mobile, scale = 1) {
   const base = baseFishSize(entry, index, mobile)
   const raw = Number(scale)
-  const s = Number.isFinite(raw) && raw > 0 ? Math.max(0.03, raw) : 1
+  const s = Number.isFinite(raw) && raw > 0 ? Math.max(0.14, raw) : 1
   return {
-    width: Math.max(8, Math.round(base.width * s)),
-    height: Math.max(5, Math.round(base.height * s))
+    width: Math.max(28, Math.round(base.width * s)),
+    height: Math.max(16, Math.round(base.height * s))
   }
 }
 

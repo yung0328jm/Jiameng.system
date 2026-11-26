@@ -152,15 +152,16 @@ export function growthProgress(meals) {
 export function growthScale(meals, speciesKey = 'betta') {
   const adult = FISH_ADULT_CM[speciesKey] || FISH_ADULT_CM.betta
   const fry = FISH_FRY_CM[speciesKey] || FISH_FRY_CM.betta
-  const start = clamp(fry / adult, 0.03, 0.1)
+  const start = clamp(fry / adult, 0.14, 0.22)
   return start + (1 - start) * growthProgress(meals)
 }
 
 export function fishLengthCm(speciesKey, meals, growable = true) {
   const sp = speciesKey || 'betta'
   const adult = FISH_ADULT_CM[sp] || FISH_ADULT_CM.betta
+  const fry = FISH_FRY_CM[sp] || FISH_FRY_CM.betta
   if (!growable) return adult
-  return adult * growthScale(meals, sp)
+  return fry + (adult - fry) * growthProgress(meals)
 }
 
 export function formatFishLength(cm, speciesKey) {
