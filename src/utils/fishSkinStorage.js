@@ -48,6 +48,28 @@ export function speciesAdultScale(speciesKey) {
   return Math.min(2.2, Math.max(0.92, raw))
 }
 
+/** Water-column band: top / upperMid / mid / lowerMid / bottom. */
+export const FISH_SWIM_LAYER = {
+  arowana: 'top',
+  arowana_blue: 'top',
+  betta: 'upperMid',
+  guppy: 'upperMid',
+  gar: 'upperMid',
+  arapaima: 'upperMid',
+  turtle_slider: 'upperMid',
+  genghis: 'mid',
+  turtle_map: 'mid',
+  koi_platinum: 'lowerMid',
+  turtle_pig: 'lowerMid',
+  redtail_cat: 'bottom',
+  ray_crown: 'bottom',
+  ray_albino: 'bottom'
+}
+
+export function speciesSwimLayer(speciesKey) {
+  return FISH_SWIM_LAYER[speciesKey] || 'mid'
+}
+
 export const FISH_PACKS = {
   betta: {
     key: 'betta',

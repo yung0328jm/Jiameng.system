@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { FISH_PACKS, getFishSpeciesName, speciesAdultScale } from '../utils/fishSkinStorage'
+import { FISH_PACKS, getFishSpeciesName, speciesAdultScale, speciesSwimLayer } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getUserPets,
@@ -117,9 +117,31 @@ function loadLooks(roster) {
   return map
 }
 
-function clampFish(fish, L, size) {
+const LAYER_BANDS = {
+  top: [0.03, 0.22],
+  upperMid: [0.18, 0.40],
+  mid: [0.36, 0.58],
+  lowerMid: [0.52, 0.76],
+  bottom: [0.70, 0.96]
+}
+
+function layerBand(L, size, layer) {
+  const [t0, t1] = LAYER_BANDS[layer] || LAYER_BANDS.mid
+  let minY = Math.max(8, L.h * t0)
+  let maxY = Math.min(L.h - size.height - 8, L.h * t1 - size.height)
+  if (maxY < minY + 16) {
+    const mid = ((t0 + t1) / 2) * L.h - size.height * 0.5
+    minY = Math.max(8, mid)
+    maxY = Math.min(L.h - size.height - 8, minY + Math.max(20, size.height * 0.3))
+    if (maxY < minY) minY = maxY
+  }
+  return { minY, maxY }
+}
+
+function clampFish(fish, L, size, layer = fish._layer) {
+  const { minY, maxY } = layerBand(L, size, layer)
   fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
-  fish.y = Math.max(8, Math.min(L.h - size.height - 8, fish.y))
+  fish.y = Math.max(minY, Math.min(maxY, fish.y))
 }
 
 function overlapAxes(sa, sb) {
@@ -131,15 +153,15 @@ function overlapAxes(sa, sb) {
 
 function pickWander(fish, L, size, others = []) {
   const padX = 16
-  const padY = 28
+  const { minY, maxY } = layerBand(L, size, fish._layer)
   const maxX = Math.max(40, L.w - size.width - padX * 2)
-  const maxY = Math.max(40, L.h - size.height - padY * 2)
+  const spanY = Math.max(12, maxY - minY)
   let bestX = padX + Math.random() * maxX
-  let bestY = padY + Math.random() * maxY
+  let bestY = minY + Math.random() * spanY
   let bestScore = -Infinity
   for (let k = 0; k < 12; k++) {
     const tx = padX + Math.random() * maxX
-    const ty = padY + Math.random() * maxY
+    const ty = minY + Math.random() * spanY
     const cx = tx + size.width * 0.5
     const cy = ty + size.height * 0.5
     let nearest = Infinity
@@ -194,8 +216,9 @@ function steerAway(fish, size, others, strength) {
 
 function bounceHeading(fish, L, size, ux, uy, now) {
   const run = L.mobile ? 160 : 220
+  const { minY, maxY } = layerBand(L, size, fish._layer)
   fish.tx = Math.max(12, Math.min(L.w - size.width - 12, fish.x + ux * run))
-  fish.ty = Math.max(12, Math.min(L.h - size.height - 12, fish.y + uy * run))
+  fish.ty = Math.max(minY, Math.min(maxY, fish.y + uy * run))
   fish.face = ux >= 0 ? 1 : -1
   fish.bounceUntil = now + 720
   fish.turnAt = now + 1100 + Math.random() * 400
@@ -244,22 +267,22 @@ function bounceCollisions(fishes, sizes, L) {
   fishes.forEach((fish, i) => clampFish(fish, L, sizes[i]))
 }
 
-function spawnFish(i, count, L, size) {
+function spawnFish(i, count, L, size, layer) {
   const cols = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count))))
-  const rows = Math.max(1, Math.ceil(count / cols))
   const col = i % cols
-  const row = Math.floor(i / cols)
   const cellW = L.w / cols
-  const cellH = Math.max(90, L.h * 0.72) / rows
+  const { minY, maxY } = layerBand(L, size, layer)
+  const y = minY + ((i * 37) % Math.max(12, maxY - minY))
   return {
     x: col * cellW + Math.max(10, (cellW - size.width) * 0.28),
-    y: 24 + row * cellH + 10,
+    y,
     face: i % 2 === 0 ? 1 : -1,
     tilt: 0,
     eatUntil: 0,
     fleeUntil: 0,
+    _layer: layer,
     tx: col * cellW + cellW * 0.45,
-    ty: 24 + row * cellH + cellH * 0.4,
+    ty: minY + (maxY - minY) * 0.45,
     turnAt: 0
   }
 }
@@ -275,8 +298,9 @@ function shooFish(fish, L, size, fromX, fromY) {
   }
   const dist = Math.sqrt(dx * dx + dy * dy) || 1
   const run = L.mobile ? 220 : 300
+  const { minY, maxY } = layerBand(L, size, fish._layer)
   fish.tx = Math.max(12, Math.min(L.w - size.width - 12, fish.x + (dx / dist) * run))
-  fish.ty = Math.max(12, Math.min(L.h - size.height - 12, fish.y + (dy / dist) * run))
+  fish.ty = Math.max(minY, Math.min(maxY, fish.y + (dy / dist) * run))
   fish.fleeUntil = performance.now() + 650
   fish.turnAt = fish.fleeUntil + 500
   fish.eatUntil = 0
@@ -350,7 +374,7 @@ export default function OceanAmbience() {
       looks: startLooks,
       looksAt: 0,
       fish: startRoster.map((entry, i) =>
-        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale))
+        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale), speciesSwimLayer(entry?.key))
       )
     }
 
@@ -376,7 +400,7 @@ export default function OceanAmbience() {
         const i = state.fish.length
         const look = state.looks?.[currentRoster[i]?.id] || {}
         const size = fishSize(currentRoster[i], i, L.mobile, look.scale)
-        state.fish.push(spawnFish(i, currentRoster.length, L, size))
+        state.fish.push(spawnFish(i, currentRoster.length, L, size, speciesSwimLayer(currentRoster[i]?.key)))
       }
       if (state.fish.length > currentRoster.length) {
         state.fish.length = currentRoster.length
@@ -410,6 +434,8 @@ export default function OceanAmbience() {
         const size = sizes[i]
         fish._w = size.width
         fish._h = size.height
+        fish._layer = speciesSwimLayer(currentRoster[i]?.key)
+        clampFish(fish, L, size, fish._layer)
       })
 
       const pendingShoo = shooRef.current
@@ -429,7 +455,11 @@ export default function OceanAmbience() {
         const mouthRatio = entry?.shape === 'ray' || entry?.shape === 'turtle' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
         const mouthX = fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio)
         const mouthY = fish.y + size.height * 0.5
-        const live = state.food.filter((p) => !p.eaten)
+        const band = layerBand(L, size, fish._layer)
+        const live = state.food.filter((p) => {
+          if (p.eaten) return false
+          return p.y >= band.minY - 36 && p.y <= band.maxY + size.height + 36
+        })
         let target = null
         let best = Infinity
         live.forEach((p) => {
