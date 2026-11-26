@@ -887,6 +887,7 @@ export function listFishSkinCards(username, itemId, quantity) {
 export function purgeFishItemFromUser(username, itemId) {
   const id = String(itemId || '').trim()
   if (!username || !id) return { success: false }
+  const fishKey = String(getItem(id)?.fishKey || '').trim()
   const slots = getEquippedFishSlots(username)
   for (let i = slots.length - 1; i >= 0; i--) {
     if (String(slots[i] || '') !== id) continue
@@ -894,15 +895,42 @@ export function purgeFishItemFromUser(username, itemId) {
     if (u.success) remapPetsAfterFishUnequip(username, i)
   }
   const cur = getUserPets(username)
-  const bag = (cur.petBag || []).filter((p) => String(p?.itemId || '') !== id)
-  const sid = String(cur.showcaseSlotId || '')
+  const names = { ...cur.names }
+  const fedAt = { ...cur.fedAt }
+  const growth = { ...cur.growth }
+  const born = { ...cur.born }
+  const vacant = { ...cur.vacant }
+  let roaming = Array.isArray(cur.roaming) ? cur.roaming.filter(Boolean) : cur.roaming
   const tank = getTankRoster(username)
+  tank.forEach((f) => {
+    const giftedSame = !f.itemId && fishKey && f.key === fishKey
+    if (!giftedSame) return
+    vacant[f.id] = true
+    delete names[f.id]
+    delete fedAt[f.id]
+    delete growth[f.id]
+    delete born[f.id]
+    if (Array.isArray(roaming)) roaming = roaming.filter((x) => x !== f.id)
+  })
+  const bag = (cur.petBag || []).filter((p) => {
+    if (String(p?.itemId || '') === id) return false
+    if (fishKey && String(p?.species || '') === fishKey) return false
+    return true
+  })
+  const sid = String(cur.showcaseSlotId || '')
   const shown = sid ? tank.find((f) => f.id === sid) : null
-  const showcaseSlotId = !shown || String(shown.itemId || '') === id ? '' : sid
-  if (bag.length === (cur.petBag || []).length && showcaseSlotId === cur.showcaseSlotId) {
-    return { success: true }
-  }
-  return saveUserPets(username, { ...cur, petBag: bag, showcaseSlotId })
+  const dropShow = !shown || String(shown.itemId || '') === id || (fishKey && shown.key === fishKey)
+  return saveUserPets(username, {
+    ...cur,
+    names,
+    fedAt,
+    growth,
+    born,
+    vacant,
+    roaming,
+    petBag: bag,
+    showcaseSlotId: dropShow ? '' : sid
+  })
 }
 
 export function purgeFishItemFromEveryone(itemId) {

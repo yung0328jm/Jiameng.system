@@ -13,7 +13,8 @@ import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameFo
 import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems, ITEM_TYPES } from '../utils/itemStorage'
-import { purgeFishItemFromUser } from '../utils/petStorage'
+import { getFishSpeciesName } from '../utils/fishSkinStorage'
+import { clearShowcaseFish, getTankRoster, getUserPets, purgeFishItemFromUser } from '../utils/petStorage'
 import { getPerformanceViewerAccount, setPerformanceViewerAccount } from '../utils/performanceViewerStorage'
 import { isGuestAccount } from '../utils/guestAuth'
 
@@ -100,7 +101,7 @@ function UserManagement() {
     () => setPerfRevision((v) => v + 1)
   )
   // 背包/毓承幣：跟隨資料變動即時更新
-  useRealtimeKeys(['jiameng_wallets', 'jiameng_inventories', 'jiameng_items'], () => setAssetsRevision((v) => v + 1))
+  useRealtimeKeys(['jiameng_wallets', 'jiameng_inventories', 'jiameng_items', 'jiameng_pets'], () => setAssetsRevision((v) => v + 1))
   // 預支：審核/匯款後列表即時更新
   useRealtimeKeys(['jiameng_advances'], () => setAdvanceRevision((v) => v + 1))
   useRealtimeKeys(['jiameng_performance_viewer_account'], () => setViewerPickerSync((v) => v + 1))
@@ -120,7 +121,15 @@ function UserManagement() {
         description: item?.description || ''
       }
     }).sort((a, b) => (String(a.name).localeCompare(String(b.name), 'zh-Hant')))
-    return { balance, inventory }
+    const pets = getUserPets(account || '')
+    const sid = String(pets.showcaseSlotId || '')
+    const shown = sid ? getTankRoster(account || '').find((f) => f.id === sid) : null
+    return {
+      balance,
+      inventory,
+      showcaseLabel: shown ? getFishSpeciesName(shown) : '',
+      showcaseSlotId: shown ? sid : ''
+    }
   }
 
   const openUserAssets = (user) => {
@@ -704,6 +713,28 @@ function UserManagement() {
             </div>
 
             <div className="p-4 space-y-4">
+              {selectedAssetsData.showcaseLabel ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-4 py-3">
+                  <div>
+                    <div className="text-gray-400 text-xs mb-0.5">目前展示給全部人</div>
+                    <div className="text-cyan-100 text-sm font-semibold">{selectedAssetsData.showcaseLabel}</div>
+                  </div>
+                  {currentUserRole === 'admin' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm(`取消「${selectedAssetsUser.name}」的展示魚？`)) return
+                        clearShowcaseFish(selectedAssetsUser.account)
+                        setAssetsRevision((v) => v + 1)
+                        setSelectedAssetsData(buildUserAssetsData(selectedAssetsUser.account))
+                      }}
+                      className="shrink-0 text-xs px-2.5 py-1.5 rounded border border-red-500/50 text-red-300 hover:bg-red-900/30"
+                    >
+                      取消展示
+                    </button>
+                  )}
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
                   <div className="text-gray-400 text-xs mb-1">毓承幣</div>
