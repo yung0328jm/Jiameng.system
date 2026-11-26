@@ -177,6 +177,17 @@ export function GameIcon() {
   )
 }
 
+export function PetIcon() {
+  return (
+    <svg className={iconCls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 13c1.5-4 4.5-7 8.5-7 3.2 0 5.6 1.6 7 4" />
+      <path d="M5 14c2 4 6 6 10.5 5.5 2.4-.3 4.2-1.6 5.5-3.5" />
+      <path d="M16.2 10.2c1.6-.2 3 .8 3.4 2.2" />
+      <circle cx="8.2" cy="12.2" r="0.7" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 export function PersonalServiceIcon() {
   return (
     <svg className={iconCls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

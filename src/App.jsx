@@ -212,6 +212,7 @@ function App() {
         <Route path="/exchange-shop" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange-shop" />) : <Navigate to="/login" replace />} />
         <Route path="/exchange" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="exchange" />) : <Navigate to="/login" replace />} />
         <Route path="/my-backpack" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="my-backpack" />) : <Navigate to="/login" replace />} />
+        <Route path="/my-pets" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="my-pets" />) : <Navigate to="/login" replace />} />
         <Route path="/check-in" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="check-in" />) : <Navigate to="/login" replace />} />
         <Route path="/daily-todo" element={isAuthenticated ? withSync(<Dashboard onLogout={handleLogout} activeTab="daily-todo" />) : <Navigate to="/login" replace />} />
         <Route path="/trip-report" element={<Navigate to="/calendar" replace />} />

@@ -13,6 +13,7 @@ import MonthlyLocationReport from './MonthlyLocationReport'
 import ExchangeShop from './ExchangeShop'
 import Exchange from './Exchange'
 import MyBackpack from './MyBackpack'
+import MyPets from './MyPets'
 import CheckIn from './CheckIn'
 import DailyTodo from './DailyTodo'
 import LeaveApplication from './LeaveApplication'
@@ -41,6 +42,7 @@ import {
   PerformanceIcon,
   ShopIcon,
   BackpackIcon,
+  PetIcon,
   ExchangeIcon,
   CheckInIcon,
   LeaveIcon,
@@ -76,6 +78,7 @@ const PERSONAL_SERVICE_TABS = [
   'exchange-shop',
   'exchange',
   'my-backpack',
+  'my-pets',
   'advance',
   'messages',
   'change-password',
@@ -670,6 +673,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('exchange-shop')) return 'exchange-shop'
     if (path.includes('exchange')) return 'exchange'
     if (path.includes('my-backpack')) return 'my-backpack'
+    if (path.includes('my-pets')) return 'my-pets'
     if (path.includes('check-in')) return 'check-in'
     if (path.includes('daily-todo')) return 'daily-todo'
     if (path.includes('leave-application')) return 'leave-application'
@@ -734,6 +738,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'exchange-shop': '兌換商城',
       exchange: '交易所',
       'my-backpack': '我的背包',
+      'my-pets': '我的寵物',
       'check-in': '每日簽到',
       'daily-todo': '工程聯絡單',
       'leave-application': '入廠人員異動申請',
@@ -805,6 +810,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <Exchange />
       case 'my-backpack':
         return <MyBackpack />
+      case 'my-pets':
+        return <MyPets />
       case 'check-in':
         return <CheckIn />
       case 'daily-todo':
@@ -1487,6 +1494,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   <button type="button" onClick={() => { handleTabClick('my-backpack', '/my-backpack'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <BackpackIcon /> 我的背包
                     {backpackItemCount > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{backpackItemCount}</span>}
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('my-pets', '/my-pets'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <PetIcon /> 我的寵物
                   </button>
                   <button type="button" onClick={() => { handleTabClick('exchange-shop', '/exchange-shop'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <ShopIcon /> 兌換商城

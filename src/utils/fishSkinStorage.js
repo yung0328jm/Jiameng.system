@@ -196,6 +196,23 @@ export function unequipOneFishSkin(username, itemId) {
   return setFishSlots(username, next)
 }
 
+export function getFishSpeciesName(entry) {
+  const itemId = entry?.itemId
+  if (itemId) {
+    const item = getItem(itemId)
+    if (item?.name) return item.name
+  }
+  const names = {
+    betta: '鬥魚',
+    arowana: '龍魚',
+    arowana_blue: '藍底過背金龍',
+    ray_crown: '皇冠魟',
+    ray_albino: '黃冠白子魟',
+    arapaima: '巨骨蛇魚'
+  }
+  return names[entry?.key] || '魚'
+}
+
 export function getAmbientFishRoster(username = getCurrentUser()) {
   const cap = getFishSlotCount(username)
   const slots = username ? getEquippedFishSlots(username) : []

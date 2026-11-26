@@ -55,26 +55,136 @@ function fishSize(entry, index, mobile) {
     : (mobile ? { width: 76, height: 40 } : { width: 140, height: 72 })
 }
 
-function spawnFish(i, count, L, size) {
-  const t = count <= 1 ? 0.35 : i / (count - 1)
+function clampFish(fish, L, size) {
+  fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
+  fish.y = Math.max(8, Math.min(L.h - size.height - 8, fish.y))
+}
+
+function overlapAxes(sa, sb) {
   return {
-    x: 18 + ((i * 97) % Math.max(60, L.w - size.width - 24)),
-    y: 28 + t * Math.max(80, L.h * 0.72),
-    face: i % 2 === 0 ? 1 : -1,
-    tilt: 0,
-    eatUntil: 0,
-    tx: L.w * (0.2 + (i * 0.13) % 0.6),
-    ty: 28 + t * Math.max(80, L.h * 0.72),
-    turnAt: 0
+    gx: (sa.width + sb.width) * 0.4,
+    gy: (sa.height + sb.height) * 0.5
   }
 }
 
-function pickWander(fish, L, size) {
+function pickWander(fish, L, size, others = []) {
   const padX = 16
   const padY = 28
-  fish.tx = padX + Math.random() * Math.max(40, L.w - size.width - padX * 2)
-  fish.ty = padY + Math.random() * Math.max(40, L.h - size.height - padY * 2)
+  const maxX = Math.max(40, L.w - size.width - padX * 2)
+  const maxY = Math.max(40, L.h - size.height - padY * 2)
+  let bestX = padX + Math.random() * maxX
+  let bestY = padY + Math.random() * maxY
+  let bestScore = -Infinity
+  for (let k = 0; k < 12; k++) {
+    const tx = padX + Math.random() * maxX
+    const ty = padY + Math.random() * maxY
+    const cx = tx + size.width * 0.5
+    const cy = ty + size.height * 0.5
+    let nearest = Infinity
+    others.forEach((o) => {
+      if (!o || o === fish) return
+      const ox = (o.tx ?? o.x) + (o._w || 80) * 0.5
+      const oy = (o.ty ?? o.y) + (o._h || 40) * 0.5
+      const dx = cx - ox
+      const dy = cy - oy
+      nearest = Math.min(nearest, dx * dx + dy * dy)
+    })
+    const away = (tx - fish.x) ** 2 + (ty - fish.y) ** 2
+    const score = nearest + away * 0.15
+    if (score > bestScore) {
+      bestScore = score
+      bestX = tx
+      bestY = ty
+    }
+  }
+  fish.tx = bestX
+  fish.ty = bestY
   fish.turnAt = performance.now() + 1600 + Math.random() * 4200
+}
+
+function steerAway(fish, size, others, strength) {
+  let sx = 0
+  let sy = 0
+  const cx = fish.x + size.width * 0.5
+  const cy = fish.y + size.height * 0.5
+  others.forEach((o) => {
+    if (!o || o === fish) return
+    const ow = o._w || 80
+    const oh = o._h || 40
+    const ox = o.x + ow * 0.5
+    const oy = o.y + oh * 0.5
+    const { gx, gy } = overlapAxes(size, { width: ow, height: oh })
+    const dx = cx - ox
+    const dy = cy - oy
+    const nx = dx / Math.max(8, gx * 1.35)
+    const ny = dy / Math.max(8, gy * 1.35)
+    const d2 = nx * nx + ny * ny
+    if (d2 >= 1 || d2 === 0) return
+    const falloff = 1 - Math.sqrt(d2)
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1
+    sx += (dx / dist) * falloff
+    sy += (dy / dist) * falloff
+  })
+  const mag = Math.sqrt(sx * sx + sy * sy)
+  if (mag < 0.001) return { x: 0, y: 0 }
+  return { x: (sx / mag) * strength, y: (sy / mag) * strength }
+}
+
+function separateFish(fishes, sizes, L) {
+  const n = fishes.length
+  for (let iter = 0; iter < 4; iter++) {
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const a = fishes[i]
+        const b = fishes[j]
+        const sa = sizes[i]
+        const sb = sizes[j]
+        const dx = a.x + sa.width * 0.5 - (b.x + sb.width * 0.5)
+        const dy = a.y + sa.height * 0.5 - (b.y + sb.height * 0.5)
+        const { gx, gy } = overlapAxes(sa, sb)
+        const nx = dx / Math.max(8, gx)
+        const ny = dy / Math.max(8, gy)
+        const d2 = nx * nx + ny * ny
+        if (d2 >= 1) continue
+        let dist = Math.sqrt(dx * dx + dy * dy)
+        let ux = dx
+        let uy = dy
+        if (dist < 0.001) {
+          ux = (i - j) || 1
+          uy = 1.2
+          dist = Math.sqrt(ux * ux + uy * uy)
+        }
+        ux /= dist
+        uy /= dist
+        const overlap = 1 - Math.sqrt(Math.max(d2, 1e-4))
+        const mag = Math.max(gx, gy) * overlap * 0.42
+        a.x += ux * mag
+        a.y += uy * mag
+        b.x -= ux * mag
+        b.y -= uy * mag
+      }
+    }
+  }
+  fishes.forEach((fish, i) => clampFish(fish, L, sizes[i]))
+}
+
+function spawnFish(i, count, L, size) {
+  const cols = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count))))
+  const rows = Math.max(1, Math.ceil(count / cols))
+  const col = i % cols
+  const row = Math.floor(i / cols)
+  const cellW = L.w / cols
+  const cellH = Math.max(90, L.h * 0.72) / rows
+  return {
+    x: col * cellW + Math.max(10, (cellW - size.width) * 0.28),
+    y: 24 + row * cellH + 10,
+    face: i % 2 === 0 ? 1 : -1,
+    tilt: 0,
+    eatUntil: 0,
+    tx: col * cellW + cellW * 0.45,
+    ty: 24 + row * cellH + cellH * 0.4,
+    turnAt: 0
+  }
 }
 
 function rosterKey(roster) {
@@ -153,10 +263,16 @@ export default function OceanAmbience() {
         state.fish.length = currentRoster.length
       }
 
-      const tiltToward = (fish, dx, dy) => {
-        const want = Math.atan2(dy, Math.abs(dx) + 8) * (180 / Math.PI)
-        const clamped = Math.max(-58, Math.min(58, want))
-        fish.tilt += (clamped - (fish.tilt || 0)) * Math.min(1, 9 * dt)
+      const aimAlong = (fish, vx, vy) => {
+        const ax = Math.abs(vx)
+        const ay = Math.abs(vy)
+        if (ax > 0.12 && ax > ay * 0.34) {
+          fish.face = vx >= 0 ? 1 : -1
+        }
+        const want = Math.atan2(vy, ax + 0.0001) * (180 / Math.PI)
+        const maxTilt = ay >= ax * 0.65 ? 88 : 68
+        const clamped = Math.max(-maxTilt, Math.min(maxTilt, want))
+        fish.tilt += (clamped - (fish.tilt || 0)) * Math.min(1, 7 * dt)
       }
 
       state.food = state.food.filter((p) => {
@@ -168,9 +284,17 @@ export default function OceanAmbience() {
         return p.y < L.h + 20 && p.y > -40 && p.life > 0 && !p.eaten
       })
 
+      const sizes = currentRoster.map((entry, i) => fishSize(entry, i, L.mobile))
+      state.fish.forEach((fish, i) => {
+        const size = sizes[i]
+        fish._w = size.width
+        fish._h = size.height
+      })
+
       state.fish.forEach((fish, i) => {
         const entry = currentRoster[i]
-        const size = fishSize(entry, i, L.mobile)
+        const size = sizes[i]
+        const others = state.fish
         const mouthRatio = entry?.shape === 'ray' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
         const mouthX = fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio)
         const mouthY = fish.y + size.height * 0.5
@@ -201,34 +325,40 @@ export default function OceanAmbience() {
             target.eaten = true
             fish.eatUntil = now + 220
             fish.dash = false
-            pickWander(fish, L, size)
+            pickWander(fish, L, size, others)
             return
           }
           fish.dash = true
-          fish.face = dx >= 0 ? 1 : -1
-          tiltToward(fish, dx, dy)
-          const speed = L.dash
-          fish.x += (dx / dist) * speed * dt
-          fish.y += (dy / dist) * speed * dt
+          const avoid = steerAway(fish, size, others, 0.55)
+          let vx = dx / dist + avoid.x
+          let vy = dy / dist + avoid.y
+          const vd = Math.sqrt(vx * vx + vy * vy) || 1
+          aimAlong(fish, vx, vy)
+          fish.x += (vx / vd) * L.dash * dt
+          fish.y += (vy / vd) * L.dash * dt
+          clampFish(fish, L, size)
         } else {
           fish.dash = false
           const dx = (fish.tx ?? fish.x) - fish.x
           const dy = (fish.ty ?? fish.y) - fish.y
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
           if (!fish.turnAt || now > fish.turnAt || dist < 18) {
-            pickWander(fish, L, size)
+            pickWander(fish, L, size, others)
           }
           const wx = (fish.tx ?? fish.x) - fish.x
           const wy = (fish.ty ?? fish.y) - fish.y
-          const wd = Math.sqrt(wx * wx + wy * wy) || 1
-          fish.face = wx >= 0 ? 1 : -1
-          tiltToward(fish, wx, wy)
-          fish.x += (wx / wd) * L.cruise * dt
-          fish.y += (wy / wd) * L.cruise * dt
-          fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
-          fish.y = Math.max(8, Math.min(L.h - size.height - 8, fish.y))
+          const avoid = steerAway(fish, size, others, 0.85)
+          let vx = wx + avoid.x * Math.max(40, dist)
+          let vy = wy + avoid.y * Math.max(40, dist)
+          const wd = Math.sqrt(vx * vx + vy * vy) || 1
+          aimAlong(fish, vx, vy)
+          fish.x += (vx / wd) * L.cruise * dt
+          fish.y += (vy / wd) * L.cruise * dt
+          clampFish(fish, L, size)
         }
       })
+
+      separateFish(state.fish, sizes, L)
 
       setFood(state.food.map((p) => ({ id: p.id, x: p.x, y: p.y })))
       setActors(state.fish.map((f, i) => {
