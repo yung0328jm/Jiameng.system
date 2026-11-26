@@ -12,10 +12,11 @@ import {
   equipOneFishSkin,
   equipOneFishSlot,
   getFishSlotCount,
+  unequipFishAtIndex,
   unequipOneFishSkin,
   unequipOneFishSlot
 } from '../utils/fishSkinStorage'
-import { applyPetBagOnEquip } from '../utils/petStorage'
+import { applyPetBagOnEquip, listFishSkinCards, remapPetsAfterFishUnequip } from '../utils/petStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function MyBackpack() {
@@ -68,7 +69,7 @@ function MyBackpack() {
     setItems(allItems)
   }, [])
 
-  useRealtimeKeys(['jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests', 'jiameng_equipped_effects'], refetchBackpack)
+  useRealtimeKeys(['jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests', 'jiameng_equipped_effects', 'jiameng_pets'], refetchBackpack)
 
   const loadInventory = () => {
     if (!currentUser) return
@@ -157,10 +158,17 @@ function MyBackpack() {
     }
   }
 
-  const handleUnequipFishSkin = (itemId) => {
+  const handleUnequipFishSkin = (itemId, slotId) => {
     if (!currentUser) return
-    const result = unequipOneFishSkin(currentUser, itemId)
+    const idx = Number(String(slotId || '').replace('fish-', ''))
+    const result = Number.isInteger(idx)
+      ? unequipFishAtIndex(currentUser, idx)
+      : unequipOneFishSkin(currentUser, itemId)
     if (result.success) {
+      const removed = Number.isInteger(result.removedIndex)
+        ? result.removedIndex
+        : (Number.isInteger(idx) ? idx : -1)
+      if (removed >= 0) remapPetsAfterFishUnequip(currentUser, removed)
       loadEquippedEffects()
       alert('已卸下 1 隻，該欄恢復為鬥魚')
     } else {
@@ -292,10 +300,23 @@ function MyBackpack() {
           </div>
         ) : (
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-1 sm:gap-2">
-            {inventory.map((invItem) => {
+            {inventory.flatMap((invItem) => {
+              if (invItem.item?.type === ITEM_TYPES.FISH_SKIN) {
+                return listFishSkinCards(currentUser, invItem.itemId, invItem.quantity || 0).map((card) => ({
+                  ...invItem,
+                  quantity: 1,
+                  displayKey: card.key,
+                  fishName: card.name,
+                  fishSlotId: card.slotId,
+                  fishEquipped: card.equipped,
+                  displayName: card.name || invItem.name,
+                  isFishCard: true
+                }))
+              }
+              return [{ ...invItem, displayKey: invItem.itemId, displayName: invItem.name, isFishCard: false }]
+            }).map((invItem) => {
               const fullCardEl = (
                 <div
-                  key={invItem.itemId}
                   className="bg-gray-800 border border-gray-700 rounded-lg p-5 sm:p-6 hover:border-purple-400 transition-colors"
                 >
                   {/* 道具圖標和名稱 */}
@@ -305,17 +326,21 @@ function MyBackpack() {
                     ) : (
                       <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{invItem.icon}</div>
                     )}
-                    <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{invItem.name}</h3>
+                    <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{invItem.displayName || invItem.name}</h3>
+                    {invItem.fishName ? (
+                      <p className="text-cyan-300 text-sm mb-2">{invItem.name}</p>
+                    ) : null}
                     {invItem.description && (
                       <p className="text-gray-400 text-base sm:text-sm mb-4 leading-relaxed">{invItem.description}</p>
                     )}
                   </div>
 
-                  {/* 數量 */}
+                  {!invItem.isFishCard && (
                   <div className="mb-5 sm:mb-4 text-center">
                     <p className="text-gray-400 text-base sm:text-sm mb-2">擁有數量</p>
                     <p className="text-3xl sm:text-2xl font-bold text-purple-400">{invItem.quantity || 0}</p>
                   </div>
+                  )}
 
                   {/* 獲得時間 */}
                   {invItem.obtainedAt && (
@@ -412,31 +437,31 @@ function MyBackpack() {
                         {(() => {
                           const used = countEquippedFishSkin(currentUser, invItem.itemId)
                           const cap = getFishSlotCount(currentUser)
-                          const own = invItem.quantity || 0
+                          const ownUsed = invItem.fishEquipped
                           return (
                             <>
                               <p className="text-cyan-300 text-sm text-center">
-                                已套用 {used} / 持有 {own}　魚欄 {cap}/{MAX_FISH_SLOTS}
+                                {ownUsed ? '這隻已在魚缸' : '這隻尚未套用'}　魚欄 {cap}/{MAX_FISH_SLOTS}
                               </p>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleEquipFishSkin(invItem.itemId)
                                 }}
-                                disabled={used >= own}
+                                disabled={ownUsed}
                                 className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:text-gray-400 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                               >
-                                套用一隻（只換一欄）
+                                套用這隻（只換一欄）
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleUnequipFishSkin(invItem.itemId)
+                                  handleUnequipFishSkin(invItem.itemId, invItem.fishSlotId)
                                 }}
-                                disabled={used <= 0}
+                                disabled={!ownUsed}
                                 className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-600 disabled:text-gray-400 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
                               >
-                                卸下一隻（該欄變回鬥魚）
+                                卸下這隻（該欄變回鬥魚）
                               </button>
                             </>
                           )
@@ -502,8 +527,8 @@ function MyBackpack() {
               )
 
               return (
-                <Fragment key={invItem.itemId}>
-                  {previewItemId === invItem.itemId && (
+                <Fragment key={invItem.displayKey}>
+                  {previewItemId === invItem.displayKey && (
                     <div
                       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 overflow-auto"
                       onClick={() => setPreviewItemId(null)}
@@ -527,8 +552,8 @@ function MyBackpack() {
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => setPreviewItemId(invItem.itemId)}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewItemId(invItem.itemId); } }}
+                    onClick={() => setPreviewItemId(invItem.displayKey)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreviewItemId(invItem.displayKey); } }}
                     className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-purple-400 transition-colors cursor-pointer bg-gray-800"
                   >
                     <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
@@ -537,8 +562,15 @@ function MyBackpack() {
                       ) : (
                         <div className="text-4xl sm:text-5xl">{invItem.icon}</div>
                       )}
-                      <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{invItem.name}</p>
-                      <p className="text-purple-400 text-[10px] sm:text-xs font-bold">{invItem.quantity || 0} 個</p>
+                      <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{invItem.displayName || invItem.name}</p>
+                      {invItem.fishName ? (
+                        <p className="text-cyan-300/80 text-[10px] truncate w-full text-center">{invItem.name}</p>
+                      ) : null}
+                      {invItem.isFishCard ? (
+                        <p className="text-purple-400 text-[10px] sm:text-xs font-bold">{invItem.fishEquipped ? '已套用' : '未套用'}</p>
+                      ) : (
+                        <p className="text-purple-400 text-[10px] sm:text-xs font-bold">{invItem.quantity || 0} 個</p>
+                      )}
                       <p className="text-gray-400 text-[10px] mt-0.5">點擊預覽</p>
                     </div>
                   </div>

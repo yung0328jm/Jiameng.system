@@ -2,6 +2,8 @@ import { syncKeyToSupabase } from './supabaseSync'
 import { isGuestAccount, isGuestCloudWriteBlocked } from './guestAuth'
 import { setFishSlots } from './effectStorage'
 import {
+  FISH_ADULT_CM,
+  FISH_FRY_CM,
   FISH_PACKS,
   equipOneFishSkin,
   getAmbientFishRoster,
@@ -147,8 +149,11 @@ export function growthProgress(meals) {
   return 1 - Math.pow(1 - t, 1.45)
 }
 
-export function growthScale(meals) {
-  return 0.32 + growthProgress(meals) * 0.68
+export function growthScale(meals, speciesKey = 'betta') {
+  const adult = FISH_ADULT_CM[speciesKey] || FISH_ADULT_CM.betta
+  const fry = FISH_FRY_CM[speciesKey] || FISH_FRY_CM.betta
+  const start = clamp(fry / adult, 0.06, 0.2)
+  return start + (1 - start) * growthProgress(meals)
 }
 
 export function growthStage(meals) {
@@ -196,7 +201,7 @@ function lookFromRecord(rec, growable) {
   return {
     purchased: true,
     growable: true,
-    scale: growthScale(meals),
+    scale: growthScale(meals, rec.species || 'betta'),
     filter: colorFilterFromGrowth(rec, meals),
     meals,
     progress: growthProgress(meals),
@@ -540,6 +545,57 @@ const FISH_BASE_PRICE = {
 
 export function canTradeTankFish(fish) {
   return Boolean(fish?.itemId || fish?.born)
+}
+
+export function listFishSkinCards(username, itemId, quantity) {
+  const qty = Math.max(0, Math.floor(Number(quantity) || 0))
+  const id = String(itemId || '')
+  if (!username || !id || qty <= 0) return []
+  const slots = getEquippedFishSlots(username)
+  const pets = getUserPets(username)
+  const cards = []
+  slots.forEach((sid, i) => {
+    if (String(sid) !== id) return
+    const slotId = `fish-${i}`
+    cards.push({
+      key: `${id}:${slotId}`,
+      slotId,
+      equipped: true,
+      name: String(pets.names?.[slotId] || '').trim()
+    })
+  })
+  ;(pets.petBag || []).forEach((p, i) => {
+    if (String(p?.itemId || '') !== id) return
+    cards.push({
+      key: `${id}:bag-${i}`,
+      slotId: '',
+      equipped: false,
+      name: String(p.name || '').trim()
+    })
+  })
+  while (cards.length < qty) {
+    cards.push({
+      key: `${id}:spare-${cards.length}`,
+      slotId: '',
+      equipped: false,
+      name: ''
+    })
+  }
+  return cards.slice(0, qty)
+}
+
+export function remapPetsAfterFishUnequip(username, removedIndex) {
+  if (!username || !Number.isInteger(removedIndex) || removedIndex < 0) return { success: false }
+  const cur = getUserPets(username)
+  const showcase = remapSlotKey(cur.showcaseSlotId, removedIndex) || ''
+  return saveUserPets(username, {
+    ...cur,
+    names: remapKeyedMap(cur.names, removedIndex),
+    fedAt: remapKeyedMap(cur.fedAt, removedIndex),
+    growth: remapKeyedMap(cur.growth, removedIndex),
+    born: remapKeyedMap(cur.born, removedIndex),
+    showcaseSlotId: showcase
+  })
 }
 
 export function getFishShopPrice(itemId, species) {

@@ -6,6 +6,32 @@ import { getItem, ITEM_TYPES } from './itemStorage'
 export const DEFAULT_FISH_SLOTS = 2
 export const MAX_FISH_SLOTS = 6
 
+/** Typical adult size in cm (betta TL, ray disc, arowana/arapaima TL). */
+export const FISH_ADULT_CM = {
+  betta: 7,
+  arowana: 75,
+  arowana_blue: 75,
+  ray_crown: 45,
+  ray_albino: 45,
+  arapaima: 200
+}
+
+/** Typical fry / pup / hatchling size in cm. */
+export const FISH_FRY_CM = {
+  betta: 0.6,
+  arowana: 10,
+  arowana_blue: 10,
+  ray_crown: 8,
+  ray_albino: 8,
+  arapaima: 16
+}
+
+export function speciesAdultScale(speciesKey) {
+  const adult = FISH_ADULT_CM[speciesKey] || FISH_ADULT_CM.betta
+  const raw = Math.pow(adult / FISH_ADULT_CM.betta, 0.36)
+  return Math.min(2.2, Math.max(0.92, raw))
+}
+
 export const FISH_PACKS = {
   betta: {
     key: 'betta',
@@ -191,9 +217,21 @@ export function unequipOneFishSkin(username, itemId) {
   const slots = getEquippedFishSlots(username)
   const idx = slots.lastIndexOf(itemId)
   if (idx < 0) return { success: false, message: '尚未套用此魚種' }
+  return unequipFishAtIndex(username, idx)
+}
+
+export function unequipFishAtIndex(username, index) {
+  if (!username) return { success: false, message: '請先登入' }
+  const slots = getEquippedFishSlots(username)
+  const idx = Number(index)
+  if (!Number.isInteger(idx) || idx < 0 || idx >= slots.length) {
+    return { success: false, message: '尚未套用此魚種' }
+  }
   const next = slots.slice()
   next.splice(idx, 1)
-  return setFishSlots(username, next)
+  const result = setFishSlots(username, next)
+  if (result.success) result.removedIndex = idx
+  return result
 }
 
 export function getFishSpeciesName(entry) {

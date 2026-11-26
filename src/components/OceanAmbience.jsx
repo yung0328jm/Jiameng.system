@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCurrentUser } from '../utils/authStorage'
+import { speciesAdultScale } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getUserPets,
@@ -42,32 +43,30 @@ function layout() {
 }
 
 function baseFishSize(entry, index, mobile) {
+  const sp = speciesAdultScale(entry?.key)
+  const k = index % 2 === 0 ? 1 : 0.88
   if (entry?.shape === 'ray') {
-    return index % 2 === 0
-      ? (mobile ? { width: 118, height: 66 } : { width: 176, height: 100 })
-      : (mobile ? { width: 102, height: 58 } : { width: 154, height: 88 })
+    const w = Math.round((mobile ? 70 : 118) * sp * k)
+    return { width: w, height: Math.round(w * 0.58) }
   }
   if (entry?.shape === 'giant') {
-    return index % 2 === 0
-      ? (mobile ? { width: 176, height: 50 } : { width: 300, height: 86 })
-      : (mobile ? { width: 158, height: 44 } : { width: 268, height: 76 })
+    const w = Math.round((mobile ? 96 : 160) * sp * k)
+    return { width: w, height: Math.round(w * 0.28) }
   }
   if (entry?.wide) {
-    return index % 2 === 0
-      ? (mobile ? { width: 132, height: 42 } : { width: 220, height: 70 })
-      : (mobile ? { width: 114, height: 36 } : { width: 188, height: 60 })
+    const w = Math.round((mobile ? 88 : 148) * sp * k)
+    return { width: w, height: Math.round(w * 0.32) }
   }
-  return index % 2 === 0
-    ? (mobile ? { width: 92, height: 48 } : { width: 168, height: 88 })
-    : (mobile ? { width: 76, height: 40 } : { width: 140, height: 72 })
+  const w = Math.round((mobile ? 72 : 128) * sp * k)
+  return { width: w, height: Math.round(w * 0.52) }
 }
 
 function fishSize(entry, index, mobile, scale = 1) {
   const base = baseFishSize(entry, index, mobile)
-  const s = Math.max(0.28, Number(scale) || 1)
+  const s = Math.max(0.05, Number(scale) || 1)
   return {
-    width: Math.max(28, Math.round(base.width * s)),
-    height: Math.max(16, Math.round(base.height * s))
+    width: Math.max(10, Math.round(base.width * s)),
+    height: Math.max(6, Math.round(base.height * s))
   }
 }
 
