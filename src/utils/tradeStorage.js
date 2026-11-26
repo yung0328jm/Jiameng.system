@@ -37,7 +37,8 @@ export const createTrade = (tradeData) => {
       completedAt: null,
       buyer: null,
       pendingBuyer: null, // 待確認的買家
-      requestedAt: null // 購買請求時間
+      requestedAt: null, // 購買請求時間
+      pet: tradeData.pet || null
     }
     trades.push(newTrade)
     persist(trades)

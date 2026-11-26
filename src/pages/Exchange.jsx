@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getItems, getItem, ITEM_TYPES } from '../utils/itemStorage'
 import { getUserInventory, getItemQuantity, addItemToInventory, removeItemFromInventory } from '../utils/inventoryStorage'
+import { countEquippedFishSkin, unequipOneFishSkin } from '../utils/fishSkinStorage'
+import { attachLiveFish } from '../utils/petStorage'
 import { getActiveTrades, createTrade, requestTrade, confirmTrade, rejectTrade, cancelBuyRequest, cancelTrade, getUserTrades, deleteTrade, getPendingTrades } from '../utils/tradeStorage'
 import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getUsers } from '../utils/storage'
@@ -116,6 +118,13 @@ function Exchange() {
       alert('創建交易失敗：' + removeResult.message)
       return
     }
+
+    if (item.type === ITEM_TYPES.FISH_SKIN) {
+      while (countEquippedFishSkin(currentUser, item.id) > getItemQuantity(currentUser, item.id)) {
+        const u = unequipOneFishSkin(currentUser, item.id)
+        if (!u.success) break
+      }
+    }
     
     // 創建交易（固定使用佳盟幣）
     const result = createTrade({
@@ -193,8 +202,11 @@ function Exchange() {
     // 確認交易（完成交易並轉移物品）
     const result = confirmTrade(trade.id, currentUser)
     if (result.success) {
-      // 給買家添加購買的道具
-      addItemToInventory(trade.pendingBuyer, trade.itemId, trade.quantity)
+      if (trade.pet) {
+        attachLiveFish(trade.pendingBuyer, trade.pet)
+      } else {
+        addItemToInventory(trade.pendingBuyer, trade.itemId, trade.quantity)
+      }
       
       // 給賣家添加佳盟幣
       addWalletBalance(currentUser, trade.price)
@@ -269,8 +281,11 @@ function Exchange() {
     
     const result = cancelTrade(trade.id, currentUser)
     if (result.success) {
-      // 返還道具
-      addItemToInventory(currentUser, trade.itemId, trade.quantity)
+      if (trade.pet) {
+        attachLiveFish(currentUser, trade.pet)
+      } else {
+        addItemToInventory(currentUser, trade.itemId, trade.quantity)
+      }
       loadTrades()
       loadPendingTrades()
       loadMyTrades()

@@ -15,6 +15,7 @@ import {
   unequipOneFishSkin,
   unequipOneFishSlot
 } from '../utils/fishSkinStorage'
+import { applyPetBagOnEquip } from '../utils/petStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function MyBackpack() {
@@ -148,6 +149,7 @@ function MyBackpack() {
     if (!currentUser) return
     const result = equipOneFishSkin(currentUser, itemId)
     if (result.success) {
+      applyPetBagOnEquip(currentUser, itemId)
       loadEquippedEffects()
       alert('已套用 1 隻（只更換一欄，其餘欄位不變）')
     } else {

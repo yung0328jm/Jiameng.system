@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCurrentUser } from '../utils/authStorage'
-import { getAmbientFishRoster } from '../utils/fishSkinStorage'
+import { getPetAppearance, getWorldFishRoster, recordPetEat, tickPetBreeding } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
@@ -34,7 +34,7 @@ function layout() {
   }
 }
 
-function fishSize(entry, index, mobile) {
+function baseFishSize(entry, index, mobile) {
   if (entry?.shape === 'ray') {
     return index % 2 === 0
       ? (mobile ? { width: 118, height: 66 } : { width: 176, height: 100 })
@@ -53,6 +53,26 @@ function fishSize(entry, index, mobile) {
   return index % 2 === 0
     ? (mobile ? { width: 92, height: 48 } : { width: 168, height: 88 })
     : (mobile ? { width: 76, height: 40 } : { width: 140, height: 72 })
+}
+
+function fishSize(entry, index, mobile, scale = 1) {
+  const base = baseFishSize(entry, index, mobile)
+  const s = Math.max(0.28, Number(scale) || 1)
+  return {
+    width: Math.max(28, Math.round(base.width * s)),
+    height: Math.max(16, Math.round(base.height * s))
+  }
+}
+
+function loadLooks(roster) {
+  const map = {}
+  ;(roster || []).forEach((entry) => {
+    const id = entry?.id || ''
+    const owner = entry?.owner || getCurrentUser()
+    const slot = entry?.growthSlotId || id
+    map[id] = getPetAppearance(owner, slot, entry?.itemId, entry?.key)
+  })
+  return map
 }
 
 function clampFish(fish, L, size) {
@@ -188,7 +208,7 @@ function spawnFish(i, count, L, size) {
 }
 
 function rosterKey(roster) {
-  return (roster || []).map((f) => `${f.key}:${f.src}`).join('|')
+  return (roster || []).map((f) => `${f.id}:${f.key}:${f.src}:${f.owner || ''}`).join('|')
 }
 
 function Betta({ src, variant, wide, shape }) {
@@ -203,7 +223,7 @@ function Betta({ src, variant, wide, shape }) {
 export default function OceanAmbience() {
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
-  const [actors, setActors] = useState(() => getAmbientFishRoster(getCurrentUser()).map((f, i) => ({
+  const [actors, setActors] = useState(() => getWorldFishRoster(getCurrentUser()).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
     y: 120 + i * 80,
@@ -213,18 +233,25 @@ export default function OceanAmbience() {
     eating: false
   })))
   const sim = useRef(null)
-  const rosterRef = useRef(getAmbientFishRoster(getCurrentUser()))
+  const rosterRef = useRef(getWorldFishRoster(getCurrentUser()))
 
   useEffect(() => {
     const refresh = () => {
-      const next = getAmbientFishRoster(getCurrentUser())
+      const next = getWorldFishRoster(getCurrentUser())
       if (rosterKey(rosterRef.current) === rosterKey(next)) return
       rosterRef.current = next
     }
     refresh()
     const onRt = (e) => {
       const key = e?.detail?.key
-      if (key && key !== '__ALL__' && key !== 'jiameng_equipped_effects' && key !== 'jiameng_inventories' && key !== 'jiameng_items') return
+      if (
+        key &&
+        key !== '__ALL__' &&
+        key !== 'jiameng_equipped_effects' &&
+        key !== 'jiameng_inventories' &&
+        key !== 'jiameng_items' &&
+        key !== 'jiameng_pets'
+      ) return
       refresh()
     }
     const timer = window.setInterval(refresh, 1200)
@@ -238,9 +265,14 @@ export default function OceanAmbience() {
   useEffect(() => {
     const L0 = layout()
     const startRoster = rosterRef.current
+    const startLooks = loadLooks(startRoster)
     sim.current = {
       food: [],
-      fish: startRoster.map((entry, i) => spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile)))
+      looks: startLooks,
+      looksAt: 0,
+      fish: startRoster.map((entry, i) =>
+        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale))
+      )
     }
 
     let last = performance.now()
@@ -254,9 +286,16 @@ export default function OceanAmbience() {
       if (!state) return
       const currentRoster = rosterRef.current || []
 
+      if (!state.looks || now - (state.looksAt || 0) > 2000) {
+        tickPetBreeding(getCurrentUser())
+        state.looks = loadLooks(currentRoster)
+        state.looksAt = now
+      }
+
       while (state.fish.length < currentRoster.length) {
         const i = state.fish.length
-        const size = fishSize(currentRoster[i], i, L.mobile)
+        const look = state.looks?.[currentRoster[i]?.id] || {}
+        const size = fishSize(currentRoster[i], i, L.mobile, look.scale)
         state.fish.push(spawnFish(i, currentRoster.length, L, size))
       }
       if (state.fish.length > currentRoster.length) {
@@ -284,7 +323,9 @@ export default function OceanAmbience() {
         return p.y < L.h + 20 && p.y > -40 && p.life > 0 && !p.eaten
       })
 
-      const sizes = currentRoster.map((entry, i) => fishSize(entry, i, L.mobile))
+      const sizes = currentRoster.map((entry, i) =>
+        fishSize(entry, i, L.mobile, state.looks?.[entry?.id]?.scale)
+      )
       state.fish.forEach((fish, i) => {
         const size = sizes[i]
         fish._w = size.width
@@ -325,6 +366,14 @@ export default function OceanAmbience() {
             target.eaten = true
             fish.eatUntil = now + 220
             fish.dash = false
+            recordPetEat(
+              entry?.owner || getCurrentUser(),
+              entry?.growthSlotId || entry?.id,
+              entry?.itemId,
+              entry?.key
+            )
+            state.looks = loadLooks(currentRoster)
+            state.looksAt = now
             pickWander(fish, L, size, others)
             return
           }
@@ -363,12 +412,14 @@ export default function OceanAmbience() {
       setFood(state.food.map((p) => ({ id: p.id, x: p.x, y: p.y })))
       setActors(state.fish.map((f, i) => {
         const entry = currentRoster[i] || {}
+        const look = state.looks?.[entry.id] || {}
         return {
           id: entry.id || `fish-${i}`,
           src: entry.src,
           wide: !!entry.wide,
           shape: entry.shape || 'fish',
           variant: entry.variant || (i % 2 === 0 ? 'a' : 'b'),
+          filter: look.filter || '',
           x: f.x,
           y: f.y,
           face: f.face,
@@ -442,7 +493,11 @@ export default function OceanAmbience() {
         >
           <div
             className="ocean-fish-face"
-            style={{ transform: `scaleX(${fish.face}) rotate(${fish.tilt || 0}deg)` }}
+            style={{
+              transform: `scaleX(${fish.face}) rotate(${fish.tilt || 0}deg)`,
+              filter: fish.filter || undefined,
+              WebkitFilter: fish.filter || undefined
+            }}
           >
             <div className="ocean-fish-bob">
               <Betta
