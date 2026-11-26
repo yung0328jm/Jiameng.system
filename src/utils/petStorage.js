@@ -31,7 +31,12 @@ const PET_DAY_MS = 24 * 60 * 60 * 1000
 export const PET_PAIR_MS = 2 * PET_DAY_MS
 export const PET_PREGNANT_MS = 3 * PET_DAY_MS
 export const PET_BIRTH_COOLDOWN_MS = 2 * PET_DAY_MS
-export const PET_RELEASE_RATE = 0.3
+export const PET_RELEASE_RATES = {
+  fry: 0.05,
+  juvenile: 0.07,
+  subadult: 0.1,
+  adult: 0.15
+}
 export const MAX_ROAM_FISH = 10
 
 function emptyUser() {
@@ -907,9 +912,15 @@ export function getFishShopPrice(itemId, species) {
   return FISH_BASE_PRICE[species] || FISH_BASE_PRICE.betta
 }
 
-export function releasePayoutCoins(itemId, species) {
+export function releaseRateForGrowth(meals, species, growable = true) {
+  if (growable === false) return PET_RELEASE_RATES.adult
+  const key = growthStage(meals, species).key
+  return PET_RELEASE_RATES[key] || PET_RELEASE_RATES.fry
+}
+
+export function releasePayoutCoins(itemId, species, meals, growable = true) {
   const price = Number(getFishShopPrice(itemId, species)) || FISH_BASE_PRICE.betta
-  return Math.max(1, Math.round(price * PET_RELEASE_RATE))
+  return Math.max(1, Math.round(price * releaseRateForGrowth(meals, species, growable)))
 }
 
 function remapSlotKey(key, removedIndex) {
@@ -1004,6 +1015,8 @@ export function releaseLiveFish(username, slotId) {
   if (!username) return { success: false, message: '請先登入' }
   const fish = getTankRoster(username).find((f) => f.id === slotId)
   if (!fish) return { success: false, message: '找不到這隻魚' }
+  const rec = getUserPets(username).growth?.[slotId]
+  const coins = releasePayoutCoins(fish.itemId, fish.key, rec?.meals, rec?.growable)
   const traded = canTradeTankFish(fish)
   let snapshot = null
   if (traded) {
@@ -1025,7 +1038,6 @@ export function releaseLiveFish(username, slotId) {
     const saved = saveUserPets(username, { ...cur, names, fedAt, growth, born, vacant, showcaseSlotId: showcase })
     if (!saved.success) return saved
   }
-  const coins = releasePayoutCoins(fish.itemId, fish.key)
   const pay = addWalletBalance(username, coins)
   if (!pay.success) {
     if (traded && snapshot) attachLiveFish(username, snapshot)
@@ -1215,7 +1227,7 @@ export function releasePetBagFish(username, index) {
   const snap = bag.splice(i, 1)[0]
   const saved = saveUserPets(username, { ...cur, petBag: bag })
   if (!saved.success) return saved
-  const coins = releasePayoutCoins(snap.itemId, snap.species)
+  const coins = releasePayoutCoins(snap.itemId, snap.species, snap.growth?.meals, snap.growth?.growable)
   const pay = addWalletBalance(username, coins)
   if (!pay.success) {
     const latest = getUserPets(username)

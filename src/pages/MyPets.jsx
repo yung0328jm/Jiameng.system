@@ -30,8 +30,9 @@ import {
   listRoamingSlotIds,
   lookFromSnapshot,
   MAX_ROAM_FISH,
-  PET_RELEASE_RATE,
+  PET_RELEASE_RATES,
   releasePayoutCoins,
+  releaseRateForGrowth,
   placePetBagFish,
   releaseLiveFish,
   releasePetBagFish,
@@ -207,7 +208,7 @@ export default function MyPets() {
       <div className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的寵物</h1>
         <p className="text-cn-mist text-sm mt-1">
-          點螢幕撒飼料。魚苗出生直接進寵物格，不占魚缸欄位；要餵食或巡遊再放入魚缸。魚缸最多 {MAX_FISH_SLOTS} 隻，同時巡遊最多 {MAX_ROAM_FISH} 隻。系統會送兩隻鬥魚。放生獲得該魚販售價的 {Math.round(PET_RELEASE_RATE * 100)}%。同類魚可免費交換，不限公母。
+          點螢幕撒飼料。魚苗出生直接進寵物格，不占魚缸欄位；要餵食或巡遊再放入魚缸。魚缸最多 {MAX_FISH_SLOTS} 隻，同時巡遊最多 {MAX_ROAM_FISH} 隻。系統會送兩隻鬥魚。放生依階段回收販售價：魚苗 {Math.round(PET_RELEASE_RATES.fry * 100)}%、幼魚 {Math.round(PET_RELEASE_RATES.juvenile * 100)}%、亞成 {Math.round(PET_RELEASE_RATES.subadult * 100)}%、成魚 {Math.round(PET_RELEASE_RATES.adult * 100)}%。同類魚可免費交換，不限公母。
         </p>
       </div>
 
@@ -348,7 +349,7 @@ export default function MyPets() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(snap.itemId, snap.species)} 毓承幣）。確定放生？`)) return
+                          if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(releaseRateForGrowth(snap.growth?.meals, snap.species, snap.growth?.growable) * 100)}%（${releasePayoutCoins(snap.itemId, snap.species, snap.growth?.meals, snap.growth?.growable)} 毓承幣）。確定放生？`)) return
                           const r = releasePetBagFish(user, i)
                           setMessage(r.success ? `已放生，獲得 ${r.coins} 毓承幣` : r.message || '放生失敗')
                           refresh()
@@ -509,7 +510,7 @@ export default function MyPets() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(fish.itemId, fish.key)} 毓承幣）。確定放生？`)) return
+                      if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(releaseRateForGrowth(look.meals, fish.key, look.growable) * 100)}%（${releasePayoutCoins(fish.itemId, fish.key, look.meals, look.growable)} 毓承幣）。確定放生？`)) return
                       const r = releaseLiveFish(user, fish.id)
                       setMessage(r.success ? `已放生，獲得 ${r.coins} 毓承幣` : r.message || '放生失敗')
                       refresh()
