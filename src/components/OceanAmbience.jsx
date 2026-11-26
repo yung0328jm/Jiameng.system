@@ -192,40 +192,52 @@ function steerAway(fish, size, others, strength) {
   return { x: (sx / mag) * strength, y: (sy / mag) * strength }
 }
 
-function separateFish(fishes, sizes, L) {
+function bounceHeading(fish, L, size, ux, uy, now) {
+  const run = L.mobile ? 160 : 220
+  fish.tx = Math.max(12, Math.min(L.w - size.width - 12, fish.x + ux * run))
+  fish.ty = Math.max(12, Math.min(L.h - size.height - 12, fish.y + uy * run))
+  fish.face = ux >= 0 ? 1 : -1
+  fish.bounceUntil = now + 720
+  fish.turnAt = now + 1100 + Math.random() * 400
+  fish.dash = false
+}
+
+function bounceCollisions(fishes, sizes, L) {
   const n = fishes.length
   const now = performance.now()
-  for (let iter = 0; iter < 4; iter++) {
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const a = fishes[i]
-        const b = fishes[j]
-        if (now < (a.fleeUntil || 0) || now < (b.fleeUntil || 0)) continue
-        const sa = sizes[i]
-        const sb = sizes[j]
-        const dx = a.x + sa.width * 0.5 - (b.x + sb.width * 0.5)
-        const dy = a.y + sa.height * 0.5 - (b.y + sb.height * 0.5)
-        const { gx, gy } = overlapAxes(sa, sb)
-        const nx = dx / Math.max(8, gx)
-        const ny = dy / Math.max(8, gy)
-        const d2 = nx * nx + ny * ny
-        if (d2 >= 1) continue
-        let dist = Math.sqrt(dx * dx + dy * dy)
-        let ux = dx
-        let uy = dy
-        if (dist < 0.001) {
-          ux = (i - j) || 1
-          uy = 1.2
-          dist = Math.sqrt(ux * ux + uy * uy)
-        }
-        ux /= dist
-        uy /= dist
-        const overlap = 1 - Math.sqrt(Math.max(d2, 1e-4))
-        const mag = Math.max(gx, gy) * overlap * 0.42
-        a.x += ux * mag
-        a.y += uy * mag
-        b.x -= ux * mag
-        b.y -= uy * mag
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = fishes[i]
+      const b = fishes[j]
+      if (now < (a.fleeUntil || 0) || now < (b.fleeUntil || 0)) continue
+      if (now < (a.eatUntil || 0) || now < (b.eatUntil || 0)) continue
+      const sa = sizes[i]
+      const sb = sizes[j]
+      const dx = a.x + sa.width * 0.5 - (b.x + sb.width * 0.5)
+      const dy = a.y + sa.height * 0.5 - (b.y + sb.height * 0.5)
+      const { gx, gy } = overlapAxes(sa, sb)
+      const nx = dx / Math.max(8, gx)
+      const ny = dy / Math.max(8, gy)
+      if (nx * nx + ny * ny >= 1) continue
+      let dist = Math.sqrt(dx * dx + dy * dy)
+      let ux = dx
+      let uy = dy
+      if (dist < 0.001) {
+        ux = (i - j) || 1
+        uy = 1.2
+        dist = Math.sqrt(ux * ux + uy * uy)
+      }
+      ux /= dist
+      uy /= dist
+      const slip = 10
+      a.x += ux * slip
+      a.y += uy * slip
+      b.x -= ux * slip
+      b.y -= uy * slip
+      const cooling = now < (a.bounceUntil || 0) || now < (b.bounceUntil || 0)
+      if (!cooling) {
+        bounceHeading(a, L, sa, ux, uy, now)
+        bounceHeading(b, L, sb, -ux, -uy, now)
       }
     }
   }
@@ -436,6 +448,19 @@ export default function OceanAmbience() {
           return
         }
 
+        if (now < (fish.bounceUntil || 0)) {
+          const bx = (fish.tx ?? fish.x) - fish.x
+          const by = (fish.ty ?? fish.y) - fish.y
+          const bd = Math.sqrt(bx * bx + by * by) || 1
+          fish.dash = false
+          aimAlong(fish, bx, by)
+          const speed = cruiseSpeed(L, entry, size) * 1.22
+          fish.x += (bx / bd) * speed * dt
+          fish.y += (by / bd) * speed * dt
+          clampFish(fish, L, size)
+          return
+        }
+
         if (now < (fish.fleeUntil || 0)) {
           const fx = (fish.tx ?? fish.x) - fish.x
           const fy = (fish.ty ?? fish.y) - fish.y
@@ -505,7 +530,7 @@ export default function OceanAmbience() {
         }
       })
 
-      separateFish(state.fish, sizes, L)
+      bounceCollisions(state.fish, sizes, L)
 
       setFood(state.food.map((p) => ({ id: p.id, x: p.x, y: p.y })))
       setActors(state.fish.map((f, i) => {
