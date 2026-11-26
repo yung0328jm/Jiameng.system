@@ -26,14 +26,18 @@ function packOf(species) {
 function FishShow({ snap, size = 'md' }) {
   const pack = packOf(snap?.species)
   const look = lookFromSnapshot(snap)
+  const art = look.art === 'b' ? 'b' : 'a'
   const wide = !!pack.wide
   const shape = pack.shape || 'fish'
-  const w = size === 'lg' ? (shape === 'ray' ? 280 : wide ? 340 : 220) : shape === 'ray' ? 118 : wide ? 140 : 92
-  const h = size === 'lg' ? (shape === 'ray' ? 160 : wide ? 120 : 110) : shape === 'ray' ? 68 : wide ? 52 : 44
+  const disc = shape === 'ray' || shape === 'turtle'
+  const cichlid = shape === 'cichlid'
+  const shark = shape === 'shark'
+  const w = size === 'lg' ? (disc ? 280 : shark ? 320 : cichlid ? 260 : wide ? 340 : 220) : disc ? 118 : shark ? 148 : cichlid ? 110 : wide ? 140 : 92
+  const h = size === 'lg' ? (disc ? 160 : shark ? 148 : cichlid ? 150 : wide ? 120 : 110) : disc ? 68 : shark ? 68 : cichlid ? 62 : wide ? 52 : 44
   return (
     <FishSprite
-      src={pack.a}
-      variant="a"
+      src={pack[art]}
+      variant={art}
       wide={wide}
       shape={shape}
       width={w}

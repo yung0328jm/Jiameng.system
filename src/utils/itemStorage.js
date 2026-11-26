@@ -11,14 +11,26 @@ export const ITEM_TYPES = {
   MESSAGE_EFFECT: 'message_effect', // 發話特效道具
   TITLE: 'title', // 稱號道具
   FISH_SKIN: 'fish_skin', // 水族外觀（每套用 1 隻只換 1 欄）
-  FISH_SLOT: 'fish_slot' // 魚隻擴充欄（增加同時顯示的魚數量）
+  FISH_SLOT: 'fish_slot', // 魚隻擴充欄（增加同時顯示的魚數量）
+  FISH_POTION: 'fish_potion'
 }
+
+export const FISH_POTION_HEAT_ID = 'fish_potion_heat'
+export const FISH_POTION_AFFECTION_ID = 'fish_potion_affection'
+export const FISH_POTION_BIRTH_ID = 'fish_potion_birth'
 
 export const FISH_AROANA_ITEM_ID = 'fish_arowana'
 export const FISH_AROANA_BLUE_ITEM_ID = 'fish_arowana_blue'
 export const FISH_RAY_CROWN_ITEM_ID = 'fish_ray_crown'
 export const FISH_RAY_ALBINO_ITEM_ID = 'fish_ray_albino'
 export const FISH_ARAPAIMA_ITEM_ID = 'fish_arapaima'
+export const FISH_GUPPY_ITEM_ID = 'fish_guppy'
+export const FISH_GAR_ITEM_ID = 'fish_gar'
+export const FISH_GENGHIS_ITEM_ID = 'fish_genghis'
+export const FISH_REDTAIL_CAT_ITEM_ID = 'fish_redtail_cat'
+export const FISH_TURTLE_SLIDER_ITEM_ID = 'fish_turtle_slider'
+export const FISH_TURTLE_PIG_ITEM_ID = 'fish_turtle_pig'
+export const FISH_TURTLE_MAP_ITEM_ID = 'fish_turtle_map'
 export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
 
 const AROWANA_SHOP_ITEM = {
@@ -86,6 +98,97 @@ const ARAPAIMA_SHOP_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const GUPPY_SHOP_ITEM = {
+  id: FISH_GUPPY_ITEM_ID,
+  name: '孔雀魚',
+  type: 'fish_skin',
+  fishKey: 'guppy',
+  description: '小型孔雀魚。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  icon: '🐟',
+  image: '/images/guppy-a.png',
+  price: 32,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const GAR_SHOP_ITEM = {
+  id: FISH_GAR_ITEM_ID,
+  name: '雀鱔',
+  type: 'fish_skin',
+  fishKey: 'gar',
+  description: '顎雀鱔／雀鱔，長體型。每套用 1 隻只替換 1 欄。',
+  icon: '🐟',
+  image: '/images/gar-a.png',
+  price: 96,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const GENGHIS_SHOP_ITEM = {
+  id: FISH_GENGHIS_ITEM_ID,
+  name: '成吉思汗',
+  type: 'fish_skin',
+  fishKey: 'genghis',
+  description: '成吉思汗（巨鯊鯰）。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  icon: '🐟',
+  image: '/images/genghis-a.png',
+  price: 78,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const REDTAIL_CAT_SHOP_ITEM = {
+  id: FISH_REDTAIL_CAT_ITEM_ID,
+  name: '招財貓',
+  type: 'fish_skin',
+  fishKey: 'redtail_cat',
+  description: '紅尾招財貓，體型較大。每套用 1 隻只替換 1 欄。',
+  icon: '🐟',
+  image: '/images/redtail-cat-a.png',
+  price: 118,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const TURTLE_SLIDER_SHOP_ITEM = {
+  id: FISH_TURTLE_SLIDER_ITEM_ID,
+  name: '巴西龜',
+  type: 'fish_skin',
+  fishKey: 'turtle_slider',
+  description: '巴西彩龜。每套用 1 隻只替換 1 欄，可與其他水族混搭。',
+  icon: '🐢',
+  image: '/images/turtle-slider-a.png',
+  price: 48,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const TURTLE_PIG_SHOP_ITEM = {
+  id: FISH_TURTLE_PIG_ITEM_ID,
+  name: '豬鼻龜',
+  type: 'fish_skin',
+  fishKey: 'turtle_pig',
+  description: '豬鼻龜。每套用 1 隻只替換 1 欄。',
+  icon: '🐢',
+  image: '/images/turtle-pig-a.png',
+  price: 108,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const TURTLE_MAP_SHOP_ITEM = {
+  id: FISH_TURTLE_MAP_ITEM_ID,
+  name: '地圖龜',
+  type: 'fish_skin',
+  fishKey: 'turtle_map',
+  description: '地圖龜。每套用 1 隻只替換 1 欄。',
+  icon: '🐢',
+  image: '/images/turtle-map-a.png',
+  price: 58,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
 const FISH_SLOT_SHOP_ITEM = {
   id: FISH_SLOT_EXPAND_ITEM_ID,
   name: '魚隻擴充欄',
@@ -97,8 +200,48 @@ const FISH_SLOT_SHOP_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const FISH_POTION_HEAT_ITEM = {
+  id: FISH_POTION_HEAT_ID,
+  name: '發情藥水',
+  type: 'fish_potion',
+  potion: 'heat',
+  description: '給自己的母魚使用，立刻結束產後冷卻，可再與同缸公魚交配。請點畫面上自己的母魚。',
+  icon: '💗',
+  price: 12,
+  category: '水族藥水',
+  createdAt: new Date().toISOString()
+}
+
+const FISH_POTION_AFFECTION_ITEM = {
+  id: FISH_POTION_AFFECTION_ID,
+  name: '好感藥水',
+  type: 'fish_potion',
+  potion: 'affection',
+  description: '給自己的母魚使用，立刻懷孕。魚缸裡必須有同品種一公一母同時巡遊。請點畫面上自己的母魚。',
+  icon: '💞',
+  price: 18,
+  category: '水族藥水',
+  createdAt: new Date().toISOString()
+}
+
+const FISH_POTION_BIRTH_ITEM = {
+  id: FISH_POTION_BIRTH_ID,
+  name: '催生藥水',
+  type: 'fish_potion',
+  potion: 'birth',
+  description: '給懷孕中的母魚使用，立刻產下魚苗，不必等五日。魚缸要有空欄。請點畫面上自己的母魚。',
+  icon: '🫧',
+  price: 22,
+  category: '水族藥水',
+  createdAt: new Date().toISOString()
+}
+
+const RETIRED_ITEM_IDS = new Set(['fish_duckbill'])
+
 function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true }) {
-  const list = Array.isArray(items) ? items : []
+  const raw = Array.isArray(items) ? items : []
+  const list = raw.filter((it) => !RETIRED_ITEM_IDS.has(String(it?.id || '')))
+  const pruned = list.length !== raw.length
   const looksPlaceholder = list.length <= 1 && (!list[0] || String(list[0].id) === 'danmu_item')
   if (isSupabaseEnabled() && looksPlaceholder) return list
   const extras = []
@@ -107,8 +250,18 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_RAY_CROWN_ITEM_ID)) extras.push({ ...RAY_CROWN_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_RAY_ALBINO_ITEM_ID)) extras.push({ ...RAY_ALBINO_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_ARAPAIMA_ITEM_ID)) extras.push({ ...ARAPAIMA_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_GUPPY_ITEM_ID)) extras.push({ ...GUPPY_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_GAR_ITEM_ID)) extras.push({ ...GAR_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_GENGHIS_ITEM_ID)) extras.push({ ...GENGHIS_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_REDTAIL_CAT_ITEM_ID)) extras.push({ ...REDTAIL_CAT_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_SLIDER_ITEM_ID)) extras.push({ ...TURTLE_SLIDER_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_PIG_ITEM_ID)) extras.push({ ...TURTLE_PIG_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_MAP_ITEM_ID)) extras.push({ ...TURTLE_MAP_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_SLOT_EXPAND_ITEM_ID)) extras.push({ ...FISH_SLOT_SHOP_ITEM, createdAt: new Date().toISOString() })
-  if (extras.length === 0) return list
+  if (!list.some((it) => String(it?.id || '') === FISH_POTION_HEAT_ID)) extras.push({ ...FISH_POTION_HEAT_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_POTION_AFFECTION_ID)) extras.push({ ...FISH_POTION_AFFECTION_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_POTION_BIRTH_ID)) extras.push({ ...FISH_POTION_BIRTH_ITEM, createdAt: new Date().toISOString() })
+  if (extras.length === 0 && !pruned) return list
   const next = [...list, ...extras]
   try {
     const val = JSON.stringify(next)

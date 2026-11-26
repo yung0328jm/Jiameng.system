@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import FishSprite from '../components/FishSprite'
 import { useNavigate } from 'react-router-dom'
-import { getCurrentUser } from '../utils/authStorage'
+import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
 import { createAuction } from '../utils/auctionStorage'
 import {
   DEFAULT_FISH_SLOTS,
+  FISH_PACKS,
   MAX_FISH_SLOTS,
   getFishSlotCount,
   getFishSpeciesName
 } from '../utils/fishSkinStorage'
+import { listSpeciesMorphLooks } from '../utils/fishMorphs'
 import {
   attachLiveFish,
   canTradeTankFish,
@@ -24,10 +26,13 @@ import {
   getTankRoster,
   getUserPets,
   hungerStatus,
+  listOwnedFishPotions,
+  releaseLiveFish,
   removeLiveFish,
   setPetName,
   setShowcaseFish,
-  tickPetBreeding
+  tickPetBreeding,
+  useFishPotion
 } from '../utils/petStorage'
 
 function hungerClass(key) {
@@ -40,6 +45,7 @@ export default function MyPets() {
   const navigate = useNavigate()
   const { enabled: recording } = useRecordingMode()
   const user = getCurrentUser() || ''
+  const isAdmin = getCurrentUserRole() === 'admin'
   const [tick, setTick] = useState(0)
   const [drafts, setDrafts] = useState({})
   const [message, setMessage] = useState('')
@@ -69,6 +75,7 @@ export default function MyPets() {
   const others = useMemo(() => getPublicShowcaseFish(user), [user, tick])
   const breeding = useMemo(() => getPairBreedingMap(user), [user, tick])
   const showcaseSlotId = pets.showcaseSlotId || ''
+  const potions = useMemo(() => listOwnedFishPotions(user), [user, tick])
 
   useEffect(() => {
     setDrafts((prev) => {
@@ -150,7 +157,7 @@ export default function MyPets() {
       <div className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的寵物</h1>
         <p className="text-cn-mist text-sm mt-1">
-          點螢幕撒飼料。預設兩隻鬥魚一公一母，相處約七天會懷孕；魚缸要多一欄空位才生得出魚苗，懷孕約五天，生完約兩週才能再配。可交易的魚可設底價與時間送去競拍，全員喊價、價高者得。
+          點螢幕撒飼料。預設兩隻鬥魚一公一母是贈送的，也可放生，一律獲得 5 佳盟幣。相處約七天會懷孕；魚缸要多一欄空位才生得出魚苗，懷孕約五天，生完約兩週才能再配。背包有發情／好感／催生藥水時，點畫面上自己的母魚即可使用。
         </p>
       </div>
 
@@ -217,6 +224,8 @@ export default function MyPets() {
           const imgScale = look.growable ? Math.max(0.22, look.scale) : 1
           const sex = genderLabel(look.gender)
           const breed = breeding[fish.id]
+          const pack = FISH_PACKS[fish.key] || FISH_PACKS.betta
+          const art = look.art === 'b' ? 'b' : 'a'
           return (
             <li
               key={fish.id}
@@ -225,12 +234,12 @@ export default function MyPets() {
               <div className="shrink-0 w-28 sm:w-36 h-16 sm:h-20 flex items-center justify-center rounded-lg bg-black/30 border border-gray-700 overflow-hidden">
                 <div style={{ transform: `scale(${imgScale})` }}>
                   <FishSprite
-                    src={fish.src}
-                    variant={i % 2 === 0 ? 'a' : 'b'}
+                    src={pack[art]}
+                    variant={art}
                     wide={!!fish.wide}
                     shape={fish.shape}
-                    width={fish.shape === 'ray' ? 118 : fish.wide ? 140 : 92}
-                    height={fish.shape === 'ray' ? 68 : fish.wide ? 52 : 44}
+                    width={fish.shape === 'ray' || fish.shape === 'turtle' ? 118 : fish.shape === 'shark' ? 148 : fish.shape === 'cichlid' ? 110 : fish.wide ? 140 : 92}
+                    height={fish.shape === 'ray' || fish.shape === 'turtle' ? 68 : fish.shape === 'shark' ? 68 : fish.shape === 'cichlid' ? 62 : fish.wide ? 52 : 44}
                     parts={look.parts}
                   />
                 </div>
@@ -243,6 +252,7 @@ export default function MyPets() {
                   {fish.born ? ' · 育成' : fish.itemId ? '' : ' · 預設'}
                   {look.growable ? ` · ${look.stage.label}` : ''}
                   {look.morphLabel ? ` · ${look.morphLabel}` : ''}
+                  {look.rarity ? ` · ${look.rarity}` : ''}
                   {look.shineText ? ` · ${look.shineText}` : ''}
                   {look.lengthText ? ` · ${look.lengthText}` : ''}
                   {look.pregnant || breed?.phase === 'pregnant' ? ' · 懷孕中' : ''}
@@ -310,12 +320,108 @@ export default function MyPets() {
                       送去競拍
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!window.confirm('放生後無法復原，獲得 5 佳盟幣。確定放生？')) return
+                      const r = releaseLiveFish(user, fish.id)
+                      setMessage(r.success ? `已放生，獲得 ${r.coins} 佳盟幣` : r.message || '放生失敗')
+                      refresh()
+                    }}
+                    className="shrink-0 px-3 py-1.5 rounded text-sm bg-slate-700 hover:bg-slate-600 text-white"
+                  >
+                    放生
+                  </button>
+                  {look.gender === 'f' && (potions.heat > 0 || potions.affection > 0 || potions.birth > 0) ? (
+                    <>
+                      {potions.heat > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const r = useFishPotion(user, fish.id, 'heat')
+                            setMessage(r.message || (r.success ? '已使用' : '無法使用'))
+                            refresh()
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded text-sm bg-fuchsia-800 hover:bg-fuchsia-700 text-white"
+                        >
+                          發情藥水
+                        </button>
+                      ) : null}
+                      {potions.affection > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const r = useFishPotion(user, fish.id, 'affection')
+                            setMessage(r.message || (r.success ? '已使用' : '無法使用'))
+                            refresh()
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded text-sm bg-pink-800 hover:bg-pink-700 text-white"
+                        >
+                          好感藥水
+                        </button>
+                      ) : null}
+                      {potions.birth > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const r = useFishPotion(user, fish.id, 'birth')
+                            setMessage(r.message || (r.success ? '已使用' : '無法使用'))
+                            refresh()
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded text-sm bg-sky-800 hover:bg-sky-700 text-white"
+                        >
+                          催生藥水
+                        </button>
+                      ) : null}
+                    </>
+                  ) : null}
                 </div>
               </div>
             </li>
           )
         })}
       </ul>
+
+      {isAdmin ? (
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-cn-gold">體色圖鑑</h2>
+        <p className="text-xs text-gray-400 mt-1">僅管理員可見。同名體色也會有深淺與分布差，每格三隻為個體樣本。</p>
+        {Object.keys(FISH_PACKS).map((key) => {
+          const pack = FISH_PACKS[key]
+          const rows = listSpeciesMorphLooks(key)
+          return (
+            <div key={key} className="mt-4">
+              <p className="text-sm text-cyan-100 mb-2">{getFishSpeciesName({ key })}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {rows.map((row) => (
+                  <div
+                    key={row.id}
+                    className="rounded-lg border border-gray-700 bg-black/30 p-2 flex flex-col items-center"
+                  >
+                    <div className="h-16 w-full flex items-center justify-center overflow-hidden gap-1">
+                      {(row.samples?.length ? row.samples : [row.parts]).map((look, i) => (
+                        <FishSprite
+                          key={`${row.id}-${i}`}
+                          src={pack[row.art === 'b' ? 'b' : 'a']}
+                          variant={row.art === 'b' ? 'b' : 'a'}
+                          wide={!!pack.wide}
+                          shape={pack.shape || 'fish'}
+                          width={pack.shape === 'ray' || pack.shape === 'turtle' ? 96 : pack.shape === 'shark' ? 118 : pack.shape === 'cichlid' ? 90 : pack.wide ? 108 : 72}
+                          height={pack.shape === 'ray' || pack.shape === 'turtle' ? 54 : pack.shape === 'shark' ? 54 : pack.shape === 'cichlid' ? 50 : pack.wide ? 40 : 36}
+                          parts={look}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-gray-200 mt-1">{row.label}</p>
+                    <p className="text-[10px] text-gray-500">{row.rarity}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      ) : null}
 
       {auctionFish && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4">

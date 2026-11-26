@@ -9,21 +9,35 @@ export const MAX_FISH_SLOTS = 6
 /** Typical adult size in cm (betta TL, ray disc, arowana/arapaima TL). */
 export const FISH_ADULT_CM = {
   betta: 7,
+  guppy: 5,
   arowana: 75,
   arowana_blue: 75,
   ray_crown: 45,
   ray_albino: 45,
-  arapaima: 200
+  gar: 90,
+  genghis: 90,
+  redtail_cat: 120,
+  arapaima: 200,
+  turtle_slider: 25,
+  turtle_pig: 55,
+  turtle_map: 18
 }
 
 /** Typical fry / pup / hatchling size in cm. */
 export const FISH_FRY_CM = {
   betta: 1.8,
+  guppy: 0.9,
   arowana: 18,
   arowana_blue: 18,
   ray_crown: 14,
   ray_albino: 14,
-  arapaima: 28
+  gar: 16,
+  genghis: 12,
+  redtail_cat: 22,
+  arapaima: 28,
+  turtle_slider: 3.2,
+  turtle_pig: 5.5,
+  turtle_map: 2.8
 }
 
 export function speciesAdultScale(speciesKey) {
@@ -38,6 +52,32 @@ export const FISH_PACKS = {
     wide: false,
     a: '/images/betta-a.png',
     b: '/images/betta-b.png'
+  },
+  guppy: {
+    key: 'guppy',
+    wide: false,
+    a: '/images/guppy-a.png',
+    b: '/images/guppy-b.png'
+  },
+  gar: {
+    key: 'gar',
+    wide: true,
+    a: '/images/gar-a.png',
+    b: '/images/gar-b.png'
+  },
+  genghis: {
+    key: 'genghis',
+    wide: true,
+    shape: 'shark',
+    a: '/images/genghis-a.png',
+    b: '/images/genghis-b.png'
+  },
+  redtail_cat: {
+    key: 'redtail_cat',
+    wide: true,
+    shape: 'giant',
+    a: '/images/redtail-cat-a.png',
+    b: '/images/redtail-cat-b.png'
   },
   arowana: {
     key: 'arowana',
@@ -71,6 +111,27 @@ export const FISH_PACKS = {
     shape: 'giant',
     a: '/images/arapaima-a.png',
     b: '/images/arapaima-b.png'
+  },
+  turtle_slider: {
+    key: 'turtle_slider',
+    wide: false,
+    shape: 'turtle',
+    a: '/images/turtle-slider-a.png',
+    b: '/images/turtle-slider-b.png'
+  },
+  turtle_pig: {
+    key: 'turtle_pig',
+    wide: false,
+    shape: 'turtle',
+    a: '/images/turtle-pig-a.png',
+    b: '/images/turtle-pig-b.png'
+  },
+  turtle_map: {
+    key: 'turtle_map',
+    wide: false,
+    shape: 'turtle',
+    a: '/images/turtle-map-a.png',
+    b: '/images/turtle-map-b.png'
   }
 }
 
@@ -242,11 +303,18 @@ export function getFishSpeciesName(entry) {
   }
   const names = {
     betta: '鬥魚',
+    guppy: '孔雀魚',
+    gar: '雀鱔',
+    genghis: '成吉思汗',
+    redtail_cat: '招財貓',
     arowana: '龍魚',
     arowana_blue: '藍底過背金龍',
     ray_crown: '皇冠魟',
     ray_albino: '黃冠白子魟',
-    arapaima: '巨骨蛇魚'
+    arapaima: '巨骨蛇魚',
+    turtle_slider: '巴西龜',
+    turtle_pig: '豬鼻龜',
+    turtle_map: '地圖龜'
   }
   return names[entry?.key] || '魚'
 }

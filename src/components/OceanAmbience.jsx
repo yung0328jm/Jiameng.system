@@ -2,14 +2,16 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { getFishSpeciesName, speciesAdultScale } from '../utils/fishSkinStorage'
+import { FISH_PACKS, getFishSpeciesName, speciesAdultScale } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getUserPets,
   getWorldFishRoster,
   hungerStatus,
+  listOwnedFishPotions,
   recordPetEat,
-  tickPetBreeding
+  tickPetBreeding,
+  useFishPotion
 } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 import FishSprite from './FishSprite'
@@ -47,9 +49,17 @@ function layout() {
 function baseFishSize(entry, index, mobile) {
   const sp = speciesAdultScale(entry?.key)
   const k = index % 2 === 0 ? 1 : 0.88
-  if (entry?.shape === 'ray') {
+  if (entry?.shape === 'ray' || entry?.shape === 'turtle') {
     const w = Math.round((mobile ? 70 : 118) * sp * k)
-    return { width: w, height: Math.round(w * 0.58) }
+    return { width: w, height: Math.round(w * (entry?.shape === 'turtle' ? 0.72 : 0.58)) }
+  }
+  if (entry?.shape === 'cichlid') {
+    const w = Math.round((mobile ? 78 : 132) * sp * k)
+    return { width: w, height: Math.round(w * 0.56) }
+  }
+  if (entry?.shape === 'shark') {
+    const w = Math.round((mobile ? 90 : 152) * sp * k)
+    return { width: w, height: Math.round(w * 0.46) }
   }
   if (entry?.shape === 'giant') {
     const w = Math.round((mobile ? 96 : 160) * sp * k)
@@ -71,6 +81,19 @@ function fishSize(entry, index, mobile, scale = 1) {
     width: Math.max(36, Math.round(base.width * s)),
     height: Math.max(20, Math.round(base.height * s))
   }
+}
+
+function cruiseSpeed(L, entry, size) {
+  const w = Math.max(40, Number(size?.width) || 80)
+  const fromWidth = Math.max(0.32, Math.min(1.1, 100 / w))
+  let kind = 1
+  if (entry?.shape === 'giant') kind = 0.62
+  else if (entry?.shape === 'shark') kind = 0.68
+  else if (entry?.wide) kind = 0.72
+  else if (entry?.shape === 'cichlid') kind = 0.7
+  else if (entry?.shape === 'turtle') kind = 0.52
+  else if (entry?.shape === 'ray') kind = 0.78
+  return L.cruise * fromWidth * kind
 }
 
 function loadLooks(roster) {
@@ -230,6 +253,8 @@ export default function OceanAmbience() {
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
   const [inspect, setInspect] = useState(null)
+  const [potionMsg, setPotionMsg] = useState('')
+  const lookBump = useRef(0)
   const [actors, setActors] = useState(() => getWorldFishRoster(getCurrentUser()).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
@@ -243,8 +268,9 @@ export default function OceanAmbience() {
   const rosterRef = useRef(getWorldFishRoster(getCurrentUser()))
 
   useEffect(() => {
+    setPotionMsg('')
     if (!inspect) return undefined
-    const t = window.setTimeout(() => setInspect(null), 4500)
+    const t = window.setTimeout(() => setInspect(null), 14000)
     return () => window.clearTimeout(t)
   }, [inspect])
 
@@ -299,10 +325,11 @@ export default function OceanAmbience() {
       if (!state) return
       const currentRoster = rosterRef.current || []
 
-      if (!state.looks || now - (state.looksAt || 0) > 2000) {
+      if (!state.looks || now - (state.looksAt || 0) > 2000 || state.lookTick !== lookBump.current) {
         tickPetBreeding(getCurrentUser())
         state.looks = loadLooks(currentRoster)
         state.looksAt = now
+        state.lookTick = lookBump.current
       }
 
       while (state.fish.length < currentRoster.length) {
@@ -349,7 +376,7 @@ export default function OceanAmbience() {
         const entry = currentRoster[i]
         const size = sizes[i]
         const others = state.fish
-        const mouthRatio = entry?.shape === 'ray' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
+        const mouthRatio = entry?.shape === 'ray' || entry?.shape === 'turtle' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
         const mouthX = fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio)
         const mouthY = fish.y + size.height * 0.5
         const live = state.food.filter((p) => !p.eaten)
@@ -415,8 +442,9 @@ export default function OceanAmbience() {
           let vy = wy + avoid.y * Math.max(40, dist)
           const wd = Math.sqrt(vx * vx + vy * vy) || 1
           aimAlong(fish, vx, vy)
-          fish.x += (vx / wd) * L.cruise * dt
-          fish.y += (vy / wd) * L.cruise * dt
+          const speed = cruiseSpeed(L, entry, size)
+          fish.x += (vx / wd) * speed * dt
+          fish.y += (vy / wd) * speed * dt
           clampFish(fish, L, size)
         }
       })
@@ -428,15 +456,19 @@ export default function OceanAmbience() {
         const entry = currentRoster[i] || {}
         const look = state.looks?.[entry.id] || {}
         const size = sizes[i] || fishSize(entry, i, L.mobile, look.scale)
+        const pack = FISH_PACKS[entry.key] || FISH_PACKS.betta
+        const art = look.art === 'b' ? 'b' : 'a'
         return {
           id: entry.id || `fish-${i}`,
-          src: entry.src,
+          src: pack[art] || entry.src,
           wide: !!entry.wide,
           shape: entry.shape || 'fish',
-          variant: entry.variant || (i % 2 === 0 ? 'a' : 'b'),
+          variant: art,
           parts: look.parts || null,
           morphLabel: look.morphLabel || '',
           shineText: look.shineText || '',
+          gender: look.gender || '',
+          pregnant: !!look.pregnant,
           width: size.width,
           height: size.height,
           owner: entry.owner || getCurrentUser() || '',
@@ -551,16 +583,40 @@ export default function OceanAmbience() {
         const me = getCurrentUser()
         const ownerName = getDisplayNameForAccount(fish.owner || me)
         const mine = String(fish.owner || '') === String(me || '')
+        const potions = mine && fish.gender === 'f' ? listOwnedFishPotions(me) : { heat: 0, affection: 0, birth: 0 }
+        const canPotions = mine && fish.gender === 'f' && (potions.heat > 0 || potions.affection > 0 || potions.birth > 0)
+        const give = (kind) => {
+          const r = useFishPotion(me, fish.id, kind)
+          setPotionMsg(r.message || (r.success ? '已使用' : '無法使用'))
+          if (r.success) {
+            lookBump.current += 1
+            rosterRef.current = getWorldFishRoster(me)
+          }
+        }
         return (
           <div
-            className="ocean-fish-owner-tip"
+            className={`ocean-fish-owner-tip${canPotions ? ' is-actions' : ''}`}
             style={{
               transform: `translate3d(${fish.x + (fish.width || 0) / 2}px, ${fish.y}px, 0) translate(-50%, calc(-100% - 8px))`
             }}
           >
             {fish.nick ? <strong>{fish.nick}</strong> : null}
-            <span>{fish.species || '魚'}{fish.morphLabel ? ` · ${fish.morphLabel}` : ''}{fish.shineText ? ` · ${fish.shineText}` : ''}</span>
+            <span>{fish.species || '魚'}{fish.morphLabel ? ` · ${fish.morphLabel}` : ''}{fish.shineText ? ` · ${fish.shineText}` : ''}{fish.gender === 'f' ? ' · 母' : fish.gender === 'm' ? ' · 公' : ''}{fish.pregnant ? ' · 懷孕' : ''}</span>
             <span>{mine ? `主人：${ownerName}（我的）` : `主人：${ownerName}`}</span>
+            {potionMsg ? <span className="ocean-fish-potion-msg">{potionMsg}</span> : null}
+            {canPotions ? (
+              <div className="ocean-fish-potion-row">
+                {potions.heat > 0 ? (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); give('heat') }}>發情藥水</button>
+                ) : null}
+                {potions.affection > 0 ? (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); give('affection') }}>好感藥水</button>
+                ) : null}
+                {potions.birth > 0 ? (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); give('birth') }}>催生藥水</button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         )
       })()}

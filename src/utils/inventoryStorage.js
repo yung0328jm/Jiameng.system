@@ -21,6 +21,12 @@ export const getUserInventory = (username) => {
   }
 }
 
+export const countInventoryItem = (username, itemId) => {
+  if (!username || !itemId) return 0
+  const row = getUserInventory(username).find((item) => item.itemId === itemId)
+  return Math.max(0, Number(row?.quantity) || 0)
+}
+
 // 添加道具到用戶背包
 export const addItemToInventory = (username, itemId, quantity = 1) => {
   try {

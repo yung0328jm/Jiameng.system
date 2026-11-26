@@ -468,6 +468,10 @@ function MyBackpack() {
                         })()}
                         <div className="w-full bg-gray-700 text-gray-500 px-4 py-2 rounded text-center text-sm sm:text-xs">每套用 1 隻只換 1 欄，可混搭不同魚種</div>
                       </div>
+                    ) : invItem.item && invItem.item.type === ITEM_TYPES.FISH_POTION ? (
+                      <div className="w-full bg-gray-700 text-cyan-100 px-4 py-3 sm:py-2 rounded text-center text-base sm:text-sm leading-relaxed">
+                        點畫面上自己的母魚使用。只限自己的魚。
+                      </div>
                     ) : invItem.item && invItem.item.type === ITEM_TYPES.FISH_SLOT ? (
                       <div className="space-y-3 sm:space-y-2">
                         {(() => {
