@@ -1,7 +1,14 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCurrentUser } from '../utils/authStorage'
-import { getPetAppearance, getWorldFishRoster, recordPetEat, tickPetBreeding } from '../utils/petStorage'
+import {
+  getPetAppearance,
+  getUserPets,
+  getWorldFishRoster,
+  hungerStatus,
+  recordPetEat,
+  tickPetBreeding
+} from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
@@ -66,11 +73,16 @@ function fishSize(entry, index, mobile, scale = 1) {
 
 function loadLooks(roster) {
   const map = {}
+  const petsByOwner = {}
   ;(roster || []).forEach((entry) => {
     const id = entry?.id || ''
     const owner = entry?.owner || getCurrentUser()
     const slot = entry?.growthSlotId || id
-    map[id] = getPetAppearance(owner, slot, entry?.itemId, entry?.key)
+    if (!petsByOwner[owner]) petsByOwner[owner] = getUserPets(owner)
+    map[id] = {
+      ...getPetAppearance(owner, slot, entry?.itemId, entry?.key),
+      hunger: hungerStatus(petsByOwner[owner]?.fedAt?.[slot]).key
+    }
   })
   return map
 }
@@ -358,7 +370,8 @@ export default function OceanAmbience() {
           return
         }
 
-        if (target) {
+        const full = state.looks?.[entry?.id]?.hunger === 'full'
+        if (target && !full) {
           const dx = target.x - mouthX
           const dy = target.y - mouthY
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
