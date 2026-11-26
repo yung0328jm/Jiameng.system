@@ -773,9 +773,19 @@ function ExchangeShop() {
                 </div>
 
                 {/* 操作按鈕 */}
-                <div className="flex gap-3 sm:gap-2">
-                  {userRole === 'admin' ? (
-                    <>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleExchange(item)
+                    }}
+                    disabled={!currentUser || walletBalance < (item.price || 0)}
+                    className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed text-base sm:text-sm min-h-[44px]"
+                  >
+                    {!currentUser ? '請先登入' : walletBalance < (item.price || 0) ? '餘額不足' : '兌換'}
+                  </button>
+                  {userRole === 'admin' && (
+                    <div className="flex gap-3 sm:gap-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -809,18 +819,7 @@ function ExchangeShop() {
                       >
                         刪除
                       </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleExchange(item)
-                      }}
-                      disabled={!currentUser || walletBalance < (item.price || 0)}
-                      className="w-full bg-yellow-400 text-gray-900 px-4 py-3 sm:py-2 rounded hover:bg-yellow-500 transition-colors font-semibold disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed text-base sm:text-sm min-h-[44px]"
-                    >
-                      {!currentUser ? '請先登入' : walletBalance < (item.price || 0) ? '餘額不足' : '兌換'}
-                    </button>
+                    </div>
                   )}
                 </div>
               </div>
