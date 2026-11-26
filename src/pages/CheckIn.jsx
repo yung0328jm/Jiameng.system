@@ -108,7 +108,7 @@ function CheckIn() {
       })
     }
     setRecords(getCheckInRecords(currentUser))
-    setMessage({ type: 'success', text: `簽到成功！獲得：${reward.rewardDescription || `${reward.rewardAmount} 佳盟幣`}` })
+    setMessage({ type: 'success', text: `簽到成功！獲得：${reward.rewardDescription || `${reward.rewardAmount} 毓承幣`}` })
   }
 
   const handleOpenEdit = (day) => {
@@ -127,7 +127,7 @@ function CheckIn() {
     if (editingDay == null) return
     const next = { ...rewardConfig, days: { ...rewardConfig.days } }
     const desc = editForm.rewardType === 'jiameng_coin'
-      ? `${editForm.rewardAmount} 佳盟幣`
+      ? `${editForm.rewardAmount} 毓承幣`
       : editForm.rewardType === 'item' && editForm.rewardItemId
         ? (items.find(i => i.id === editForm.rewardItemId)?.name || '道具') + ' x' + (editForm.rewardAmount || 1)
         : editForm.rewardDescription || ''
@@ -214,7 +214,7 @@ function CheckIn() {
           {Array.from({ length: maxDay }, (_, i) => i + 1).map((day) => {
             const ds = dateStr(yearMonth.year, yearMonth.month, day)
             const signed = currentUser ? hasCheckedIn(currentUser, ds) : false
-            const reward = rewardConfig.days[day] || { rewardDescription: `${10 + Math.min(day, 40)} 佳盟幣` }
+            const reward = rewardConfig.days[day] || { rewardDescription: `${10 + Math.min(day, 40)} 毓承幣` }
             const isToday = isThisMonth && day === currentDay
             const canClick = currentUser && isToday && !signed
             const isPast = isThisMonth && day < currentDay
@@ -276,13 +276,13 @@ function CheckIn() {
                       onChange={(e) => setEditForm({ ...editForm, rewardType: e.target.value })}
                       className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     >
-                      <option value="jiameng_coin">佳盟幣</option>
+                      <option value="jiameng_coin">毓承幣</option>
                       <option value="item">道具</option>
                     </select>
                   </div>
                   {editForm.rewardType === 'jiameng_coin' && (
                     <div>
-                      <label className="block text-gray-300 text-sm mb-1">佳盟幣數量</label>
+                      <label className="block text-gray-300 text-sm mb-1">毓承幣數量</label>
                       <input
                         type="number"
                         min="0"
@@ -325,7 +325,7 @@ function CheckIn() {
                       type="text"
                       value={editForm.rewardDescription}
                       onChange={(e) => setEditForm({ ...editForm, rewardDescription: e.target.value })}
-                      placeholder="例如：10 佳盟幣"
+                      placeholder="例如：10 毓承幣"
                       className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     />
                   </div>
@@ -333,7 +333,7 @@ function CheckIn() {
               )}
               {editingDay === 0 && (
                 <p className="text-gray-400">
-                  請回到上方，點擊要設定的「第 N 日」格子，即可編輯該日獎勵（佳盟幣或道具）。
+                  請回到上方，點擊要設定的「第 N 日」格子，即可編輯該日獎勵（毓承幣或道具）。
                 </p>
               )}
             </div>

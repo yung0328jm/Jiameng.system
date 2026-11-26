@@ -64,7 +64,7 @@ function SingleCardShopItem({ card, currentUser, onBuy }) {
         <p className="text-gray-500 text-xs mt-1">—</p>
       )}
       <div className="flex items-center justify-between gap-1 mt-2 flex-wrap">
-        <span className="text-yellow-400 text-xs">{card.price} {card.priceCurrency === 'coin' ? '佳盟幣' : '佳盟分'}/張</span>
+        <span className="text-yellow-400 text-xs">{card.price} {card.priceCurrency === 'coin' ? '毓承幣' : '佳盟分'}/張</span>
         {currentUser && (
           <>
             <label className="flex items-center gap-1 text-xs text-gray-400">
@@ -277,7 +277,7 @@ export default function CardGame({ onBack }) {
     if (currency === 'coin') {
       const balance = getWalletBalance(currentUser)
       if (balance < total) {
-        alert(`佳盟幣不足，需要 ${total}（單價 ${unitPrice} x ${qty}）`)
+        alert(`毓承幣不足，需要 ${total}（單價 ${unitPrice} x ${qty}）`)
         return
       }
       const res = subtractWalletBalance(currentUser, total)
@@ -320,7 +320,7 @@ export default function CardGame({ onBack }) {
     if (pack.currency === 'coin') {
       const balance = getWalletBalance(currentUser)
       if (balance < price) {
-        alert(`佳盟幣不足，需要 ${price}`)
+        alert(`毓承幣不足，需要 ${price}`)
         return
       }
       const res = subtractWalletBalance(currentUser, price)
@@ -357,7 +357,7 @@ export default function CardGame({ onBack }) {
     if (price <= 0) { alert('此卡套未設定售價'); return }
     if (item.priceCurrency === 'coin') {
       const balance = getWalletBalance(currentUser)
-      if (balance < price) { alert(`佳盟幣不足，需要 ${price}`); return }
+      if (balance < price) { alert(`毓承幣不足，需要 ${price}`); return }
       const res = subtractWalletBalance(currentUser, price)
       if (res && res.success === false) { alert(res.message || '扣款失敗'); return }
     } else {
@@ -798,7 +798,7 @@ export default function CardGame({ onBack }) {
                   </div>
                   <div className="p-3">
                     <div className="font-semibold text-white">{pack.name}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">隨機 {pack.countPerPack} 張 · {pack.price} {pack.currency === 'coin' ? '佳盟幣' : '佳盟分'}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">隨機 {pack.countPerPack} 張 · {pack.price} {pack.currency === 'coin' ? '毓承幣' : '佳盟分'}</div>
                     {currentUser && (
                       <button type="button" onClick={() => handleBuyPack(pack)} className="mt-2 w-full bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg text-sm font-medium">購買</button>
                     )}
@@ -825,7 +825,7 @@ export default function CardGame({ onBack }) {
                     </div>
                     <div className="p-2 flex-1 flex flex-col">
                       <div className="text-white text-sm font-medium truncate">{item.name}</div>
-                      <div className="text-yellow-400 text-xs mt-0.5">{item.price} {item.priceCurrency === 'coin' ? '佳盟幣' : '佳盟分'}</div>
+                      <div className="text-yellow-400 text-xs mt-0.5">{item.price} {item.priceCurrency === 'coin' ? '毓承幣' : '佳盟分'}</div>
                       {currentUser && (
                         owned
                           ? <span className="text-green-400 text-xs mt-1">已擁有</span>
@@ -870,7 +870,7 @@ export default function CardGame({ onBack }) {
               <input type="text" placeholder="背面圖片 URL" value={cardBackForm.imageUrl} onChange={(e) => setCardBackForm((f) => ({ ...f, imageUrl: e.target.value }))} className="flex-1 min-w-[180px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
               <input type="number" min={0} placeholder="售價" value={cardBackForm.price} onChange={(e) => setCardBackForm((f) => ({ ...f, price: e.target.value }))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
               <select value={cardBackForm.priceCurrency} onChange={(e) => setCardBackForm((f) => ({ ...f, priceCurrency: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm">
-                <option value="coin">佳盟幣</option>
+                <option value="coin">毓承幣</option>
                 <option value="points">佳盟分</option>
               </select>
               <button type="button" onClick={handleSaveCardBack} className="px-3 py-1.5 bg-amber-600 text-gray-900 rounded text-sm font-semibold">{editingCardBackId ? '更新' : '新增卡套'}</button>
@@ -881,7 +881,7 @@ export default function CardGame({ onBack }) {
                 <div key={b.id} className="flex items-center gap-2 p-2 bg-gray-700 rounded text-sm">
                   {b.imageUrl ? <img src={b.imageUrl} alt="" className="h-8 w-6 object-cover rounded border border-gray-600" onError={(e) => { e.target.style.display = 'none' }} /> : <span className="w-6 h-8 bg-gray-600 rounded" />}
                   <span className="text-amber-200 font-medium truncate flex-1">{b.name}</span>
-                  <span className="text-gray-400 text-xs">{b.price} {b.priceCurrency === 'coin' ? '佳盟幣' : '佳盟分'}</span>
+                  <span className="text-gray-400 text-xs">{b.price} {b.priceCurrency === 'coin' ? '毓承幣' : '佳盟分'}</span>
                   <button type="button" onClick={() => { setEditingCardBackId(b.id); setCardBackForm({ name: b.name, imageUrl: b.imageUrl || '', price: b.price, priceCurrency: b.priceCurrency || 'coin' }); }} className="text-amber-400 text-xs">編輯</button>
                   <button type="button" onClick={() => handleDeleteCardBack(b.id)} className="text-red-400 text-xs">刪除</button>
                 </div>
@@ -979,7 +979,7 @@ export default function CardGame({ onBack }) {
                 <div className="flex gap-2 items-center">
                   <input type="number" placeholder="售價（留空不上架）" value={cardForm.price} onChange={(e) => setCardForm((f) => ({ ...f, price: e.target.value }))} className="flex-1 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white" />
                   <select value={cardForm.priceCurrency} onChange={(e) => setCardForm((f) => ({ ...f, priceCurrency: e.target.value }))} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white">
-                    <option value="coin">佳盟幣</option>
+                    <option value="coin">毓承幣</option>
                     <option value="points">佳盟分</option>
                   </select>
                 </div>
@@ -1173,7 +1173,7 @@ function ShopPackEditor({ packs, definitions, onSave }) {
         <input type="text" placeholder="卡包封面圖片 URL（吸引客戶）" value={coverImage} onChange={(e) => setCoverImage(e.target.value)} className="flex-1 min-w-[180px] bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
         <input type="number" placeholder="售價" value={price} onChange={(e) => setPrice(Number(e.target.value))} className="w-20 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />
         <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm">
-          <option value="coin">佳盟幣</option>
+          <option value="coin">毓承幣</option>
           <option value="points">佳盟分</option>
         </select>
         <input type="number" min={1} max={10} placeholder="每包張數" value={countPerPack} onChange={(e) => setCountPerPack(Number(e.target.value))} className="w-16 bg-gray-700 border border-gray-500 rounded px-2 py-1.5 text-white text-sm" />

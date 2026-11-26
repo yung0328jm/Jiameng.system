@@ -1,4 +1,4 @@
-// 開發中介面：小遊戲入口，佳盟幣↔佳盟分兌換
+// 開發中介面：小遊戲入口，毓承幣↔佳盟分兌換
 import { useState, useEffect } from 'react'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getWalletBalance, subtractWalletBalance, addWalletBalance } from '../utils/walletStorage'
@@ -72,7 +72,7 @@ export default function MiniGames() {
     }
     setCoinToPointsAmount('')
     refreshBalances()
-    alert(`已兌換：${amount} 佳盟幣 → ${points} 佳盟分`)
+    alert(`已兌換：${amount} 毓承幣 → ${points} 佳盟分`)
   }
 
   const handlePointsToCoin = () => {
@@ -99,7 +99,7 @@ export default function MiniGames() {
     }
     setPointsToCoinAmount('')
     refreshBalances()
-    alert(`已兌換：${amount} 佳盟分 → ${coins} 佳盟幣`)
+    alert(`已兌換：${amount} 佳盟分 → ${coins} 毓承幣`)
   }
 
   const handleSaveRatio = () => {
@@ -120,21 +120,21 @@ export default function MiniGames() {
     }
   }
 
-  // 顯示用：多少佳盟分 = 多少佳盟幣（不綁定 1 佳盟分）
+  // 顯示用：多少佳盟分 = 多少毓承幣（不綁定 1 佳盟分）
   const pointsToCoinDisplay = () => {
     const r = exchangeConfig.pointsToCoin || 0.1
-    if (r >= 1) return `1 佳盟分 = ${r} 佳盟幣`
+    if (r >= 1) return `1 佳盟分 = ${r} 毓承幣`
     const x = 1 / r
     const xStr = Number.isInteger(x) ? x : x.toFixed(2)
-    return `${xStr} 佳盟分 = 1 佳盟幣`
+    return `${xStr} 佳盟分 = 1 毓承幣`
   }
 
   const gameSlots = [
     { id: 'slot1', name: '終極密碼', description: '1～100 猜數字', comingSoon: false },
     { id: 'slot2', name: '終極密碼多人', description: '多人輪流猜 1～100，猜中的人全拿獎池', comingSoon: false },
     { id: 'slot3', name: '誰是臥底', description: '輪流發言投票找出臥底', comingSoon: false },
-    { id: 'slot4', name: '猜拳', description: '兩人對戰五戰三勝，佳盟幣下注', comingSoon: false },
-    { id: 'slot5', name: '妞妞', description: '兩人對戰，依序發牌比牛，佳盟幣下注', comingSoon: false },
+    { id: 'slot4', name: '猜拳', description: '兩人對戰五戰三勝，毓承幣下注', comingSoon: false },
+    { id: 'slot5', name: '妞妞', description: '兩人對戰，依序發牌比牛，毓承幣下注', comingSoon: false },
     { id: 'slot6', name: '卡牌對戰', description: '1 英雄 + 50 張牌，回合制對戰', comingSoon: false }
   ]
 
@@ -145,14 +145,14 @@ export default function MiniGames() {
         <p className="text-gray-400 text-sm mt-1">小遊戲陸續上線，敬請期待</p>
       </div>
 
-      {/* 佳盟幣 ↔ 佳盟分 兌換 */}
+      {/* 毓承幣 ↔ 佳盟分 兌換 */}
       <div className="mb-6 p-4 bg-gray-800 rounded-xl border border-gray-600">
-        <h3 className="text-base font-semibold text-white mb-3">佳盟幣 ↔ 佳盟分 兌換</h3>
+        <h3 className="text-base font-semibold text-white mb-3">毓承幣 ↔ 佳盟分 兌換</h3>
         {currentUser ? (
           <>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-gray-700/80 rounded-lg p-3">
-                <div className="text-gray-400 text-xs mb-0.5">佳盟幣</div>
+                <div className="text-gray-400 text-xs mb-0.5">毓承幣</div>
                 <div className="text-yellow-400 font-bold text-lg">{Number(coinBalance).toLocaleString()}</div>
               </div>
               <div className="bg-gray-700/80 rounded-lg p-3">
@@ -162,8 +162,8 @@ export default function MiniGames() {
             </div>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-gray-300 text-sm">佳盟幣 → 佳盟分</span>
-                <span className="text-gray-500 text-xs">1 佳盟幣 = {exchangeConfig.coinToPoints} 佳盟分</span>
+                <span className="text-gray-300 text-sm">毓承幣 → 佳盟分</span>
+                <span className="text-gray-500 text-xs">1 毓承幣 = {exchangeConfig.coinToPoints} 佳盟分</span>
                 <input
                   type="number"
                   min="0"
@@ -182,7 +182,7 @@ export default function MiniGames() {
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-gray-300 text-sm">佳盟分 → 佳盟幣</span>
+                <span className="text-gray-300 text-sm">佳盟分 → 毓承幣</span>
                 <span className="text-gray-500 text-xs">{pointsToCoinDisplay()}</span>
                 <input
                   type="number"
@@ -233,7 +233,7 @@ export default function MiniGames() {
             <h3 className="text-white font-semibold mb-3">設定兌換比例</h3>
             <div className="space-y-3 mb-4">
               <div>
-                <label className="block text-gray-400 text-xs mb-1">佳盟幣 → 佳盟分：1 佳盟幣 = 幾 佳盟分</label>
+                <label className="block text-gray-400 text-xs mb-1">毓承幣 → 佳盟分：1 毓承幣 = 幾 佳盟分</label>
                 <input
                   type="number"
                   min="0.0001"
@@ -244,7 +244,7 @@ export default function MiniGames() {
                 />
               </div>
               <div>
-                <label className="block text-gray-400 text-xs mb-1">佳盟分 → 佳盟幣：多少 佳盟分 = 多少 佳盟幣</label>
+                <label className="block text-gray-400 text-xs mb-1">佳盟分 → 毓承幣：多少 佳盟分 = 多少 毓承幣</label>
                 <div className="flex items-center gap-2 mt-1">
                   <input
                     type="number"
@@ -263,10 +263,10 @@ export default function MiniGames() {
                     value={ratioForm.coinsFromPoints}
                     onChange={(e) => setRatioForm((f) => ({ ...f, coinsFromPoints: Number(e.target.value) || 0 }))}
                     className="flex-1 bg-gray-700 border border-gray-500 rounded px-3 py-2 text-white"
-                    placeholder="佳盟幣"
+                    placeholder="毓承幣"
                   />
                 </div>
-                <p className="text-gray-500 text-[11px] mt-1">例：10 佳盟分 = 1 佳盟幣</p>
+                <p className="text-gray-500 text-[11px] mt-1">例：10 佳盟分 = 1 毓承幣</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">

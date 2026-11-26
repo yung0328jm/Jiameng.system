@@ -554,7 +554,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         alert('沒有可分發的用戶（已排除管理員/系統帳號）')
         return
       }
-      if (!window.confirm(`確定要分發 ${distributionForm.amount} 佳盟幣給所有用戶嗎？\n共 ${recipients.length} 人。`)) return
+      if (!window.confirm(`確定要分發 ${distributionForm.amount} 毓承幣給所有用戶嗎？\n共 ${recipients.length} 人。`)) return
 
       let ok = 0
       let fail = 0
@@ -567,7 +567,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             from: 'admin',
             to: acc,
             amount: distributionForm.amount,
-            description: `管理員全體分配佳盟幣`
+            description: `管理員全體分配毓承幣`
           })
         } else {
           fail += 1
@@ -589,9 +589,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         from: 'admin',
         to: distributionForm.username,
         amount: distributionForm.amount,
-        description: `管理員分配佳盟幣`
+        description: `管理員分配毓承幣`
       })
-      alert(`已成功分配 ${distributionForm.amount} 佳盟幣給 ${distributionForm.username}`)
+      alert(`已成功分配 ${distributionForm.amount} 毓承幣給 ${distributionForm.username}`)
       setDistributionForm({ username: '', amount: 0 })
       setShowDistributionModal(false)
       // 如果是當前用戶，更新餘額顯示
@@ -876,9 +876,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             <span className="truncate">{dateTimeStr}</span>
           </div>
         </div>
-        {/* 右：佳盟幣、手機版「更多」選單＋登出；桌面版全部按鈕並排 */}
+        {/* 右：毓承幣、手機版「更多」選單＋登出；桌面版全部按鈕並排 */}
         <div className="flex items-center justify-end gap-2 sm:gap-1.5 shrink-0 min-w-0">
-          {/* 佳盟幣：手機只顯示圖示＋數字，桌面顯示「佳盟幣: 數字」 */}
+          {/* 毓承幣：手機只顯示圖示＋數字，桌面顯示「毓承幣: 數字」 */}
           <button
             onClick={() => { setShowWalletModal(!showWalletModal); setShowTopMenu(false) }}
             className="bg-gradient-to-b from-cyan-100 to-teal-300 hover:from-cyan-50 hover:to-teal-200 active:brightness-95 text-cn-ink font-semibold px-2.5 py-2 sm:px-3 sm:py-1.5 rounded-md border border-teal-900/35 shadow transition-colors flex items-center justify-center gap-1 min-h-[40px] min-w-[40px] sm:min-h-[36px] sm:min-w-0 touch-manipulation text-xs sm:text-sm flex-shrink-0"
@@ -886,7 +886,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="hidden sm:inline whitespace-nowrap">佳盟幣: </span>
+            <span className="hidden sm:inline whitespace-nowrap">毓承幣: </span>
             <span className="whitespace-nowrap">{walletBalance.toLocaleString()}</span>
           </button>
 
@@ -937,7 +937,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                       className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 active:bg-black/35 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation"
                     >
                       <span className="bg-cn-jade w-7 h-7 rounded-sm border border-emerald-950/30 flex items-center justify-center text-white text-xs flex-shrink-0">+</span>
-                      分配佳盟幣
+                      分配毓承幣
                     </button>
                     <button
                       type="button"
@@ -992,7 +992,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                <span>分配佳盟幣</span>
+                <span>分配毓承幣</span>
               </button>
               <button
                 onClick={() => setShowItemDistributionModal(!showItemDistributionModal)}
@@ -1062,7 +1062,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
               <div className="bg-black/25 rounded-lg p-4 border border-cn-gold/25">
                 <div className="text-cn-mist text-sm mb-1">當前餘額</div>
                 <div className="text-3xl font-bold text-cn-gold font-serif">
-                  {walletBalance.toLocaleString()} 佳盟幣
+                  {walletBalance.toLocaleString()} 毓承幣
                 </div>
               </div>
               <div>
@@ -1112,12 +1112,12 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         </div>
       )}
 
-      {/* 分配佳盟幣模態框（管理員） */}
+      {/* 分配毓承幣模態框（管理員） */}
       {showDistributionModal && userRole === 'admin' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-b from-cn-panel to-cn-lacquer rounded-xl p-5 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border-2 border-cn-jade/50 shadow-2xl">
             <div className="flex items-center justify-between mb-4 gap-2">
-              <h2 className="text-xl font-bold text-emerald-400 font-serif tracking-wide">分配佳盟幣</h2>
+              <h2 className="text-xl font-bold text-emerald-400 font-serif tracking-wide">分配毓承幣</h2>
               <button
                 type="button"
                 onClick={() => {
@@ -1153,7 +1153,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   min="1"
                   value={distributionForm.amount}
                   onChange={(e) => setDistributionForm({ ...distributionForm, amount: parseInt(e.target.value) || 0 })}
-                  placeholder="輸入佳盟幣數量"
+                  placeholder="輸入毓承幣數量"
                   className="w-full bg-black/30 border border-cn-gold/30 rounded-lg px-4 py-3 sm:py-2 text-cn-parchment placeholder:text-cn-mist/60 focus:outline-none focus:ring-2 focus:ring-cn-jade/50 touch-manipulation text-base"
                 />
               </div>

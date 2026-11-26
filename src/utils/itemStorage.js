@@ -315,7 +315,7 @@ export const getItems = () => {
         type: ITEM_TYPES.DANMU,
         description: '使用後可以發送彈幕',
         icon: '💬',
-        price: 10, // 佳盟幣價格
+        price: 10, // 毓承幣價格
         createdAt: new Date().toISOString()
       }
     ]

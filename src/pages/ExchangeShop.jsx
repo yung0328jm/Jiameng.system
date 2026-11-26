@@ -347,18 +347,18 @@ function ExchangeShop() {
 
     const balance = getWalletBalance(currentUser)
     if (balance < item.price) {
-      alert(`佳盟幣不足，需要 ${item.price} 佳盟幣，目前餘額：${balance}`)
+      alert(`毓承幣不足，需要 ${item.price} 毓承幣，目前餘額：${balance}`)
       return
     }
 
-    if (!window.confirm(`確定要用 ${item.price} 佳盟幣兌換「${item.name}」嗎？`)) {
+    if (!window.confirm(`確定要用 ${item.price} 毓承幣兌換「${item.name}」嗎？`)) {
       return
     }
 
-    // 扣除佳盟幣
+    // 扣除毓承幣
     const subtractResult = subtractWalletBalance(currentUser, item.price)
     if (!subtractResult.success) {
-      alert(subtractResult.message || '扣除佳盟幣失敗')
+      alert(subtractResult.message || '扣除毓承幣失敗')
       return
     }
 
@@ -377,7 +377,7 @@ function ExchangeShop() {
     const addResult = addItemToInventory(currentUser, item.id, 1)
     if (!addResult.success) {
       alert(addResult.message || '添加道具到背包失敗')
-      // 如果添加失敗，退回佳盟幣
+      // 如果添加失敗，退回毓承幣
       subtractWalletBalance(currentUser, -item.price)
       return
     }
@@ -392,7 +392,7 @@ function ExchangeShop() {
         {/* 標題區域 */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-yellow-400 mb-2">兌換商城</h1>
-          <p className="text-gray-400">使用佳盟幣兌換虛擬道具</p>
+          <p className="text-gray-400">使用毓承幣兌換虛擬道具</p>
         </div>
 
         {/* 用戶餘額顯示 */}
@@ -400,7 +400,7 @@ function ExchangeShop() {
           <div className="mb-6 bg-yellow-400/20 border border-yellow-400 rounded-lg p-5 sm:p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1">
-                <p className="text-gray-400 text-base sm:text-sm mb-1">我的佳盟幣餘額</p>
+                <p className="text-gray-400 text-base sm:text-sm mb-1">我的毓承幣餘額</p>
                 <p className="text-4xl sm:text-3xl font-bold text-yellow-400">{walletBalance}</p>
               </div>
               <div className="text-5xl sm:text-4xl">💰</div>
@@ -769,7 +769,7 @@ function ExchangeShop() {
                 {/* 價格 */}
                 <div className="mb-5 sm:mb-4 text-center">
                   <p className="text-gray-400 text-base sm:text-sm mb-2">兌換價格</p>
-                  <p className="text-3xl sm:text-2xl font-bold text-yellow-400">{item.price || 0} 佳盟幣</p>
+                  <p className="text-3xl sm:text-2xl font-bold text-yellow-400">{item.price || 0} 毓承幣</p>
                 </div>
 
                 {/* 操作按鈕 */}
@@ -996,7 +996,7 @@ function ExchangeShop() {
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">兌換價格（佳盟幣） *</label>
+                  <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">兌換價格（毓承幣） *</label>
                   <input
                     type="number"
                     value={itemForm.price}

@@ -48,9 +48,9 @@ function Home() {
     isManual: false, // 是否為手動輸入排行榜
     isGroupGoal: false, // 是否為團體目標模式
     groupGoal: 0, // 團體目標總數
-    rewardType: 'text', // 獎勵類型：text（文字描述）、jiameng_coin（佳盟幣）、item（道具）
+    rewardType: 'text', // 獎勵類型：text（文字描述）、jiameng_coin（毓承幣）、item（道具）
     reward: '', // 達標獎勵描述（文字描述時使用）
-    rewardAmount: 0, // 獎勵數量（佳盟幣或道具數量）
+    rewardAmount: 0, // 獎勵數量（毓承幣或道具數量）
     rewardItemId: '', // 獎勵道具ID（道具類型時使用）
     currentProgress: 0, // 當前累計進度
     achievedAt: null, // 達成時間
@@ -1066,7 +1066,7 @@ function Home() {
         
         // 團體目標達成獎勵（全體獎勵）：
         // 2026-01：取消自動分發（避免多裝置/同步造成漏發/重複）。
-        // 改由管理員到「儀表板」使用「全體分發」手動統一發放（佳盟幣或道具）。
+        // 改由管理員到「儀表板」使用「全體分發」手動統一發放（毓承幣或道具）。
         
         // 更新進度和達成狀態
         updateLeaderboardItem(leaderboardItem.id, {
@@ -1489,7 +1489,7 @@ function Home() {
             if (m?.id) equipEffect(thirdUserName, m.id, 'message')
           }
 
-          // 上榜道具：前三名依排行榜設定的獎勵類型發放道具或佳盟幣
+          // 上榜道具：前三名依排行榜設定的獎勵類型發放道具或毓承幣
           // 注意：若此榜是「團體目標（全體目標）」榜，rewardType/rewardAmount/rewardItemId 已用於「全體達標獎勵」，
           // 若再同時發「上榜獎勵」會造成第一名（以及前三名）看起來被發放兩次。
           // 因此團體目標榜：不發上榜獎勵（稱號/特效仍照常）。
@@ -1773,13 +1773,13 @@ function Home() {
   }
 
   const handleReclaimAllUserAssets = () => {
-    if (!window.confirm('確定要回收「所有人」背包道具與佳盟幣嗎？\n\n這會：\n- 清空所有人背包\n- 佳盟幣歸零\n- 卸下所有人已裝備特效\n\n此操作無法復原！')) return
+    if (!window.confirm('確定要回收「所有人」背包道具與毓承幣嗎？\n\n這會：\n- 清空所有人背包\n- 毓承幣歸零\n- 卸下所有人已裝備特效\n\n此操作無法復原！')) return
     try {
       const r1 = clearAllInventories()
       const r2 = clearAllWallets()
       const r3 = clearAllEquippedEffects()
       if (r1.success && r2.success && r3.success) {
-        alert('已回收所有人背包道具與佳盟幣（並卸下已裝備特效）。')
+        alert('已回收所有人背包道具與毓承幣（並卸下已裝備特效）。')
         // 重新載入道具清單（避免 UI 顯示舊數量）
         try {
           const items = getItems()
@@ -2305,7 +2305,7 @@ function Home() {
                 type="button"
                 onClick={handleReclaimAllUserAssets}
                 className="bg-fuchsia-600 text-white px-3 py-2.5 sm:px-3 rounded-lg hover:bg-fuchsia-700 active:bg-fuchsia-700 transition-colors font-semibold min-h-[44px] touch-manipulation text-sm"
-                title="回收所有人背包道具與佳盟幣"
+                title="回收所有人背包道具與毓承幣"
               >
                 回收全體資產
               </button>
@@ -3064,7 +3064,7 @@ function Home() {
                                   )}
                                   {item.rewardType === 'jiameng_coin' && (
                                     <span className="text-white ml-1">
-                                      <span className="text-yellow-400">💰</span> {item.rewardAmount || 0} 佳盟幣
+                                      <span className="text-yellow-400">💰</span> {item.rewardAmount || 0} 毓承幣
                                     </span>
                                   )}
                                   {item.rewardType === 'item' && item.rewardItemId && (
@@ -3606,7 +3606,7 @@ function Home() {
                               className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
                             >
                               <option value="text">文字描述</option>
-                              <option value="jiameng_coin">佳盟幣</option>
+                              <option value="jiameng_coin">毓承幣</option>
                               <option value="item">道具</option>
                             </select>
                           </div>
@@ -3626,7 +3626,7 @@ function Home() {
                           
                           {editForm.rewardType === 'jiameng_coin' && (
                             <div>
-                              <label className="block text-gray-400 text-sm mb-2">佳盟幣數量 *</label>
+                              <label className="block text-gray-400 text-sm mb-2">毓承幣數量 *</label>
                               <input
                                 type="number"
                                 min="1"

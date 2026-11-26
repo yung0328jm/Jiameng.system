@@ -79,8 +79,8 @@ export default function Niuniu({ onBack }) {
         <div className="flex justify-between w-full mb-3">
           <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline">← 返回</button>
         </div>
-        <p className="text-gray-400 text-sm mb-2">妞妞兩人對戰，雙方各下注佳盟幣，依序發牌比牛，贏家全拿獎池。</p>
-        <p className="text-amber-400/90 text-xs mb-3">我的佳盟幣：{getWalletBalance(account).toLocaleString()}</p>
+        <p className="text-gray-400 text-sm mb-2">妞妞兩人對戰，雙方各下注毓承幣，依序發牌比牛，贏家全拿獎池。</p>
+        <p className="text-amber-400/90 text-xs mb-3">我的毓承幣：{getWalletBalance(account).toLocaleString()}</p>
         {canContinue && (
           <button
             type="button"
@@ -97,7 +97,7 @@ export default function Niuniu({ onBack }) {
             const res = createRoom(account, bet)
             if (res.ok) {
               setRoomId(res.roomId)
-              setMessage('已建立房間，下注 ' + bet + ' 佳盟幣。可從下方列表加入或分享代碼')
+              setMessage('已建立房間，下注 ' + bet + ' 毓承幣。可從下方列表加入或分享代碼')
             } else {
               setMessage(res.error || '建立失敗')
             }
@@ -115,7 +115,7 @@ export default function Niuniu({ onBack }) {
             onChange={(e) => setBetAmount(e.target.value)}
             className="w-16 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-sm"
           />
-          <span className="text-gray-500 text-xs">佳盟幣/人</span>
+          <span className="text-gray-500 text-xs">毓承幣/人</span>
         </div>
         {waitingRooms.length > 0 && (
           <div className="mt-4 w-full max-w-[280px]">
@@ -174,8 +174,8 @@ export default function Niuniu({ onBack }) {
           <span className="text-gray-500 text-xs">房間 {room.shortCode}</span>
         </div>
         <p className="text-gray-400 text-sm">玩家：{room.players?.map((p) => p.name || p.account).join(' vs ')}</p>
-        <p className="text-amber-400/90 text-xs mb-1">下注 {room.betAmount ?? 1} 佳盟幣/人</p>
-        <p className="text-gray-500 text-xs mb-3">須兩人佳盟幣皆足夠才能開始</p>
+        <p className="text-amber-400/90 text-xs mb-1">下注 {room.betAmount ?? 1} 毓承幣/人</p>
+        <p className="text-gray-500 text-xs mb-3">須兩人毓承幣皆足夠才能開始</p>
         {!full && <p className="text-gray-500 text-sm mb-2">等待第二人加入…</p>}
         {isHost && full && (
           <button
@@ -248,7 +248,7 @@ export default function Niuniu({ onBack }) {
         <div className="text-center nn-reveal-in">
           {winner && <p className="text-gray-400 text-sm">獲勝：{winner.name || winner.account}</p>}
           {!winner && <p className="text-gray-400 text-sm">和局，各退下注</p>}
-          <p className="text-emerald-400 text-sm font-semibold">獎池 {room.pool ?? 0} 佳盟幣</p>
+          <p className="text-emerald-400 text-sm font-semibold">獎池 {room.pool ?? 0} 毓承幣</p>
         </div>
         <button type="button" onClick={() => setRoomId(null)} className="mt-4 text-yellow-400 text-sm hover:underline">回列表</button>
       </div>
@@ -334,7 +334,7 @@ export default function Niuniu({ onBack }) {
         <span className="text-gray-500 text-xs">房間 {room.shortCode} · 發牌中</span>
       </div>
 
-      <p className="text-amber-400/90 text-xs mb-3">下注 {room.betAmount ?? 1} 佳盟幣 · 輪流發牌（只會看到自己的牌）</p>
+      <p className="text-amber-400/90 text-xs mb-3">下注 {room.betAmount ?? 1} 毓承幣 · 輪流發牌（只會看到自己的牌）</p>
 
       {/* 對手：5 張牌背 */}
       <div className="w-full mb-4 p-3 rounded-xl bg-gray-800/90 border border-amber-600/30">

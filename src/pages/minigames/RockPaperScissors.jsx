@@ -1,4 +1,4 @@
-// 猜拳兩人對戰：五戰三勝，佳盟幣下注
+// 猜拳兩人對戰：五戰三勝，毓承幣下注
 import { useState, useEffect } from 'react'
 import { useSyncRevision, useRealtimeKeys } from '../../contexts/SyncContext'
 import {
@@ -75,8 +75,8 @@ export default function RockPaperScissors({ onBack }) {
         <div className="flex justify-between w-full max-w-[320px] mb-3">
           <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline">← 返回</button>
         </div>
-        <p className="text-gray-400 text-sm mb-2">兩人對戰，五戰三勝。雙方各下注佳盟幣，贏家全拿。</p>
-        <p className="text-amber-400/90 text-xs mb-3">我的佳盟幣：{getWalletBalance(account).toLocaleString()}</p>
+        <p className="text-gray-400 text-sm mb-2">兩人對戰，五戰三勝。雙方各下注毓承幣，贏家全拿。</p>
+        <p className="text-amber-400/90 text-xs mb-3">我的毓承幣：{getWalletBalance(account).toLocaleString()}</p>
         {canContinue && (
           <button
             type="button"
@@ -93,7 +93,7 @@ export default function RockPaperScissors({ onBack }) {
             const res = createRoom(account, bet)
             if (res.ok) {
               setRoomId(res.roomId)
-              setMessage('已建立房間，下注 ' + bet + ' 佳盟幣。可從下方列表加入或分享代碼')
+              setMessage('已建立房間，下注 ' + bet + ' 毓承幣。可從下方列表加入或分享代碼')
             } else {
               setMessage(res.error || '建立失敗')
             }
@@ -111,7 +111,7 @@ export default function RockPaperScissors({ onBack }) {
             onChange={(e) => setBetAmount(e.target.value)}
             className="w-16 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-sm"
           />
-          <span className="text-gray-500 text-xs">佳盟幣/人</span>
+          <span className="text-gray-500 text-xs">毓承幣/人</span>
         </div>
         {waitingRooms.length > 0 && (
           <div className="mt-4 w-full max-w-[280px]">
@@ -169,7 +169,7 @@ export default function RockPaperScissors({ onBack }) {
           <span className="text-gray-500 text-xs">房間 {room.shortCode}</span>
         </div>
         <p className="text-gray-400 text-sm">玩家：{room.players?.map((p) => p.name || p.account).join(' vs ')}</p>
-        <p className="text-amber-400/90 text-xs mb-3">下注 {room.betAmount ?? 1} 佳盟幣/人 · 五戰三勝</p>
+        <p className="text-amber-400/90 text-xs mb-3">下注 {room.betAmount ?? 1} 毓承幣/人 · 五戰三勝</p>
         {!full && <p className="text-gray-500 text-sm mb-2">等待第二人加入…</p>}
         {isHost && full && (
           <button
@@ -215,7 +215,7 @@ export default function RockPaperScissors({ onBack }) {
           <p className="rps-trophy text-4xl mb-2">🏆</p>
           <p className="text-gray-400 text-sm">獲勝：<span className="text-white font-medium">{winnerName}</span></p>
           <p className={`text-lg font-bold mt-2 ${iWon ? 'text-emerald-400' : 'text-gray-400'}`}>{iWon ? '恭喜獲勝！' : ''}</p>
-          <p className="text-amber-400 text-sm mt-1">獎金 {room.pool ?? 0} 佳盟幣</p>
+          <p className="text-amber-400 text-sm mt-1">獎金 {room.pool ?? 0} 毓承幣</p>
         </div>
         <button type="button" onClick={() => setRoomId(null)} className="mt-5 py-2 px-4 rounded-lg bg-amber-500/20 text-yellow-400 text-sm hover:bg-amber-500/30 transition-colors">回列表</button>
       </div>

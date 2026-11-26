@@ -81,7 +81,7 @@ export default function FishAuction() {
   const submitBid = () => {
     if (!user || !detail) return
     const result = placeBid(detail.id, user, bidAmt)
-    setMessage(result.success ? `已喊 ${Math.floor(Number(bidAmt))} 佳盟幣` : result.message || '喊價失敗')
+    setMessage(result.success ? `已喊 ${Math.floor(Number(bidAmt))} 毓承幣` : result.message || '喊價失敗')
     refresh()
   }
 
@@ -197,7 +197,7 @@ export default function FishAuction() {
               )}
             </div>
           )}
-          <p className="text-xs text-gray-500 mt-3">你的佳盟幣：{wallet}</p>
+          <p className="text-xs text-gray-500 mt-3">你的毓承幣：{wallet}</p>
           {message && <p className="text-sm text-emerald-200 mt-2">{message}</p>}
           {(detail.bids || []).length > 0 && (
             <ul className="mt-4 space-y-1 text-xs text-gray-400">
@@ -217,7 +217,7 @@ export default function FishAuction() {
     <div className="max-w-3xl mx-auto text-cn-parchment pb-8">
       <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">魚類競拍</h1>
       <p className="text-gray-400 text-sm mt-1">全員可喊價，價高者得。幣不夠不能出價，時間到自動結標。</p>
-      <p className="text-sm text-amber-200 mt-2">佳盟幣 {wallet}</p>
+      <p className="text-sm text-amber-200 mt-2">毓承幣 {wallet}</p>
       {live.length === 0 ? (
         <p className="text-gray-500 mt-8 text-center">目前沒有競拍中的魚</p>
       ) : (

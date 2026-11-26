@@ -1,4 +1,4 @@
-// 猜拳兩人對戰：五戰三勝，佳盟幣下注，存於 app_data jiameng_rps_rooms
+// 猜拳兩人對戰：五戰三勝，毓承幣下注，存於 app_data jiameng_rps_rooms
 import { syncKeyToSupabase } from './supabaseSync'
 import { getDisplayNameForAccount } from './displayName'
 import { getWalletBalance, subtractWalletBalance, addWalletBalance, addTransaction, getAllTransactions } from './walletStorage'
@@ -84,7 +84,7 @@ export function createRoom(hostAccount, betAmount = 1) {
   if (!account) return { ok: false, error: '未登入' }
   const bet = Math.max(1, Math.floor(Number(betAmount) || 1))
   if (getWalletBalance(account) < bet) {
-    return { ok: false, error: `佳盟幣不足（需 ${bet}，目前 ${getWalletBalance(account)}），無法建立該下注房間` }
+    return { ok: false, error: `毓承幣不足（需 ${bet}，目前 ${getWalletBalance(account)}），無法建立該下注房間` }
   }
   const rooms = load()
   const id = newId()
@@ -129,7 +129,7 @@ export function joinRoom(roomIdOrShortCode, account) {
   if (r.players.length >= 2) return { ok: false, error: '房間已滿' }
   const bet = r.betAmount ?? 1
   if (getWalletBalance(accountStr) < bet) {
-    return { ok: false, error: `佳盟幣不足（此房間需 ${bet} 佳盟幣），無法加入` }
+    return { ok: false, error: `毓承幣不足（此房間需 ${bet} 毓承幣），無法加入` }
   }
   if (r.players.some((p) => p.account === accountStr)) return { ok: true, room: r }
   r.players.push({ account: accountStr, name: getDisplayNameForAccount(accountStr) })
@@ -150,12 +150,12 @@ export function startGame(roomId) {
   const bet = r.betAmount ?? 1
   for (const p of r.players) {
     if (getWalletBalance(p.account) < bet) {
-      return { ok: false, error: `有玩家佳盟幣不足（需 ${bet} 佳盟幣），無法開始` }
+      return { ok: false, error: `有玩家毓承幣不足（需 ${bet} 毓承幣），無法開始` }
     }
   }
   for (const p of r.players) {
     const sub = subtractWalletBalance(p.account, bet)
-    if (!sub.success) return { ok: false, error: sub.message || '扣除佳盟幣失敗' }
+    if (!sub.success) return { ok: false, error: sub.message || '扣除毓承幣失敗' }
   }
   r.status = 'playing'
   r.pool = bet * 2

@@ -98,7 +98,7 @@ function UserManagement() {
     ['jiameng_engineering_schedules', 'jiameng_personal_performance', 'jiameng_completion_rate_config', 'jiameng_late_performance_config', 'jiameng_dropdown_options'],
     () => setPerfRevision((v) => v + 1)
   )
-  // 背包/佳盟幣：跟隨資料變動即時更新
+  // 背包/毓承幣：跟隨資料變動即時更新
   useRealtimeKeys(['jiameng_wallets', 'jiameng_inventories', 'jiameng_items'], () => setAssetsRevision((v) => v + 1))
   // 預支：審核/匯款後列表即時更新
   useRealtimeKeys(['jiameng_advances'], () => setAdvanceRevision((v) => v + 1))
@@ -651,9 +651,9 @@ function UserManagement() {
                             type="button"
                             onClick={() => openUserAssets(user)}
                             className="px-3 py-2 rounded transition-colors text-sm bg-indigo-600 hover:bg-indigo-700 text-white"
-                            title="查看背包與佳盟幣"
+                            title="查看背包與毓承幣"
                           >
-                            背包/佳盟幣
+                            背包/毓承幣
                           </button>
                           <button
                             type="button"
@@ -679,13 +679,13 @@ function UserManagement() {
         </div>
       )}
 
-      {/* 背包/佳盟幣 彈窗 */}
+      {/* 背包/毓承幣 彈窗 */}
       {showUserAssets && selectedAssetsUser && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-gray-900 border border-gray-700 rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
               <div>
-                <div className="text-white font-semibold">背包 / 佳盟幣</div>
+                <div className="text-white font-semibold">背包 / 毓承幣</div>
                 <div className="text-gray-400 text-xs">
                   {selectedAssetsUser.name}（{selectedAssetsUser.account}）
                 </div>
@@ -703,7 +703,7 @@ function UserManagement() {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                  <div className="text-gray-400 text-xs mb-1">佳盟幣</div>
+                  <div className="text-gray-400 text-xs mb-1">毓承幣</div>
                   <div className="text-yellow-400 text-2xl font-bold">
                     {Number(selectedAssetsData.balance || 0).toLocaleString()}
                   </div>

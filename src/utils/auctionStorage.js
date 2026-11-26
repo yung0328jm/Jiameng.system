@@ -149,17 +149,17 @@ export function placeBid(auctionId, username, amount) {
   if (auc.seller === user) return { success: false, message: '不能喊自己的魚' }
   const bid = Math.floor(Number(amount) || 0)
   const need = minNextBid(auc)
-  if (bid < need) return { success: false, message: `至少要喊 ${need} 佳盟幣` }
+  if (bid < need) return { success: false, message: `至少要喊 ${need} 毓承幣` }
   const avail = availableBidBalance(user, auc)
-  if (avail < bid) return { success: false, message: '佳盟幣不足，無法喊價' }
+  if (avail < bid) return { success: false, message: '毓承幣不足，無法喊價' }
 
   if (auc.currentBidder === user) {
     const delta = bid - Math.floor(Number(auc.currentBid) || 0)
     const pay = subtractWalletBalance(user, delta)
-    if (!pay.success) return { success: false, message: pay.message || '佳盟幣不足，無法喊價' }
+    if (!pay.success) return { success: false, message: pay.message || '毓承幣不足，無法喊價' }
   } else {
     const pay = subtractWalletBalance(user, bid)
-    if (!pay.success) return { success: false, message: pay.message || '佳盟幣不足，無法喊價' }
+    if (!pay.success) return { success: false, message: pay.message || '毓承幣不足，無法喊價' }
     if (auc.currentBidder) addWalletBalance(auc.currentBidder, Math.floor(Number(auc.currentBid) || 0))
   }
 

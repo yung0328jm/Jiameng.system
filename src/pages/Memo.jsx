@@ -319,7 +319,7 @@ function Memo() {
         })
         markKeywordRewardClaimed(acc, r.id, now)
         markGlobalKeywordRewardClaimed(acc, now)
-        awardedText = `佳盟幣 +${amt}`
+        awardedText = `毓承幣 +${amt}`
       } else {
         const itemId = String(r.itemId || '').trim()
         if (!itemId) continue
@@ -1179,7 +1179,7 @@ function Memo() {
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-400"
                   >
                     <option value="item">道具</option>
-                    <option value="coin">佳盟幣</option>
+                    <option value="coin">毓承幣</option>
                   </select>
                 </div>
                 <div>
@@ -1210,7 +1210,7 @@ function Memo() {
               {ruleForm.rewardType === 'coin' ? (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-gray-300 text-xs mb-1">佳盟幣數量</label>
+                    <label className="block text-gray-300 text-xs mb-1">毓承幣數量</label>
                     <input
                       type="number"
                       min="1"
@@ -1342,7 +1342,7 @@ function Memo() {
                   {keywordRewardRules.map((r) => {
                     const item = r.rewardType === 'item' ? getItem(r.itemId) : null
                     const rewardText = r.rewardType === 'coin'
-                      ? `佳盟幣 +${r.coinAmount || 0}`
+                      ? `毓承幣 +${r.coinAmount || 0}`
                       : `${item?.name || r.itemId} x${r.quantity || 1}`
                     return (
                       <div key={r.id} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap">

@@ -184,7 +184,7 @@ export const APP_DATA_KEYS = [
   // 搶紅包（設定 + 每人已領數量）
   'jiameng_red_envelope_config',
   'jiameng_red_envelope_claims',
-  // 佳盟分餘額 + 佳盟幣↔佳盟分兌換比例
+  // 佳盟分餘額 + 毓承幣↔佳盟分兌換比例
   'jiameng_points',
   'jiameng_coin_points_exchange',
   // 卡牌對戰：卡牌定義、牌庫、牌組、商城

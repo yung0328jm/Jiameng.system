@@ -93,7 +93,7 @@ export default function UltimatePasswordMulti({ onBack }) {
           <button type="button" onClick={onBack} className="text-yellow-400 text-sm hover:underline touch-manipulation">← 返回</button>
         </div>
         <p className="text-gray-400 text-sm mb-2">房主設密碼 1～100，大家輪流猜；猜中密碼的人贏得全部獎池。</p>
-        <p className="text-yellow-400/90 text-xs mb-3">參與者每人支付 1 佳盟幣，猜中密碼的人全部拿走獎池。我的佳盟幣：{getWalletBalance(account).toLocaleString()}</p>
+        <p className="text-yellow-400/90 text-xs mb-3">參與者每人支付 1 毓承幣，猜中密碼的人全部拿走獎池。我的毓承幣：{getWalletBalance(account).toLocaleString()}</p>
         {canContinue && (
           <button
             type="button"
@@ -286,7 +286,7 @@ export default function UltimatePasswordMulti({ onBack }) {
               </>
             )}
             <p className="text-yellow-400 font-semibold">遊戲結束</p>
-            <p className="text-gray-400 text-sm">猜中密碼、獎池全拿：{room.players?.find((p) => p.account === (room.winner || room.loser))?.name || room.winner || room.loser}（+{room.pool ?? 0} 佳盟幣）</p>
+            <p className="text-gray-400 text-sm">猜中密碼、獎池全拿：{room.players?.find((p) => p.account === (room.winner || room.loser))?.name || room.winner || room.loser}（+{room.pool ?? 0} 毓承幣）</p>
             <div className="mt-4 flex flex-col gap-2">
               <button
                 type="button"

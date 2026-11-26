@@ -1,4 +1,4 @@
-// 佳盟幣錢包系統存儲工具
+// 毓承幣錢包系統存儲工具
 import { syncKeyToSupabase } from './supabaseSync'
 const WALLET_STORAGE_KEY = 'jiameng_wallets'
 
@@ -85,7 +85,7 @@ export const clearAllWallets = () => {
     return { success: true }
   } catch (error) {
     console.error('clearAllWallets failed', error)
-    return { success: false, message: '清空佳盟幣失敗' }
+    return { success: false, message: '清空毓承幣失敗' }
   }
 }
 

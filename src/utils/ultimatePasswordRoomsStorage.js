@@ -73,7 +73,7 @@ export function createRoom(hostAccount) {
   if (!account) return { ok: false, error: '未登入' }
   const entryFee = 1
   if (getWalletBalance(account) < entryFee) {
-    return { ok: false, error: `佳盟幣不足（入場需 ${entryFee} 佳盟幣），無法建立房間` }
+    return { ok: false, error: `毓承幣不足（入場需 ${entryFee} 毓承幣），無法建立房間` }
   }
   const rooms = load()
   const id = newId()
@@ -120,7 +120,7 @@ export function joinRoom(roomIdOrShortCode, account) {
   if (r.status !== 'waiting') return { ok: false, error: '遊戲已開始' }
   const entryFee = r.entryFee ?? 1
   if (getWalletBalance(accountStr) < entryFee) {
-    return { ok: false, error: `佳盟幣不足（此房間入場需 ${entryFee} 佳盟幣），無法加入` }
+    return { ok: false, error: `毓承幣不足（此房間入場需 ${entryFee} 毓承幣），無法加入` }
   }
   if (r.players.some((p) => p.account === accountStr)) return { ok: true, room: r }
   r.players.push({ account: accountStr, name: getDisplayNameForAccount(accountStr) })
@@ -129,7 +129,7 @@ export function joinRoom(roomIdOrShortCode, account) {
   return { ok: true, room: r }
 }
 
-/** 房主開始遊戲：每人扣 1 佳盟幣入場費，至少 2 人且餘額足夠才開始 */
+/** 房主開始遊戲：每人扣 1 毓承幣入場費，至少 2 人且餘額足夠才開始 */
 export function startRoom(roomId) {
   const id = String(roomId || '').trim()
   const rooms = load()
@@ -142,13 +142,13 @@ export function startRoom(roomId) {
   const entryFee = r.entryFee ?? 1
   for (const p of r.players) {
     if (getWalletBalance(p.account) < entryFee) {
-      return { ok: false, error: `有玩家佳盟幣不足（需 ${entryFee} 佳盟幣），無法開始` }
+      return { ok: false, error: `有玩家毓承幣不足（需 ${entryFee} 毓承幣），無法開始` }
     }
   }
   for (const p of r.players) {
     const sub = subtractWalletBalance(p.account, entryFee)
     if (!sub.success) {
-      return { ok: false, error: sub.message || '扣除佳盟幣失敗' }
+      return { ok: false, error: sub.message || '扣除毓承幣失敗' }
     }
   }
   r.paidPlayers = r.players.map((p) => p.account)

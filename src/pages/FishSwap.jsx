@@ -110,7 +110,7 @@ export default function FishSwap() {
             {look.lengthText ? ` · ${look.lengthText}` : ''}
           </p>
           <p className="text-xs text-gray-500 mt-1">掛出者：{getDisplayNameForAccount(detail.seller)}</p>
-          <p className="text-sm text-cyan-200 mt-3">同類免費交換，不限公母，不用佳盟幣。</p>
+          <p className="text-sm text-cyan-200 mt-3">同類免費交換，不限公母，不用毓承幣。</p>
           {!open && (
             <p className="mt-3 text-sm text-amber-200">
               {detail.status === 'done'

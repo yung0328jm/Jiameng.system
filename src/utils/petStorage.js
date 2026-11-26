@@ -22,7 +22,7 @@ import { addTransaction, addWalletBalance } from './walletStorage'
 import { FISH_MORPHS, MORPH_PALETTE_VER, mixParentMorphs, morphById, morphPartFilters, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks, shineLabel } from './fishMorphs'
 
 export const PET_STORAGE_KEY = 'jiameng_pets'
-export const PET_ADULT_MEALS = 90
+export const PET_ADULT_MEALS = 45
 export const PET_DAILY_GROWTH_CAP = 5
 export const PET_GROWTH_GAP_MS = 90 * 1000
 

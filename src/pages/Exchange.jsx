@@ -126,14 +126,14 @@ function Exchange() {
       }
     }
     
-    // 創建交易（固定使用佳盟幣）
+    // 創建交易（固定使用毓承幣）
     const result = createTrade({
       seller: currentUser,
       itemId: tradeForm.itemId,
       itemName: item.name,
       quantity: tradeForm.quantity,
       price: tradeForm.price,
-      currency: 'jiameng_coin', // 固定使用佳盟幣
+      currency: 'jiameng_coin', // 固定使用毓承幣
       description: tradeForm.description
     })
     
@@ -161,18 +161,18 @@ function Exchange() {
       return
     }
     
-    // 檢查買家是否有足夠的佳盟幣
+    // 檢查買家是否有足夠的毓承幣
     const buyerBalance = getWalletBalance(currentUser || '')
     if (buyerBalance < trade.price) {
-      alert(`您只有 ${buyerBalance.toLocaleString()} 個佳盟幣，無法支付 ${trade.price.toLocaleString()} 個`)
+      alert(`您只有 ${buyerBalance.toLocaleString()} 個毓承幣，無法支付 ${trade.price.toLocaleString()} 個`)
       return
     }
     
-    if (!window.confirm(`確定要請求購買 ${trade.itemName} x${trade.quantity}，價格：${trade.price.toLocaleString()} 個佳盟幣？\n\n點擊確認後，需要賣家確認才能完成交易。`)) {
+    if (!window.confirm(`確定要請求購買 ${trade.itemName} x${trade.quantity}，價格：${trade.price.toLocaleString()} 個毓承幣？\n\n點擊確認後，需要賣家確認才能完成交易。`)) {
       return
     }
     
-    // 從買家扣除佳盟幣（暫時鎖定）
+    // 從買家扣除毓承幣（暫時鎖定）
     const removeCurrencyResult = subtractWalletBalance(currentUser, trade.price)
     if (!removeCurrencyResult.success) {
       alert('請求購買失敗：' + removeCurrencyResult.message)
@@ -189,13 +189,13 @@ function Exchange() {
       alert('購買請求已發送！請等待賣家確認。')
     } else {
       alert(result.message || '請求購買失敗')
-      // 如果請求失敗，恢復佳盟幣
+      // 如果請求失敗，恢復毓承幣
       addWalletBalance(currentUser, trade.price)
     }
   }
   
   const handleConfirmTrade = (trade) => {
-    if (!window.confirm(`確定要確認此交易？\n\n將轉移 ${trade.itemName} x${trade.quantity} 給 ${trade.pendingBuyer}\n獲得 ${trade.price.toLocaleString()} 個佳盟幣`)) {
+    if (!window.confirm(`確定要確認此交易？\n\n將轉移 ${trade.itemName} x${trade.quantity} 給 ${trade.pendingBuyer}\n獲得 ${trade.price.toLocaleString()} 個毓承幣`)) {
       return
     }
     
@@ -208,7 +208,7 @@ function Exchange() {
         addItemToInventory(trade.pendingBuyer, trade.itemId, trade.quantity)
       }
       
-      // 給賣家添加佳盟幣
+      // 給賣家添加毓承幣
       addWalletBalance(currentUser, trade.price)
       addTransaction({
         type: 'trade',
@@ -229,11 +229,11 @@ function Exchange() {
   }
   
   const handleRejectTrade = (trade) => {
-    if (!window.confirm(`確定要拒絕 ${trade.pendingBuyer} 的購買請求？\n\n買家的佳盟幣將被返還。`)) {
+    if (!window.confirm(`確定要拒絕 ${trade.pendingBuyer} 的購買請求？\n\n買家的毓承幣將被返還。`)) {
       return
     }
     
-    // 返還買家的佳盟幣
+    // 返還買家的毓承幣
     addWalletBalance(trade.pendingBuyer, trade.price)
     
     // 拒絕交易
@@ -242,18 +242,18 @@ function Exchange() {
       loadTrades()
       loadPendingTrades()
       loadMyTrades()
-      alert('已拒絕購買請求，買家的佳盟幣已返還。')
+      alert('已拒絕購買請求，買家的毓承幣已返還。')
     } else {
       alert(result.message || '拒絕交易失敗')
     }
   }
   
   const handleCancelBuyRequest = (trade) => {
-    if (!window.confirm('確定要取消購買請求？您的佳盟幣將被返還。')) {
+    if (!window.confirm('確定要取消購買請求？您的毓承幣將被返還。')) {
       return
     }
     
-    // 返還佳盟幣
+    // 返還毓承幣
     addWalletBalance(currentUser, trade.price)
     
     // 取消購買請求
@@ -263,7 +263,7 @@ function Exchange() {
       loadPendingTrades()
       loadMyTrades()
       setWalletBalance(getWalletBalance(currentUser))
-      alert('購買請求已取消，佳盟幣已返還。')
+      alert('購買請求已取消，毓承幣已返還。')
     } else {
       alert(result.message || '取消請求失敗')
     }
@@ -335,7 +335,7 @@ function Exchange() {
             {currentUser && (
               <div className="text-yellow-400 font-semibold flex items-center gap-2 text-xl">
                 <span>💰</span>
-                <span>佳盟幣: {walletBalance.toLocaleString()}</span>
+                <span>毓承幣: {walletBalance.toLocaleString()}</span>
               </div>
             )}
           </div>
@@ -403,7 +403,7 @@ function Exchange() {
                 />
               </div>
               <div>
-                <label className="block text-gray-300 text-sm mb-2">價格（佳盟幣）</label>
+                <label className="block text-gray-300 text-sm mb-2">價格（毓承幣）</label>
                 <input
                   type="number"
                   min="1"
@@ -466,9 +466,9 @@ function Exchange() {
                         </div>
                         <div className="text-gray-400 text-sm">
                           {trade.status === 'active' ? (
-                            <>賣家: {trade.seller} · 價格: {trade.price.toLocaleString()} 佳盟幣</>
+                            <>賣家: {trade.seller} · 價格: {trade.price.toLocaleString()} 毓承幣</>
                           ) : trade.status === 'completed' ? (
-                            <>買家: {trade.buyer} · 價格: {trade.price.toLocaleString()} 佳盟幣</>
+                            <>買家: {trade.buyer} · 價格: {trade.price.toLocaleString()} 毓承幣</>
                           ) : (
                             <>賣家: {trade.seller}</>
                           )}
@@ -532,7 +532,7 @@ function Exchange() {
                         買家: {trade.pendingBuyer}
                       </div>
                       <div className="text-blue-400 text-sm mb-1">
-                        價格: {trade.price.toLocaleString()} 個佳盟幣
+                        價格: {trade.price.toLocaleString()} 個毓承幣
                       </div>
                       <div className="text-gray-400 text-xs">
                         請求時間: {formatTradeDate(trade.requestedAt || trade.createdAt)}
@@ -614,7 +614,7 @@ function Exchange() {
                                   if (!currentUser) {
                                     alert('請先登入')
                                   } else if (userBalance < trade.price) {
-                                    alert(`您只有 ${userBalance.toLocaleString()} 個佳盟幣，需要 ${trade.price.toLocaleString()} 個`)
+                                    alert(`您只有 ${userBalance.toLocaleString()} 個毓承幣，需要 ${trade.price.toLocaleString()} 個`)
                                   } else if (trade.status === 'pending') {
                                     alert('此交易已有其他買家請求購買')
                                   }

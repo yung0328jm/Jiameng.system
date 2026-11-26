@@ -7,7 +7,7 @@ const CHECKIN_RECORDS_KEY = 'jiameng_checkin_records'
 const defaultDayReward = (day) => ({
   rewardType: 'jiameng_coin',
   rewardAmount: Math.min(10 + day, 50),
-  rewardDescription: `${10 + Math.min(day, 40)} 佳盟幣`
+  rewardDescription: `${10 + Math.min(day, 40)} 毓承幣`
 })
 
 // 取得整月（1–31 格）獎勵設定
@@ -68,7 +68,7 @@ export const hasCheckedIn = (username, dateStr) => {
   return !!records[dateStr]
 }
 
-// 簽到：寫入紀錄並回傳該日獎勵設定（由頁面負責發放佳盟幣/道具與寫入交易紀錄）
+// 簽到：寫入紀錄並回傳該日獎勵設定（由頁面負責發放毓承幣/道具與寫入交易紀錄）
 export const performCheckIn = (username, dateStr) => {
   try {
     const records = getCheckInRecords(username)

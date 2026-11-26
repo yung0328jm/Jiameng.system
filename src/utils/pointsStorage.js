@@ -1,12 +1,12 @@
-// 佳盟分存儲與佳盟幣↔佳盟分兌換比例
+// 佳盟分存儲與毓承幣↔佳盟分兌換比例
 import { syncKeyToSupabase } from './supabaseSync'
 
 const POINTS_STORAGE_KEY = 'jiameng_points'
 const EXCHANGE_CONFIG_KEY = 'jiameng_coin_points_exchange'
 
 const defaultExchangeConfig = {
-  coinToPoints: 10,   // 1 佳盟幣 = 10 佳盟分
-  pointsToCoin: 0.1   // 1 佳盟分 = 0.1 佳盟幣（可設為 1/coinToPoints）
+  coinToPoints: 10,   // 1 毓承幣 = 10 佳盟分
+  pointsToCoin: 0.1   // 1 佳盟分 = 0.1 毓承幣（可設為 1/coinToPoints）
 }
 
 const persistPoints = (points) => {

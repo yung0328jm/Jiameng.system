@@ -348,9 +348,9 @@ export default function MyPets() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(snap.itemId, snap.species)} 佳盟幣）。確定放生？`)) return
+                          if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(snap.itemId, snap.species)} 毓承幣）。確定放生？`)) return
                           const r = releasePetBagFish(user, i)
-                          setMessage(r.success ? `已放生，獲得 ${r.coins} 佳盟幣` : r.message || '放生失敗')
+                          setMessage(r.success ? `已放生，獲得 ${r.coins} 毓承幣` : r.message || '放生失敗')
                           refresh()
                         }}
                         className="shrink-0 px-3 py-1.5 rounded text-sm bg-slate-700 hover:bg-slate-600 text-white"
@@ -509,9 +509,9 @@ export default function MyPets() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(fish.itemId, fish.key)} 佳盟幣）。確定放生？`)) return
+                      if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(fish.itemId, fish.key)} 毓承幣）。確定放生？`)) return
                       const r = releaseLiveFish(user, fish.id)
-                      setMessage(r.success ? `已放生，獲得 ${r.coins} 佳盟幣` : r.message || '放生失敗')
+                      setMessage(r.success ? `已放生，獲得 ${r.coins} 毓承幣` : r.message || '放生失敗')
                       refresh()
                     }}
                     className="shrink-0 px-3 py-1.5 rounded text-sm bg-slate-700 hover:bg-slate-600 text-white"
@@ -615,7 +615,7 @@ export default function MyPets() {
             <h2 className="text-lg font-semibold text-cn-gold">送去競拍</h2>
             <p className="text-xs text-gray-400 mt-1">{getFishSpeciesName(auctionFish)} · 全員可喊價，價高者得</p>
             <label className="block mt-3 text-sm">
-              <span className="text-gray-400 text-xs">底價（佳盟幣）</span>
+              <span className="text-gray-400 text-xs">底價（毓承幣）</span>
               <input
                 type="number"
                 min="1"
