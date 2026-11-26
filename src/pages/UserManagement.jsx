@@ -12,7 +12,8 @@ import { getLatePerformanceConfig, calculateLateCountAdjustment, calculateNoCloc
 import { normalizeWorkItem, getWorkItemCollaborators, getWorkItemTargetForNameForPerformance, getWorkItemActualForNameForPerformance, expandWorkItemsToLogical } from '../utils/workItemCollaboration'
 import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
-import { getItems } from '../utils/itemStorage'
+import { getItems, ITEM_TYPES } from '../utils/itemStorage'
+import { purgeFishItemFromUser } from '../utils/petStorage'
 import { getPerformanceViewerAccount, setPerformanceViewerAccount } from '../utils/performanceViewerStorage'
 import { isGuestAccount } from '../utils/guestAuth'
 
@@ -132,6 +133,8 @@ function UserManagement() {
   const handleRemoveUserItem = (account, itemId, quantity, itemName) => {
     const qty = Math.max(1, Number(quantity) || 1)
     if (!window.confirm(`確定要從此用戶背包移除「${itemName}」${qty > 1 ? ` x${qty}（全部）` : ' x1'}？`)) return
+    const item = getItems().find((i) => i.id === itemId)
+    if (item?.type === ITEM_TYPES.FISH_SKIN) purgeFishItemFromUser(account, itemId)
     const res = removeItemFromInventory(account, itemId, qty)
     if (res?.success) {
       setAssetsRevision((v) => v + 1)

@@ -102,6 +102,35 @@ export const updateOvertimeApplicationStatus = (id, status, reviewedBy = '', rej
 /** 待審核的加班申請（管理員用） */
 export const getPendingOvertimeApplications = () => getOvertimeApplications().filter((r) => (r.status || '') === 'pending')
 
+/** 一鍵核准全部待審申請 */
+export const approveAllPendingOvertimeApplications = (reviewedBy = '') => {
+  try {
+    const list = getOvertimeApplications()
+    const reviewer = String(reviewedBy || '').trim()
+    const at = new Date().toISOString()
+    let count = 0
+    const next = list.map((r) => {
+      if ((r?.status || '') !== 'pending') return r
+      count += 1
+      return {
+        ...r,
+        status: 'approved',
+        reviewedBy: reviewer,
+        reviewedAt: at,
+        rejectionReason: undefined
+      }
+    })
+    if (count === 0) return { success: true, count: 0 }
+    localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(next))
+    syncKeyToSupabase(OVERTIME_APPLICATION_KEY, next).catch(() => {})
+    notifyOvertimeKeyChanged()
+    return { success: true, count }
+  } catch (e) {
+    console.error('approveAllPendingOvertimeApplications:', e)
+    return { success: false, message: '更新失敗', count: 0 }
+  }
+}
+
 function persistOvertimeList(list) {
   localStorage.setItem(OVERTIME_APPLICATION_KEY, JSON.stringify(list))
   syncKeyToSupabase(OVERTIME_APPLICATION_KEY, list).catch(() => {})

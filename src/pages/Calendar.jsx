@@ -25,7 +25,7 @@ import {
   getLeaveApplications,
   syncLeaveApplicationAfterCalendarDelete
 } from '../utils/leaveApplicationStorage'
-import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication, ensureWorkReportOvertimeApplication } from '../utils/overtimeApplicationStorage.js'
+import { getOvertimeApplications, getOvertimeApplicationsByScheduleId, getOvertimeApplicationsByWorkReportRowId, getPendingOvertimeApplications, addOvertimeApplication, updateOvertimeApplicationStatus, deleteOvertimeApplication, ensureWorkReportOvertimeApplication, approveAllPendingOvertimeApplications } from '../utils/overtimeApplicationStorage.js'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import {
   getNoLeaveDates,
@@ -196,18 +196,39 @@ function PendingOvertimeReviewBanner({ schedules, getSiteTitle, onOpenSchedule, 
     setItems((prev) => prev.filter((x) => String(x.id) !== String(id)))
   }
 
+  const handleApproveAll = () => {
+    if (items.length === 0) return
+    if (!window.confirm(`確定一鍵核准全部 ${items.length} 筆待審核緊急入場申請？`)) return
+    rememberScroll()
+    const res = approveAllPendingOvertimeApplications(getCurrentUser())
+    if (!res.success) {
+      alert(res.message || '操作失敗')
+      return
+    }
+    setItems([])
+  }
+
   if (items.length === 0) return null
 
   return (
     <div className="mb-3 rounded-lg border border-amber-500/60 bg-amber-950/40 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-amber-200 text-sm font-semibold hover:bg-amber-900/30"
-      >
-        <span>待審核緊急入場申報申請（{items.length}）— 點此{open ? '收合' : '展開'}</span>
-        <span className="text-amber-400/90">{open ? '▼' : '▶'}</span>
-      </button>
+      <div className="flex items-center gap-2 px-3 py-2 hover:bg-amber-900/30">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 min-w-0 flex items-center justify-between gap-2 text-left text-amber-200 text-sm font-semibold"
+        >
+          <span>待審核緊急入場申報申請（{items.length}）— 點此{open ? '收合' : '展開'}</span>
+          <span className="text-amber-400/90 shrink-0">{open ? '▼' : '▶'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleApproveAll}
+          className="shrink-0 px-2.5 py-1 rounded bg-green-600 text-white text-xs font-semibold hover:bg-green-500"
+        >
+          一鍵核准
+        </button>
+      </div>
       {open && (
         <div
           ref={listRef}

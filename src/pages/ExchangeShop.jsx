@@ -4,7 +4,8 @@ import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
-import { getAllEquippedEffects, unequipEffect, setFishSlots, setFishSlotExpansions, normalizeFishSlots, normalizeFishSlotExpansions } from '../utils/effectStorage'
+import { getAllEquippedEffects, unequipEffect, setFishSlotExpansions, normalizeFishSlotExpansions } from '../utils/effectStorage'
+import { purgeFishItemFromEveryone } from '../utils/petStorage'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
@@ -270,18 +271,17 @@ function ExchangeShop() {
     const itemName = item?.name || '此道具'
     if (!window.confirm(`確定要刪除「${itemName}」嗎？\n\n注意：會同步從所有人的背包/已裝備中移除，避免出現「未知道具」。`)) return
 
-    // 1) 卸下所有人已裝備的該道具（若是特效/稱號）
+    // 1) 卸下所有人已裝備的該道具（若是特效/稱號）；魚種一併清展示與寵物格
     try {
+      if (item?.type === ITEM_TYPES.FISH_SKIN) {
+        purgeFishItemFromEveryone(itemId)
+      }
       const allEquipped = getAllEquippedEffects()
       Object.keys(allEquipped || {}).forEach((username) => {
         const e = allEquipped?.[username] || {}
         if (e?.nameEffect === itemId) unequipEffect(username, 'name')
         if (e?.messageEffect === itemId) unequipEffect(username, 'message')
         if (e?.title === itemId) unequipEffect(username, 'title')
-        const slots = normalizeFishSlots(e)
-        if (slots.includes(itemId) || e?.fish === itemId) {
-          setFishSlots(username, slots.filter((id) => id !== itemId))
-        }
         const expansions = normalizeFishSlotExpansions(e)
         if (expansions.includes(itemId)) {
           setFishSlotExpansions(username, expansions.filter((id) => id !== itemId))

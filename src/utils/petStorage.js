@@ -1,6 +1,6 @@
 import { syncKeyToSupabase } from './supabaseSync'
 import { isGuestAccount, isGuestCloudWriteBlocked } from './guestAuth'
-import { setFishSlots } from './effectStorage'
+import { getAllEquippedEffects, setFishSlots } from './effectStorage'
 import {
   DEFAULT_FISH_SLOTS,
   FISH_ADULT_CM,
@@ -9,7 +9,8 @@ import {
   equipOneFishSkin,
   getAmbientFishRoster,
   getEquippedFishSlots,
-  getFishSlotCount
+  getFishSlotCount,
+  unequipFishAtIndex
 } from './fishSkinStorage'
 import { addItemToInventory, countInventoryItem, removeItemFromInventory } from './inventoryStorage'
 import {
@@ -767,6 +768,7 @@ export function getPublicShowcaseFish(viewer) {
     const ownerRoster = getTankRoster(acc)
     const entry = ownerRoster.find((f) => f.id === slotId)
     if (!entry) return
+    if (entry.itemId && !getItem(entry.itemId)) return
     extras.push({
       ...entry,
       id: `showcase-${acc}-${slotId}`,
@@ -880,6 +882,41 @@ export function listFishSkinCards(username, itemId, quantity) {
     })
   }
   return cards.slice(0, qty)
+}
+
+export function purgeFishItemFromUser(username, itemId) {
+  const id = String(itemId || '').trim()
+  if (!username || !id) return { success: false }
+  const slots = getEquippedFishSlots(username)
+  for (let i = slots.length - 1; i >= 0; i--) {
+    if (String(slots[i] || '') !== id) continue
+    const u = unequipFishAtIndex(username, i)
+    if (u.success) remapPetsAfterFishUnequip(username, i)
+  }
+  const cur = getUserPets(username)
+  const bag = (cur.petBag || []).filter((p) => String(p?.itemId || '') !== id)
+  const sid = String(cur.showcaseSlotId || '')
+  const tank = getTankRoster(username)
+  const shown = sid ? tank.find((f) => f.id === sid) : null
+  const showcaseSlotId = !shown || String(shown.itemId || '') === id ? '' : sid
+  if (bag.length === (cur.petBag || []).length && showcaseSlotId === cur.showcaseSlotId) {
+    return { success: true }
+  }
+  return saveUserPets(username, { ...cur, petBag: bag, showcaseSlotId })
+}
+
+export function purgeFishItemFromEveryone(itemId) {
+  const names = new Set()
+  Object.keys(readAll()).forEach((k) => {
+    if (k) names.add(k)
+  })
+  try {
+    Object.keys(getAllEquippedEffects() || {}).forEach((k) => {
+      if (k) names.add(k)
+    })
+  } catch (_) {}
+  names.forEach((u) => purgeFishItemFromUser(u, itemId))
+  return { success: true }
 }
 
 export function remapPetsAfterFishUnequip(username, removedIndex) {
