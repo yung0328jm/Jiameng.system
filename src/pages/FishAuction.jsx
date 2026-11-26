@@ -32,8 +32,9 @@ function FishShow({ snap, size = 'md' }) {
   const disc = shape === 'ray' || shape === 'turtle'
   const cichlid = shape === 'cichlid'
   const shark = shape === 'shark'
-  const w = size === 'lg' ? (disc ? 280 : shark ? 320 : cichlid ? 260 : wide ? 340 : 220) : disc ? 118 : shark ? 148 : cichlid ? 110 : wide ? 140 : 92
-  const h = size === 'lg' ? (disc ? 160 : shark ? 148 : cichlid ? 150 : wide ? 120 : 110) : disc ? 68 : shark ? 68 : cichlid ? 62 : wide ? 52 : 44
+  const koi = shape === 'koi'
+  const w = size === 'lg' ? (disc ? 280 : koi ? 300 : shark ? 320 : cichlid ? 260 : wide ? 340 : 220) : disc ? 118 : koi ? 140 : shark ? 148 : cichlid ? 110 : wide ? 140 : 92
+  const h = size === 'lg' ? (disc ? 160 : koi ? 150 : shark ? 148 : cichlid ? 150 : wide ? 120 : 110) : disc ? 68 : koi ? 70 : shark ? 68 : cichlid ? 62 : wide ? 52 : 44
   return (
     <FishSprite
       src={pack[art]}

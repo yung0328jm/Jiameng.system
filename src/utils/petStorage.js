@@ -99,6 +99,7 @@ function colorFamily(speciesKey, preferHue) {
   if (key === 'guppy') return { hue: [-20, 40], sat: [1.0, 1.32], bri: [0.94, 1.1] }
   if (key === 'gar') return { hue: [-14, 18], sat: [0.7, 1.08], bri: [0.9, 1.08] }
   if (key === 'genghis') return { hue: [-18, 14], sat: [0.35, 0.85], bri: [0.82, 1.12] }
+  if (key === 'koi_platinum') return { hue: [-14, 22], sat: [0.12, 0.55], bri: [1.02, 1.22] }
   if (key === 'redtail_cat') return { hue: [-18, 10], sat: [0.55, 1.05], bri: [0.88, 1.08] }
   if (key === 'turtle_slider') return { hue: [-8, 22], sat: [0.85, 1.18], bri: [0.92, 1.08] }
   if (key === 'turtle_pig') return { hue: [-10, 12], sat: [0.35, 0.8], bri: [0.9, 1.12] }
@@ -817,6 +818,7 @@ const FISH_BASE_PRICE = {
   guppy: 32,
   gar: 96,
   genghis: 78,
+  koi_platinum: 86,
   redtail_cat: 118,
   turtle_slider: 48,
   turtle_pig: 108,

@@ -537,6 +537,16 @@ body {
   height: 94px;
 }
 
+.ocean-betta-koi {
+  width: 220px;
+  height: 108px;
+}
+
+.ocean-betta-koi.ocean-betta-b {
+  width: 196px;
+  height: 96px;
+}
+
 .ocean-betta-ray {
   width: 176px;
   height: 100px;
@@ -554,6 +564,7 @@ body {
 
 .ocean-betta-wide .ocean-betta-tail,
 .ocean-betta-shark .ocean-betta-tail,
+.ocean-betta-koi .ocean-betta-tail,
 .ocean-betta-giant .ocean-betta-tail {
   -webkit-transform-origin: 34% 50%;
   transform-origin: 34% 50%;
@@ -729,6 +740,16 @@ body {
   .ocean-betta-shark.ocean-betta-b {
     width: 118px;
     height: 54px;
+  }
+
+  .ocean-betta-koi {
+    width: 128px;
+    height: 62px;
+  }
+
+  .ocean-betta-koi.ocean-betta-b {
+    width: 114px;
+    height: 56px;
   }
 }
 

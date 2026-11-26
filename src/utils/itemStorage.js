@@ -27,6 +27,7 @@ export const FISH_ARAPAIMA_ITEM_ID = 'fish_arapaima'
 export const FISH_GUPPY_ITEM_ID = 'fish_guppy'
 export const FISH_GAR_ITEM_ID = 'fish_gar'
 export const FISH_GENGHIS_ITEM_ID = 'fish_genghis'
+export const FISH_KOI_PLATINUM_ITEM_ID = 'fish_koi_platinum'
 export const FISH_REDTAIL_CAT_ITEM_ID = 'fish_redtail_cat'
 export const FISH_TURTLE_SLIDER_ITEM_ID = 'fish_turtle_slider'
 export const FISH_TURTLE_PIG_ITEM_ID = 'fish_turtle_pig'
@@ -133,6 +134,19 @@ const GENGHIS_SHOP_ITEM = {
   icon: '🐟',
   image: '/images/genghis-a.png',
   price: 78,
+  category: '特殊道具',
+  createdAt: new Date().toISOString()
+}
+
+const KOI_PLATINUM_SHOP_ITEM = {
+  id: FISH_KOI_PLATINUM_ITEM_ID,
+  name: '白金蝴蝶龍鯉',
+  type: 'fish_skin',
+  fishKey: 'koi_platinum',
+  description: '白金蝴蝶龍鯉（長鰭錦鯉）。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  icon: '🐟',
+  image: '/images/koi-platinum-a.png',
+  price: 86,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -253,6 +267,7 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_GUPPY_ITEM_ID)) extras.push({ ...GUPPY_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_GAR_ITEM_ID)) extras.push({ ...GAR_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_GENGHIS_ITEM_ID)) extras.push({ ...GENGHIS_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_KOI_PLATINUM_ITEM_ID)) extras.push({ ...KOI_PLATINUM_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_REDTAIL_CAT_ITEM_ID)) extras.push({ ...REDTAIL_CAT_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_SLIDER_ITEM_ID)) extras.push({ ...TURTLE_SLIDER_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_PIG_ITEM_ID)) extras.push({ ...TURTLE_PIG_SHOP_ITEM, createdAt: new Date().toISOString() })

@@ -61,6 +61,10 @@ function baseFishSize(entry, index, mobile) {
     const w = Math.round((mobile ? 90 : 152) * sp * k)
     return { width: w, height: Math.round(w * 0.46) }
   }
+  if (entry?.shape === 'koi') {
+    const w = Math.round((mobile ? 86 : 146) * sp * k)
+    return { width: w, height: Math.round(w * 0.5) }
+  }
   if (entry?.shape === 'giant') {
     const w = Math.round((mobile ? 96 : 160) * sp * k)
     return { width: w, height: Math.round(w * 0.28) }
@@ -89,6 +93,7 @@ function cruiseSpeed(L, entry, size) {
   let kind = 1
   if (entry?.shape === 'giant') kind = 0.62
   else if (entry?.shape === 'shark') kind = 0.68
+  else if (entry?.shape === 'koi') kind = 0.66
   else if (entry?.wide) kind = 0.72
   else if (entry?.shape === 'cichlid') kind = 0.7
   else if (entry?.shape === 'turtle') kind = 0.52

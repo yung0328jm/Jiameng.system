@@ -238,8 +238,8 @@ export default function MyPets() {
                     variant={art}
                     wide={!!fish.wide}
                     shape={fish.shape}
-                    width={fish.shape === 'ray' || fish.shape === 'turtle' ? 118 : fish.shape === 'shark' ? 148 : fish.shape === 'cichlid' ? 110 : fish.wide ? 140 : 92}
-                    height={fish.shape === 'ray' || fish.shape === 'turtle' ? 68 : fish.shape === 'shark' ? 68 : fish.shape === 'cichlid' ? 62 : fish.wide ? 52 : 44}
+                    width={fish.shape === 'ray' || fish.shape === 'turtle' ? 118 : fish.shape === 'koi' ? 140 : fish.shape === 'shark' ? 148 : fish.shape === 'cichlid' ? 110 : fish.wide ? 140 : 92}
+                    height={fish.shape === 'ray' || fish.shape === 'turtle' ? 68 : fish.shape === 'koi' ? 70 : fish.shape === 'shark' ? 68 : fish.shape === 'cichlid' ? 62 : fish.wide ? 52 : 44}
                     parts={look.parts}
                   />
                 </div>
@@ -406,8 +406,8 @@ export default function MyPets() {
                           variant={row.art === 'b' ? 'b' : 'a'}
                           wide={!!pack.wide}
                           shape={pack.shape || 'fish'}
-                          width={pack.shape === 'ray' || pack.shape === 'turtle' ? 96 : pack.shape === 'shark' ? 118 : pack.shape === 'cichlid' ? 90 : pack.wide ? 108 : 72}
-                          height={pack.shape === 'ray' || pack.shape === 'turtle' ? 54 : pack.shape === 'shark' ? 54 : pack.shape === 'cichlid' ? 50 : pack.wide ? 40 : 36}
+                          width={pack.shape === 'ray' || pack.shape === 'turtle' ? 96 : pack.shape === 'koi' ? 112 : pack.shape === 'shark' ? 118 : pack.shape === 'cichlid' ? 90 : pack.wide ? 108 : 72}
+                          height={pack.shape === 'ray' || pack.shape === 'turtle' ? 54 : pack.shape === 'koi' ? 56 : pack.shape === 'shark' ? 54 : pack.shape === 'cichlid' ? 50 : pack.wide ? 40 : 36}
                           parts={look}
                         />
                       ))}

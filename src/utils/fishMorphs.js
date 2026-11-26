@@ -19,7 +19,7 @@ function pickWeighted(list) {
  * arowana_blue a=金身藍尾, b=藍底金鱗；ray_crown a=皇冠褐, b=黑鑽白點；
  * ray_albino a=白子黃冠, b=金粉白子；arapaima a=銀腹紅尾, b=橄欖紅尾；
  * guppy a=霓虹藍, b=禮服紅；gar a=褐斑, b=白化；genghis a=灰鯊, b=白化；
- * redtail_cat a=紅尾招財, b=乳白.
+ * koi_platinum a=白金, b=山吹；redtail_cat a=紅尾招財, b=乳白.
  * Filters are small offsets from that art, not wild hue-rotate.
  */
 export const FISH_MORPHS = {
@@ -87,6 +87,12 @@ export const FISH_MORPHS = {
     { id: 'dark', label: '黑金', w: 12, art: 'a', body: { h: -8, s: 0.55, b: 0.78 }, tail: { h: 4, s: 0.7, b: 0.86 } },
     { id: 'albino', label: '白化', w: 10, art: 'b', body: { h: 0, s: 0.35, b: 1.18 }, tail: { h: 4, s: 0.4, b: 1.12 } },
     { id: 'gold', label: '黃金', w: 8, art: 'b', body: { tint: 'yellow' }, tail: { tint: 'gold' } }
+  ],
+  koi_platinum: [
+    { id: 'platinum', label: '白金', w: 20, art: 'a', body: { h: 0, s: 0.22, b: 1.16 }, tail: { h: 0, s: 0.2, b: 1.12 } },
+    { id: 'pearl', label: '珍珠白', w: 12, art: 'a', body: { h: 6, s: 0.18, b: 1.22 }, tail: { h: 8, s: 0.16, b: 1.18 } },
+    { id: 'yamabuki', label: '山吹', w: 12, art: 'b', body: { h: 0, s: 0.7, b: 1.08 }, tail: { h: 4, s: 0.55, b: 1.06 } },
+    { id: 'blush', label: '淡紅白金', w: 8, art: 'a', overlay: 'marble', body: { h: -8, s: 0.45, b: 1.1 }, tail: { h: -10, s: 0.55, b: 1.06 } }
   ],
   redtail_cat: [
     { id: 'classic', label: '紅尾招財', w: 20, art: 'a', body: { h: 0, s: 0.7, b: 0.96 }, tail: { tint: 'red' } },

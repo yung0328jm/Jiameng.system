@@ -16,6 +16,7 @@ export const FISH_ADULT_CM = {
   ray_albino: 45,
   gar: 90,
   genghis: 90,
+  koi_platinum: 50,
   redtail_cat: 120,
   arapaima: 200,
   turtle_slider: 25,
@@ -33,6 +34,7 @@ export const FISH_FRY_CM = {
   ray_albino: 14,
   gar: 16,
   genghis: 12,
+  koi_platinum: 4,
   redtail_cat: 22,
   arapaima: 28,
   turtle_slider: 3.2,
@@ -71,6 +73,13 @@ export const FISH_PACKS = {
     shape: 'shark',
     a: '/images/genghis-a.png',
     b: '/images/genghis-b.png'
+  },
+  koi_platinum: {
+    key: 'koi_platinum',
+    wide: true,
+    shape: 'koi',
+    a: '/images/koi-platinum-a.png',
+    b: '/images/koi-platinum-b.png'
   },
   redtail_cat: {
     key: 'redtail_cat',
@@ -306,6 +315,7 @@ export function getFishSpeciesName(entry) {
     guppy: '孔雀魚',
     gar: '雀鱔',
     genghis: '成吉思汗',
+    koi_platinum: '白金蝴蝶龍鯉',
     redtail_cat: '招財貓',
     arowana: '龍魚',
     arowana_blue: '藍底過背金龍',
