@@ -372,7 +372,7 @@ export function getPairBreedingMap(username) {
     if (fish.showcase) return
     const rec = cur.growth?.[fish.id]
     if (!rec) return
-    const growable = Boolean(fish.itemId) || Boolean(fish.born)
+    const growable = rec.growable !== false
     const adult = !growable || growthStage(rec.meals).key === 'adult'
     if (adult) adults.push({ fish, rec })
   })
@@ -467,13 +467,14 @@ function genderForDefaultPair(username, slotId, cur) {
 function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
   const sid = String(slotId || '')
   const shop = String(itemId || '').trim()
-  const growable = Boolean(shop) || Boolean(bornMeta)
+  const gifted = !shop && !bornMeta
+  const growable = Boolean(shop) || Boolean(bornMeta) || gifted
   let rec = cur.growth[sid]
   const species = String(bornMeta?.species || speciesKey || rec?.species || 'betta')
   const mismatchShop = shop && rec && String(rec.itemId || '') !== shop
   const mismatchBorn = !shop && bornMeta && rec && rec.species !== bornMeta.species
-  const becameDefault = !shop && !bornMeta && rec && rec.growable
-  const pairGender = !shop && !bornMeta && username ? genderForDefaultPair(username, sid, cur) : ''
+  const becameDefault = gifted && rec && String(rec.itemId || '').trim()
+  const pairGender = gifted && username ? genderForDefaultPair(username, sid, cur) : ''
   if (!rec || mismatchShop || mismatchBorn || becameDefault) {
     rec = hatchRecord(shop, species, {
       growable,
@@ -494,7 +495,10 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
     rec = { ...rec, gender: pairGender || randomGender() }
     dirty = true
   }
-  if (rec.growable == null) {
+  if (gifted && rec.growable !== true) {
+    rec = { ...rec, growable: true, meals: 0, today: 0, day: '', lastCountAt: 0 }
+    dirty = true
+  } else if (rec.growable == null) {
     rec = { ...rec, growable }
     dirty = true
   }
@@ -545,7 +549,7 @@ export function getPetAppearance(username, slotId, itemId, speciesKey) {
   if (dirty) {
     saveUserPets(username, { ...cur, growth: { ...cur.growth, [sid]: rec } })
   }
-  const growable = rec.growable !== false && (Boolean(shop) || Boolean(bornMeta) || rec.growable === true)
+  const growable = rec.growable !== false
   return lookFromRecord(rec, growable, speciesKey)
 }
 
@@ -559,7 +563,7 @@ export function recordPetEat(username, slotId, itemId, speciesKey) {
   const shop = String(itemId || '').trim()
   const { rec } = ensureRecord(cur, sid, shop, speciesKey, !shop ? bornMeta : null, username)
   let next = rec
-  const growable = Boolean(shop) || Boolean(bornMeta)
+  const growable = rec.growable !== false
   if (growable) {
     const now = Date.now()
     const day = dayKey(now)
@@ -612,8 +616,8 @@ function emptyBreedSlots(username, born) {
 }
 
 function isAdultRow(fish, rec) {
-  const growable = Boolean(fish?.itemId) || Boolean(fish?.born)
-  return !growable || growthStage(rec?.meals).key === 'adult'
+  if (rec?.growable === false) return true
+  return growthStage(rec?.meals).key === 'adult'
 }
 
 function frySnapshot(username, motherId, rec, mate) {
