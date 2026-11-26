@@ -289,11 +289,18 @@ export default function OceanAmbience() {
       if (!state) return
       const currentRoster = rosterRef.current || []
 
-      if (!state.looks || now - (state.looksAt || 0) > 2000 || state.lookTick !== lookBump.current) {
+      const sig = rosterKey(currentRoster)
+      if (
+        state.rosterSig !== sig ||
+        !state.looks ||
+        now - (state.looksAt || 0) > 2000 ||
+        state.lookTick !== lookBump.current
+      ) {
         tickPetBreeding(getCurrentUser())
         state.looks = loadLooks(currentRoster)
         state.looksAt = now
         state.lookTick = lookBump.current
+        state.rosterSig = sig
       }
 
       while (state.fish.length < currentRoster.length) {
