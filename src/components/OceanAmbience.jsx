@@ -89,15 +89,15 @@ function fishSize(entry, index, mobile, scale = 1) {
 
 function cruiseSpeed(L, entry, size) {
   const w = Math.max(40, Number(size?.width) || 80)
-  const fromWidth = Math.max(0.32, Math.min(1.1, 100 / w))
+  const fromWidth = Math.max(0.72, Math.min(1.08, 150 / (w + 40)))
   let kind = 1
-  if (entry?.shape === 'giant') kind = 0.62
-  else if (entry?.shape === 'shark') kind = 0.68
-  else if (entry?.shape === 'koi') kind = 0.66
-  else if (entry?.wide) kind = 0.72
-  else if (entry?.shape === 'cichlid') kind = 0.7
-  else if (entry?.shape === 'turtle') kind = 0.52
-  else if (entry?.shape === 'ray') kind = 0.78
+  if (entry?.shape === 'giant') kind = 0.9
+  else if (entry?.shape === 'shark') kind = 0.92
+  else if (entry?.shape === 'koi') kind = 0.9
+  else if (entry?.wide) kind = 0.94
+  else if (entry?.shape === 'cichlid') kind = 0.9
+  else if (entry?.shape === 'turtle') kind = 0.72
+  else if (entry?.shape === 'ray') kind = 0.92
   return L.cruise * fromWidth * kind
 }
 
