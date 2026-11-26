@@ -17,6 +17,9 @@ export const PET_STORAGE_KEY = 'jiameng_pets'
 export const PET_ADULT_MEALS = 90
 export const PET_DAILY_GROWTH_CAP = 5
 export const PET_GROWTH_GAP_MS = 90 * 1000
+/** Temporary: force these species to adult so size and color can be reviewed. */
+export const PREVIEW_ADULT_SPECIES = ['arowana', 'arowana_blue']
+
 export const PET_PAIR_MS = 7 * 24 * 60 * 60 * 1000
 export const PET_PREGNANT_MS = 5 * 24 * 60 * 60 * 1000
 export const PET_BIRTH_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000
@@ -283,6 +286,19 @@ function genderForDefaultPair(username, slotId, cur) {
   return ''
 }
 
+function maturePreviewSpecies(rec, species, growable) {
+  if (!growable || !rec) return rec
+  const sp = String(species || rec.species || '')
+  if (!PREVIEW_ADULT_SPECIES.includes(sp)) return rec
+  if ((Number(rec.meals) || 0) >= PET_ADULT_MEALS) return rec
+  return {
+    ...rec,
+    meals: PET_ADULT_MEALS,
+    today: PET_DAILY_GROWTH_CAP,
+    lastCountAt: Date.now()
+  }
+}
+
 function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
   const sid = String(slotId || '')
   const shop = String(itemId || '').trim()
@@ -306,6 +322,7 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
       gender: pairGender || undefined
     })
     if (!rec.gender) rec.gender = pairGender || randomGender()
+    rec = maturePreviewSpecies(rec, species, growable)
     return { rec, dirty: true }
   }
   let dirty = false
@@ -318,6 +335,11 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
   }
   if (rec.growable == null) {
     rec = { ...rec, growable }
+    dirty = true
+  }
+  const matured = maturePreviewSpecies(rec, species, growable)
+  if (matured !== rec) {
+    rec = matured
     dirty = true
   }
   return { rec, dirty }
