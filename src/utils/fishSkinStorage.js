@@ -18,12 +18,12 @@ export const FISH_ADULT_CM = {
 
 /** Typical fry / pup / hatchling size in cm. */
 export const FISH_FRY_CM = {
-  betta: 0.6,
-  arowana: 10,
-  arowana_blue: 10,
-  ray_crown: 8,
-  ray_albino: 8,
-  arapaima: 16
+  betta: 0.4,
+  arowana: 5,
+  arowana_blue: 5,
+  ray_crown: 4,
+  ray_albino: 4,
+  arapaima: 8
 }
 
 export function speciesAdultScale(speciesKey) {

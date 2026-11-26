@@ -63,10 +63,11 @@ function baseFishSize(entry, index, mobile) {
 
 function fishSize(entry, index, mobile, scale = 1) {
   const base = baseFishSize(entry, index, mobile)
-  const s = Math.max(0.05, Number(scale) || 1)
+  const raw = Number(scale)
+  const s = Number.isFinite(raw) && raw > 0 ? Math.max(0.03, raw) : 1
   return {
-    width: Math.max(10, Math.round(base.width * s)),
-    height: Math.max(6, Math.round(base.height * s))
+    width: Math.max(8, Math.round(base.width * s)),
+    height: Math.max(5, Math.round(base.height * s))
   }
 }
 
@@ -222,9 +223,15 @@ function rosterKey(roster) {
   return (roster || []).map((f) => `${f.id}:${f.key}:${f.src}:${f.owner || ''}`).join('|')
 }
 
-function Betta({ src, variant, wide, shape }) {
+function Betta({ src, variant, wide, shape, width, height }) {
   return (
-    <div className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''}`}>
+    <div
+      className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''}`}
+      style={{
+        width: width ? `${width}px` : undefined,
+        height: height ? `${height}px` : undefined
+      }}
+    >
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-body" draggable={false} />
       <img src={src} alt="" className="ocean-betta-layer ocean-betta-tail" draggable={false} />
     </div>
@@ -425,6 +432,7 @@ export default function OceanAmbience() {
       setActors(state.fish.map((f, i) => {
         const entry = currentRoster[i] || {}
         const look = state.looks?.[entry.id] || {}
+        const size = sizes[i] || fishSize(entry, i, L.mobile, look.scale)
         return {
           id: entry.id || `fish-${i}`,
           src: entry.src,
@@ -432,6 +440,8 @@ export default function OceanAmbience() {
           shape: entry.shape || 'fish',
           variant: entry.variant || (i % 2 === 0 ? 'a' : 'b'),
           filter: look.filter || '',
+          width: size.width,
+          height: size.height,
           x: f.x,
           y: f.y,
           face: f.face,
@@ -517,6 +527,8 @@ export default function OceanAmbience() {
                 variant={fish.variant}
                 wide={fish.wide}
                 shape={fish.shape}
+                width={fish.width}
+                height={fish.height}
               />
             </div>
           </div>

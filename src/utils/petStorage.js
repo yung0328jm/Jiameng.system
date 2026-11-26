@@ -152,7 +152,7 @@ export function growthProgress(meals) {
 export function growthScale(meals, speciesKey = 'betta') {
   const adult = FISH_ADULT_CM[speciesKey] || FISH_ADULT_CM.betta
   const fry = FISH_FRY_CM[speciesKey] || FISH_FRY_CM.betta
-  const start = clamp(fry / adult, 0.06, 0.2)
+  const start = clamp(fry / adult, 0.03, 0.1)
   return start + (1 - start) * growthProgress(meals)
 }
 
@@ -178,22 +178,28 @@ export function growthStage(meals) {
   return { key: 'adult', label: '成魚' }
 }
 
-export function colorReveal(t) {
-  const x = clamp(t, 0, 1)
-  if (x < 0.22) return 0.05 + (x / 0.22) * 0.08
-  if (x < 0.55) return 0.13 + ((x - 0.22) / 0.33) * 0.45
-  if (x < 0.88) return 0.58 + ((x - 0.55) / 0.33) * 0.32
-  return 0.9 + ((x - 0.88) / 0.12) * 0.1
+export function colorReveal(t, speciesKey = 'betta') {
+  let x = clamp(t, 0, 1)
+  const arowana = String(speciesKey || '').startsWith('arowana')
+  const delay = arowana ? 0.16 : 0.04
+  x = clamp((x - delay) / (1 - delay), 0, 1)
+  if (x < 0.22) return x * 0.06
+  if (x < 0.55) return 0.06 + ((x - 0.22) / 0.33) * 0.28
+  if (x < 0.88) return 0.34 + ((x - 0.55) / 0.33) * 0.48
+  return 0.82 + ((x - 0.88) / 0.12) * 0.18
 }
 
 export function colorFilterFromGrowth(rec, meals) {
   if (!rec) return ''
+  const sp = rec.species || 'betta'
   const t = growthProgress(meals)
-  const reveal = colorReveal(t)
-  const hue = Number(rec.hue) || 0
-  const sat = (Number(rec.sat) || 1) * (0.16 + 0.84 * reveal)
-  const bri = (Number(rec.bri) || 1) * (1.24 - 0.24 * reveal)
-  return `hue-rotate(${hue.toFixed(1)}deg) saturate(${sat.toFixed(2)}) brightness(${bri.toFixed(2)})`
+  const reveal = colorReveal(t, sp)
+  const hue = (Number(rec.hue) || 0) * reveal
+  const gray = clamp(1 - reveal * 1.08, 0, 0.95)
+  const sat = (Number(rec.sat) || 1) * (0.03 + 0.97 * reveal)
+  const bri = (Number(rec.bri) || 1) * (1.38 - 0.38 * reveal)
+  const contrast = 0.55 + 0.45 * reveal
+  return `grayscale(${gray.toFixed(2)}) hue-rotate(${hue.toFixed(1)}deg) saturate(${sat.toFixed(2)}) brightness(${bri.toFixed(2)}) contrast(${contrast.toFixed(2)})`
 }
 
 function lookFromRecord(rec, growable, speciesKey) {
