@@ -344,8 +344,8 @@ body {
 }
 
 .ocean-fish-actor.is-dash .ocean-betta-tail {
-  -webkit-animation-duration: 0.22s;
-  animation-duration: 0.22s;
+  -webkit-animation-duration: 0.18s;
+  animation-duration: 0.18s;
 }
 
 .ocean-fish-actor.is-eating .ocean-betta {

@@ -13,6 +13,7 @@ import MonthlyLocationReport from './MonthlyLocationReport'
 import ExchangeShop from './ExchangeShop'
 import Exchange from './Exchange'
 import FishAuction from './FishAuction'
+import FishSwap from './FishSwap'
 import MyBackpack from './MyBackpack'
 import MyPets from './MyPets'
 import CheckIn from './CheckIn'
@@ -79,6 +80,7 @@ const PERSONAL_SERVICE_TABS = [
   'exchange-shop',
   'exchange',
   'fish-auction',
+  'fish-swap',
   'my-backpack',
   'my-pets',
   'advance',
@@ -674,6 +676,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('monthly-location-report')) return 'monthly-report'
     if (path.includes('exchange-shop')) return 'exchange-shop'
     if (path.includes('fish-auction')) return 'fish-auction'
+    if (path.includes('fish-swap')) return 'fish-swap'
     if (path.includes('exchange')) return 'exchange'
     if (path.includes('my-backpack')) return 'my-backpack'
     if (path.includes('my-pets')) return 'my-pets'
@@ -741,6 +744,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'exchange-shop': '兌換商城',
       exchange: '交易所',
       'fish-auction': '魚類競拍',
+      'fish-swap': '魚類交換',
       'my-backpack': '我的背包',
       'my-pets': '我的寵物',
       'check-in': '每日簽到',
@@ -814,6 +818,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <Exchange />
       case 'fish-auction':
         return <FishAuction />
+      case 'fish-swap':
+        return <FishSwap />
       case 'my-backpack':
         return <MyBackpack />
       case 'my-pets':
@@ -1512,6 +1518,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   </button>
                   <button type="button" onClick={() => { handleTabClick('fish-auction', '/fish-auction'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <PetIcon /> 魚類競拍
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('fish-swap', '/fish-swap'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <PetIcon /> 魚類交換
                   </button>
                   <button type="button" onClick={() => { handleTabClick('advance', '/advance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <AdvanceIcon /> 工程款借貸

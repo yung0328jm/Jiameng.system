@@ -7,13 +7,13 @@ import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
 import { createAuction } from '../utils/auctionStorage'
 import {
-  DEFAULT_FISH_SLOTS,
   FISH_PACKS,
   MAX_FISH_SLOTS,
   getFishSlotCount,
   getFishSpeciesName
 } from '../utils/fishSkinStorage'
 import { listSpeciesMorphLooks } from '../utils/fishMorphs'
+import { createFishSwap } from '../utils/fishSwapStorage'
 import {
   attachLiveFish,
   canTradeTankFish,
@@ -27,8 +27,17 @@ import {
   getUserPets,
   hungerStatus,
   listOwnedFishPotions,
+  listRoamingSlotIds,
+  lookFromSnapshot,
+  MAX_ROAM_FISH,
+  PET_RELEASE_RATE,
+  releasePayoutCoins,
+  placePetBagFish,
   releaseLiveFish,
+  releasePetBagFish,
   removeLiveFish,
+  setFishRoaming,
+  setPetBagName,
   setPetName,
   setShowcaseFish,
   tickPetBreeding,
@@ -59,7 +68,7 @@ export default function MyPets() {
   }
 
   useRealtimeKeys(
-    ['jiameng_pets', 'jiameng_equipped_effects', 'jiameng_inventories', 'jiameng_items', 'jiameng_auctions'],
+    ['jiameng_pets', 'jiameng_equipped_effects', 'jiameng_inventories', 'jiameng_items', 'jiameng_auctions', 'jiameng_fish_swaps'],
     refresh
   )
 
@@ -75,6 +84,7 @@ export default function MyPets() {
   const others = useMemo(() => getPublicShowcaseFish(user), [user, tick])
   const breeding = useMemo(() => getPairBreedingMap(user), [user, tick])
   const showcaseSlotId = pets.showcaseSlotId || ''
+  const roamIds = useMemo(() => listRoamingSlotIds(user), [user, tick])
   const potions = useMemo(() => listOwnedFishPotions(user), [user, tick])
 
   useEffect(() => {
@@ -83,6 +93,10 @@ export default function MyPets() {
       roster.forEach((fish) => {
         if (next[fish.id] === undefined) next[fish.id] = pets.names[fish.id] || ''
       })
+      ;(pets.petBag || []).forEach((snap, i) => {
+        const k = `bag-${i}`
+        if (next[k] === undefined) next[k] = snap.name || ''
+      })
       return next
     })
   }, [roster, pets])
@@ -90,6 +104,17 @@ export default function MyPets() {
   const saveName = (slotId) => {
     if (!user) return
     const result = setPetName(user, slotId, drafts[slotId])
+    if (!result.success) {
+      setMessage(result.message || '改名失敗')
+      return
+    }
+    setMessage('名字已更新')
+    refresh()
+  }
+
+  const saveBagName = (index) => {
+    if (!user) return
+    const result = setPetBagName(user, index, drafts[`bag-${index}`])
     if (!result.success) {
       setMessage(result.message || '改名失敗')
       return
@@ -144,6 +169,31 @@ export default function MyPets() {
     navigate(`/fish-auction/${result.auction.id}`)
   }
 
+  const hangSwap = (fish) => {
+    if (!user) return
+    const removed = removeLiveFish(user, fish.id)
+    if (!removed.success) {
+      setMessage(removed.message || '下缸失敗')
+      return
+    }
+    const species = getFishSpeciesName(fish)
+    const name = String(removed.snapshot.name || '').trim()
+    const result = createFishSwap({
+      seller: user,
+      pet: removed.snapshot,
+      itemName: name ? `${species}（${name}）` : species
+    })
+    if (!result.success) {
+      attachLiveFish(user, removed.snapshot)
+      setMessage(result.message || '掛出失敗，魚已放回魚缸')
+      refresh()
+      return
+    }
+    setMessage('已掛上交換，等別人用同類來換')
+    refresh()
+    navigate(`/fish-swap/${result.swap.id}`)
+  }
+
   if (!user) {
     return (
       <div className="max-w-3xl mx-auto text-cn-parchment py-10 text-center">
@@ -157,11 +207,11 @@ export default function MyPets() {
       <div className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的寵物</h1>
         <p className="text-cn-mist text-sm mt-1">
-          點螢幕撒飼料。預設兩隻鬥魚一公一母是贈送的，也可放生，一律獲得 5 佳盟幣。相處約七天會懷孕；魚缸要多一欄空位才生得出魚苗，懷孕約五天，生完約兩週才能再配。背包有發情／好感／催生藥水時，點畫面上自己的母魚即可使用。
+          點螢幕撒飼料。魚苗出生直接進寵物格，不占魚缸欄位；要餵食或巡遊再放入魚缸。魚缸最多 {MAX_FISH_SLOTS} 隻，同時巡遊最多 {MAX_ROAM_FISH} 隻。系統會送兩隻鬥魚。放生獲得該魚販售價的 {Math.round(PET_RELEASE_RATE * 100)}%。同類魚可免費交換，不限公母。
         </p>
       </div>
 
-      <div className="mb-4 grid grid-cols-3 gap-2">
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
           <p className="text-gray-400 text-xs">魚缸欄位</p>
           <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">
@@ -169,8 +219,14 @@ export default function MyPets() {
           </p>
         </div>
         <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
-          <p className="text-gray-400 text-xs">預設欄</p>
-          <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">{DEFAULT_FISH_SLOTS}</p>
+          <p className="text-gray-400 text-xs">巡遊</p>
+          <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">
+            {roamIds.length} / {MAX_ROAM_FISH}
+          </p>
+        </div>
+        <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
+          <p className="text-gray-400 text-xs">寵物格</p>
+          <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">{(pets.petBag || []).length}</p>
         </div>
         <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
           <p className="text-gray-400 text-xs">最多</p>
@@ -206,11 +262,113 @@ export default function MyPets() {
         >
           魚類競拍
         </button>
+        <button
+          type="button"
+          onClick={() => navigate('/fish-swap')}
+          className="px-4 py-2 rounded-md border border-gray-600 text-sm text-cn-parchment hover:bg-black/30"
+        >
+          魚類交換
+        </button>
       </div>
+
+      {(pets.petBag || []).length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-cn-gold">寵物格</h2>
+          <p className="text-xs text-gray-400 mt-1">魚苗與暫存的魚在這裡，不占魚缸欄位。</p>
+          <ul className="space-y-3 mt-3">
+            {(pets.petBag || []).map((snap, i) => {
+              const species = getFishSpeciesName({ key: snap.species, itemId: snap.itemId })
+              const look = lookFromSnapshot(snap)
+              const pack = FISH_PACKS[snap.species] || FISH_PACKS.betta
+              const art = look.art === 'b' ? 'b' : 'a'
+              const nick = String(drafts[`bag-${i}`] ?? snap.name ?? '').trim()
+              const shown = nick || `寵物格 ${i + 1}`
+              const imgScale = look.growable ? Math.max(0.22, look.scale) : 1
+              const sex = genderLabel(look.gender)
+              return (
+                <li
+                  key={`bag-${i}-${snap.species}-${look.gender}`}
+                  className="rounded-xl border border-emerald-800/40 bg-gray-900/50 p-3 sm:p-4 flex gap-3 items-center"
+                >
+                  <div className="shrink-0 w-28 sm:w-36 h-16 sm:h-20 flex items-center justify-center rounded-lg bg-black/30 border border-gray-700 overflow-hidden">
+                    <div style={{ transform: `scale(${imgScale})` }}>
+                      <FishSprite
+                        src={pack[art]}
+                        variant={art}
+                        wide={!!pack.wide}
+                        shape={pack.shape || 'fish'}
+                        width={pack.shape === 'ray' || pack.shape === 'turtle' ? 118 : pack.shape === 'koi' ? 140 : pack.shape === 'shark' ? 148 : pack.shape === 'cichlid' ? 110 : pack.wide ? 140 : 92}
+                        height={pack.shape === 'ray' || pack.shape === 'turtle' ? 68 : pack.shape === 'koi' ? 70 : pack.shape === 'shark' ? 68 : pack.shape === 'cichlid' ? 62 : pack.wide ? 52 : 44}
+                        parts={look.parts}
+                      />
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-cyan-100 font-medium truncate">{recording ? m(shown) : shown}</p>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      {recording ? m(species) : species}
+                      {sex ? ` · ${sex}` : ''}
+                      {' · 寵物格'}
+                      {look.growable ? ` · ${look.stage.label}` : ''}
+                      {look.morphLabel ? ` · ${look.morphLabel}` : ''}
+                      {look.rarity ? ` · ${look.rarity}` : ''}
+                      {look.shineText ? ` · ${look.shineText}` : ''}
+                      {look.lengthText ? ` · ${look.lengthText}` : ''}
+                    </p>
+                    {look.growable && (
+                      <div className="mt-1.5 h-1.5 rounded-full bg-gray-800 overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-400/80"
+                          style={{ width: `${Math.round(look.progress * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        maxLength={12}
+                        value={drafts[`bag-${i}`] ?? snap.name ?? ''}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [`bag-${i}`]: e.target.value }))}
+                        onBlur={() => saveBagName(i)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), saveBagName(i))}
+                        placeholder={`幫寵物格 ${i + 1} 取名`}
+                        className="flex-1 min-w-[8rem] bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const r = placePetBagFish(user, i)
+                          setMessage(r.success ? '已放入魚缸' : r.message || '放入失敗')
+                          refresh()
+                        }}
+                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-cyan-700 hover:bg-cyan-600 text-white"
+                      >
+                        放入魚缸
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(snap.itemId, snap.species)} 佳盟幣）。確定放生？`)) return
+                          const r = releasePetBagFish(user, i)
+                          setMessage(r.success ? `已放生，獲得 ${r.coins} 佳盟幣` : r.message || '放生失敗')
+                          refresh()
+                        }}
+                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-slate-700 hover:bg-slate-600 text-white"
+                      >
+                        放生
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
 
       {others.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
-          目前有 {others.length} 人展示中，你畫面最多 {cap} 隻自己的魚，再加他們的展示魚。
+          目前有 {others.length} 人展示中，你畫面最多 {MAX_ROAM_FISH} 隻自己的巡遊魚，再加他們的展示魚。
         </div>
       )}
 
@@ -249,7 +407,7 @@ export default function MyPets() {
                 <p className="text-gray-400 text-xs mt-0.5">
                   {recording ? m(species) : species}
                   {sex ? ` · ${sex}` : ''}
-                  {fish.born ? ' · 育成' : fish.itemId ? '' : ' · 預設'}
+                  {fish.born ? ' · 育成' : ''}
                   {look.growable ? ` · ${look.stage.label}` : ''}
                   {look.morphLabel ? ` · ${look.morphLabel}` : ''}
                   {look.rarity ? ` · ${look.rarity}` : ''}
@@ -286,6 +444,9 @@ export default function MyPets() {
                   </div>
                 ) : null}
                 <p className={`text-xs mt-1 ${hungerClass(hunger.key)}`}>{hunger.label}</p>
+                {roamIds.includes(fish.id) && (
+                  <p className="text-[11px] text-sky-200 mt-1">正在巡遊</p>
+                )}
                 {showcaseSlotId === fish.id && (
                   <p className="text-[11px] text-amber-200 mt-1">全員可見 · 不占別人欄位</p>
                 )}
@@ -311,19 +472,44 @@ export default function MyPets() {
                   >
                     {showcaseSlotId === fish.id ? '取消展示' : '展示給全部人'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const on = !roamIds.includes(fish.id)
+                      const r = setFishRoaming(user, fish.id, on)
+                      setMessage(r.success ? (on ? '已放出巡遊' : '已收回，不再巡遊') : r.message || '設定失敗')
+                      refresh()
+                    }}
+                    className={`shrink-0 px-3 py-1.5 rounded text-sm ${
+                      roamIds.includes(fish.id)
+                        ? 'bg-sky-500 text-cn-ink font-semibold'
+                        : 'bg-gray-700 hover:bg-gray-600 text-cn-parchment'
+                    }`}
+                  >
+                    {roamIds.includes(fish.id) ? '收回巡遊' : '放出巡遊'}
+                  </button>
                   {canTradeTankFish(fish) && (
-                    <button
-                      type="button"
-                      onClick={() => openAuction(fish)}
-                      className="shrink-0 px-3 py-1.5 rounded text-sm bg-rose-700 hover:bg-rose-600 text-white"
-                    >
-                      送去競拍
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => hangSwap(fish)}
+                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-emerald-700 hover:bg-emerald-600 text-white"
+                      >
+                        掛上交換
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openAuction(fish)}
+                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-rose-700 hover:bg-rose-600 text-white"
+                      >
+                        送去競拍
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"
                     onClick={() => {
-                      if (!window.confirm('放生後無法復原，獲得 5 佳盟幣。確定放生？')) return
+                      if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(PET_RELEASE_RATE * 100)}%（${releasePayoutCoins(fish.itemId, fish.key)} 佳盟幣）。確定放生？`)) return
                       const r = releaseLiveFish(user, fish.id)
                       setMessage(r.success ? `已放生，獲得 ${r.coins} 佳盟幣` : r.message || '放生失敗')
                       refresh()

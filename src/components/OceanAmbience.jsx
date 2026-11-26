@@ -194,11 +194,13 @@ function steerAway(fish, size, others, strength) {
 
 function separateFish(fishes, sizes, L) {
   const n = fishes.length
+  const now = performance.now()
   for (let iter = 0; iter < 4; iter++) {
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         const a = fishes[i]
         const b = fishes[j]
+        if (now < (a.fleeUntil || 0) || now < (b.fleeUntil || 0)) continue
         const sa = sizes[i]
         const sb = sizes[j]
         const dx = a.x + sa.width * 0.5 - (b.x + sb.width * 0.5)
@@ -243,10 +245,30 @@ function spawnFish(i, count, L, size) {
     face: i % 2 === 0 ? 1 : -1,
     tilt: 0,
     eatUntil: 0,
+    fleeUntil: 0,
     tx: col * cellW + cellW * 0.45,
     ty: 24 + row * cellH + cellH * 0.4,
     turnAt: 0
   }
+}
+
+function shooFish(fish, L, size, fromX, fromY) {
+  const cx = fish.x + size.width * 0.5
+  const cy = fish.y + size.height * 0.5
+  let dx = cx - fromX
+  let dy = cy - fromY
+  if (dx * dx + dy * dy < 36) {
+    dx = cx < L.w * 0.5 ? 1 : -1
+    dy = cy < L.h * 0.5 ? 0.65 : -0.65
+  }
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1
+  const run = L.mobile ? 220 : 300
+  fish.tx = Math.max(12, Math.min(L.w - size.width - 12, fish.x + (dx / dist) * run))
+  fish.ty = Math.max(12, Math.min(L.h - size.height - 12, fish.y + (dy / dist) * run))
+  fish.fleeUntil = performance.now() + 650
+  fish.turnAt = fish.fleeUntil + 500
+  fish.eatUntil = 0
+  fish.dash = true
 }
 
 function rosterKey(roster) {
@@ -260,6 +282,7 @@ export default function OceanAmbience() {
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
   const lookBump = useRef(0)
+  const shooRef = useRef([])
   const [actors, setActors] = useState(() => getWorldFishRoster(getCurrentUser()).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
@@ -377,6 +400,16 @@ export default function OceanAmbience() {
         fish._h = size.height
       })
 
+      const pendingShoo = shooRef.current
+      if (pendingShoo.length) {
+        pendingShoo.forEach((s) => {
+          const i = currentRoster.findIndex((entry) => entry?.id === s.id)
+          if (i < 0 || !state.fish[i] || !sizes[i]) return
+          shooFish(state.fish[i], L, sizes[i], s.x, s.y)
+        })
+        shooRef.current = []
+      }
+
       state.fish.forEach((fish, i) => {
         const entry = currentRoster[i]
         const size = sizes[i]
@@ -401,6 +434,24 @@ export default function OceanAmbience() {
           fish.dash = false
           fish.tilt += (0 - (fish.tilt || 0)) * Math.min(1, 8 * dt)
           return
+        }
+
+        if (now < (fish.fleeUntil || 0)) {
+          const fx = (fish.tx ?? fish.x) - fish.x
+          const fy = (fish.ty ?? fish.y) - fish.y
+          const fd = Math.sqrt(fx * fx + fy * fy) || 1
+          if (fd < 28) {
+            fish.fleeUntil = 0
+            pickWander(fish, L, size, others)
+          } else {
+            fish.dash = true
+            aimAlong(fish, fx, fy)
+            const sprint = L.dash * (L.mobile ? 1.65 : 1.75)
+            fish.x += (fx / fd) * sprint * dt
+            fish.y += (fy / fd) * sprint * dt
+            clampFish(fish, L, size)
+            return
+          }
         }
 
         const full = state.looks?.[entry?.id]?.hunger === 'full'
@@ -558,6 +609,7 @@ export default function OceanAmbience() {
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
+            shooRef.current.push({ id: fish.id, x: e.clientX, y: e.clientY })
             setInspect((cur) => (cur === fish.id ? null : fish.id))
           }}
         >

@@ -39,7 +39,7 @@ const AROWANA_SHOP_ITEM = {
   name: '龍魚',
   type: 'fish_skin',
   fishKey: 'arowana',
-  description: '每套用 1 隻只替換 1 欄魚；另一欄仍是預設鬥魚。可同時套用不同魚種。',
+  description: '每套用 1 隻只替換 1 欄魚，可與其他魚種混搭。',
   icon: '🐉',
   image: '/images/arowana-a.png',
   price: 88,
@@ -243,7 +243,7 @@ const FISH_POTION_BIRTH_ITEM = {
   name: '催生藥水',
   type: 'fish_potion',
   potion: 'birth',
-  description: '給懷孕中的母魚使用，立刻產下魚苗，不必等五日。魚缸要有空欄。請點畫面上自己的母魚。',
+  description: '給懷孕中的母魚使用，立刻產下魚苗，不必等五日。魚苗進寵物格，不占魚缸欄位。請點畫面上自己的母魚。',
   icon: '🫧',
   price: 22,
   category: '水族藥水',
@@ -277,10 +277,16 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_AFFECTION_ID)) extras.push({ ...FISH_POTION_AFFECTION_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_BIRTH_ID)) extras.push({ ...FISH_POTION_BIRTH_ITEM, createdAt: new Date().toISOString() })
   const slotWanted = FISH_SLOT_SHOP_ITEM.description
+  const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const patched = list.map((it) => {
-    if (String(it?.id || '') !== FISH_SLOT_EXPAND_ITEM_ID) return it
-    if (String(it?.description || '') === slotWanted) return it
-    return { ...it, description: slotWanted }
+    const id = String(it?.id || '')
+    if (id === FISH_SLOT_EXPAND_ITEM_ID && String(it?.description || '') !== slotWanted) {
+      return { ...it, description: slotWanted }
+    }
+    if (id === FISH_POTION_BIRTH_ID && String(it?.description || '') !== birthWanted) {
+      return { ...it, description: birthWanted }
+    }
+    return it
   })
   const descChanged = patched.some((it, i) => it !== list[i])
   if (extras.length === 0 && !pruned && !descChanged) return list
