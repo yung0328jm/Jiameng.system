@@ -155,7 +155,7 @@ export function growthProgress(meals) {
 export function growthScale(meals, speciesKey = 'betta') {
   const adult = FISH_ADULT_CM[speciesKey] || FISH_ADULT_CM.betta
   const fry = FISH_FRY_CM[speciesKey] || FISH_FRY_CM.betta
-  const start = clamp(fry / adult, 0.14, 0.22)
+  const start = clamp(fry / adult, 0.18, 0.28)
   return start + (1 - start) * growthProgress(meals)
 }
 
@@ -575,11 +575,13 @@ export function getPublicShowcaseFish(viewer) {
 }
 
 export function getWorldFishRoster(username) {
+  const pets = getUserPets(username)
   const mine = getTankRoster(username).map((f) => ({
     ...f,
     owner: username,
     growthSlotId: f.id,
-    showcase: false
+    showcase: false,
+    nick: String(pets.names?.[f.id] || '').trim()
   }))
   return [...mine, ...getPublicShowcaseFish(username)]
 }

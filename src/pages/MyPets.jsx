@@ -238,7 +238,7 @@ export default function MyPets() {
           const look = getPetAppearance(user, fish.id, fish.itemId, fish.key)
           const nick = String(drafts[fish.id] || '').trim()
           const shown = nick || `第 ${i + 1} 隻`
-          const imgScale = look.growable ? Math.max(0.16, look.scale) : 1
+          const imgScale = look.growable ? Math.max(0.22, look.scale) : 1
           const sex = genderLabel(look.gender)
           return (
             <li

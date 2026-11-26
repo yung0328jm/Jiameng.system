@@ -277,7 +277,34 @@ body {
   left: 0;
   top: 0;
   will-change: transform;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.ocean-fish-owner-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
   pointer-events: none;
+  min-width: 7rem;
+  max-width: 12rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.5rem;
+  background: rgba(8, 20, 32, 0.92);
+  border: 1px solid rgba(103, 232, 249, 0.35);
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+.ocean-fish-owner-tip strong {
+  display: block;
+  color: #a5f3fc;
+  font-weight: 600;
+  margin-bottom: 0.1rem;
 }
 
 .ocean-fish-face {

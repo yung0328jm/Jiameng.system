@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { getCurrentUser } from '../utils/authStorage'
-import { speciesAdultScale } from '../utils/fishSkinStorage'
+import { getDisplayNameForAccount } from '../utils/displayName'
+import { getFishSpeciesName, speciesAdultScale } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getUserPets,
@@ -64,10 +65,10 @@ function baseFishSize(entry, index, mobile) {
 function fishSize(entry, index, mobile, scale = 1) {
   const base = baseFishSize(entry, index, mobile)
   const raw = Number(scale)
-  const s = Number.isFinite(raw) && raw > 0 ? Math.max(0.14, raw) : 1
+  const s = Number.isFinite(raw) && raw > 0 ? Math.max(0.18, raw) : 1
   return {
-    width: Math.max(28, Math.round(base.width * s)),
-    height: Math.max(16, Math.round(base.height * s))
+    width: Math.max(36, Math.round(base.width * s)),
+    height: Math.max(20, Math.round(base.height * s))
   }
 }
 
@@ -241,6 +242,7 @@ function Betta({ src, variant, wide, shape, width, height }) {
 export default function OceanAmbience() {
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
+  const [inspect, setInspect] = useState(null)
   const [actors, setActors] = useState(() => getWorldFishRoster(getCurrentUser()).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
@@ -252,6 +254,12 @@ export default function OceanAmbience() {
   })))
   const sim = useRef(null)
   const rosterRef = useRef(getWorldFishRoster(getCurrentUser()))
+
+  useEffect(() => {
+    if (!inspect) return undefined
+    const t = window.setTimeout(() => setInspect(null), 4500)
+    return () => window.clearTimeout(t)
+  }, [inspect])
 
   useEffect(() => {
     const refresh = () => {
@@ -442,6 +450,9 @@ export default function OceanAmbience() {
           filter: look.filter || '',
           width: size.width,
           height: size.height,
+          owner: entry.owner || getCurrentUser() || '',
+          nick: entry.nick || '',
+          species: getFishSpeciesName(entry),
           x: f.x,
           y: f.y,
           face: f.face,
@@ -510,8 +521,19 @@ export default function OceanAmbience() {
       {actors.map((fish) => (
         <div
           key={fish.id}
+          role="button"
+          tabIndex={-1}
           className={`ocean-fish-actor${fish.dash ? ' is-dash' : ''}${fish.eating ? ' is-eating' : ''}`}
-          style={{ transform: `translate3d(${fish.x}px, ${fish.y}px, 0)` }}
+          style={{
+            transform: `translate3d(${fish.x}px, ${fish.y}px, 0)`,
+            width: fish.width ? `${fish.width}px` : undefined,
+            height: fish.height ? `${fish.height}px` : undefined
+          }}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setInspect((cur) => (cur === fish.id ? null : fish.id))
+          }}
         >
           <div
             className="ocean-fish-face"
@@ -534,6 +556,26 @@ export default function OceanAmbience() {
           </div>
         </div>
       ))}
+
+      {inspect && (() => {
+        const fish = actors.find((f) => f.id === inspect)
+        if (!fish) return null
+        const me = getCurrentUser()
+        const ownerName = getDisplayNameForAccount(fish.owner || me)
+        const mine = String(fish.owner || '') === String(me || '')
+        return (
+          <div
+            className="ocean-fish-owner-tip"
+            style={{
+              transform: `translate3d(${fish.x + (fish.width || 0) / 2}px, ${fish.y}px, 0) translate(-50%, calc(-100% - 8px))`
+            }}
+          >
+            {fish.nick ? <strong>{fish.nick}</strong> : null}
+            <span>{fish.species || '魚'}</span>
+            <span>{mine ? `主人：${ownerName}（我的）` : `主人：${ownerName}`}</span>
+          </div>
+        )
+      })()}
     </div>,
     document.body
   )
