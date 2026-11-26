@@ -156,6 +156,20 @@ export function growthScale(meals, speciesKey = 'betta') {
   return start + (1 - start) * growthProgress(meals)
 }
 
+export function fishLengthCm(speciesKey, meals, growable = true) {
+  const sp = speciesKey || 'betta'
+  const adult = FISH_ADULT_CM[sp] || FISH_ADULT_CM.betta
+  if (!growable) return adult
+  return adult * growthScale(meals, sp)
+}
+
+export function formatFishLength(cm, speciesKey) {
+  const n = Number(cm) || 0
+  const ray = String(speciesKey || '').startsWith('ray')
+  const text = n < 20 ? String(Number(n.toFixed(1))) : String(Math.round(n))
+  return `${ray ? '盤徑' : '體長'} ${text} cm`
+}
+
 export function growthStage(meals) {
   const t = growthProgress(meals)
   if (t < 0.22) return { key: 'fry', label: '魚苗' }
@@ -182,8 +196,10 @@ export function colorFilterFromGrowth(rec, meals) {
   return `hue-rotate(${hue.toFixed(1)}deg) saturate(${sat.toFixed(2)}) brightness(${bri.toFixed(2)})`
 }
 
-function lookFromRecord(rec, growable) {
+function lookFromRecord(rec, growable, speciesKey) {
+  const sp = rec?.species || speciesKey || 'betta'
   if (!growable || !rec) {
+    const cm = fishLengthCm(sp, PET_ADULT_MEALS, false)
     return {
       purchased: false,
       growable: false,
@@ -194,21 +210,26 @@ function lookFromRecord(rec, growable) {
       stage: { key: 'adult', label: '成魚' },
       gender: rec?.gender === 'f' ? 'f' : rec?.gender === 'm' ? 'm' : '',
       pregnant: false,
-      generation: 0
+      generation: 0,
+      lengthCm: cm,
+      lengthText: formatFishLength(cm, sp)
     }
   }
   const meals = Number(rec.meals) || 0
+  const cm = fishLengthCm(sp, meals, true)
   return {
     purchased: true,
     growable: true,
-    scale: growthScale(meals, rec.species || 'betta'),
+    scale: growthScale(meals, sp),
     filter: colorFilterFromGrowth(rec, meals),
     meals,
     progress: growthProgress(meals),
     stage: growthStage(meals),
     gender: rec.gender === 'f' ? 'f' : 'm',
     pregnant: !!rec.pregnant,
-    generation: Number(rec.generation) || 0
+    generation: Number(rec.generation) || 0,
+    lengthCm: cm,
+    lengthText: formatFishLength(cm, sp)
   }
 }
 
@@ -296,7 +317,7 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
 }
 
 export function getPetAppearance(username, slotId, itemId, speciesKey) {
-  if (!username) return lookFromRecord(null, false)
+  if (!username) return lookFromRecord(null, false, speciesKey)
   const cur = getUserPets(username)
   const sid = String(slotId || '')
   const bornMeta = cur.born?.[sid]
@@ -306,7 +327,7 @@ export function getPetAppearance(username, slotId, itemId, speciesKey) {
     saveUserPets(username, { ...cur, growth: { ...cur.growth, [sid]: rec } })
   }
   const growable = Boolean(shop) || Boolean(bornMeta)
-  return lookFromRecord(rec, growable)
+  return lookFromRecord(rec, growable, speciesKey)
 }
 
 export function recordPetEat(username, slotId, itemId, speciesKey) {

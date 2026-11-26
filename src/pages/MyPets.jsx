@@ -265,6 +265,7 @@ export default function MyPets() {
                   {sex ? ` · ${sex}` : ''}
                   {fish.born ? ' · 育成' : fish.itemId ? '' : ' · 預設'}
                   {look.growable ? ` · ${look.stage.label}` : ''}
+                  {look.lengthText ? ` · ${look.lengthText}` : ''}
                   {look.pregnant ? ' · 懷孕中' : ''}
                 </p>
                 {look.growable && (
