@@ -32,6 +32,16 @@ function isMobile() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
 }
 
+function headerClearance() {
+  if (typeof document === 'undefined') return 140
+  const nav = document.querySelector('[data-ocean-nav]')
+  if (nav) {
+    const bottom = nav.getBoundingClientRect().bottom
+    return Math.max(8, Math.ceil(bottom) + 8)
+  }
+  return isMobile() ? 128 : 148
+}
+
 function layout() {
   const mobile = isMobile()
   const w = window.innerWidth
@@ -40,6 +50,7 @@ function layout() {
     mobile,
     w,
     h,
+    top: headerClearance(),
     cruise: mobile ? 52 : 78,
     dash: mobile ? 260 : 380,
     eatRange: mobile ? 22 : 32
@@ -118,21 +129,23 @@ function loadLooks(roster) {
 }
 
 const LAYER_BANDS = {
-  top: [0.03, 0.22],
-  upperMid: [0.18, 0.40],
-  mid: [0.36, 0.58],
-  lowerMid: [0.52, 0.76],
-  bottom: [0.70, 0.96]
+  top: [0.00, 0.20],
+  upperMid: [0.16, 0.38],
+  mid: [0.34, 0.56],
+  lowerMid: [0.50, 0.74],
+  bottom: [0.68, 0.96]
 }
 
 function layerBand(L, size, layer) {
   const [t0, t1] = LAYER_BANDS[layer] || LAYER_BANDS.mid
-  let minY = Math.max(8, L.h * t0)
-  let maxY = Math.min(L.h - size.height - 8, L.h * t1 - size.height)
+  const topPad = L.top ?? headerClearance()
+  const floor = 8
+  const usable = Math.max(120, L.h - topPad - floor)
+  let minY = topPad + usable * t0
+  let maxY = topPad + usable * t1 - size.height
   if (maxY < minY + 16) {
-    const mid = ((t0 + t1) / 2) * L.h - size.height * 0.5
-    minY = Math.max(8, mid)
-    maxY = Math.min(L.h - size.height - 8, minY + Math.max(20, size.height * 0.3))
+    minY = topPad
+    maxY = Math.min(L.h - size.height - floor, minY + Math.max(20, size.height * 0.3))
     if (maxY < minY) minY = maxY
   }
   return { minY, maxY }

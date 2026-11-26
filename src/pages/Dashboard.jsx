@@ -854,7 +854,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col bg-gradient-to-b from-cn-ink via-cn-lacquer/95 to-cn-ink">
       {/* 上方導覽列：手機版精簡；選單開啟時 overflow-visible + z-[100] 讓「更多」選單不被裁切且浮在主題／內容之上可點 */}
-      <div className={`bg-gradient-to-b from-[#15556c] to-cn-lacquer border-b border-cn-gold/35 px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 min-h-[48px] sm:min-h-[44px] relative shadow-[inset_0_1px_0_rgba(160,240,230,0.08)] ${showTopMenu ? 'z-[100] overflow-visible' : 'overflow-hidden'}`}>
+      <div className={`bg-gradient-to-b from-[#15556c] to-cn-lacquer border-b border-cn-gold/35 px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 min-h-[48px] sm:min-h-[44px] relative shadow-[inset_0_1px_0_rgba(160,240,230,0.08)] ${showTopMenu ? 'z-[100] overflow-visible' : 'z-[45] overflow-hidden'}`}>
         {/* 左：僅圖示（手機隱藏「主題篩選」文字以留空間） */}
         <button
           type="button"
@@ -1318,7 +1318,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       )}
 
       {/* 導航列：手機橫向捲動、每顆至少 44px 觸控區 */}
-      <div className="bg-gradient-to-b from-[#17627c] via-[#0e3d50] to-cn-lacquer border-b-2 border-cn-gold/40 shrink-0 shadow-[0_4px_20px_rgba(0,20,32,0.4)]">
+      <div data-ocean-nav className="relative z-[45] bg-gradient-to-b from-[#17627c] via-[#0e3d50] to-cn-lacquer border-b-2 border-cn-gold/40 shrink-0 shadow-[0_4px_20px_rgba(0,20,32,0.4)]">
         <nav className="flex items-stretch flex-nowrap overflow-x-auto scroll-touch px-2 py-2 sm:px-6 sm:py-3 gap-2 sm:gap-1">
           <NavItem
             icon={<HomeIcon />}
