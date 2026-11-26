@@ -17,7 +17,9 @@ import {
   FISH_POTION_AFFECTION_ID,
   FISH_POTION_BIRTH_ID,
   FISH_POTION_HEAT_ID,
-  getItem
+  ITEM_TYPES,
+  getItem,
+  getItems
 } from './itemStorage'
 import { addTransaction, addWalletBalance } from './walletStorage'
 import { FISH_MORPHS, MORPH_PALETTE_VER, mixParentMorphs, morphById, morphPartFilters, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks, shineLabel } from './fishMorphs'
@@ -975,9 +977,15 @@ export function lookFromSnapshot(snap) {
 }
 
 export function getFishShopPrice(itemId, species) {
-  const item = itemId ? getItem(itemId) : null
-  const listed = Number(item?.price)
+  const byId = itemId ? getItem(itemId) : null
+  let listed = Number(byId?.price)
   if (listed > 0) return listed
+  const key = String(species || '').trim()
+  if (key) {
+    const match = (getItems() || []).find((it) => it?.type === ITEM_TYPES.FISH_SKIN && String(it.fishKey || '') === key)
+    listed = Number(match?.price)
+    if (listed > 0) return listed
+  }
   return FISH_BASE_PRICE[species] || FISH_BASE_PRICE.betta
 }
 
