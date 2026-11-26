@@ -12,6 +12,7 @@ import {
 } from './fishSkinStorage'
 import { addItemToInventory, removeItemFromInventory } from './inventoryStorage'
 import { getItem } from './itemStorage'
+import { FISH_MORPHS, MORPH_PALETTE_VER, mixParentMorphs, morphById, morphPartFilters, rollFishMorph, shineLabel } from './fishMorphs'
 
 export const PET_STORAGE_KEY = 'jiameng_pets'
 export const PET_ADULT_MEALS = 90
@@ -139,6 +140,7 @@ function hatchRecord(itemId, speciesKey, extra = {}) {
     hue: extra.hue != null ? extra.hue : randBetween(fam.hue[0], fam.hue[1]),
     sat: extra.sat != null ? extra.sat : randBetween(fam.sat[0], fam.sat[1]),
     bri: extra.bri != null ? extra.bri : randBetween(fam.bri[0], fam.bri[1]),
+    morph: extra.morph || rollFishMorph(speciesKey, extra.pretty ? { shine: 2 } : {}),
     pregnant: false,
     pregnantAt: 0,
     courtshipAt: 0,
@@ -182,22 +184,19 @@ export function growthStage(meals) {
   return { key: 'adult', label: '成魚' }
 }
 
-export function colorReveal(t, speciesKey = 'betta') {
-  let x = clamp(t, 0, 1)
-  const arowana = String(speciesKey || '').startsWith('arowana')
-  const delay = arowana ? 0.16 : 0.04
-  x = clamp((x - delay) / (1 - delay), 0, 1)
-  if (x < 0.22) return x * 0.06
-  if (x < 0.55) return 0.06 + ((x - 0.22) / 0.33) * 0.28
-  if (x < 0.88) return 0.34 + ((x - 0.55) / 0.33) * 0.48
-  return 0.82 + ((x - 0.88) / 0.12) * 0.18
+export function colorReveal(t) {
+  const x = clamp(t, 0, 1)
+  if (x < 0.22) return 0
+  if (x < 0.55) return 0.05 + ((x - 0.22) / 0.33) * 0.13
+  if (x < 0.88) return 0.4 + ((x - 0.55) / 0.33) * 0.35
+  return 0.92 + ((x - 0.88) / 0.12) * 0.08
 }
 
 export function colorFilterFromGrowth(rec, meals) {
   if (!rec) return ''
   const sp = rec.species || 'betta'
   const t = growthProgress(meals)
-  const reveal = colorReveal(t, sp)
+  const reveal = colorReveal(t)
   const hue = (Number(rec.hue) || 0) * reveal
   const gray = clamp(1 - reveal * 1.08, 0, 0.95)
   const sat = (Number(rec.sat) || 1) * (0.03 + 0.97 * reveal)
@@ -206,20 +205,50 @@ export function colorFilterFromGrowth(rec, meals) {
   return `grayscale(${gray.toFixed(2)}) hue-rotate(${hue.toFixed(1)}deg) saturate(${sat.toFixed(2)}) brightness(${bri.toFixed(2)}) contrast(${contrast.toFixed(2)})`
 }
 
+function fallbackMorph(speciesKey) {
+  const list = FISH_MORPHS[speciesKey] || FISH_MORPHS.betta
+  const base = list[0]
+  return {
+    id: base.id,
+    label: base.label,
+    overlay: base.overlay || '',
+    shine: 1,
+    body: { ...base.body },
+    tail: { ...base.tail }
+  }
+}
+
+function lookParts(rec, meals, speciesKey, growable) {
+  const sp = rec?.species || speciesKey || 'betta'
+  const reveal = growable ? colorReveal(growthProgress(meals)) : 1
+  const morph = rec?.morph && rec.morph.body ? rec.morph : fallbackMorph(sp)
+  const parts = morphPartFilters(morph, reveal)
+  return {
+    morph,
+    parts,
+    morphLabel: reveal < 0.12 ? '未顯色' : morph.label || '',
+    shineText: reveal < 0.4 ? '' : shineLabel(morph.shine)
+  }
+}
+
 function lookFromRecord(rec, growable, speciesKey) {
   const sp = rec?.species || speciesKey || 'betta'
   if (!growable || !rec) {
     const cm = fishLengthCm(sp, PET_ADULT_MEALS, false)
+    const look = lookParts(rec, PET_ADULT_MEALS, sp, false)
     return {
       purchased: false,
       growable: false,
       scale: 1,
-      filter: '',
+      filter: look.parts.body,
+      parts: look.parts,
+      morphLabel: look.morphLabel,
+      shineText: look.shineText,
       meals: PET_ADULT_MEALS,
       progress: 1,
       stage: { key: 'adult', label: '成魚' },
       gender: rec?.gender === 'f' ? 'f' : rec?.gender === 'm' ? 'm' : '',
-      pregnant: false,
+      pregnant: !!rec?.pregnant,
       generation: 0,
       lengthCm: cm,
       lengthText: formatFishLength(cm, sp)
@@ -227,11 +256,15 @@ function lookFromRecord(rec, growable, speciesKey) {
   }
   const meals = Number(rec.meals) || 0
   const cm = fishLengthCm(sp, meals, true)
+  const look = lookParts(rec, meals, sp, true)
   return {
     purchased: true,
     growable: true,
     scale: growthScale(meals, sp),
-    filter: colorFilterFromGrowth(rec, meals),
+    filter: look.parts.body,
+    parts: look.parts,
+    morphLabel: look.morphLabel,
+    shineText: look.shineText,
     meals,
     progress: growthProgress(meals),
     stage: growthStage(meals),
@@ -241,6 +274,112 @@ function lookFromRecord(rec, growable, speciesKey) {
     lengthCm: cm,
     lengthText: formatFishLength(cm, sp)
   }
+}
+
+export function formatBreedRemain(ms) {
+  const s = Math.max(0, Math.floor(Number(ms) || 0))
+  const d = Math.floor(s / 86400000)
+  const h = Math.floor((s % 86400000) / 3600000)
+  const m = Math.floor((s % 3600000) / 60000)
+  if (d > 0) return `${d}日${h}時`
+  if (h > 0) return `${h}時${m}分`
+  return `${Math.max(s > 0 ? 1 : 0, m)}分`
+}
+
+function breedingView(rec, now) {
+  if (!rec) return null
+  if (rec.pregnant) {
+    const remain = Math.max(0, (Number(rec.pregnantAt) || 0) + PET_PREGNANT_MS - now)
+    return {
+      phase: 'pregnant',
+      affectionPct: 100,
+      remainMs: remain,
+      barPct: Math.round((1 - remain / PET_PREGNANT_MS) * 100),
+      title: '懷孕中',
+      detail: `倒數 ${formatBreedRemain(remain)}`
+    }
+  }
+  if (rec.lastBirthAt && now - Number(rec.lastBirthAt) < PET_BIRTH_COOLDOWN_MS) {
+    const remain = Math.max(0, Number(rec.lastBirthAt) + PET_BIRTH_COOLDOWN_MS - now)
+    return {
+      phase: 'cooldown',
+      affectionPct: 0,
+      remainMs: remain,
+      barPct: Math.round((1 - remain / PET_BIRTH_COOLDOWN_MS) * 100),
+      title: '再配冷卻',
+      detail: `交配倒數 ${formatBreedRemain(remain)}`
+    }
+  }
+  if (rec.courtshipMate && rec.courtshipAt) {
+    const elapsed = Math.max(0, now - Number(rec.courtshipAt))
+    const pct = Math.min(100, Math.round((elapsed / PET_PAIR_MS) * 100))
+    const remain = Math.max(0, PET_PAIR_MS - elapsed)
+    return {
+      phase: 'courtship',
+      affectionPct: pct,
+      remainMs: remain,
+      barPct: pct,
+      title: `好感度 ${pct}%`,
+      detail: pct >= 100 ? '即將懷孕' : `交配倒數 ${formatBreedRemain(remain)}`
+    }
+  }
+  return null
+}
+
+export function getPairBreedingMap(username) {
+  if (!username) return {}
+  const tank = getTankRoster(username)
+  const cur = getUserPets(username)
+  const now = Date.now()
+  const defaultOnly = tank.filter((f) => !f.itemId && !cur.born?.[f.id])
+  const emptyIds = new Set(defaultOnly.slice(2).map((f) => f.id))
+  const map = {}
+  const adults = []
+  tank.forEach((fish) => {
+    if (fish.showcase || emptyIds.has(fish.id)) return
+    const rec = cur.growth?.[fish.id]
+    if (!rec) return
+    const growable = Boolean(fish.itemId) || Boolean(fish.born)
+    const adult = !growable || growthStage(rec.meals).key === 'adult'
+    if (adult) adults.push({ fish, rec })
+  })
+  adults.forEach(({ fish, rec }) => {
+    const view = breedingView(rec, now)
+    if (!view) return
+    const partnerId = rec.courtshipMate || ''
+    map[fish.id] = { ...view, partnerId }
+    if (partnerId) map[partnerId] = { ...view, partnerId: fish.id }
+  })
+  const bySpecies = {}
+  adults.forEach((row) => {
+    const sp = row.rec.species || row.fish.key || 'betta'
+    if (!bySpecies[sp]) bySpecies[sp] = { m: [], f: [] }
+    if (row.rec.gender === 'f') bySpecies[sp].f.push(row)
+    else bySpecies[sp].m.push(row)
+  })
+  Object.keys(bySpecies).forEach((sp) => {
+    const males = bySpecies[sp].m
+    const females = bySpecies[sp].f
+    if (!males.length || !females.length) return
+    females.forEach((fRow, i) => {
+      const mRow = males[Math.min(i, males.length - 1)]
+      if (!mRow) return
+      if (map[fRow.fish.id] || fRow.rec.pregnant) return
+      const remain = PET_PAIR_MS
+      const idle = {
+        phase: 'courtship',
+        affectionPct: 0,
+        remainMs: remain,
+        barPct: 0,
+        title: '好感度 0%',
+        detail: `交配倒數 ${formatBreedRemain(remain)}`,
+        partnerId: mRow.fish.id
+      }
+      map[fRow.fish.id] = idle
+      if (!map[mRow.fish.id]) map[mRow.fish.id] = { ...idle, partnerId: fRow.fish.id }
+    })
+  })
+  return map
 }
 
 export function genderLabel(gender) {
@@ -340,6 +479,19 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
   const matured = maturePreviewSpecies(rec, species, growable)
   if (matured !== rec) {
     rec = matured
+    dirty = true
+  }
+  if (!rec.morph || !rec.morph.body || rec.morph.v !== MORPH_PALETTE_VER) {
+    const found = morphById(species, rec.morph?.id)
+    rec = {
+      ...rec,
+      morph: rollFishMorph(species, {
+        template: found || undefined,
+        shine: rec.morph?.shine,
+        body: found?.body,
+        tail: found?.tail
+      })
+    }
     dirty = true
   }
   return { rec, dirty }
@@ -473,7 +625,8 @@ export function tickPetBreeding(username) {
       fam: colors.fam,
       hue: colors.hue,
       sat: colors.sat,
-      bri: colors.bri
+      bri: colors.bri,
+      morph: mixParentMorphs(species, rec.morph, mate.morph, true)
     })
     growth[fish.id] = {
       ...rec,
@@ -650,16 +803,17 @@ export function remapPetsAfterFishUnequip(username, removedIndex) {
   })
 }
 
+export function lookFromSnapshot(snap) {
+  const rec = snap?.growth || null
+  const sp = snap?.species || rec?.species || 'betta'
+  return lookFromRecord(rec, Boolean(rec), sp)
+}
+
 export function getFishShopPrice(itemId, species) {
   const item = itemId ? getItem(itemId) : null
   const listed = Number(item?.price)
   if (listed > 0) return listed
   return FISH_BASE_PRICE[species] || FISH_BASE_PRICE.betta
-}
-
-export function getFishSellBackPrice(itemId, species) {
-  if (!String(itemId || '').trim() && String(species || '') === 'betta') return 2
-  return Math.max(1, Math.floor(getFishShopPrice(itemId, species) * 0.5))
 }
 
 function remapSlotKey(key, removedIndex) {
@@ -686,7 +840,7 @@ export function snapshotLiveFish(username, slotId) {
   const fish = getTankRoster(username).find((f) => f.id === slotId)
   if (!fish) return { success: false, message: '找不到這隻魚' }
   if (!canTradeTankFish(fish)) {
-    return { success: false, message: '預設鬥魚不能上架或賣回' }
+    return { success: false, message: '預設鬥魚不能送去競拍' }
   }
   getPetAppearance(username, fish.id, fish.itemId, fish.key)
   const cur = getUserPets(username)

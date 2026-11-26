@@ -12,6 +12,7 @@ import {
   tickPetBreeding
 } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
+import FishSprite from './FishSprite'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
   id: i,
@@ -224,20 +225,6 @@ function rosterKey(roster) {
   return (roster || []).map((f) => `${f.id}:${f.key}:${f.src}:${f.owner || ''}`).join('|')
 }
 
-function Betta({ src, variant, wide, shape, width, height }) {
-  return (
-    <div
-      className={`ocean-betta ocean-betta-${variant}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''}`}
-      style={{
-        width: width ? `${width}px` : undefined,
-        height: height ? `${height}px` : undefined
-      }}
-    >
-      <img src={src} alt="" className="ocean-betta-layer ocean-betta-body" draggable={false} />
-      <img src={src} alt="" className="ocean-betta-layer ocean-betta-tail" draggable={false} />
-    </div>
-  )
-}
 
 export default function OceanAmbience() {
   const bubbles = useMemo(() => BUBBLES, [])
@@ -447,7 +434,9 @@ export default function OceanAmbience() {
           wide: !!entry.wide,
           shape: entry.shape || 'fish',
           variant: entry.variant || (i % 2 === 0 ? 'a' : 'b'),
-          filter: look.filter || '',
+          parts: look.parts || null,
+          morphLabel: look.morphLabel || '',
+          shineText: look.shineText || '',
           width: size.width,
           height: size.height,
           owner: entry.owner || getCurrentUser() || '',
@@ -538,19 +527,18 @@ export default function OceanAmbience() {
           <div
             className="ocean-fish-face"
             style={{
-              transform: `scaleX(${fish.face}) rotate(${fish.tilt || 0}deg)`,
-              filter: fish.filter || undefined,
-              WebkitFilter: fish.filter || undefined
+              transform: `scaleX(${fish.face}) rotate(${fish.tilt || 0}deg)`
             }}
           >
             <div className="ocean-fish-bob">
-              <Betta
+              <FishSprite
                 src={fish.src}
                 variant={fish.variant}
                 wide={fish.wide}
                 shape={fish.shape}
                 width={fish.width}
                 height={fish.height}
+                parts={fish.parts}
               />
             </div>
           </div>
@@ -571,7 +559,7 @@ export default function OceanAmbience() {
             }}
           >
             {fish.nick ? <strong>{fish.nick}</strong> : null}
-            <span>{fish.species || '魚'}</span>
+            <span>{fish.species || '魚'}{fish.morphLabel ? ` · ${fish.morphLabel}` : ''}{fish.shineText ? ` · ${fish.shineText}` : ''}</span>
             <span>{mine ? `主人：${ownerName}（我的）` : `主人：${ownerName}`}</span>
           </div>
         )

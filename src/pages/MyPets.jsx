@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import FishSprite from '../components/FishSprite'
 import { useNavigate } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
-import { createTrade } from '../utils/tradeStorage'
-import { addTransaction, addWalletBalance } from '../utils/walletStorage'
+import { createAuction } from '../utils/auctionStorage'
 import {
   DEFAULT_FISH_SLOTS,
   MAX_FISH_SLOTS,
@@ -17,8 +17,8 @@ import {
   canTradeTankFish,
   clearShowcaseFish,
   genderLabel,
-  getFishSellBackPrice,
   getFishShopPrice,
+  getPairBreedingMap,
   getPetAppearance,
   getPublicShowcaseFish,
   getTankRoster,
@@ -43,6 +43,9 @@ export default function MyPets() {
   const [tick, setTick] = useState(0)
   const [drafts, setDrafts] = useState({})
   const [message, setMessage] = useState('')
+  const [auctionFish, setAuctionFish] = useState(null)
+  const [reserve, setReserve] = useState('10')
+  const [hours, setHours] = useState(24)
 
   const refresh = () => {
     if (user) tickPetBreeding(user)
@@ -50,12 +53,13 @@ export default function MyPets() {
   }
 
   useRealtimeKeys(
-    ['jiameng_pets', 'jiameng_equipped_effects', 'jiameng_inventories', 'jiameng_items'],
+    ['jiameng_pets', 'jiameng_equipped_effects', 'jiameng_inventories', 'jiameng_items', 'jiameng_auctions'],
     refresh
   )
 
   useEffect(() => {
-    const id = window.setInterval(refresh, 15000)
+    refresh()
+    const id = window.setInterval(refresh, 1000)
     return () => window.clearInterval(id)
   }, [])
 
@@ -63,6 +67,7 @@ export default function MyPets() {
   const cap = useMemo(() => getFishSlotCount(user), [user, tick])
   const pets = useMemo(() => getUserPets(user), [user, tick])
   const others = useMemo(() => getPublicShowcaseFish(user), [user, tick])
+  const breeding = useMemo(() => getPairBreedingMap(user), [user, tick])
   const showcaseSlotId = pets.showcaseSlotId || ''
 
   useEffect(() => {
@@ -98,67 +103,38 @@ export default function MyPets() {
     refresh()
   }
 
-  const listOnExchange = (fish) => {
-    if (!user) return
-    const shop = getFishShopPrice(fish.itemId, fish.key)
-    const buyback = getFishSellBackPrice(fish.itemId, fish.key)
-    const raw = window.prompt(
-      `放到交易所，請輸入佳盟幣價格（商城 ${shop}，系統回收 ${buyback}）`,
-      String(shop)
-    )
-    if (raw == null) return
-    const price = Math.floor(Number(raw))
-    if (!Number.isFinite(price) || price <= 0) {
-      setMessage('請輸入有效價格')
-      return
-    }
-    const removed = removeLiveFish(user, fish.id)
+  const openAuction = (fish) => {
+    setAuctionFish(fish)
+    setReserve(String(getFishShopPrice(fish.itemId, fish.key)))
+    setHours(24)
+  }
+
+  const submitAuction = () => {
+    if (!user || !auctionFish) return
+    const removed = removeLiveFish(user, auctionFish.id)
     if (!removed.success) {
       setMessage(removed.message || '下缸失敗')
       return
     }
-    const species = getFishSpeciesName(fish)
+    const species = getFishSpeciesName(auctionFish)
     const name = String(removed.snapshot.name || '').trim()
-    const result = createTrade({
+    const result = createAuction({
       seller: user,
-      itemId: removed.snapshot.itemId || `live_fish:${fish.key}`,
+      pet: removed.snapshot,
       itemName: name ? `${species}（${name}）` : species,
-      quantity: 1,
-      price,
-      currency: 'jiameng_coin',
-      description: '缸中活魚，含成長與體色',
-      pet: removed.snapshot
+      reserve,
+      hours
     })
     if (!result.success) {
       attachLiveFish(user, removed.snapshot)
-      setMessage(result.message || '上架失敗，魚已放回魚缸')
+      setMessage(result.message || '送拍失敗，魚已放回魚缸')
       refresh()
       return
     }
-    setMessage('已放到交易所')
+    setAuctionFish(null)
+    setMessage('已送去競拍')
     refresh()
-  }
-
-  const sellBackToSystem = (fish) => {
-    if (!user) return
-    const coins = getFishSellBackPrice(fish.itemId, fish.key)
-    const shop = getFishShopPrice(fish.itemId, fish.key)
-    if (!window.confirm(`賣回系統可得 ${coins} 佳盟幣（商城價 ${shop} 的五折）？`)) return
-    const removed = removeLiveFish(user, fish.id)
-    if (!removed.success) {
-      setMessage(removed.message || '賣出失敗')
-      return
-    }
-    addWalletBalance(user, coins)
-    addTransaction({
-      type: 'sell_back',
-      from: 'system',
-      to: user,
-      amount: coins,
-      description: `半價賣回 ${getFishSpeciesName(fish)}`
-    })
-    setMessage(`已賣回系統，獲得 ${coins} 佳盟幣`)
-    refresh()
+    navigate(`/fish-auction/${result.auction.id}`)
   }
 
   if (!user) {
@@ -174,7 +150,7 @@ export default function MyPets() {
       <div className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的寵物</h1>
         <p className="text-cn-mist text-sm mt-1">
-          點螢幕撒飼料。預設兩隻鬥魚一公一母，相處約七天會懷孕；魚缸要多一欄空位才生得出魚苗，懷孕約五天，生完約兩週才能再配。鬥魚後代賣回系統 2 幣，其他魚為商城五折。
+          點螢幕撒飼料。預設兩隻鬥魚一公一母，相處約七天會懷孕；魚缸要多一欄空位才生得出魚苗，懷孕約五天，生完約兩週才能再配。可交易的魚可設底價與時間送去競拍，全員喊價、價高者得。
         </p>
       </div>
 
@@ -218,10 +194,10 @@ export default function MyPets() {
         </button>
         <button
           type="button"
-          onClick={() => navigate('/exchange')}
+          onClick={() => navigate('/fish-auction')}
           className="px-4 py-2 rounded-md border border-gray-600 text-sm text-cn-parchment hover:bg-black/30"
         >
-          交易所
+          魚類競拍
         </button>
       </div>
 
@@ -240,23 +216,24 @@ export default function MyPets() {
           const shown = nick || `第 ${i + 1} 隻`
           const imgScale = look.growable ? Math.max(0.22, look.scale) : 1
           const sex = genderLabel(look.gender)
+          const breed = breeding[fish.id]
           return (
             <li
               key={fish.id}
               className="rounded-xl border border-cyan-800/40 bg-gray-900/50 p-3 sm:p-4 flex gap-3 items-center"
             >
               <div className="shrink-0 w-28 sm:w-36 h-16 sm:h-20 flex items-center justify-center rounded-lg bg-black/30 border border-gray-700 overflow-hidden">
-                <img
-                  src={fish.src}
-                  alt=""
-                  className="max-h-full max-w-full object-contain origin-center"
-                  style={{
-                    transform: `scale(${imgScale})`,
-                    filter: look.filter || undefined,
-                    WebkitFilter: look.filter || undefined
-                  }}
-                  draggable={false}
-                />
+                <div style={{ transform: `scale(${imgScale})` }}>
+                  <FishSprite
+                    src={fish.src}
+                    variant={i % 2 === 0 ? 'a' : 'b'}
+                    wide={!!fish.wide}
+                    shape={fish.shape}
+                    width={fish.shape === 'ray' ? 118 : fish.wide ? 140 : 92}
+                    height={fish.shape === 'ray' ? 68 : fish.wide ? 52 : 44}
+                    parts={look.parts}
+                  />
+                </div>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-cyan-100 font-medium truncate">{recording ? m(shown) : shown}</p>
@@ -265,8 +242,10 @@ export default function MyPets() {
                   {sex ? ` · ${sex}` : ''}
                   {fish.born ? ' · 育成' : fish.itemId ? '' : ' · 預設'}
                   {look.growable ? ` · ${look.stage.label}` : ''}
+                  {look.morphLabel ? ` · ${look.morphLabel}` : ''}
+                  {look.shineText ? ` · ${look.shineText}` : ''}
                   {look.lengthText ? ` · ${look.lengthText}` : ''}
-                  {look.pregnant ? ' · 懷孕中' : ''}
+                  {look.pregnant || breed?.phase === 'pregnant' ? ' · 懷孕中' : ''}
                 </p>
                 {look.growable && (
                   <div className="mt-1.5 h-1.5 rounded-full bg-gray-800 overflow-hidden">
@@ -276,6 +255,26 @@ export default function MyPets() {
                     />
                   </div>
                 )}
+                {breed ? (
+                  <div className="mt-1.5">
+                    <p className="text-[11px] text-rose-200">
+                      {breed.title}
+                      {breed.detail ? ` · ${breed.detail}` : ''}
+                    </p>
+                    <div className="mt-1 h-1.5 rounded-full bg-gray-800 overflow-hidden">
+                      <div
+                        className={`h-full ${
+                          breed.phase === 'pregnant'
+                            ? 'bg-amber-400/90'
+                            : breed.phase === 'cooldown'
+                              ? 'bg-gray-500'
+                              : 'bg-rose-400/90'
+                        }`}
+                        style={{ width: `${Math.max(0, Math.min(100, breed.barPct || 0))}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
                 <p className={`text-xs mt-1 ${hungerClass(hunger.key)}`}>{hunger.label}</p>
                 {showcaseSlotId === fish.id && (
                   <p className="text-[11px] text-amber-200 mt-1">全員可見 · 不占別人欄位</p>
@@ -303,22 +302,13 @@ export default function MyPets() {
                     {showcaseSlotId === fish.id ? '取消展示' : '展示給全部人'}
                   </button>
                   {canTradeTankFish(fish) && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => listOnExchange(fish)}
-                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-indigo-700 hover:bg-indigo-600 text-white"
-                      >
-                        放到交易所
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => sellBackToSystem(fish)}
-                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-rose-800 hover:bg-rose-700 text-white"
-                      >
-                        五折賣回
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => openAuction(fish)}
+                      className="shrink-0 px-3 py-1.5 rounded text-sm bg-rose-700 hover:bg-rose-600 text-white"
+                    >
+                      送去競拍
+                    </button>
                   )}
                 </div>
               </div>
@@ -326,6 +316,56 @@ export default function MyPets() {
           )
         })}
       </ul>
+
+      {auctionFish && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-cyan-800/50 bg-gray-900 p-4">
+            <h2 className="text-lg font-semibold text-cn-gold">送去競拍</h2>
+            <p className="text-xs text-gray-400 mt-1">{getFishSpeciesName(auctionFish)} · 全員可喊價，價高者得</p>
+            <label className="block mt-3 text-sm">
+              <span className="text-gray-400 text-xs">底價（佳盟幣）</span>
+              <input
+                type="number"
+                min="1"
+                value={reserve}
+                onChange={(e) => setReserve(e.target.value)}
+                className="mt-1 w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white"
+              />
+            </label>
+            <label className="block mt-3 text-sm">
+              <span className="text-gray-400 text-xs">競拍時間</span>
+              <select
+                value={hours}
+                onChange={(e) => setHours(Number(e.target.value))}
+                className="mt-1 w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white"
+              >
+                <option value={1}>1 小時</option>
+                <option value={6}>6 小時</option>
+                <option value={12}>12 小時</option>
+                <option value={24}>1 日</option>
+                <option value={72}>3 日</option>
+                <option value={168}>7 日</option>
+              </select>
+            </label>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAuctionFish(null)}
+                className="flex-1 px-3 py-2 rounded bg-gray-700 text-sm"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={submitAuction}
+                className="flex-1 px-3 py-2 rounded bg-rose-600 text-sm text-white"
+              >
+                開始競拍
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
