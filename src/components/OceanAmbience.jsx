@@ -1,12 +1,14 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useLocation } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { FISH_PACKS, getFishSpeciesName, speciesAdultScale, speciesSwimLayer } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
+  getShowcaseWorldRoster,
+  getTankRoamRoster,
   getUserPets,
-  getWorldFishRoster,
   hungerStatus,
   listOwnedFishPotions,
   recordPetEat,
@@ -212,14 +214,22 @@ function rosterKey(roster) {
 }
 
 
-export default function OceanAmbience() {
+function loadRoster(mode) {
+  const user = getCurrentUser()
+  return mode === 'tank' ? getTankRoamRoster(user) : getShowcaseWorldRoster(user)
+}
+
+export default function OceanAmbience({ mode = 'world' }) {
+  const location = useLocation()
+  const onTankPage = String(location?.pathname || '').includes('my-tank')
+  const hidden = (mode === 'world' && onTankPage) || (mode === 'tank' && !onTankPage)
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
   const lookBump = useRef(0)
   const shooRef = useRef([])
-  const [actors, setActors] = useState(() => getWorldFishRoster(getCurrentUser()).map((f, i) => ({
+  const [actors, setActors] = useState(() => loadRoster(mode).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
     y: 120 + i * 80,
@@ -229,7 +239,7 @@ export default function OceanAmbience() {
     eating: false
   })))
   const sim = useRef(null)
-  const rosterRef = useRef(getWorldFishRoster(getCurrentUser()))
+  const rosterRef = useRef(loadRoster(mode))
 
   useEffect(() => {
     setPotionMsg('')
@@ -240,7 +250,7 @@ export default function OceanAmbience() {
 
   useEffect(() => {
     const refresh = () => {
-      const next = getWorldFishRoster(getCurrentUser())
+      const next = loadRoster(mode)
       if (rosterKey(rosterRef.current) === rosterKey(next)) return
       rosterRef.current = next
     }
@@ -263,9 +273,10 @@ export default function OceanAmbience() {
       window.clearInterval(timer)
       window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
     }
-  }, [])
+  }, [mode])
 
   useEffect(() => {
+    if (hidden) return undefined
     const L0 = layout()
     const startRoster = rosterRef.current
     const startLooks = loadLooks(startRoster)
@@ -467,6 +478,7 @@ export default function OceanAmbience() {
           width: size.width,
           height: size.height,
           owner: entry.owner || getCurrentUser() || '',
+          growthSlotId: entry.growthSlotId || entry.id || '',
           nick: entry.nick || '',
           species: getFishSpeciesName(entry),
           x: f.x,
@@ -504,9 +516,9 @@ export default function OceanAmbience() {
       cancelAnimationFrame(raf)
       window.removeEventListener('ocean-feed', onFeed)
     }
-  }, [])
+  }, [hidden, mode])
 
-  if (typeof document === 'undefined') return null
+  if (hidden || typeof document === 'undefined') return null
 
   return createPortal(
     <div className="ocean-ambience" aria-hidden>
@@ -582,11 +594,11 @@ export default function OceanAmbience() {
         const potions = mine && fish.gender === 'f' ? listOwnedFishPotions(me) : { heat: 0, affection: 0, birth: 0 }
         const canPotions = mine && fish.gender === 'f' && (potions.heat > 0 || potions.affection > 0 || potions.birth > 0)
         const give = (kind) => {
-          const r = useFishPotion(me, fish.id, kind)
+          const r = useFishPotion(me, fish.growthSlotId || fish.id, kind)
           setPotionMsg(r.message || (r.success ? '已使用' : '無法使用'))
           if (r.success) {
             lookBump.current += 1
-            rosterRef.current = getWorldFishRoster(me)
+            rosterRef.current = loadRoster(mode)
           }
         }
         return (

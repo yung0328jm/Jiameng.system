@@ -43,7 +43,7 @@ const AROWANA_SHOP_ITEM = {
   description: '每套用 1 隻只替換 1 欄魚，可與其他魚種混搭。',
   icon: '🐉',
   image: '/images/arowana-a.png',
-  price: 88,
+  price: 40,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -56,7 +56,7 @@ const AROWANA_BLUE_SHOP_ITEM = {
   description: '藍底過背金龍。每套用 1 隻只替換 1 欄魚，可與其他魚種混搭。',
   icon: '🐉',
   image: '/images/arowana-blue-b.png',
-  price: 98,
+  price: 45,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -69,7 +69,7 @@ const RAY_CROWN_SHOP_ITEM = {
   description: '皇冠魟。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
   icon: '🐟',
   image: '/images/ray-crown-a.png',
-  price: 108,
+  price: 35,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -82,7 +82,7 @@ const RAY_ALBINO_SHOP_ITEM = {
   description: '黃冠白子魟。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
   icon: '🐟',
   image: '/images/ray-albino-a.png',
-  price: 118,
+  price: 45,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -95,7 +95,7 @@ const ARAPAIMA_SHOP_ITEM = {
   description: '巨骨蛇魚，體型比一般魚種更大。每套用 1 隻只替換 1 欄。',
   icon: '🐟',
   image: '/images/arapaima-a.png',
-  price: 128,
+  price: 70,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -108,7 +108,7 @@ const BETTA_SHOP_ITEM = {
   description: '暹羅鬥魚。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
   icon: '🐟',
   image: '/images/betta-a.png',
-  price: 40,
+  price: 10,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -121,7 +121,7 @@ const GUPPY_SHOP_ITEM = {
   description: '小型孔雀魚。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
   icon: '🐟',
   image: '/images/guppy-a.png',
-  price: 32,
+  price: 6,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -134,7 +134,7 @@ const GAR_SHOP_ITEM = {
   description: '顎雀鱔／雀鱔，長體型。每套用 1 隻只替換 1 欄。',
   icon: '🐟',
   image: '/images/gar-a.png',
-  price: 96,
+  price: 40,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -147,7 +147,7 @@ const GENGHIS_SHOP_ITEM = {
   description: '成吉思汗（巨鯊鯰）。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
   icon: '🐟',
   image: '/images/genghis-a.png',
-  price: 78,
+  price: 30,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -160,7 +160,7 @@ const KOI_PLATINUM_SHOP_ITEM = {
   description: '白金蝴蝶龍鯉（長鰭錦鯉）。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
   icon: '🐟',
   image: '/images/koi-platinum-a.png',
-  price: 86,
+  price: 25,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -173,7 +173,7 @@ const REDTAIL_CAT_SHOP_ITEM = {
   description: '紅尾招財貓，體型較大。每套用 1 隻只替換 1 欄。',
   icon: '🐟',
   image: '/images/redtail-cat-a.png',
-  price: 118,
+  price: 30,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -186,7 +186,7 @@ const TURTLE_SLIDER_SHOP_ITEM = {
   description: '巴西彩龜。每套用 1 隻只替換 1 欄，可與其他水族混搭。',
   icon: '🐢',
   image: '/images/turtle-slider-a.png',
-  price: 48,
+  price: 15,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -199,7 +199,7 @@ const TURTLE_PIG_SHOP_ITEM = {
   description: '豬鼻龜。每套用 1 隻只替換 1 欄。',
   icon: '🐢',
   image: '/images/turtle-pig-a.png',
-  price: 108,
+  price: 60,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -212,7 +212,7 @@ const TURTLE_MAP_SHOP_ITEM = {
   description: '地圖龜。每套用 1 隻只替換 1 欄。',
   icon: '🐢',
   image: '/images/turtle-map-a.png',
-  price: 58,
+  price: 18,
   category: '特殊道具',
   createdAt: new Date().toISOString()
 }
@@ -264,6 +264,24 @@ const FISH_POTION_BIRTH_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const FISH_PRICE_SEED = 20261127
+const FISH_SHOP_CATALOG = {
+  [FISH_AROANA_ITEM_ID]: AROWANA_SHOP_ITEM,
+  [FISH_AROANA_BLUE_ITEM_ID]: AROWANA_BLUE_SHOP_ITEM,
+  [FISH_RAY_CROWN_ITEM_ID]: RAY_CROWN_SHOP_ITEM,
+  [FISH_RAY_ALBINO_ITEM_ID]: RAY_ALBINO_SHOP_ITEM,
+  [FISH_ARAPAIMA_ITEM_ID]: ARAPAIMA_SHOP_ITEM,
+  [FISH_BETTA_ITEM_ID]: BETTA_SHOP_ITEM,
+  [FISH_GUPPY_ITEM_ID]: GUPPY_SHOP_ITEM,
+  [FISH_GAR_ITEM_ID]: GAR_SHOP_ITEM,
+  [FISH_GENGHIS_ITEM_ID]: GENGHIS_SHOP_ITEM,
+  [FISH_KOI_PLATINUM_ITEM_ID]: KOI_PLATINUM_SHOP_ITEM,
+  [FISH_REDTAIL_CAT_ITEM_ID]: REDTAIL_CAT_SHOP_ITEM,
+  [FISH_TURTLE_SLIDER_ITEM_ID]: TURTLE_SLIDER_SHOP_ITEM,
+  [FISH_TURTLE_PIG_ITEM_ID]: TURTLE_PIG_SHOP_ITEM,
+  [FISH_TURTLE_MAP_ITEM_ID]: TURTLE_MAP_SHOP_ITEM
+}
+
 const RETIRED_ITEM_IDS = new Set(['fish_duckbill'])
 
 function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true }) {
@@ -295,13 +313,18 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const patched = list.map((it) => {
     const id = String(it?.id || '')
+    let next = it
     if (id === FISH_SLOT_EXPAND_ITEM_ID && String(it?.description || '') !== slotWanted) {
-      return { ...it, description: slotWanted }
+      next = { ...next, description: slotWanted }
     }
     if (id === FISH_POTION_BIRTH_ID && String(it?.description || '') !== birthWanted) {
-      return { ...it, description: birthWanted }
+      next = { ...next, description: birthWanted }
     }
-    return it
+    const catalog = FISH_SHOP_CATALOG[id]
+    if (catalog && Number(it?.priceSeedVer) !== FISH_PRICE_SEED) {
+      next = { ...next, price: catalog.price, priceSeedVer: FISH_PRICE_SEED }
+    }
+    return next
   })
   const descChanged = patched.some((it, i) => it !== list[i])
   if (extras.length === 0 && !pruned && !descChanged) return list

@@ -144,6 +144,19 @@ function randomGender() {
   return Math.random() < 0.5 ? 'm' : 'f'
 }
 
+function stableGender(seed) {
+  const s = String(seed || '')
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619)
+  return (h >>> 0) % 2 === 0 ? 'm' : 'f'
+}
+
+function lockedGender(rec, seed, preferred) {
+  if (rec?.gender === 'f' || rec?.gender === 'm') return rec.gender
+  if (preferred === 'f' || preferred === 'm') return preferred
+  return stableGender(seed)
+}
+
 function hatchRecord(itemId, speciesKey, extra = {}) {
   const fam = extra.fam || colorFamily(speciesKey, extra.preferHue)
   const growable = extra.growable !== false
@@ -305,7 +318,7 @@ function lookFromRecord(rec, growable, speciesKey) {
     meals,
     progress: growthProgress(meals),
     stage: growthStage(meals, sp),
-    gender: rec.gender === 'f' ? 'f' : 'm',
+    gender: rec.gender === 'f' ? 'f' : rec.gender === 'm' ? 'm' : '',
     pregnant: !!rec.pregnant,
     generation: Number(rec.generation) || 0,
     lengthCm: cm,
@@ -487,14 +500,13 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
       sat: bornMeta?.sat,
       bri: bornMeta?.bri,
       fam: bornMeta?.fam,
-      gender: pairGender || undefined
+      gender: lockedGender(rec, `${username || ''}:${sid}:${species}`, pairGender)
     })
-    if (!rec.gender) rec.gender = pairGender || randomGender()
     return { rec, dirty: true }
   }
   let dirty = false
-  if (!rec.gender) {
-    rec = { ...rec, gender: pairGender || randomGender() }
+  if (rec.gender !== 'f' && rec.gender !== 'm') {
+    rec = { ...rec, gender: lockedGender(rec, `${username || ''}:${sid}:${species}`, pairGender) }
     dirty = true
   }
   if (gifted && rec.growable !== true) {
@@ -817,10 +829,10 @@ export function setFishRoaming(username, slotId, on) {
   return saveUserPets(username, { ...cur, roaming: roam })
 }
 
-export function getWorldFishRoster(username) {
+export function getTankRoamRoster(username) {
   const pets = getUserPets(username)
   const roam = new Set(listRoamingSlotIds(username))
-  const mine = getTankRoster(username)
+  return getTankRoster(username)
     .filter((f) => roam.has(f.id))
     .map((f) => ({
       ...f,
@@ -829,24 +841,49 @@ export function getWorldFishRoster(username) {
       showcase: false,
       nick: String(pets.names?.[f.id] || '').trim()
     }))
-  return [...mine, ...getPublicShowcaseFish(username)]
+}
+
+export function getOwnShowcaseFish(username) {
+  if (!username) return []
+  const pets = getUserPets(username)
+  const slotId = String(pets.showcaseSlotId || '').trim()
+  if (!slotId) return []
+  const entry = getTankRoster(username).find((f) => f.id === slotId)
+  if (!entry) return []
+  if (entry.itemId && !getItem(entry.itemId)) return []
+  return [{
+    ...entry,
+    id: `showcase-${username}-${slotId}`,
+    owner: username,
+    growthSlotId: slotId,
+    showcase: true,
+    nick: String(pets.names?.[slotId] || '').trim()
+  }]
+}
+
+export function getShowcaseWorldRoster(username) {
+  return [...getOwnShowcaseFish(username), ...getPublicShowcaseFish(username)]
+}
+
+export function getWorldFishRoster(username) {
+  return getShowcaseWorldRoster(username)
 }
 
 const FISH_BASE_PRICE = {
-  betta: 40,
-  arowana: 88,
-  arowana_blue: 98,
-  ray_crown: 108,
-  ray_albino: 118,
-  arapaima: 128,
-  guppy: 32,
-  gar: 96,
-  genghis: 78,
-  koi_platinum: 86,
-  redtail_cat: 118,
-  turtle_slider: 48,
-  turtle_pig: 108,
-  turtle_map: 58
+  betta: 10,
+  arowana: 40,
+  arowana_blue: 45,
+  ray_crown: 35,
+  ray_albino: 45,
+  arapaima: 70,
+  guppy: 6,
+  gar: 40,
+  genghis: 30,
+  koi_platinum: 25,
+  redtail_cat: 30,
+  turtle_slider: 15,
+  turtle_pig: 60,
+  turtle_map: 18
 }
 
 export function canTradeTankFish(fish) {

@@ -208,7 +208,7 @@ export default function MyPets() {
       <div className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的寵物</h1>
         <p className="text-cn-mist text-sm mt-1">
-          點螢幕撒飼料。魚苗出生直接進寵物格，不占魚缸欄位；要餵食或巡遊再放入魚缸。魚缸最多 {MAX_FISH_SLOTS} 隻，同時巡遊最多 {MAX_ROAM_FISH} 隻。系統會送兩隻鬥魚。放生依階段回收販售價：魚苗 {Math.round(PET_RELEASE_RATES.fry * 100)}%、幼魚 {Math.round(PET_RELEASE_RATES.juvenile * 100)}%、亞成 {Math.round(PET_RELEASE_RATES.subadult * 100)}%、成魚 {Math.round(PET_RELEASE_RATES.adult * 100)}%。同類魚可免費交換，不限公母。
+          點「放出巡遊」的魚會進「我的魚缸」游。系統其他頁面只看得到展示魚（自己的與其他人的）。魚苗出生直接進寵物格，不占魚缸欄位；要餵食或巡遊再放入魚缸。魚缸最多 {MAX_FISH_SLOTS} 隻，同時巡遊最多 {MAX_ROAM_FISH} 隻。系統會送兩隻鬥魚。放生依階段回收販售價：魚苗 {Math.round(PET_RELEASE_RATES.fry * 100)}%、幼魚 {Math.round(PET_RELEASE_RATES.juvenile * 100)}%、亞成 {Math.round(PET_RELEASE_RATES.subadult * 100)}%、成魚 {Math.round(PET_RELEASE_RATES.adult * 100)}%。同類魚可免費交換，不限公母。
         </p>
       </div>
 
@@ -242,6 +242,13 @@ export default function MyPets() {
       )}
 
       <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => navigate('/my-tank')}
+          className="px-4 py-2 rounded-md border border-cyan-700 text-sm text-cyan-100 hover:bg-cyan-950/40"
+        >
+          進我的魚缸
+        </button>
         <button
           type="button"
           onClick={() => navigate('/my-backpack')}
@@ -369,7 +376,7 @@ export default function MyPets() {
 
       {others.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
-          目前有 {others.length} 人展示中，你畫面最多 {MAX_ROAM_FISH} 隻自己的巡遊魚，再加他們的展示魚。
+          目前有 {others.length} 人展示中，他們的展示魚會出現在系統各頁；你的巡遊魚只在「我的魚缸」。
         </div>
       )}
 
@@ -446,7 +453,7 @@ export default function MyPets() {
                 ) : null}
                 <p className={`text-xs mt-1 ${hungerClass(hunger.key)}`}>{hunger.label}</p>
                 {roamIds.includes(fish.id) && (
-                  <p className="text-[11px] text-sky-200 mt-1">正在巡遊</p>
+                  <p className="text-[11px] text-sky-200 mt-1">正在我的魚缸巡遊</p>
                 )}
                 {showcaseSlotId === fish.id && (
                   <p className="text-[11px] text-amber-200 mt-1">全員可見 · 不占別人欄位</p>
@@ -478,7 +485,7 @@ export default function MyPets() {
                     onClick={() => {
                       const on = !roamIds.includes(fish.id)
                       const r = setFishRoaming(user, fish.id, on)
-                      setMessage(r.success ? (on ? '已放出巡遊' : '已收回，不再巡遊') : r.message || '設定失敗')
+                      setMessage(r.success ? (on ? '已放入魚缸巡遊' : '已收回，不再巡遊') : r.message || '設定失敗')
                       refresh()
                     }}
                     className={`shrink-0 px-3 py-1.5 rounded text-sm ${
@@ -487,7 +494,7 @@ export default function MyPets() {
                         : 'bg-gray-700 hover:bg-gray-600 text-cn-parchment'
                     }`}
                   >
-                    {roamIds.includes(fish.id) ? '收回巡遊' : '放出巡遊'}
+                    {roamIds.includes(fish.id) ? '收回巡遊' : '放入魚缸巡遊'}
                   </button>
                   {canTradeTankFish(fish) && (
                     <>

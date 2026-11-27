@@ -16,6 +16,7 @@ import FishAuction from './FishAuction'
 import FishSwap from './FishSwap'
 import MyBackpack from './MyBackpack'
 import MyPets from './MyPets'
+import MyTank from './MyTank'
 import CheckIn from './CheckIn'
 import DailyTodo from './DailyTodo'
 import LeaveApplication from './LeaveApplication'
@@ -83,6 +84,7 @@ const PERSONAL_SERVICE_TABS = [
   'fish-swap',
   'my-backpack',
   'my-pets',
+  'my-tank',
   'advance',
   'messages',
   'change-password',
@@ -680,6 +682,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('exchange')) return 'exchange'
     if (path.includes('my-backpack')) return 'my-backpack'
     if (path.includes('my-pets')) return 'my-pets'
+    if (path.includes('my-tank')) return 'my-tank'
     if (path.includes('check-in')) return 'check-in'
     if (path.includes('daily-todo')) return 'daily-todo'
     if (path.includes('leave-application')) return 'leave-application'
@@ -747,6 +750,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
       'fish-swap': '魚類交換',
       'my-backpack': '我的背包',
       'my-pets': '我的寵物',
+      'my-tank': '我的魚缸',
       'check-in': '每日簽到',
       'daily-todo': '工程聯絡單',
       'leave-application': '入廠人員異動申請',
@@ -824,6 +828,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
         return <MyBackpack />
       case 'my-pets':
         return <MyPets />
+      case 'my-tank':
+        return <MyTank />
       case 'check-in':
         return <CheckIn />
       case 'daily-todo':
@@ -1509,6 +1515,9 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   </button>
                   <button type="button" onClick={() => { handleTabClick('my-pets', '/my-pets'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <PetIcon /> 我的寵物
+                  </button>
+                  <button type="button" onClick={() => { handleTabClick('my-tank', '/my-tank'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                    <PetIcon /> 我的魚缸
                   </button>
                   <button type="button" onClick={() => { handleTabClick('exchange-shop', '/exchange-shop'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <ShopIcon /> 兌換商城
