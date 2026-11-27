@@ -10,6 +10,7 @@ import {
   getTankRoamRoster,
   getUserPets,
   hungerStatus,
+  listBreedPairs,
   listOwnedFishPotions,
   recordPetEat,
   tickPetBreeding,
@@ -90,13 +91,15 @@ function baseFishSize(entry, index, mobile) {
   return { width: w, height: Math.round(w * 0.52) }
 }
 
-function fishSize(entry, index, mobile, scale = 1) {
+function fishSize(entry, index, mobile, scale = 1, form = {}) {
   const base = baseFishSize(entry, index, mobile)
   const raw = Number(scale)
   const s = Number.isFinite(raw) && raw > 0 ? Math.max(0.18, raw) : 1
+  const length = Number(form.lengthMul) > 0 ? form.lengthMul : 1
+  const girth = Number(form.girthMul) > 0 ? form.girthMul : 1
   return {
-    width: Math.max(36, Math.round(base.width * s)),
-    height: Math.max(20, Math.round(base.height * s))
+    width: Math.max(36, Math.round(base.width * s * length)),
+    height: Math.max(20, Math.round(base.height * s * girth))
   }
 }
 
@@ -225,6 +228,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   const hidden = (mode === 'world' && onTankPage) || (mode === 'tank' && !onTankPage)
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
+  const [hearts, setHearts] = useState([])
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
   const lookBump = useRef(0)
@@ -282,10 +286,13 @@ export default function OceanAmbience({ mode = 'world' }) {
     const startLooks = loadLooks(startRoster)
     sim.current = {
       food: [],
+      hearts: [],
+      heartAt: {},
       looks: startLooks,
       looksAt: 0,
+      breedPairs: mode === 'tank' ? listBreedPairs(getCurrentUser()) : [],
       fish: startRoster.map((entry, i) =>
-        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale), speciesSwimLayer(entry?.key))
+        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale, startLooks[entry.id]), speciesSwimLayer(entry?.key))
       )
     }
 
@@ -312,12 +319,13 @@ export default function OceanAmbience({ mode = 'world' }) {
         state.looksAt = now
         state.lookTick = lookBump.current
         state.rosterSig = sig
+        if (mode === 'tank') state.breedPairs = listBreedPairs(getCurrentUser())
       }
 
       while (state.fish.length < currentRoster.length) {
         const i = state.fish.length
         const look = state.looks?.[currentRoster[i]?.id] || {}
-        const size = fishSize(currentRoster[i], i, L.mobile, look.scale)
+        const size = fishSize(currentRoster[i], i, L.mobile, look.scale, look)
         state.fish.push(spawnFish(i, currentRoster.length, L, size, speciesSwimLayer(currentRoster[i]?.key)))
       }
       if (state.fish.length > currentRoster.length) {
@@ -346,7 +354,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       })
 
       const sizes = currentRoster.map((entry, i) =>
-        fishSize(entry, i, L.mobile, state.looks?.[entry?.id]?.scale)
+        fishSize(entry, i, L.mobile, state.looks?.[entry?.id]?.scale, state.looks?.[entry?.id])
       )
       state.fish.forEach((fish, i) => {
         const size = sizes[i]
@@ -440,6 +448,25 @@ export default function OceanAmbience({ mode = 'world' }) {
           clampFish(fish, L, size)
         } else {
           fish.dash = false
+          if (mode === 'tank' && (!fish.turnAt || now > fish.turnAt)) {
+            const slot = entry?.growthSlotId || entry?.id
+            const pair = (state.breedPairs || []).find((p) => p.maleId === slot || p.femaleId === slot)
+            const mateId = pair ? (pair.maleId === slot ? pair.femaleId : pair.maleId) : ''
+            const mateIdx = mateId ? currentRoster.findIndex((row) => (row.growthSlotId || row.id) === mateId) : -1
+            if (mateIdx >= 0 && state.fish[mateIdx] && sizes[mateIdx]) {
+              const mate = state.fish[mateIdx]
+              const msize = sizes[mateIdx]
+              const dxm = (mate.x + msize.width * 0.5) - (fish.x + size.width * 0.5)
+              const dym = (mate.y + msize.height * 0.5) - (fish.y + size.height * 0.5)
+              const dm = Math.sqrt(dxm * dxm + dym * dym) || 1
+              if (dm > 88) {
+                const band = layerBand(L, size, fish._layer)
+                fish.tx = Math.max(12, Math.min(L.w - size.width - 12, mate.x + dxm * 0.35))
+                fish.ty = Math.max(band.minY, Math.min(band.maxY, mate.y + dym * 0.2))
+                fish.turnAt = now + 900 + Math.random() * 700
+              }
+            }
+          }
           const dx = (fish.tx ?? fish.x) - fish.x
           const dy = (fish.ty ?? fish.y) - fish.y
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
@@ -457,11 +484,46 @@ export default function OceanAmbience({ mode = 'world' }) {
         }
       })
 
+      if (mode === 'tank') {
+        if (!state.hearts) state.hearts = []
+        if (!state.heartAt) state.heartAt = {}
+        ;(state.breedPairs || []).forEach((pair) => {
+          const ia = currentRoster.findIndex((row) => (row.growthSlotId || row.id) === pair.maleId)
+          const ib = currentRoster.findIndex((row) => (row.growthSlotId || row.id) === pair.femaleId)
+          if (ia < 0 || ib < 0 || !state.fish[ia] || !state.fish[ib] || !sizes[ia] || !sizes[ib]) return
+          const a = state.fish[ia]
+          const b = state.fish[ib]
+          const sa = sizes[ia]
+          const sb = sizes[ib]
+          const pad = 14
+          const hit = !(a.x + sa.width + pad < b.x || b.x + sb.width + pad < a.x || a.y + sa.height + pad < b.y || b.y + sb.height + pad < a.y)
+          if (!hit) return
+          const key = `${pair.maleId}:${pair.femaleId}`
+          if (now - (state.heartAt[key] || 0) < 520) return
+          state.heartAt[key] = now
+          const cx = (a.x + sa.width * 0.5 + b.x + sb.width * 0.5) / 2
+          const cy = Math.min(a.y, b.y) + 8
+          state.hearts.push({
+            id: genId(),
+            x: cx + (Math.random() - 0.5) * 18,
+            y: cy,
+            vy: -38 - Math.random() * 18,
+            life: 1.15
+          })
+        })
+        state.hearts = state.hearts.filter((h) => {
+          h.y += h.vy * dt
+          h.life -= dt
+          return h.life > 0
+        }).slice(-24)
+      }
+
       setFood(state.food.map((p) => ({ id: p.id, x: p.x, y: p.y })))
+      setHearts(mode === 'tank' ? (state.hearts || []).map((h) => ({ id: h.id, x: h.x, y: h.y, life: h.life })) : [])
       setActors(state.fish.map((f, i) => {
         const entry = currentRoster[i] || {}
         const look = state.looks?.[entry.id] || {}
-        const size = sizes[i] || fishSize(entry, i, L.mobile, look.scale)
+        const size = sizes[i] || fishSize(entry, i, L.mobile, look.scale, look)
         const pack = FISH_PACKS[entry.key] || FISH_PACKS.betta
         const art = look.art === 'b' ? 'b' : 'a'
         return {
@@ -544,6 +606,19 @@ export default function OceanAmbience({ mode = 'world' }) {
           className="ocean-feed"
           style={{ transform: `translate3d(${p.x}px, ${p.y}px, 0)` }}
         />
+      ))}
+
+      {hearts.map((h) => (
+        <span
+          key={h.id}
+          className="ocean-heart"
+          style={{
+            transform: `translate3d(${h.x}px, ${h.y}px, 0) scale(${0.7 + (1 - Math.max(0, Math.min(1, h.life))) * 0.45})`,
+            opacity: Math.max(0, Math.min(1, h.life))
+          }}
+        >
+          ♥
+        </span>
       ))}
 
       {actors.map((fish) => (

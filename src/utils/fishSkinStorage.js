@@ -210,8 +210,7 @@ export function countAppliedFishSlot(username, itemId) {
 }
 
 export function getFishSlotCount(username = getCurrentUser()) {
-  if (!username) return DEFAULT_FISH_SLOTS
-  return Math.min(MAX_FISH_SLOTS, DEFAULT_FISH_SLOTS + getAppliedFishSlotExpansions(username).length)
+  return MAX_FISH_SLOTS
 }
 
 function persistFishCapacity(username, expansions) {

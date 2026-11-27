@@ -5,7 +5,7 @@ import { getWalletBalance, subtractWalletBalance, addTransaction } from '../util
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { getAllEquippedEffects, unequipEffect, setFishSlotExpansions, normalizeFishSlotExpansions } from '../utils/effectStorage'
-import { purgeFishItemFromEveryone } from '../utils/petStorage'
+import { addShopFishToPets, purgeFishItemFromEveryone } from '../utils/petStorage'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 
@@ -35,7 +35,7 @@ function ExchangeShop() {
   const loadItems = useCallback(() => {
     const role = getCurrentUserRole()
     const all = Array.isArray(getItems()) ? getItems() : []
-    const shopEligible = all.filter((item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT)
+    const shopEligible = all.filter((item) => item.type !== ITEM_TYPES.TITLE && item.type !== ITEM_TYPES.NAME_EFFECT && item.type !== ITEM_TYPES.MESSAGE_EFFECT && item.type !== ITEM_TYPES.FISH_SLOT)
     const hiddenInShop = shopEligible.filter((i) => !!i?.isHidden).length
     const visibleItems = role === 'admin' ? shopEligible : shopEligible.filter((i) => !i?.isHidden)
     setShopItems(visibleItems)
@@ -373,16 +373,18 @@ function ExchangeShop() {
       itemName: item.name
     })
 
-    // 添加道具到背包
-    const addResult = addItemToInventory(currentUser, item.id, 1)
+    const addResult = item.type === ITEM_TYPES.FISH_SKIN
+      ? addShopFishToPets(currentUser, item)
+      : addItemToInventory(currentUser, item.id, 1)
     if (!addResult.success) {
-      alert(addResult.message || '添加道具到背包失敗')
-      // 如果添加失敗，退回毓承幣
+      alert(addResult.message || (item.type === ITEM_TYPES.FISH_SKIN ? '放入我的寵物失敗' : '添加道具到背包失敗'))
       subtractWalletBalance(currentUser, -item.price)
       return
     }
 
-    alert(`成功兌換「${item.name}」！已添加到您的背包。`)
+    alert(item.type === ITEM_TYPES.FISH_SKIN
+      ? `成功兌換「${item.name}」！已進入我的寵物，再到「我的寵物」點放入魚缸。`
+      : `成功兌換「${item.name}」！已添加到您的背包。`)
     setWalletBalance(getWalletBalance(currentUser))
   }
 
@@ -1021,8 +1023,7 @@ function ExchangeShop() {
                     <option value="general">一般道具</option>
                     <option value="danmu">彈幕道具</option>
                     <option value="special">特殊道具</option>
-                    <option value="fish_skin">魚類外觀</option>
-                    <option value="fish_slot">魚隻擴充欄</option>
+                    <option value="fish_skin">魚類（進我的寵物）</option>
                   </select>
                 </div>
 

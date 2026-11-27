@@ -258,6 +258,21 @@ body {
   }
 }
 
+.ocean-heart {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  margin-left: -8px;
+  margin-top: -10px;
+  color: #fb7185;
+  font-size: 16px;
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(244, 114, 182, 0.85);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
 .ocean-feed {
   position: absolute;
   left: 0;

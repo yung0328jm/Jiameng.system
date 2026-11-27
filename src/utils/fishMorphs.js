@@ -291,8 +291,30 @@ export function geneFromMorph(morph) {
     tailShade: shade,
     markShade: shade,
     shine: Number(morph?.shine) || 1,
-    pattern
+    pattern,
+    glow: Math.max(0, Math.min(2, Math.floor(Number(morph?.gene?.glow ?? morph?.glow) || 0))),
+    size: clamp(Number(morph?.gene?.size ?? morph?.size) || 1, 0.9, 1.62),
+    length: clamp(Number(morph?.gene?.length ?? morph?.length) || 1, 0.9, 1.72),
+    girth: clamp(Number(morph?.gene?.girth ?? morph?.girth) || 1, 0.9, 1.62)
   }
+}
+
+export function glowHueForColor(colorId) {
+  const id = String(colorId || '')
+  if (id === 'red' || id === 'wine' || id === 'copper') return { hue: 0, css: 'rgba(255, 72, 88, 0.92)', label: '紅' }
+  if (id === 'blue' || id === 'teal') return { hue: 206, css: 'rgba(72, 168, 255, 0.92)', label: '藍' }
+  if (id === 'purple') return { hue: 272, css: 'rgba(188, 92, 255, 0.9)', label: '紫' }
+  if (id === 'green') return { hue: 128, css: 'rgba(72, 230, 120, 0.88)', label: '綠' }
+  if (id === 'gold' || id === 'yellow' || id === 'cream') return { hue: 38, css: 'rgba(255, 196, 72, 0.9)', label: '金' }
+  if (id === 'white' || id === 'silver') return { hue: 200, css: 'rgba(210, 236, 255, 0.88)', label: '白' }
+  return { hue: 0, css: 'rgba(255, 120, 140, 0.85)', label: '紅' }
+}
+
+export function glowLabel(glow) {
+  const n = Math.max(0, Math.min(2, Math.floor(Number(glow) || 0)))
+  if (n >= 2) return '發光'
+  if (n === 1) return '微光'
+  return ''
 }
 
 function packGene(g) {
@@ -305,7 +327,11 @@ function packGene(g) {
     tailShade: g.tailShade || g.shade || 'mid',
     markShade: g.markShade || 'mid',
     shine: Number(g.shine) || 1,
-    pattern: g.pattern || 'solid'
+    pattern: g.pattern || 'solid',
+    glow: Math.max(0, Math.min(2, Math.floor(Number(g.glow) || 0))),
+    size: clamp(Number(g.size) || 1, 0.9, 1.62),
+    length: clamp(Number(g.length) || 1, 0.9, 1.72),
+    girth: clamp(Number(g.girth) || 1, 0.9, 1.62)
   }
 }
 
@@ -358,7 +384,11 @@ function rollFryGene(species, rand) {
     tailShade,
     markShade: shade,
     shine,
-    pattern
+    pattern,
+    glow: 0,
+    size: 1,
+    length: 1,
+    girth: 1
   }
 }
 
@@ -388,6 +418,10 @@ function paintFromGene(species, gene, extra = {}) {
     overlayPart,
     art: FISH_COLORS[g.bodyColor]?.art || 'a',
     shine: g.shine,
+    glow: g.glow,
+    size: g.size,
+    length: g.length,
+    girth: g.girth,
     lineage: Array.isArray(extra.lineage) ? extra.lineage : undefined,
     marks: extra.marks !== undefined
       ? extra.marks
@@ -541,7 +575,34 @@ export function morphPartFilters(morph, reveal) {
       bri: (Number(wash.bodyBri) || 1) * 0.92,
       hue: (Number(wash.bodyHue) || 0) + (Number(wash.tailHue) || 0) * 0.25
     }),
-    washOpacity: t > 0.2 && washOn ? clamp(Number(wash.mix) || 0.22, 0.08, 0.52) : t > 0.2 ? clamp(Number(wash.mix) || 0.08, 0.04, 0.16) : 0
+    washOpacity: t > 0.2 && washOn ? clamp(Number(wash.mix) || 0.22, 0.08, 0.52) : t > 0.2 ? clamp(Number(wash.mix) || 0.08, 0.04, 0.16) : 0,
+    glow: Number(rec.gene?.glow) || 0,
+    glowAura: glowAuraStyle(rec.gene, t)
+  }
+}
+
+function glowAuraStyle(gene, reveal) {
+  const glow = Math.max(0, Math.min(2, Math.floor(Number(gene?.glow) || 0)))
+  const t = clamp(Number(reveal) || 0, 0, 1)
+  if (glow <= 0 || t < 0.32) return null
+  const tone = glowHueForColor(gene?.bodyColor)
+  const strength = glow === 1 ? 0.28 + 0.42 * t : 0.5 + 0.5 * t
+  const blur = glow === 1 ? 7 + 6 * t : 12 + 10 * t
+  const css = tone.css.replace(/0\.\d+\)$/, `${strength.toFixed(2)})`)
+  return {
+    filter: `drop-shadow(0 0 ${blur.toFixed(1)}px ${css}) drop-shadow(0 0 ${(blur * 0.45).toFixed(1)}px ${css})`
+  }
+}
+
+function catalogRow(speciesKey, gene, seed, tag) {
+  const morph = paintFromGene(speciesKey, gene, { seed, stable: true })
+  return {
+    id: `${morph.id}-${tag || 'n'}`,
+    art: morph.art,
+    tag: tag || '',
+    form: { size: gene.size || 1, length: gene.length || 1, girth: gene.girth || 1 },
+    parts: morphPartFilters(morph, 1),
+    samples: [morphPartFilters(morph, 1)]
   }
 }
 
@@ -564,6 +625,7 @@ export function listSpeciesMorphLooks(speciesKey) {
     rows.push({
       id: morph.id,
       art: morph.art,
+      tag: '',
       parts: morphPartFilters(morph, 1),
       samples: [0, 1, 2].map((shine) =>
         morphPartFilters(paintFromGene(speciesKey, { ...gene, shine }, { seed: `${speciesKey}-s-${i}-${shine}`, stable: true }), 1)
@@ -588,6 +650,7 @@ export function listSpeciesMorphLooks(speciesKey) {
     rows.push({
       id: morph.id,
       art: morph.art,
+      tag: '',
       parts: morphPartFilters(morph, 1),
       samples: [0, 1, 2].map((k) =>
         morphPartFilters(
@@ -597,7 +660,36 @@ export function listSpeciesMorphLooks(speciesKey) {
       )
     })
   }
-  return rows.slice(0, 24)
+  const extras = []
+  const glowColors = pool.filter((c) => c === 'red' || c === 'wine' || c === 'blue' || c === 'teal')
+  if (!glowColors.includes('red') && pool.includes('copper')) glowColors.push('red')
+  ;['red', 'blue'].forEach((c) => {
+    if (!glowColors.includes(c) && pool.includes(c)) glowColors.push(c)
+  })
+  const uniqueGlow = [...new Set(glowColors.length ? glowColors : pool.filter((c) => c === 'red' || c === 'blue'))]
+  uniqueGlow.forEach((color) => {
+    const tone = glowHueForColor(color)
+    extras.push(catalogRow(speciesKey, {
+      bodyColor: color, tailColor: color, markColor: color, bodyShade: 'mid', tailShade: 'mid', markShade: 'mid', shine: 2, pattern: 'solid', glow: 1
+    }, `${speciesKey}-glow1-${color}`, `${tone.label}微光`))
+    extras.push(catalogRow(speciesKey, {
+      bodyColor: color, tailColor: color, markColor: color, bodyShade: 'pale', tailShade: 'pale', markShade: 'mid', shine: 2, pattern: 'solid', glow: 2
+    }, `${speciesKey}-glow2-${color}`, `${tone.label}發光`))
+  })
+  const base = pool[0]
+  extras.push(catalogRow(speciesKey, {
+    bodyColor: base, tailColor: base, markColor: base, bodyShade: 'mid', tailShade: 'mid', markShade: 'mid', shine: 1, pattern: 'solid', size: 1.28
+  }, `${speciesKey}-giant`, '巨體'))
+  extras.push(catalogRow(speciesKey, {
+    bodyColor: base, tailColor: base, markColor: base, bodyShade: 'mid', tailShade: 'mid', markShade: 'mid', shine: 1, pattern: 'solid', length: 1.38
+  }, `${speciesKey}-long`, '長體'))
+  extras.push(catalogRow(speciesKey, {
+    bodyColor: base, tailColor: pool[1] || base, markColor: pool[1] || base, bodyShade: 'deep', tailShade: 'mid', markShade: 'mid', shine: 1, pattern: 'solid', girth: 1.36, size: 1.08
+  }, `${speciesKey}-fat`, '寬胖'))
+  extras.push(catalogRow(speciesKey, {
+    bodyColor: uniqueGlow[0] || base, tailColor: uniqueGlow[0] || base, markColor: uniqueGlow[0] || base, bodyShade: 'pale', tailShade: 'pale', markShade: 'mid', shine: 2, pattern: 'marble', glow: 2, size: 1.18, length: 1.12
+  }, `${speciesKey}-glow-giant`, '發光巨體'))
+  return rows.slice(0, 24).concat(extras)
 }
 
 function pickShade(parentGene, rand) {
@@ -605,7 +697,53 @@ function pickShade(parentGene, rand) {
   return pick(SHADE_IDS, rand)
 }
 
-export function mixParentMorphs(species, mother, father, prettier) {
+function mixGlowGene(momG, dadG, gen, rand) {
+  const parentGlow = Math.max(Number(momG.glow) || 0, Number(dadG.glow) || 0)
+  let glow = 0
+  if (parentGlow > 0) {
+    if (rand() < 0.64) glow = parentGlow
+    else if (rand() < 0.22) glow = Math.max(1, parentGlow - 1)
+  }
+  if (gen >= 4) {
+    if (rand() < 0.24) glow = Math.max(glow, 1)
+    if (rand() < 0.14) glow = 2
+  } else if (gen >= 3) {
+    if (rand() < 0.09) glow = Math.max(glow, 1)
+    if (rand() < 0.025) glow = 2
+  } else if (rand() < 0.01) glow = 1
+  return Math.max(0, Math.min(2, glow))
+}
+
+function mixFormGene(momG, dadG, gen, rand) {
+  const avg = (key) => {
+    const a = Number(momG[key])
+    const b = Number(dadG[key])
+    return ((Number.isFinite(a) ? a : 1) + (Number.isFinite(b) ? b : 1)) / 2
+  }
+  let size = avg('size')
+  let length = avg('length')
+  let girth = avg('girth')
+  const chance = Math.min(0.48, 0.06 + gen * 0.055)
+  const bump = 0.035 + gen * 0.016
+  if (rand() < chance) {
+    const kind = rand()
+    if (kind < 0.25) size += bump + rand() * bump
+    else if (kind < 0.5) length += bump + rand() * bump
+    else if (kind < 0.75) girth += bump + rand() * bump
+    else {
+      size += bump * 0.55
+      girth += bump
+      length += bump * 0.35
+    }
+  }
+  return {
+    size: clamp(size, 0.92, 1.58),
+    length: clamp(length, 0.92, 1.68),
+    girth: clamp(girth, 0.92, 1.58)
+  }
+}
+
+export function mixParentMorphs(species, mother, father, prettier, extra = {}) {
   const momG = geneFromMorph(mother)
   const dadG = geneFromMorph(father)
   const family = [...collectGenes(mother), ...collectGenes(father)]
@@ -614,6 +752,7 @@ export function mixParentMorphs(species, mother, father, prettier) {
   const grands = familyColors.filter((c) => !parentColors.includes(c))
   const rand = Math.random
   const lineage = family.map(packGene).filter(Boolean).slice(0, 8)
+  const gen = Math.max(1, Number(extra.generation) || 1)
 
   const pickFamilyColor = () => {
     const r = rand()
@@ -643,6 +782,7 @@ export function mixParentMorphs(species, mother, father, prettier) {
   else if (pr < 0.26) pattern = 'spots'
   else if (pr < 0.32) pattern = 'marble'
 
+  const form = mixFormGene(momG, dadG, gen, rand)
   const gene = {
     bodyColor,
     tailColor,
@@ -651,7 +791,11 @@ export function mixParentMorphs(species, mother, father, prettier) {
     tailShade: pickShade(dadG, rand),
     markShade: pick(SHADE_IDS, rand),
     shine: prettier ? Math.max(Number(momG.shine) || 1, Number(dadG.shine) || 1, pickWeighted(SHINE, rand).id) : pickWeighted(SHINE, rand).id,
-    pattern
+    pattern,
+    glow: mixGlowGene(momG, dadG, gen, rand),
+    size: form.size,
+    length: form.length,
+    girth: form.girth
   }
 
   return paintFromGene(species, gene, {

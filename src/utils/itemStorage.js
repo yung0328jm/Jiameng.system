@@ -10,8 +10,8 @@ export const ITEM_TYPES = {
   NAME_EFFECT: 'name_effect', // 名子特效道具
   MESSAGE_EFFECT: 'message_effect', // 發話特效道具
   TITLE: 'title', // 稱號道具
-  FISH_SKIN: 'fish_skin', // 水族外觀（每套用 1 隻只換 1 欄）
-  FISH_SLOT: 'fish_slot', // 魚隻擴充欄（增加同時顯示的魚數量）
+  FISH_SKIN: 'fish_skin', // 水族：兌換後進入我的寵物
+  FISH_SLOT: 'fish_slot', // 已停用：魚隻擴充欄
   FISH_POTION: 'fish_potion'
 }
 
@@ -40,7 +40,7 @@ const AROWANA_SHOP_ITEM = {
   name: '龍魚',
   type: 'fish_skin',
   fishKey: 'arowana',
-  description: '每套用 1 隻只替換 1 欄魚，可與其他魚種混搭。',
+  description: '兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐉',
   image: '/images/arowana-a.png',
   price: 40,
@@ -53,7 +53,7 @@ const AROWANA_BLUE_SHOP_ITEM = {
   name: '藍底過背',
   type: 'fish_skin',
   fishKey: 'arowana_blue',
-  description: '藍底過背金龍。每套用 1 隻只替換 1 欄魚，可與其他魚種混搭。',
+  description: '藍底過背金龍。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐉',
   image: '/images/arowana-blue-b.png',
   price: 45,
@@ -66,7 +66,7 @@ const RAY_CROWN_SHOP_ITEM = {
   name: '皇冠魟',
   type: 'fish_skin',
   fishKey: 'ray_crown',
-  description: '皇冠魟。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  description: '皇冠魟。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/ray-crown-a.png',
   price: 35,
@@ -79,7 +79,7 @@ const RAY_ALBINO_SHOP_ITEM = {
   name: '黃冠白子魟',
   type: 'fish_skin',
   fishKey: 'ray_albino',
-  description: '黃冠白子魟。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  description: '黃冠白子魟。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/ray-albino-a.png',
   price: 45,
@@ -92,7 +92,7 @@ const ARAPAIMA_SHOP_ITEM = {
   name: '巨骨蛇魚',
   type: 'fish_skin',
   fishKey: 'arapaima',
-  description: '巨骨蛇魚，體型比一般魚種更大。每套用 1 隻只替換 1 欄。',
+  description: '巨骨蛇魚，體型比一般魚種更大。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/arapaima-a.png',
   price: 70,
@@ -105,7 +105,7 @@ const BETTA_SHOP_ITEM = {
   name: '鬥魚',
   type: 'fish_skin',
   fishKey: 'betta',
-  description: '暹羅鬥魚。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  description: '暹羅鬥魚。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/betta-a.png',
   price: 10,
@@ -118,7 +118,7 @@ const GUPPY_SHOP_ITEM = {
   name: '孔雀魚',
   type: 'fish_skin',
   fishKey: 'guppy',
-  description: '小型孔雀魚。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  description: '小型孔雀魚。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/guppy-a.png',
   price: 6,
@@ -131,7 +131,7 @@ const GAR_SHOP_ITEM = {
   name: '雀鱔',
   type: 'fish_skin',
   fishKey: 'gar',
-  description: '顎雀鱔／雀鱔，長體型。每套用 1 隻只替換 1 欄。',
+  description: '顎雀鱔／雀鱔，長體型。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/gar-a.png',
   price: 40,
@@ -144,7 +144,7 @@ const GENGHIS_SHOP_ITEM = {
   name: '成吉思汗',
   type: 'fish_skin',
   fishKey: 'genghis',
-  description: '成吉思汗（巨鯊鯰）。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  description: '成吉思汗（巨鯊鯰）。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/genghis-a.png',
   price: 30,
@@ -157,7 +157,7 @@ const KOI_PLATINUM_SHOP_ITEM = {
   name: '白金蝴蝶龍鯉',
   type: 'fish_skin',
   fishKey: 'koi_platinum',
-  description: '白金蝴蝶龍鯉（長鰭錦鯉）。每套用 1 隻只替換 1 欄，可與其他魚種混搭。',
+  description: '白金蝴蝶龍鯉（長鰭錦鯉）。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/koi-platinum-a.png',
   price: 25,
@@ -170,7 +170,7 @@ const REDTAIL_CAT_SHOP_ITEM = {
   name: '招財貓',
   type: 'fish_skin',
   fishKey: 'redtail_cat',
-  description: '紅尾招財貓，體型較大。每套用 1 隻只替換 1 欄。',
+  description: '紅尾招財貓，體型較大。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐟',
   image: '/images/redtail-cat-a.png',
   price: 30,
@@ -183,7 +183,7 @@ const TURTLE_SLIDER_SHOP_ITEM = {
   name: '巴西龜',
   type: 'fish_skin',
   fishKey: 'turtle_slider',
-  description: '巴西彩龜。每套用 1 隻只替換 1 欄，可與其他水族混搭。',
+  description: '巴西彩龜。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐢',
   image: '/images/turtle-slider-a.png',
   price: 15,
@@ -196,7 +196,7 @@ const TURTLE_PIG_SHOP_ITEM = {
   name: '豬鼻龜',
   type: 'fish_skin',
   fishKey: 'turtle_pig',
-  description: '豬鼻龜。每套用 1 隻只替換 1 欄。',
+  description: '豬鼻龜。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐢',
   image: '/images/turtle-pig-a.png',
   price: 60,
@@ -209,7 +209,7 @@ const TURTLE_MAP_SHOP_ITEM = {
   name: '地圖龜',
   type: 'fish_skin',
   fishKey: 'turtle_map',
-  description: '地圖龜。每套用 1 隻只替換 1 欄。',
+  description: '地圖龜。兌換後直接進入我的寵物，再點「放入魚缸」才會去游。',
   icon: '🐢',
   image: '/images/turtle-map-a.png',
   price: 18,
@@ -245,7 +245,7 @@ const FISH_POTION_AFFECTION_ITEM = {
   name: '好感藥水',
   type: 'fish_potion',
   potion: 'affection',
-  description: '給自己的母魚使用，立刻懷孕。魚缸裡必須有同品種一公一母同時巡遊。請點畫面上自己的母魚。',
+  description: '給已在繁育系統配對的母魚使用，立刻懷孕。兩隻都要放入魚缸。請點自己的母魚。',
   icon: '💞',
   price: 18,
   category: '水族藥水',
@@ -257,7 +257,7 @@ const FISH_POTION_BIRTH_ITEM = {
   name: '催生藥水',
   type: 'fish_potion',
   potion: 'birth',
-  description: '給懷孕中的母魚使用，立刻產下魚苗，不必等懷孕期結束。魚苗進寵物格，不占魚缸欄位。請點畫面上自己的母魚。',
+  description: '給懷孕中的母魚使用，立刻產下魚苗。後代混父母花色與體型，三代起可能主色微光。魚苗直接進入我的寵物。',
   icon: '🫧',
   price: 22,
   category: '水族藥水',
@@ -282,7 +282,7 @@ const FISH_SHOP_CATALOG = {
   [FISH_TURTLE_MAP_ITEM_ID]: TURTLE_MAP_SHOP_ITEM
 }
 
-const RETIRED_ITEM_IDS = new Set(['fish_duckbill'])
+const RETIRED_ITEM_IDS = new Set(['fish_duckbill', FISH_SLOT_EXPAND_ITEM_ID])
 
 function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true }) {
   const raw = Array.isArray(items) ? items : []
@@ -305,24 +305,28 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_SLIDER_ITEM_ID)) extras.push({ ...TURTLE_SLIDER_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_PIG_ITEM_ID)) extras.push({ ...TURTLE_PIG_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_TURTLE_MAP_ITEM_ID)) extras.push({ ...TURTLE_MAP_SHOP_ITEM, createdAt: new Date().toISOString() })
-  if (!list.some((it) => String(it?.id || '') === FISH_SLOT_EXPAND_ITEM_ID)) extras.push({ ...FISH_SLOT_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_HEAT_ID)) extras.push({ ...FISH_POTION_HEAT_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_AFFECTION_ID)) extras.push({ ...FISH_POTION_AFFECTION_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_BIRTH_ID)) extras.push({ ...FISH_POTION_BIRTH_ITEM, createdAt: new Date().toISOString() })
-  const slotWanted = FISH_SLOT_SHOP_ITEM.description
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
+  const affectionWanted = FISH_POTION_AFFECTION_ITEM.description
   const patched = list.map((it) => {
     const id = String(it?.id || '')
     let next = it
-    if (id === FISH_SLOT_EXPAND_ITEM_ID && String(it?.description || '') !== slotWanted) {
-      next = { ...next, description: slotWanted }
-    }
     if (id === FISH_POTION_BIRTH_ID && String(it?.description || '') !== birthWanted) {
       next = { ...next, description: birthWanted }
     }
+    if (id === FISH_POTION_AFFECTION_ID && String(it?.description || '') !== affectionWanted) {
+      next = { ...next, description: affectionWanted }
+    }
     const catalog = FISH_SHOP_CATALOG[id]
-    if (catalog && Number(it?.priceSeedVer) !== FISH_PRICE_SEED) {
-      next = { ...next, price: catalog.price, priceSeedVer: FISH_PRICE_SEED }
+    if (catalog) {
+      if (Number(it?.priceSeedVer) !== FISH_PRICE_SEED) {
+        next = { ...next, price: catalog.price, priceSeedVer: FISH_PRICE_SEED }
+      }
+      if (catalog.description && String(it?.description || '') !== catalog.description) {
+        next = { ...next, description: catalog.description }
+      }
     }
     return next
   })

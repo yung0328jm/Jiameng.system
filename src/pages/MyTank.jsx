@@ -9,9 +9,9 @@ export default function MyTank() {
       <div className="pointer-events-auto mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的魚缸</h1>
         <p className="text-cn-mist text-sm mt-1">
-          放出巡遊的魚會在這裡游。點畫面撒飼料。系統其他頁面只看得到展示中的魚。
+          從「我的寵物」點放入魚缸的魚會在這裡游。配對的公母游近會飄愛心，只是特效，與 7 日懷孕週期無關。點畫面撒飼料。系統其他頁面只看得到展示中的魚。
         </p>
-        <p className="text-gray-500 text-xs mt-1">同時巡遊最多 {MAX_ROAM_FISH} 隻。</p>
+        <p className="text-gray-500 text-xs mt-1">魚缸最多 {MAX_ROAM_FISH} 隻，與寵物欄相同。</p>
         <button
           type="button"
           onClick={() => navigate('/my-pets')}

@@ -9,7 +9,6 @@ import { createAuction } from '../utils/auctionStorage'
 import {
   FISH_PACKS,
   MAX_FISH_SLOTS,
-  getFishSlotCount,
   getFishSpeciesName
 } from '../utils/fishSkinStorage'
 import { listSpeciesMorphLooks } from '../utils/fishMorphs'
@@ -18,6 +17,9 @@ import {
   attachLiveFish,
   canTradeTankFish,
   clearShowcaseFish,
+  MAX_BREED_BIRTHS,
+  femaleBirthsLeft,
+  findBreedPair,
   genderLabel,
   getFishShopPrice,
   getPairBreedingMap,
@@ -26,21 +28,21 @@ import {
   getTankRoster,
   getUserPets,
   hungerStatus,
+  listBreedPairs,
   listOwnedFishPotions,
   listRoamingSlotIds,
-  lookFromSnapshot,
+  MAX_BREED_PAIRS,
   MAX_ROAM_FISH,
   PET_RELEASE_RATES,
   releasePayoutCoins,
   releaseRateForGrowth,
-  placePetBagFish,
   releaseLiveFish,
-  releasePetBagFish,
   removeLiveFish,
   setFishRoaming,
-  setPetBagName,
   setPetName,
   setShowcaseFish,
+  startBreedPair,
+  stopBreedPair,
   tickPetBreeding,
   useFishPotion
 } from '../utils/petStorage'
@@ -62,6 +64,8 @@ export default function MyPets() {
   const [auctionFish, setAuctionFish] = useState(null)
   const [reserve, setReserve] = useState('10')
   const [hours, setHours] = useState(24)
+  const [pickMale, setPickMale] = useState('')
+  const [pickFemale, setPickFemale] = useState('')
 
   const refresh = () => {
     if (user) tickPetBreeding(user)
@@ -80,23 +84,20 @@ export default function MyPets() {
   }, [])
 
   const roster = useMemo(() => getTankRoster(user), [user, tick])
-  const cap = useMemo(() => getFishSlotCount(user), [user, tick])
+  const cap = MAX_FISH_SLOTS
   const pets = useMemo(() => getUserPets(user), [user, tick])
   const others = useMemo(() => getPublicShowcaseFish(user), [user, tick])
   const breeding = useMemo(() => getPairBreedingMap(user), [user, tick])
   const showcaseSlotId = pets.showcaseSlotId || ''
   const roamIds = useMemo(() => listRoamingSlotIds(user), [user, tick])
   const potions = useMemo(() => listOwnedFishPotions(user), [user, tick])
+  const breedPairs = useMemo(() => listBreedPairs(user), [user, tick])
 
   useEffect(() => {
     setDrafts((prev) => {
       const next = { ...prev }
       roster.forEach((fish) => {
         if (next[fish.id] === undefined) next[fish.id] = pets.names[fish.id] || ''
-      })
-      ;(pets.petBag || []).forEach((snap, i) => {
-        const k = `bag-${i}`
-        if (next[k] === undefined) next[k] = snap.name || ''
       })
       return next
     })
@@ -105,17 +106,6 @@ export default function MyPets() {
   const saveName = (slotId) => {
     if (!user) return
     const result = setPetName(user, slotId, drafts[slotId])
-    if (!result.success) {
-      setMessage(result.message || '改名失敗')
-      return
-    }
-    setMessage('名字已更新')
-    refresh()
-  }
-
-  const saveBagName = (index) => {
-    if (!user) return
-    const result = setPetBagName(user, index, drafts[`bag-${index}`])
     if (!result.success) {
       setMessage(result.message || '改名失敗')
       return
@@ -208,26 +198,26 @@ export default function MyPets() {
       <div className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的寵物</h1>
         <p className="text-cn-mist text-sm mt-1">
-          點「放出巡遊」的魚會進「我的魚缸」游。系統其他頁面只看得到展示魚（自己的與其他人的）。魚苗出生直接進寵物格，不占魚缸欄位；要餵食或巡遊再放入魚缸。魚缸最多 {MAX_FISH_SLOTS} 隻，同時巡遊最多 {MAX_ROAM_FISH} 隻。系統會送兩隻鬥魚。放生依階段回收販售價：魚苗 {Math.round(PET_RELEASE_RATES.fry * 100)}%、幼魚 {Math.round(PET_RELEASE_RATES.juvenile * 100)}%、亞成 {Math.round(PET_RELEASE_RATES.subadult * 100)}%、成魚 {Math.round(PET_RELEASE_RATES.adult * 100)}%。同類魚可免費交換，不限公母。
+          商城兌換與繁育的魚都會直接進「我的寵物」（最多 {MAX_FISH_SLOTS} 隻）。點「放入魚缸」才會去「我的魚缸」游，魚缸上限同樣 {MAX_FISH_SLOTS} 隻。繁育請手動選一公一母（同品種、成魚），同時最多 {MAX_BREED_PAIRS} 組。配對後懷孕週期 7 日一輪（交配 2 日＋懷孕 3 日＋冷卻 2 日）；缸裡碰面飄愛心只是特效，與週期無關。公母各一生 {MAX_BREED_BIRTHS} 次。後代花色混父母基因，越後代越可能更大、更長、更寬胖；第三代起小機率主色微光，第四代起較常發光，微光可遺傳也可突變。掛交易所或競拍都從這裡選魚。系統會送兩隻鬥魚。放生依階段回收販售價：魚苗 {Math.round(PET_RELEASE_RATES.fry * 100)}%、幼魚 {Math.round(PET_RELEASE_RATES.juvenile * 100)}%、亞成 {Math.round(PET_RELEASE_RATES.subadult * 100)}%、成魚 {Math.round(PET_RELEASE_RATES.adult * 100)}%。
         </p>
       </div>
 
       <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
-          <p className="text-gray-400 text-xs">魚缸欄位</p>
+          <p className="text-gray-400 text-xs">我的寵物</p>
           <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">
             {roster.length} / {cap}
           </p>
         </div>
         <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
-          <p className="text-gray-400 text-xs">巡遊</p>
+          <p className="text-gray-400 text-xs">放入魚缸</p>
           <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">
             {roamIds.length} / {MAX_ROAM_FISH}
           </p>
         </div>
         <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
-          <p className="text-gray-400 text-xs">寵物格</p>
-          <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">{(pets.petBag || []).length}</p>
+          <p className="text-gray-400 text-xs">空欄</p>
+          <p className="text-cyan-200 font-semibold tabular-nums mt-0.5">{Math.max(0, cap - roster.length)}</p>
         </div>
         <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-3">
           <p className="text-gray-400 text-xs">最多</p>
@@ -248,13 +238,6 @@ export default function MyPets() {
           className="px-4 py-2 rounded-md border border-cyan-700 text-sm text-cyan-100 hover:bg-cyan-950/40"
         >
           進我的魚缸
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/my-backpack')}
-          className="px-4 py-2 rounded-md border border-gray-600 text-sm text-cn-parchment hover:bg-black/30"
-        >
-          去背包換魚
         </button>
         <button
           type="button"
@@ -279,101 +262,87 @@ export default function MyPets() {
         </button>
       </div>
 
-      {(pets.petBag || []).length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-cn-gold">寵物格</h2>
-          <p className="text-xs text-gray-400 mt-1">魚苗與暫存的魚在這裡，不占魚缸欄位。</p>
-          <ul className="space-y-3 mt-3">
-            {(pets.petBag || []).map((snap, i) => {
-              const species = getFishSpeciesName({ key: snap.species, itemId: snap.itemId })
-              const look = lookFromSnapshot(snap)
-              const pack = FISH_PACKS[snap.species] || FISH_PACKS.betta
-              const art = look.art === 'b' ? 'b' : 'a'
-              const nick = String(drafts[`bag-${i}`] ?? snap.name ?? '').trim()
-              const shown = nick || `寵物格 ${i + 1}`
-              const imgScale = look.growable ? Math.max(0.22, look.scale) : 1
-              const sex = genderLabel(look.gender)
+      <div className="mb-5 rounded-xl border border-rose-800/40 bg-rose-950/20 p-3 sm:p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold text-rose-100">繁育系統</h2>
+          <p className="text-xs text-rose-200/80">進行中 {breedPairs.length} / {MAX_BREED_PAIRS} 組</p>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">
+          先選公魚再選母魚，同品種才能組成。兩隻放入魚缸後開始 7 日懷孕週期。碰面愛心只是特效，跟週期無關。次數用盡無法再選。
+        </p>
+        {breedPairs.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {breedPairs.map((pair) => {
+              const dad = roster.find((f) => f.id === pair.maleId)
+              const mom = roster.find((f) => f.id === pair.femaleId)
+              const dadLook = dad ? getPetAppearance(user, dad.id, dad.itemId, dad.key) : null
+              const momLook = mom ? getPetAppearance(user, mom.id, mom.itemId, mom.key) : null
+              const dadName = String(drafts[pair.maleId] || pets.names[pair.maleId] || getFishSpeciesName(dad || { key: 'betta' })).trim()
+              const momName = String(drafts[pair.femaleId] || pets.names[pair.femaleId] || getFishSpeciesName(mom || { key: 'betta' })).trim()
+              const bothIn = roamIds.includes(pair.maleId) && roamIds.includes(pair.femaleId)
+              const momLeft = momLook ? femaleBirthsLeft(pets.growth?.[pair.femaleId]) : 0
+              const dadLeft = dadLook ? femaleBirthsLeft(pets.growth?.[pair.maleId]) : 0
               return (
-                <li
-                  key={`bag-${i}-${snap.species}-${look.gender}`}
-                  className="rounded-xl border border-emerald-800/40 bg-gray-900/50 p-3 sm:p-4 flex gap-3 items-center"
-                >
-                  <div className="shrink-0 w-28 sm:w-36 h-16 sm:h-20 flex items-center justify-center rounded-lg bg-black/30 border border-gray-700 overflow-hidden">
-                    <div style={{ transform: `scale(${imgScale})` }}>
-                      <FishSprite
-                        src={pack[art]}
-                        variant={art}
-                        wide={!!pack.wide}
-                        shape={pack.shape || 'fish'}
-                        width={pack.shape === 'ray' || pack.shape === 'turtle' ? 118 : pack.shape === 'koi' ? 140 : pack.shape === 'shark' ? 148 : pack.shape === 'cichlid' ? 110 : pack.wide ? 140 : 92}
-                        height={pack.shape === 'ray' || pack.shape === 'turtle' ? 68 : pack.shape === 'koi' ? 70 : pack.shape === 'shark' ? 68 : pack.shape === 'cichlid' ? 62 : pack.wide ? 52 : 44}
-                        parts={look.parts}
-                      />
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-cyan-100 font-medium truncate">{recording ? m(shown) : shown}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">
-                      {recording ? m(species) : species}
-                      {sex ? ` · ${sex}` : ''}
-                      {' · 寵物格'}
-                      {look.growable ? ` · ${look.stage.label}` : ''}
-                      {look.lengthText ? ` · ${look.lengthText}` : ''}
-                    </p>
-                    {look.growable && (
-                      <div className="mt-1.5 h-1.5 rounded-full bg-gray-800 overflow-hidden">
-                        <div
-                          className="h-full bg-cyan-400/80"
-                          style={{ width: `${Math.round(look.progress * 100)}%` }}
-                        />
-                      </div>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <input
-                        type="text"
-                        maxLength={12}
-                        value={drafts[`bag-${i}`] ?? snap.name ?? ''}
-                        onChange={(e) => setDrafts((prev) => ({ ...prev, [`bag-${i}`]: e.target.value }))}
-                        onBlur={() => saveBagName(i)}
-                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), saveBagName(i))}
-                        placeholder={`幫寵物格 ${i + 1} 取名`}
-                        className="flex-1 min-w-[8rem] bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const r = placePetBagFish(user, i)
-                          setMessage(r.success ? '已放入魚缸' : r.message || '放入失敗')
-                          refresh()
-                        }}
-                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-cyan-700 hover:bg-cyan-600 text-white"
-                      >
-                        放入魚缸
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!window.confirm(`放生後無法復原，獲得販售價 ${Math.round(releaseRateForGrowth(snap.growth?.meals, snap.species, snap.growth?.growable) * 100)}%（${releasePayoutCoins(snap.itemId, snap.species, snap.growth?.meals, snap.growth?.growable)} 毓承幣）。確定放生？`)) return
-                          const r = releasePetBagFish(user, i)
-                          setMessage(r.success ? `已放生，獲得 ${r.coins} 毓承幣` : r.message || '放生失敗')
-                          refresh()
-                        }}
-                        className="shrink-0 px-3 py-1.5 rounded text-sm bg-slate-700 hover:bg-slate-600 text-white"
-                      >
-                        放生
-                      </button>
-                    </div>
-                  </div>
+                <li key={`${pair.maleId}-${pair.femaleId}`} className="flex flex-wrap items-center gap-2 text-sm text-rose-50">
+                  <span className="min-w-0 truncate">
+                    公 {recording ? m(dadName) : dadName}
+                    {dadLook?.gender === 'm' ? '' : ''}
+                    {' × '}
+                    母 {recording ? m(momName) : momName}
+                    {` · 公剩 ${dadLeft}/${MAX_BREED_BIRTHS} · 母剩 ${momLeft}/${MAX_BREED_BIRTHS}`}
+                    {bothIn ? ' · 已在缸裡' : ' · 請放入魚缸'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const r = stopBreedPair(user, pair.femaleId)
+                      setMessage(r.success ? '已取消這組繁育' : r.message || '取消失敗')
+                      refresh()
+                    }}
+                    className="shrink-0 px-2 py-1 rounded text-xs bg-gray-700 hover:bg-gray-600"
+                  >
+                    取消這組
+                  </button>
                 </li>
               )
             })}
           </ul>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!pickMale || !pickFemale}
+            onClick={() => {
+              const r = startBreedPair(user, pickMale, pickFemale)
+              setMessage(r.success ? '已組成繁育，請把兩隻放入魚缸' : r.message || '配對失敗')
+              if (r.success) {
+                setPickMale('')
+                setPickFemale('')
+              }
+              refresh()
+            }}
+            className="px-3 py-1.5 rounded text-sm bg-rose-700 hover:bg-rose-600 disabled:bg-gray-700 disabled:text-gray-500 text-white"
+          >
+            {pickMale && pickFemale ? '組成這一組' : '請先點魚選公、選母'}
+          </button>
+          {(pickMale || pickFemale) && (
+            <button
+              type="button"
+              onClick={() => {
+                setPickMale('')
+                setPickFemale('')
+              }}
+              className="px-3 py-1.5 rounded text-sm bg-gray-700 hover:bg-gray-600"
+            >
+              清除選擇
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {others.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
-          目前有 {others.length} 人展示中，他們的展示魚會出現在系統各頁；你的巡遊魚只在「我的魚缸」。
+          目前有 {others.length} 人展示中，他們的展示魚會出現在系統各頁；你放入魚缸的魚只在「我的魚缸」。
         </div>
       )}
 
@@ -389,10 +358,20 @@ export default function MyPets() {
           const breed = breeding[fish.id]
           const pack = FISH_PACKS[fish.key] || FISH_PACKS.betta
           const art = look.art === 'b' ? 'b' : 'a'
+          const pairOf = findBreedPair(user, fish.id)
+          const adult = !look.growable || look.stage?.key === 'adult'
+          const usesLeft = femaleBirthsLeft(pets.growth?.[fish.id])
+          const picked = pickMale === fish.id || pickFemale === fish.id
           return (
             <li
               key={fish.id}
-              className="rounded-xl border border-cyan-800/40 bg-gray-900/50 p-3 sm:p-4 flex gap-3 items-center"
+              className={`rounded-xl border p-3 sm:p-4 flex gap-3 items-center ${
+                picked
+                  ? 'border-rose-400 bg-rose-950/30'
+                  : pairOf
+                    ? 'border-rose-800/50 bg-gray-900/50'
+                    : 'border-cyan-800/40 bg-gray-900/50'
+              }`}
             >
               <div className="shrink-0 w-28 sm:w-36 h-16 sm:h-20 flex items-center justify-center rounded-lg bg-black/30 border border-gray-700 overflow-hidden">
                 <div style={{ transform: `scale(${imgScale})` }}>
@@ -401,8 +380,8 @@ export default function MyPets() {
                     variant={art}
                     wide={!!fish.wide}
                     shape={fish.shape}
-                    width={fish.shape === 'ray' || fish.shape === 'turtle' ? 118 : fish.shape === 'koi' ? 140 : fish.shape === 'shark' ? 148 : fish.shape === 'cichlid' ? 110 : fish.wide ? 140 : 92}
-                    height={fish.shape === 'ray' || fish.shape === 'turtle' ? 68 : fish.shape === 'koi' ? 70 : fish.shape === 'shark' ? 68 : fish.shape === 'cichlid' ? 62 : fish.wide ? 52 : 44}
+                    width={Math.round((fish.shape === 'ray' || fish.shape === 'turtle' ? 118 : fish.shape === 'koi' ? 140 : fish.shape === 'shark' ? 148 : fish.shape === 'cichlid' ? 110 : fish.wide ? 140 : 92) * (look.lengthMul || 1))}
+                    height={Math.round((fish.shape === 'ray' || fish.shape === 'turtle' ? 68 : fish.shape === 'koi' ? 70 : fish.shape === 'shark' ? 68 : fish.shape === 'cichlid' ? 62 : fish.wide ? 52 : 44) * (look.girthMul || 1))}
                     parts={look.parts}
                   />
                 </div>
@@ -415,7 +394,10 @@ export default function MyPets() {
                   {fish.born ? ' · 育成' : ''}
                   {look.growable ? ` · ${look.stage.label}` : ''}
                   {look.lengthText ? ` · ${look.lengthText}` : ''}
+                  {` · 繁育 ${usesLeft}/${MAX_BREED_BIRTHS}`}
+                  {look.glowText ? ` · ${look.glowText}` : ''}
                   {look.pregnant || breed?.phase === 'pregnant' ? ' · 懷孕中' : ''}
+                  {pairOf ? ' · 繁育中' : ''}
                 </p>
                 {look.growable && (
                   <div className="mt-1.5 h-1.5 rounded-full bg-gray-800 overflow-hidden">
@@ -447,7 +429,7 @@ export default function MyPets() {
                 ) : null}
                 <p className={`text-xs mt-1 ${hungerClass(hunger.key)}`}>{hunger.label}</p>
                 {roamIds.includes(fish.id) && (
-                  <p className="text-[11px] text-sky-200 mt-1">正在我的魚缸巡遊</p>
+                  <p className="text-[11px] text-sky-200 mt-1">已放入我的魚缸</p>
                 )}
                 {showcaseSlotId === fish.id && (
                   <p className="text-[11px] text-amber-200 mt-1">全員可見 · 不占別人欄位</p>
@@ -479,7 +461,7 @@ export default function MyPets() {
                     onClick={() => {
                       const on = !roamIds.includes(fish.id)
                       const r = setFishRoaming(user, fish.id, on)
-                      setMessage(r.success ? (on ? '已放入魚缸巡遊' : '已收回，不再巡遊') : r.message || '設定失敗')
+                      setMessage(r.success ? (on ? '已放入魚缸' : '已從魚缸收回') : r.message || '設定失敗')
                       refresh()
                     }}
                     className={`shrink-0 px-3 py-1.5 rounded text-sm ${
@@ -488,8 +470,43 @@ export default function MyPets() {
                         : 'bg-gray-700 hover:bg-gray-600 text-cn-parchment'
                     }`}
                   >
-                    {roamIds.includes(fish.id) ? '收回巡遊' : '放入魚缸巡遊'}
+                    {roamIds.includes(fish.id) ? '收回魚缸' : '放入魚缸'}
                   </button>
+                  {pairOf ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const r = stopBreedPair(user, fish.id)
+                        setMessage(r.success ? '已退出繁育' : r.message || '取消失敗')
+                        refresh()
+                      }}
+                      className="shrink-0 px-3 py-1.5 rounded text-sm bg-rose-800 hover:bg-rose-700 text-white"
+                    >
+                      取消繁育
+                    </button>
+                  ) : adult && look.gender === 'm' && usesLeft > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setPickMale(fish.id === pickMale ? '' : fish.id)}
+                      className={`shrink-0 px-3 py-1.5 rounded text-sm ${
+                        pickMale === fish.id ? 'bg-sky-400 text-cn-ink font-semibold' : 'bg-sky-800 hover:bg-sky-700 text-white'
+                      }`}
+                    >
+                      {pickMale === fish.id ? '已選公魚' : '選為公魚'}
+                    </button>
+                  ) : adult && look.gender === 'f' && usesLeft > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setPickFemale(fish.id === pickFemale ? '' : fish.id)}
+                      className={`shrink-0 px-3 py-1.5 rounded text-sm ${
+                        pickFemale === fish.id ? 'bg-pink-400 text-cn-ink font-semibold' : 'bg-pink-800 hover:bg-pink-700 text-white'
+                      }`}
+                    >
+                      {pickFemale === fish.id ? '已選母魚' : '選為母魚'}
+                    </button>
+                  ) : adult && usesLeft <= 0 ? (
+                    <span className="shrink-0 px-3 py-1.5 rounded text-sm bg-gray-800 text-gray-500">繁育已盡</span>
+                  ) : null}
                   {canTradeTankFish(fish) && (
                     <>
                       <button
@@ -573,7 +590,7 @@ export default function MyPets() {
       {isAdmin ? (
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-cn-gold">體色圖鑑</h2>
-        <p className="text-xs text-gray-400 mt-1">僅管理員可見。魚苗近乎單色，繁殖混父母主色與花紋，小機率祖代或突變；每種約 24 種變化樣本。</p>
+        <p className="text-xs text-gray-400 mt-1">僅管理員可見。花色混父母基因；另含巨體／長體／寬胖，以及三代微光、四代發光（主色紅發紅光、藍發藍光，可遺傳與突變）。</p>
         {Object.keys(FISH_PACKS).map((key) => {
           const pack = FISH_PACKS[key]
           const rows = listSpeciesMorphLooks(key)
@@ -594,12 +611,13 @@ export default function MyPets() {
                           variant={row.art === 'b' ? 'b' : 'a'}
                           wide={!!pack.wide}
                           shape={pack.shape || 'fish'}
-                          width={pack.shape === 'ray' || pack.shape === 'turtle' ? 96 : pack.shape === 'koi' ? 112 : pack.shape === 'shark' ? 118 : pack.shape === 'cichlid' ? 90 : pack.wide ? 108 : 72}
-                          height={pack.shape === 'ray' || pack.shape === 'turtle' ? 54 : pack.shape === 'koi' ? 56 : pack.shape === 'shark' ? 54 : pack.shape === 'cichlid' ? 50 : pack.wide ? 40 : 36}
+                          width={Math.round((pack.shape === 'ray' || pack.shape === 'turtle' ? 96 : pack.shape === 'koi' ? 112 : pack.shape === 'shark' ? 118 : pack.shape === 'cichlid' ? 90 : pack.wide ? 108 : 72) * (row.form?.length || 1))}
+                          height={Math.round((pack.shape === 'ray' || pack.shape === 'turtle' ? 54 : pack.shape === 'koi' ? 56 : pack.shape === 'shark' ? 54 : pack.shape === 'cichlid' ? 50 : pack.wide ? 40 : 36) * (row.form?.girth || 1) * (row.form?.size || 1))}
                           parts={look}
                         />
                       ))}
                     </div>
+                    {row.tag ? <p className="text-[10px] text-amber-200/90 mt-1">{row.tag}</p> : null}
                   </div>
                 ))}
               </div>

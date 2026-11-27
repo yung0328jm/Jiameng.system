@@ -21,10 +21,11 @@ export default function FishSprite({ src, variant, wide, shape, width, height, p
   })
   return (
     <div
-      className={`ocean-betta ocean-betta-${variant || 'a'}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' || shape === 'turtle' ? ' ocean-betta-ray' : ''}${shape === 'cichlid' ? ' ocean-betta-cichlid' : ''}${shape === 'shark' ? ' ocean-betta-shark' : ''}${shape === 'koi' ? ' ocean-betta-koi' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''} ${className}`.trim()}
+      className={`ocean-betta ocean-betta-${variant || 'a'}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' || shape === 'turtle' ? ' ocean-betta-ray' : ''}${shape === 'cichlid' ? ' ocean-betta-cichlid' : ''}${shape === 'shark' ? ' ocean-betta-shark' : ''}${shape === 'koi' ? ' ocean-betta-koi' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''}${parts?.glow ? ' ocean-betta-glow' : ''} ${className}`.trim()}
       style={{
         width: width ? `${width}px` : undefined,
-        height: height ? `${height}px` : undefined
+        height: height ? `${height}px` : undefined,
+        ...(parts?.glowAura || {})
       }}
     >
       <img
