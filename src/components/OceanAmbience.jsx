@@ -103,6 +103,24 @@ function fishSize(entry, index, mobile, scale = 1, form = {}) {
   }
 }
 
+function tankBeam(L) {
+  const cx = L.w * 0.4
+  const topHalf = L.w * (L.mobile ? 0.07 : 0.055)
+  const botHalf = L.w * (L.mobile ? 0.16 : 0.13)
+  return { cx, topHalf, botHalf }
+}
+
+function fishInTankBeam(fish, size, L) {
+  const { cx, topHalf, botHalf } = tankBeam(L)
+  const midX = (fish?.x || 0) + (size?.width || 0) * 0.5
+  const midY = (fish?.y || 0) + (size?.height || 0) * 0.45
+  const t = Math.max(0, Math.min(1, midY / Math.max(1, L.h)))
+  const half = topHalf + (botHalf - topHalf) * t
+  const d = Math.abs(midX - cx)
+  if (d >= half) return 0
+  return Math.max(0, Math.min(1, 1 - d / half))
+}
+
 function cruiseSpeed(L, entry, size) {
   const w = Math.max(40, Number(size?.width) || 80)
   const fromWidth = Math.max(0.72, Math.min(1.08, 150 / (w + 40)))
@@ -555,7 +573,8 @@ export default function OceanAmbience({ mode = 'world' }) {
           face: f.face,
           tilt: f.tilt || 0,
           dash: f.dash,
-          eating: now < f.eatUntil
+          eating: now < f.eatUntil,
+          lit: mode === 'tank' ? fishInTankBeam(f, size, L) : 0
         }
       }))
 
@@ -590,7 +609,13 @@ export default function OceanAmbience({ mode = 'world' }) {
   if (hidden || typeof document === 'undefined') return null
 
   return createPortal(
-    <div className="ocean-ambience" aria-hidden>
+    <div className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}`} aria-hidden>
+      {mode === 'tank' ? (
+        <div className="ocean-tank-beam" aria-hidden>
+          <span className="ocean-tank-beam-core" />
+          <span className="ocean-tank-beam-glow" />
+        </div>
+      ) : null}
       {bubbles.map((b) => (
         <span
           key={b.id}
@@ -633,11 +658,14 @@ export default function OceanAmbience({ mode = 'world' }) {
           key={fish.id}
           role="button"
           tabIndex={-1}
-          className={`ocean-fish-actor${fish.dash ? ' is-dash' : ''}${fish.eating ? ' is-eating' : ''}`}
+          className={`ocean-fish-actor${fish.dash ? ' is-dash' : ''}${fish.eating ? ' is-eating' : ''}${fish.lit > 0.18 ? ' is-lit' : ''}`}
           style={{
             transform: `translate3d(${fish.x}px, ${fish.y}px, 0)`,
             width: fish.width ? `${fish.width}px` : undefined,
-            height: fish.height ? `${fish.height}px` : undefined
+            height: fish.height ? `${fish.height}px` : undefined,
+            filter: fish.lit > 0.04
+              ? `saturate(${(1 + fish.lit * 1.15).toFixed(3)}) brightness(${(1 + fish.lit * 0.28).toFixed(3)}) contrast(${(1 + fish.lit * 0.1).toFixed(3)})`
+              : undefined
           }}
           onClick={(e) => {
             e.preventDefault()
