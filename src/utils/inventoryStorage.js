@@ -15,7 +15,7 @@ export function remapInventoryRows(list) {
     const itemId = remapRetiredItemId(row?.itemId)
     if (!itemId) return
     const qty = Math.max(0, Number(row?.quantity) || 0)
-    if (qty <= 0) return
+    if (qty <= 0 && !row?.qtyAt) return
     const prev = map.get(itemId)
     map.set(itemId, {
       ...(prev || {}),
@@ -45,7 +45,7 @@ export const getUserInventory = (username) => {
       inventories[username] = arr
       persistAll(inventories)
     }
-    return arr
+    return arr.filter((row) => (Number(row?.quantity) || 0) > 0)
   } catch (error) {
     console.error('Error getting user inventory:', error)
     return []
@@ -72,13 +72,16 @@ export const addItemToInventory = (username, rawItemId, quantity = 1) => {
     if (!itemId) return { success: false, message: '道具無效' }
     inventories[username] = remapInventoryRows(inventories[username])
     const existingItem = inventories[username].find(item => item.itemId === itemId)
+    const now = new Date().toISOString()
     if (existingItem) {
       existingItem.quantity += quantity
+      existingItem.qtyAt = now
     } else {
       inventories[username].push({
         itemId,
         quantity,
-        obtainedAt: new Date().toISOString()
+        obtainedAt: now,
+        qtyAt: now
       })
     }
     
@@ -93,7 +96,7 @@ export const addItemToInventory = (username, rawItemId, quantity = 1) => {
 }
 
 // 從用戶背包移除道具
-export const removeItemFromInventory = (username, itemId, quantity = 1) => {
+export const removeItemFromInventory = (username, rawItemId, quantity = 1) => {
   try {
     const data = localStorage.getItem(INVENTORY_STORAGE_KEY)
     const inventories = data ? JSON.parse(data) : {}
@@ -101,17 +104,26 @@ export const removeItemFromInventory = (username, itemId, quantity = 1) => {
     if (!inventories[username]) {
       return { success: false, message: '背包為空' }
     }
-    
+
+    const itemId = remapRetiredItemId(rawItemId)
+    inventories[username] = remapInventoryRows(inventories[username])
     const itemIndex = inventories[username].findIndex(item => item.itemId === itemId)
     if (itemIndex === -1) {
       return { success: false, message: '道具不存在' }
     }
     
     const item = inventories[username][itemIndex]
+    const now = new Date().toISOString()
     if (item.quantity <= quantity) {
-      inventories[username].splice(itemIndex, 1)
+      if (String(itemId).startsWith('fish_potion_')) {
+        item.quantity = 0
+        item.qtyAt = now
+      } else {
+        inventories[username].splice(itemIndex, 1)
+      }
     } else {
       item.quantity -= quantity
+      item.qtyAt = now
     }
     
     const val = JSON.stringify(inventories)
