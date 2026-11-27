@@ -24,7 +24,7 @@ import {
   getItems
 } from './itemStorage'
 import { addTransaction, addWalletBalance } from './walletStorage'
-import { MORPH_PALETTE_VER, ensureMorphLineage, glowHueForColor, glowLabel, mixParentMorphs, morphById, morphPartFilters, parentRareChance, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks, shineLabel } from './fishMorphs'
+import { MORPH_PALETTE_VER, ensureMorphLineage, mixParentMorphs, morphById, morphPartFilters, parentRareChance, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks } from './fishMorphs'
 
 export const PET_STORAGE_KEY = 'jiameng_pets'
 export const PET_ADULT_MEALS = 45
@@ -579,8 +579,8 @@ function lookParts(rec, meals, speciesKey, growable) {
     parts,
     art: morph.art || cat?.art || 'a',
     rarity: rarityLabel(Number(morph.w) || cat?.w),
-    morphLabel: reveal < 0.12 ? '未顯色' : morph.label || '',
-    shineText: reveal < 0.4 ? '' : shineLabel(morph.shine)
+    morphLabel: '',
+    shineText: ''
   }
 }
 
@@ -590,14 +590,12 @@ function formFromRec(rec) {
   const length = clamp(Number(g.length) || 1, 0.9, 1.72)
   const girth = clamp(Number(g.girth) || 1, 0.9, 1.62)
   const glow = Math.max(0, Math.min(2, Math.floor(Number(g.glow) || 0)))
-  const tone = glowHueForColor(g.bodyColor)
-  const gLabel = glowLabel(glow)
   return {
     sizeMul: size,
     lengthMul: length,
     girthMul: girth,
     glow,
-    glowText: gLabel ? `${tone.label}${gLabel}` : ''
+    glowText: ''
   }
 }
 

@@ -615,7 +615,6 @@ export default function MyPets() {
                   {look.growable ? ` · ${look.stage.label}` : ''}
                   {look.lengthText ? ` · ${look.lengthText}` : ''}
                   {` · 繁育 ${usesLeft}/${MAX_BREED_BIRTHS}`}
-                  {look.glowText ? ` · ${look.glowText}` : ''}
                   {look.gender === 'f' && breed?.phase === 'pregnant' ? ' · 懷孕中' : ''}
                   {look.gender === 'f' && breed?.phase === 'cooldown' ? ' · 冷卻中' : ''}
                   {pairOf ? ' · 繁育中' : ''}
