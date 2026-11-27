@@ -33,7 +33,6 @@ import {
   listRoamingSlotIds,
   MAX_BREED_PAIRS,
   MAX_ROAM_FISH,
-  PET_RELEASE_RATES,
   releasePayoutCoins,
   releaseRateForGrowth,
   releaseLiveFish,
@@ -197,9 +196,6 @@ export default function MyPets() {
     <div className="max-w-3xl mx-auto text-cn-parchment pb-8">
       <div className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">我的寵物</h1>
-        <p className="text-cn-mist text-sm mt-1">
-          商城兌換與繁育的魚都會直接進「我的寵物」（最多 {MAX_FISH_SLOTS} 隻）。點「放入魚缸」才會去「我的魚缸」游，魚缸上限同樣 {MAX_FISH_SLOTS} 隻。繁育請手動選一公一母（同品種、成魚），同時最多 {MAX_BREED_PAIRS} 組。配對後懷孕週期 7 日一輪（交配 2 日＋懷孕 3 日＋冷卻 2 日）；缸裡碰面飄愛心只是特效，與週期無關。好感藥水可立刻懷孕，催生藥水可立刻產苗。公母各一生 {MAX_BREED_BIRTHS} 次。後代花色混父母基因，越後代越可能更大、更長、更寬胖；第三代起小機率主色微光，第四代起較常發光，微光可遺傳也可突變。掛交易所或競拍都從這裡選魚。系統會送兩隻鬥魚。放生依階段回收販售價：魚苗 {Math.round(PET_RELEASE_RATES.fry * 100)}%、幼魚 {Math.round(PET_RELEASE_RATES.juvenile * 100)}%、亞成 {Math.round(PET_RELEASE_RATES.subadult * 100)}%、成魚 {Math.round(PET_RELEASE_RATES.adult * 100)}%。
-        </p>
       </div>
 
       <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
