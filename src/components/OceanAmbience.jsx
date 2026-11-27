@@ -45,12 +45,19 @@ function headerClearance() {
   return isMobile() ? 128 : 148
 }
 
-function layout() {
+function layout(mode = 'world', fishCount = 0) {
   const mobile = isMobile()
-  const w = window.innerWidth
+  const viewW = window.innerWidth
   const h = window.innerHeight
+  const pan = mode === 'tank' && mobile
+  const n = Math.max(0, Number(fishCount) || 0)
+  const w = pan
+    ? Math.round(Math.min(viewW * 6, Math.max(viewW * 2.7, viewW + n * 64)))
+    : viewW
   return {
     mobile,
+    pan,
+    viewW,
     w,
     h,
     top: headerClearance(),
@@ -181,7 +188,7 @@ function clampFish(fish, L, size, layer = fish._layer) {
 }
 
 function pickWander(fish, L, size) {
-  const padX = 16
+  const padX = L.pan ? 8 : 16
   const { minY, maxY } = layerBand(L, size, fish._layer)
   const maxX = Math.max(40, L.w - size.width - padX * 2)
   const spanY = Math.max(12, maxY - minY)
@@ -251,6 +258,13 @@ export default function OceanAmbience({ mode = 'world' }) {
   const [potionMsg, setPotionMsg] = useState('')
   const lookBump = useRef(0)
   const shooRef = useRef([])
+  const panRef = useRef(null)
+  const rosterRef = useRef(loadRoster(mode))
+  const bootLayout = typeof window === 'undefined' ? { w: 0, pan: false } : layout(mode, (rosterRef.current || []).length)
+  const worldWRef = useRef(bootLayout.w)
+  const panFlagRef = useRef(!!bootLayout.pan)
+  const [worldW, setWorldW] = useState(bootLayout.w)
+  const [pan, setPan] = useState(!!bootLayout.pan)
   const [actors, setActors] = useState(() => loadRoster(mode).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
@@ -261,7 +275,6 @@ export default function OceanAmbience({ mode = 'world' }) {
     eating: false
   })))
   const sim = useRef(null)
-  const rosterRef = useRef(loadRoster(mode))
 
   useEffect(() => {
     setPotionMsg('')
@@ -299,8 +312,12 @@ export default function OceanAmbience({ mode = 'world' }) {
 
   useEffect(() => {
     if (hidden) return undefined
-    const L0 = layout()
     const startRoster = rosterRef.current
+    const L0 = layout(mode, startRoster.length)
+    worldWRef.current = L0.w
+    panFlagRef.current = !!L0.pan
+    setWorldW(L0.w)
+    setPan(!!L0.pan)
     const startLooks = loadLooks(startRoster)
     sim.current = {
       food: [],
@@ -320,7 +337,15 @@ export default function OceanAmbience({ mode = 'world' }) {
     const tick = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const L = layout()
+      const L = layout(mode, (rosterRef.current || []).length)
+      if (worldWRef.current !== L.w) {
+        worldWRef.current = L.w
+        setWorldW(L.w)
+      }
+      if (panFlagRef.current !== !!L.pan) {
+        panFlagRef.current = !!L.pan
+        setPan(!!L.pan)
+      }
       const state = sim.current
       if (!state) return
       const currentRoster = rosterRef.current || []
@@ -584,7 +609,8 @@ export default function OceanAmbience({ mode = 'world' }) {
     raf = requestAnimationFrame(tick)
 
     const onFeed = (e) => {
-      const x = Number(e.detail?.x)
+      const scrollX = panRef.current?.scrollLeft || 0
+      const x = Number(e.detail?.x) + scrollX
       const y = Number(e.detail?.y)
       if (!Number.isFinite(x) || !Number.isFinite(y) || !sim.current) return
       const roster = rosterRef.current || []
@@ -613,7 +639,12 @@ export default function OceanAmbience({ mode = 'world' }) {
   if (hidden || typeof document === 'undefined') return null
 
   return createPortal(
-    <div className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}`} aria-hidden>
+    <div
+      ref={panRef}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${pan ? ' is-pan' : ''}`}
+      aria-hidden
+    >
+      <div className="ocean-world" style={pan && worldW ? { width: `${worldW}px` } : undefined}>
       {mode === 'tank' ? (
         <div className="ocean-tank-beam" aria-hidden>
           <span className="ocean-tank-beam-core" />
@@ -674,7 +705,11 @@ export default function OceanAmbience({ mode = 'world' }) {
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            shooRef.current.push({ id: fish.id, x: e.clientX, y: e.clientY })
+            shooRef.current.push({
+              id: fish.id,
+              x: e.clientX + (panRef.current?.scrollLeft || 0),
+              y: e.clientY
+            })
             setInspect((cur) => (cur === fish.id ? null : fish.id))
           }}
         >
@@ -757,6 +792,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           </div>
         )
       })()}
+      </div>
     </div>,
     document.body
   )

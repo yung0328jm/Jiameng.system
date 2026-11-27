@@ -215,6 +215,28 @@ body {
   transform: translate3d(0, 0, 0);
 }
 
+.ocean-ambience.is-pan {
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scrollbar-width: none;
+}
+
+.ocean-ambience.is-pan::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
+.ocean-world {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
 .ocean-bubble {
   position: absolute;
   bottom: 0;
