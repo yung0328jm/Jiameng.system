@@ -296,11 +296,17 @@ function ExchangeShop() {
       const rawInv = localStorage.getItem('jiameng_inventories')
       const inventories = rawInv ? JSON.parse(rawInv) : {}
       let changed = false
+      const now = new Date().toISOString()
       Object.keys(inventories || {}).forEach((username) => {
         const arr = Array.isArray(inventories[username]) ? inventories[username] : []
-        const filtered = arr.filter((invEntry) => invEntry?.itemId !== itemId)
-        if (filtered.length !== arr.length) {
-          inventories[username] = filtered
+        let hit = false
+        const next = arr.map((invEntry) => {
+          if (invEntry?.itemId !== itemId) return invEntry
+          hit = true
+          return { ...invEntry, quantity: 0, qtyAt: now }
+        })
+        if (hit) {
+          inventories[username] = next
           changed = true
         }
       })

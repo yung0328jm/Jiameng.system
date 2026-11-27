@@ -224,7 +224,7 @@ function rowForId(list, id) {
   return (list || []).find((r) => remapInvItemId(r?.itemId) === want) || null
 }
 
-function pickPotionQty(aList, bList, id) {
+function pickInvQty(aList, bList, id) {
   const ra = rowForId(aList, id)
   const rb = rowForId(bList, id)
   const ta = tsOf(ra?.qtyAt)
@@ -232,7 +232,10 @@ function pickPotionQty(aList, bList, id) {
   if (ta && tb) return ta >= tb ? qtyOf(aList, id) : qtyOf(bList, id)
   if (ta) return qtyOf(aList, id)
   if (tb) return qtyOf(bList, id)
-  return Math.min(qtyOf(aList, id), qtyOf(bList, id))
+  if (id.startsWith('fish_potion_') || fishSkinItemId(id)) {
+    return Math.min(qtyOf(aList, id), qtyOf(bList, id))
+  }
+  return Math.max(qtyOf(aList, id), qtyOf(bList, id))
 }
 
 function mergeInvRows(aList, bList) {
@@ -243,12 +246,7 @@ function mergeInvRows(aList, bList) {
     const id = remapInvItemId(row?.itemId)
     if (!id) return
     const prev = map.get(id)
-    const potion = id.startsWith('fish_potion_')
-    const qty = fishSkinItemId(id)
-      ? Math.min(qtyOf(aList, id), qtyOf(bList, id))
-      : potion
-        ? pickPotionQty(aList, bList, id)
-        : Math.max(qtyOf(aList, id), qtyOf(bList, id))
+    const qty = pickInvQty(aList, bList, id)
     const obtainedAt = tsOf(row.obtainedAt) >= tsOf(prev?.obtainedAt) ? row.obtainedAt : prev?.obtainedAt
     const qtyAt = tsOf(row.qtyAt) >= tsOf(prev?.qtyAt) ? (row.qtyAt || prev?.qtyAt) : prev?.qtyAt
     map.set(id, { ...(prev || {}), ...row, itemId: id, quantity: qty, obtainedAt, qtyAt })
@@ -256,7 +254,7 @@ function mergeInvRows(aList, bList) {
   return Array.from(map.values()).filter((row) => {
     const q = Number(row.quantity) || 0
     if (q > 0) return true
-    return String(row.itemId || '').startsWith('fish_potion_') && tsOf(row.qtyAt) > 0
+    return tsOf(row.qtyAt) > 0
   })
 }
 

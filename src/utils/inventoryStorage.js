@@ -115,12 +115,8 @@ export const removeItemFromInventory = (username, rawItemId, quantity = 1) => {
     const item = inventories[username][itemIndex]
     const now = new Date().toISOString()
     if (item.quantity <= quantity) {
-      if (String(itemId).startsWith('fish_potion_')) {
-        item.quantity = 0
-        item.qtyAt = now
-      } else {
-        inventories[username].splice(itemIndex, 1)
-      }
+      item.quantity = 0
+      item.qtyAt = now
     } else {
       item.quantity -= quantity
       item.qtyAt = now
@@ -193,11 +189,18 @@ export const removeItemIdsFromAllInventories = (itemIds) => {
     const inventories = getAllInventories()
     let removedUsers = 0
     let changed = false
+    const now = new Date().toISOString()
     Object.keys(inventories || {}).forEach((username) => {
       const arr = Array.isArray(inventories[username]) ? inventories[username] : []
-      const filtered = arr.filter((inv) => !ids.has(inv?.itemId))
-      if (filtered.length !== arr.length) {
-        inventories[username] = filtered
+      let hit = false
+      const next = arr.map((inv) => {
+        const id = remapRetiredItemId(inv?.itemId)
+        if (!ids.has(inv?.itemId) && !ids.has(id)) return inv
+        hit = true
+        return { ...inv, itemId: id || inv?.itemId, quantity: 0, qtyAt: now }
+      })
+      if (hit) {
+        inventories[username] = next
         removedUsers += 1
         changed = true
       }
