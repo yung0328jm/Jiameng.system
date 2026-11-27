@@ -10,7 +10,7 @@ import {
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { addWalletBalance, addTransaction } from '../utils/walletStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
-import { getItems } from '../utils/itemStorage'
+import { getItems, ITEM_TYPES } from '../utils/itemStorage'
 
 function CheckIn() {
   const [currentUser, setCurrentUser] = useState('')
@@ -126,11 +126,14 @@ function CheckIn() {
   const handleSaveReward = () => {
     if (editingDay == null) return
     const next = { ...rewardConfig, days: { ...rewardConfig.days } }
-    const desc = editForm.rewardType === 'jiameng_coin'
+    const desc = (editForm.rewardType === 'jiameng_coin'
       ? `${editForm.rewardAmount} 毓承幣`
       : editForm.rewardType === 'item' && editForm.rewardItemId
         ? (items.find(i => i.id === editForm.rewardItemId)?.name || '道具') + ' x' + (editForm.rewardAmount || 1)
-        : editForm.rewardDescription || ''
+        : editForm.rewardDescription || '')
+      .replace(/魚隻擴充欄/g, '紅蟲')
+      .replace(/魚隻擴充/g, '紅蟲')
+      .replace(/佳盟幣/g, '毓承幣')
     next.days[editingDay] = {
       rewardType: editForm.rewardType,
       rewardAmount: editForm.rewardAmount || 0,
@@ -215,6 +218,10 @@ function CheckIn() {
             const ds = dateStr(yearMonth.year, yearMonth.month, day)
             const signed = currentUser ? hasCheckedIn(currentUser, ds) : false
             const reward = rewardConfig.days[day] || { rewardDescription: `${10 + Math.min(day, 40)} 毓承幣` }
+            const rewardText = String(reward.rewardDescription || '')
+              .replace(/魚隻擴充欄/g, '紅蟲')
+              .replace(/魚隻擴充/g, '紅蟲')
+              .replace(/佳盟幣/g, '毓承幣')
             const isToday = isThisMonth && day === currentDay
             const canClick = currentUser && isToday && !signed
             const isPast = isThisMonth && day < currentDay
@@ -236,7 +243,7 @@ function CheckIn() {
                 role={(userRole === 'admin') || canClick ? 'button' : undefined}
               >
                 <div className="text-[10px] sm:text-xs font-bold text-yellow-400/90 mb-0.5">{day}</div>
-                <div className="text-[9px] sm:text-[10px] text-gray-400 text-center line-clamp-2 min-w-0 w-full px-0.5">{reward.rewardDescription || ''}</div>
+                <div className="text-[9px] sm:text-[10px] text-gray-400 text-center line-clamp-2 min-w-0 w-full px-0.5">{rewardText}</div>
                 {signed && <div className="absolute top-0.5 right-1 text-green-400 text-[10px]">✓</div>}
                 {userRole === 'admin' && (
                   <div className="absolute bottom-0.5 right-1 text-gray-500 text-[9px]">編輯</div>
@@ -302,7 +309,7 @@ function CheckIn() {
                           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                         >
                           <option value="">請選擇</option>
-                          {items.map((it) => (
+                          {items.filter((it) => it.type !== ITEM_TYPES.FISH_SLOT).map((it) => (
                             <option key={it.id} value={it.id}>{it.icon} {it.name}</option>
                           ))}
                         </select>

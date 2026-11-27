@@ -1,6 +1,32 @@
 // 背包系統存儲工具
 import { syncKeyToSupabase } from './supabaseSync'
+import { FISH_POTION_WORM_ID, FISH_SLOT_EXPAND_ITEM_ID } from './itemStorage'
 const INVENTORY_STORAGE_KEY = 'jiameng_inventories'
+
+function remapRetiredItemId(id) {
+  const s = String(id || '')
+  if (s === FISH_SLOT_EXPAND_ITEM_ID || s === 'fish_slot_expand') return FISH_POTION_WORM_ID
+  return s
+}
+
+export function remapInventoryRows(list) {
+  const map = new Map()
+  ;(Array.isArray(list) ? list : []).forEach((row) => {
+    const itemId = remapRetiredItemId(row?.itemId)
+    if (!itemId) return
+    const qty = Math.max(0, Number(row?.quantity) || 0)
+    if (qty <= 0) return
+    const prev = map.get(itemId)
+    map.set(itemId, {
+      ...(prev || {}),
+      ...row,
+      itemId,
+      quantity: (Number(prev?.quantity) || 0) + qty,
+      obtainedAt: row?.obtainedAt || prev?.obtainedAt
+    })
+  })
+  return Array.from(map.values())
+}
 
 const persistAll = (inventories) => {
   const val = JSON.stringify(inventories || {})
@@ -13,8 +39,13 @@ export const getUserInventory = (username) => {
   try {
     const data = localStorage.getItem(INVENTORY_STORAGE_KEY)
     const inventories = data ? JSON.parse(data) : {}
-    const arr = inventories[username] || []
-    return Array.isArray(arr) ? arr : []
+    const arr = remapInventoryRows(inventories[username] || [])
+    const raw = inventories[username]
+    if (JSON.stringify(arr) !== JSON.stringify(Array.isArray(raw) ? raw : [])) {
+      inventories[username] = arr
+      persistAll(inventories)
+    }
+    return arr
   } catch (error) {
     console.error('Error getting user inventory:', error)
     return []
@@ -28,7 +59,7 @@ export const countInventoryItem = (username, itemId) => {
 }
 
 // 添加道具到用戶背包
-export const addItemToInventory = (username, itemId, quantity = 1) => {
+export const addItemToInventory = (username, rawItemId, quantity = 1) => {
   try {
     const data = localStorage.getItem(INVENTORY_STORAGE_KEY)
     const inventories = data ? JSON.parse(data) : {}
@@ -37,6 +68,9 @@ export const addItemToInventory = (username, itemId, quantity = 1) => {
       inventories[username] = []
     }
     
+    const itemId = remapRetiredItemId(rawItemId)
+    if (!itemId) return { success: false, message: '道具無效' }
+    inventories[username] = remapInventoryRows(inventories[username])
     const existingItem = inventories[username].find(item => item.itemId === itemId)
     if (existingItem) {
       existingItem.quantity += quantity

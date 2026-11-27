@@ -18,18 +18,21 @@ import {
   FISH_POTION_GENDER_ID,
   FISH_POTION_GROWTH_ID,
   FISH_POTION_HEAT_ID,
+  FISH_POTION_WORM_ID,
   ITEM_TYPES,
   getItem,
   getItems
 } from './itemStorage'
 import { addTransaction, addWalletBalance } from './walletStorage'
-import { MORPH_PALETTE_VER, ensureMorphLineage, glowHueForColor, glowLabel, mixParentMorphs, morphById, morphPartFilters, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks, shineLabel } from './fishMorphs'
+import { MORPH_PALETTE_VER, ensureMorphLineage, glowHueForColor, glowLabel, mixParentMorphs, morphById, morphPartFilters, parentRareChance, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks, shineLabel } from './fishMorphs'
 
 export const PET_STORAGE_KEY = 'jiameng_pets'
 export const PET_ADULT_MEALS = 45
 export const PET_DAILY_GROWTH_CAP = 5
 export const PET_GROWTH_GAP_MS = 90 * 1000
 export const PET_GROWTH_POTION_MEALS = 20
+export const PET_WORM_MEALS = 2
+export const PET_WORM_DAILY_CAP = 2
 
 const PET_DAY_MS = 24 * 60 * 60 * 1000
 /** One birth cycle = 7 days: courtship + pregnancy + cooldown. */
@@ -60,6 +63,8 @@ function emptyUser() {
     ownedMigrated: false,
     roaming: null,
     breedPairs: [],
+    endedPairs: {},
+    favorites: {},
     removed: {},
     updatedAt: ''
   }
@@ -105,6 +110,8 @@ export function getUserPets(username) {
     showcaseSlotId: String(row.showcaseSlotId || '').trim(),
     roaming: Array.isArray(row.roaming) ? row.roaming.map((id) => String(id || '').trim()).filter(Boolean) : null,
     breedPairs: Array.isArray(row.breedPairs) ? row.breedPairs : [],
+    endedPairs: row.endedPairs && typeof row.endedPairs === 'object' ? row.endedPairs : {},
+    favorites: row.favorites && typeof row.favorites === 'object' ? row.favorites : {},
     removed: row.removed && typeof row.removed === 'object' ? row.removed : {},
     updatedAt: String(row.updatedAt || '')
   }
@@ -493,7 +500,9 @@ function hatchRecord(itemId, speciesKey, extra = {}) {
     courtshipHeld: 0,
     courtshipMate: '',
     lastBirthAt: 0,
-    births: Number(extra.births) || 0
+    births: Number(extra.births) || 0,
+    wormDay: extra.wormDay || '',
+    wormToday: extra.wormToday != null ? Math.max(0, Number(extra.wormToday) || 0) : 0
   }
 }
 
@@ -668,25 +677,28 @@ export function formatBreedRemain(ms) {
 
 function breedingView(rec, now) {
   if (!rec) return null
+  const lastBirth = Number(rec.lastBirthAt) || 0
+  const pregAt = Number(rec.pregnantAt) || 0
+  const inCool = lastBirth > 0 && now - lastBirth < PET_BIRTH_COOLDOWN_MS
+  if (inCool && lastBirth >= pregAt) {
+    const remain = Math.max(0, lastBirth + PET_BIRTH_COOLDOWN_MS - now)
+    return {
+      phase: 'cooldown',
+      affectionPct: 0,
+      remainMs: remain,
+      barPct: Math.round((1 - remain / PET_BIRTH_COOLDOWN_MS) * 100),
+      title: '冷卻中',
+      detail: `7 日週期 · 倒數 ${formatBreedRemain(remain)}`
+    }
+  }
   if (rec.pregnant) {
-    const remain = Math.max(0, (Number(rec.pregnantAt) || 0) + PET_PREGNANT_MS - now)
+    const remain = Math.max(0, pregAt + PET_PREGNANT_MS - now)
     return {
       phase: 'pregnant',
       affectionPct: 100,
       remainMs: remain,
       barPct: Math.round((1 - remain / PET_PREGNANT_MS) * 100),
       title: '懷孕中',
-      detail: `7 日週期 · 倒數 ${formatBreedRemain(remain)}`
-    }
-  }
-  if (rec.lastBirthAt && now - Number(rec.lastBirthAt) < PET_BIRTH_COOLDOWN_MS) {
-    const remain = Math.max(0, Number(rec.lastBirthAt) + PET_BIRTH_COOLDOWN_MS - now)
-    return {
-      phase: 'cooldown',
-      affectionPct: 0,
-      remainMs: remain,
-      barPct: Math.round((1 - remain / PET_BIRTH_COOLDOWN_MS) * 100),
-      title: '再配冷卻',
       detail: `7 日週期 · 倒數 ${formatBreedRemain(remain)}`
     }
   }
@@ -708,6 +720,38 @@ function breedingView(rec, now) {
   return null
 }
 
+function pairKeyOf(maleId, femaleId) {
+  return `${String(maleId || '')}:${String(femaleId || '')}`
+}
+
+function endedAtOf(ended, maleId, femaleId) {
+  return Date.parse(String((ended || {})[pairKeyOf(maleId, femaleId)] || '')) || 0
+}
+
+function withoutEndedPair(ended, maleId, femaleId) {
+  const next = { ...(ended || {}) }
+  delete next[pairKeyOf(maleId, femaleId)]
+  return next
+}
+
+function markEndedPairs(ended, dropped) {
+  const next = { ...(ended || {}) }
+  const now = new Date().toISOString()
+  ;(dropped || []).forEach((p) => {
+    if (!p?.maleId || !p?.femaleId) return
+    next[pairKeyOf(p.maleId, p.femaleId)] = now
+  })
+  return next
+}
+
+function activeBreedPairs(list, ended) {
+  return normalizeBreedPairs(list).filter((p) => {
+    const endedAt = endedAtOf(ended, p.maleId, p.femaleId)
+    if (!endedAt) return true
+    return (Number(p.startedAt) || 0) > endedAt
+  })
+}
+
 function normalizeBreedPairs(list) {
   const seen = new Set()
   const out = []
@@ -718,7 +762,7 @@ function normalizeBreedPairs(list) {
     if (seen.has(maleId) || seen.has(femaleId)) return
     seen.add(maleId)
     seen.add(femaleId)
-    out.push({ maleId, femaleId })
+    out.push({ maleId, femaleId, startedAt: Number(p.startedAt) || 0 })
   })
   return out.slice(0, MAX_BREED_PAIRS)
 }
@@ -739,7 +783,7 @@ export function listBreedPairs(username) {
   const cur = migrateOwned(username)
   const live = new Set((cur.owned || []).map((o) => o.id))
   const growth = cur.growth || {}
-  return normalizeBreedPairs(cur.breedPairs).filter((p) => {
+  return activeBreedPairs(cur.breedPairs, cur.endedPairs).filter((p) => {
     if (!live.has(p.maleId) || !live.has(p.femaleId)) return false
     const mom = growth[p.femaleId]
     if (mom && femaleBirthsLeft(mom) <= 0 && !mom.pregnant) return false
@@ -833,7 +877,8 @@ export function startBreedPair(username, maleId, femaleId) {
   return saveUserPets(username, {
     ...cur,
     growth,
-    breedPairs: [...pairs, { maleId: mid, femaleId: fid }]
+    endedPairs: withoutEndedPair(cur.endedPairs, mid, fid),
+    breedPairs: [...pairs, { maleId: mid, femaleId: fid, startedAt: Date.now() }]
   })
 }
 
@@ -841,16 +886,23 @@ export function stopBreedPair(username, slotId) {
   if (!username) return { success: false, message: '請先登入' }
   const sid = String(slotId || '').trim()
   const cur = getUserPets(username)
-  const next = normalizeBreedPairs(cur.breedPairs).filter((p) => p.maleId !== sid && p.femaleId !== sid)
+  const current = normalizeBreedPairs(cur.breedPairs)
+  const dropped = current.filter((p) => p.maleId === sid || p.femaleId === sid)
+  if (!dropped.length) return { success: false, message: '找不到這組繁育' }
+  const next = current.filter((p) => p.maleId !== sid && p.femaleId !== sid)
   const growth = { ...cur.growth }
-  normalizeBreedPairs(cur.breedPairs).forEach((p) => {
-    if (p.maleId !== sid && p.femaleId !== sid) return
+  dropped.forEach((p) => {
     const rec = growth[p.femaleId]
     if (rec && !rec.pregnant) {
-      growth[p.femaleId] = { ...rec, courtshipAt: 0, courtshipHeld: 0, courtshipMate: rec.courtshipMate }
+      growth[p.femaleId] = { ...rec, courtshipAt: 0, courtshipHeld: 0, courtshipMate: '' }
     }
   })
-  return saveUserPets(username, { ...cur, breedPairs: next, growth })
+  return saveUserPets(username, {
+    ...cur,
+    breedPairs: next,
+    endedPairs: markEndedPairs(cur.endedPairs, dropped),
+    growth
+  })
 }
 
 export function genderLabel(gender) {
@@ -934,6 +986,8 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
       day: prev?.day,
       lastCountAt: prev?.lastCountAt,
       births: prev?.births,
+      wormDay: prev?.wormDay,
+      wormToday: prev?.wormToday,
       seed: lockSeed
     })
     if (prev?.pregnant) {
@@ -1074,7 +1128,7 @@ function mixOffspringColors(mother, father, species) {
   const preferHue = ((Number(mother.hue) || 0) + (Number(father.hue) || 0)) / 2
   const fam = colorFamily(species, preferHue)
   const prettier = (Number(mother.sat) || 1) >= (Number(father.sat) || 1) ? mother : father
-  const rare = Math.random() < 0.45
+  const rare = Math.random() < parentRareChance(father?.generation, mother?.generation)
   let hue = preferHue + (Math.random() - 0.5) * 10
   if (Math.random() < 0.55) hue = (Number(prettier.hue) || hue) + (Math.random() - 0.5) * 6
   hue = clamp(hue, fam.hue[0], fam.hue[1])
@@ -1122,7 +1176,11 @@ function frySnapshot(username, motherId, rec, mate) {
       hue: colors.hue,
       sat: colors.sat,
       bri: colors.bri,
-      morph: mixParentMorphs(species, rec.morph, mate.morph, true, { generation: gen })
+      morph: mixParentMorphs(species, rec.morph, mate.morph, true, {
+        generation: gen,
+        dadGen: Number(mate.generation) || 0,
+        momGen: Number(rec.generation) || 0
+      })
     })
   }
 }
@@ -1194,6 +1252,13 @@ export function tickPetBreeding(username) {
   })
 
   adults.forEach(({ fish, rec }) => {
+    const lastBirth = Number(rec.lastBirthAt) || 0
+    const pregAt = Number(rec.pregnantAt) || 0
+    if (rec.pregnant && lastBirth >= pregAt && lastBirth > 0 && now - lastBirth < PET_BIRTH_COOLDOWN_MS) {
+      growth[fish.id] = { ...rec, pregnant: false, pregnantAt: 0 }
+      dirty = true
+      return
+    }
     if (!rec.pregnant) return
     const started = Number(rec.pregnantAt) || 0
     if (!started || now - started < PET_PREGNANT_MS) return
@@ -1202,7 +1267,7 @@ export function tickPetBreeding(username) {
   })
 
   const liveIds = new Set((owned || []).map((o) => o.id))
-  let pairs = normalizeBreedPairs(cur.breedPairs).filter((p) => liveIds.has(p.maleId) && liveIds.has(p.femaleId))
+  let pairs = activeBreedPairs(cur.breedPairs, cur.endedPairs).filter((p) => liveIds.has(p.maleId) && liveIds.has(p.femaleId))
   pairs.forEach((pair) => {
     const rec = growth[pair.femaleId]
     if (!rec) return
@@ -1254,10 +1319,13 @@ export function tickPetBreeding(username) {
     if (!(femaleBirthsLeft(rec) > 0 || rec.pregnant)) return false
     return femaleBirthsLeft(growth[p.maleId]) > 0
   })
-  if (JSON.stringify(nextPairs) !== JSON.stringify(normalizeBreedPairs(cur.breedPairs))) dirty = true
+  const prevPairs = activeBreedPairs(cur.breedPairs, cur.endedPairs)
+  const droppedPairs = prevPairs.filter((p) => !nextPairs.some((n) => n.maleId === p.maleId && n.femaleId === p.femaleId))
+  const endedPairs = droppedPairs.length ? markEndedPairs(cur.endedPairs, droppedPairs) : cur.endedPairs
+  if (JSON.stringify(nextPairs) !== JSON.stringify(prevPairs) || droppedPairs.length) dirty = true
 
   if (!dirty) return { success: true }
-  return saveUserPets(username, { ...cur, growth, born, vacant, owned, breedPairs: nextPairs })
+  return saveUserPets(username, { ...cur, growth, born, vacant, owned, breedPairs: nextPairs, endedPairs })
 }
 
 export function setPetName(username, slotId, name) {
@@ -1267,6 +1335,25 @@ export function setPetName(username, slotId, name) {
   if (t) names[slotId] = t
   else delete names[slotId]
   return saveUserPets(username, { ...cur, names })
+}
+
+export function isPetFavorite(favorites, slotId) {
+  const v = favorites?.[slotId]
+  if (v === true) return true
+  if (v && typeof v === 'object') return !!v.on
+  return false
+}
+
+export function setPetFavorite(username, slotId, on) {
+  if (!username) return { success: false, message: '請先登入' }
+  const sid = String(slotId || '').trim()
+  if (!sid) return { success: false, message: '請選擇魚' }
+  const cur = getUserPets(username)
+  const favorites = {
+    ...(cur.favorites || {}),
+    [sid]: { on: !!on, at: new Date().toISOString() }
+  }
+  return saveUserPets(username, { ...cur, favorites })
 }
 
 export function setShowcaseFish(username, slotId) {
@@ -1468,6 +1555,7 @@ export function purgeFishItemFromUser(username, itemId) {
     owned,
     petBag: bag,
     breedPairs: normalizeBreedPairs(cur.breedPairs).filter((p) => !drop.has(p.maleId) && !drop.has(p.femaleId)),
+    endedPairs: markEndedPairs(cur.endedPairs, normalizeBreedPairs(cur.breedPairs).filter((p) => drop.has(p.maleId) || drop.has(p.femaleId))),
     showcaseSlotId: dropShow ? '' : sid
   })
 }
@@ -1493,6 +1581,7 @@ export function remapPetsAfterFishUnequip(username, removedIndex) {
   return saveUserPets(username, {
     ...cur,
     names: remapKeyedMap(cur.names, removedIndex),
+    favorites: remapKeyedMap(cur.favorites, removedIndex),
     fedAt: remapKeyedMap(cur.fedAt, removedIndex),
     growth: remapKeyedMap(cur.growth, removedIndex),
     born: remapKeyedMap(cur.born, removedIndex),
@@ -1588,9 +1677,12 @@ export function removeLiveFish(username, slotId) {
   delete fedAt[slotId]
   delete growth[slotId]
   delete born[slotId]
+  const favorites = { ...(cur.favorites || {}) }
+  delete favorites[slotId]
   const roaming = Array.isArray(cur.roaming) ? cur.roaming.filter((id) => id !== slotId) : cur.roaming
   const showcase = cur.showcaseSlotId === slotId ? '' : cur.showcaseSlotId
-  const breedPairs = normalizeBreedPairs(cur.breedPairs).filter((p) => p.maleId !== slotId && p.femaleId !== slotId)
+  const currentPairs = normalizeBreedPairs(cur.breedPairs)
+  const breedPairs = currentPairs.filter((p) => p.maleId !== slotId && p.femaleId !== slotId)
   const saved = saveUserPets(username, {
     ...cur,
     owned,
@@ -1599,7 +1691,9 @@ export function removeLiveFish(username, slotId) {
     growth,
     born,
     roaming,
+    favorites,
     breedPairs,
+    endedPairs: markEndedPairs(cur.endedPairs, currentPairs.filter((p) => p.maleId === slotId || p.femaleId === slotId)),
     showcaseSlotId: showcase,
     removed: { ...(cur.removed || {}), [slotId]: new Date().toISOString() }
   })
@@ -1630,8 +1724,10 @@ export function releaseLiveFish(username, slotId) {
     delete fedAt[slotId]
     delete growth[slotId]
     delete born[slotId]
+    const favorites = { ...(cur.favorites || {}) }
+    delete favorites[slotId]
     const showcase = cur.showcaseSlotId === slotId ? '' : cur.showcaseSlotId
-    const saved = saveUserPets(username, { ...cur, names, fedAt, growth, born, vacant, showcaseSlotId: showcase })
+    const saved = saveUserPets(username, { ...cur, names, fedAt, growth, born, vacant, favorites, showcaseSlotId: showcase })
     if (!saved.success) return saved
   }
   const pay = addWalletBalance(username, coins)
@@ -1661,7 +1757,8 @@ export function listOwnedFishPotions(username) {
     affection: countInventoryItem(username, FISH_POTION_AFFECTION_ID),
     birth: countInventoryItem(username, FISH_POTION_BIRTH_ID),
     growth: countInventoryItem(username, FISH_POTION_GROWTH_ID),
-    gender: countInventoryItem(username, FISH_POTION_GENDER_ID)
+    gender: countInventoryItem(username, FISH_POTION_GENDER_ID),
+    worm: countInventoryItem(username, FISH_POTION_WORM_ID)
   }
 }
 
@@ -1671,6 +1768,7 @@ function potionItemId(kind) {
   if (kind === 'birth') return FISH_POTION_BIRTH_ID
   if (kind === 'growth') return FISH_POTION_GROWTH_ID
   if (kind === 'gender') return FISH_POTION_GENDER_ID
+  if (kind === 'worm') return FISH_POTION_WORM_ID
   return ''
 }
 
@@ -1692,6 +1790,36 @@ export function useFishPotion(username, slotId, kind) {
   const vacant = { ...cur.vacant }
   const owned = [...(cur.owned || [])]
   if (dirty) saveUserPets(username, { ...cur, growth })
+  if (kind === 'worm') {
+    const day = dayKey(Date.now())
+    const used = rec.wormDay === day ? Math.max(0, Number(rec.wormToday) || 0) : 0
+    if (used >= PET_WORM_DAILY_CAP) {
+      return { success: false, message: `這隻魚今天已經吃過 ${PET_WORM_DAILY_CAP} 次紅蟲` }
+    }
+    const meals = Number(rec.meals) || 0
+    const canGrow = rec.growable !== false && meals < PET_ADULT_MEALS
+    const nextMeals = canGrow ? Math.min(PET_ADULT_MEALS, meals + PET_WORM_MEALS) : meals
+    const added = nextMeals - meals
+    growth[fish.id] = {
+      ...rec,
+      meals: nextMeals,
+      wormDay: day,
+      wormToday: used + 1
+    }
+    const spent = removeItemFromInventory(username, itemId, 1)
+    if (!spent.success) return spent
+    const fedAt = { ...cur.fedAt, [fish.id]: new Date().toISOString() }
+    const saved = saveUserPets(username, { ...cur, growth, fedAt })
+    if (!saved.success) {
+      addItemToInventory(username, itemId, 1)
+      return saved
+    }
+    const ate = used + 1
+    if (added > 0) {
+      return { success: true, message: `已餵紅蟲，餵食次數 +${added}（今天 ${ate}/${PET_WORM_DAILY_CAP}）` }
+    }
+    return { success: true, message: `已餵紅蟲（今天 ${ate}/${PET_WORM_DAILY_CAP}）` }
+  }
   if (kind === 'growth') {
     if (rec.growable === false) return { success: false, message: '這隻不會再長大' }
     const meals = Number(rec.meals) || 0
@@ -1723,8 +1851,15 @@ export function useFishPotion(username, slotId, kind) {
     }
     const spent = removeItemFromInventory(username, itemId, 1)
     if (!spent.success) return spent
-    const breedPairs = normalizeBreedPairs(cur.breedPairs).filter((p) => p.maleId !== fish.id && p.femaleId !== fish.id)
-    const saved = saveUserPets(username, { ...cur, growth, breedPairs })
+    const currentPairs = normalizeBreedPairs(cur.breedPairs)
+    const dropped = currentPairs.filter((p) => p.maleId === fish.id || p.femaleId === fish.id)
+    const breedPairs = currentPairs.filter((p) => p.maleId !== fish.id && p.femaleId !== fish.id)
+    const saved = saveUserPets(username, {
+      ...cur,
+      growth,
+      breedPairs,
+      endedPairs: markEndedPairs(cur.endedPairs, dropped)
+    })
     if (!saved.success) {
       addItemToInventory(username, itemId, 1)
       return saved
@@ -1772,11 +1907,14 @@ export function useFishPotion(username, slotId, kind) {
   const spent = removeItemFromInventory(username, itemId, 1)
   if (!spent.success) return spent
   let breedPairs = normalizeBreedPairs(cur.breedPairs)
+  let endedPairs = cur.endedPairs
   const mom = growth[fish.id]
   if (mom && femaleBirthsLeft(mom) <= 0 && !mom.pregnant) {
+    const dropped = breedPairs.filter((p) => p.femaleId === fish.id)
     breedPairs = breedPairs.filter((p) => p.femaleId !== fish.id)
+    endedPairs = markEndedPairs(endedPairs, dropped)
   }
-  const saved = saveUserPets(username, { ...cur, growth, born, vacant, owned, breedPairs })
+  const saved = saveUserPets(username, { ...cur, growth, born, vacant, owned, breedPairs, endedPairs })
   if (!saved.success) {
     addItemToInventory(username, itemId, 1)
     return saved

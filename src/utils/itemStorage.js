@@ -20,6 +20,7 @@ export const FISH_POTION_AFFECTION_ID = 'fish_potion_affection'
 export const FISH_POTION_BIRTH_ID = 'fish_potion_birth'
 export const FISH_POTION_GROWTH_ID = 'fish_potion_growth'
 export const FISH_POTION_GENDER_ID = 'fish_potion_gender'
+export const FISH_POTION_WORM_ID = 'fish_potion_worm'
 
 export const FISH_AROANA_ITEM_ID = 'fish_arowana'
 export const FISH_AROANA_BLUE_ITEM_ID = 'fish_arowana_blue'
@@ -292,6 +293,18 @@ const FISH_POTION_GENDER_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const FISH_POTION_WORM_ITEM = {
+  id: FISH_POTION_WORM_ID,
+  name: '紅蟲',
+  type: 'fish_potion',
+  potion: 'worm',
+  description: '給自己的魚使用，立刻增加 2 次餵食。每隻魚每天最多吃 2 次。公母都能用。',
+  icon: '🪱',
+  price: 4,
+  category: '水族藥水',
+  createdAt: new Date().toISOString()
+}
+
 const FISH_PRICE_SEED = 20261127
 const FISH_SHOP_CATALOG = {
   [FISH_AROANA_ITEM_ID]: AROWANA_SHOP_ITEM,
@@ -338,10 +351,12 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_BIRTH_ID)) extras.push({ ...FISH_POTION_BIRTH_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_GROWTH_ID)) extras.push({ ...FISH_POTION_GROWTH_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_GENDER_ID)) extras.push({ ...FISH_POTION_GENDER_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_POTION_WORM_ID)) extras.push({ ...FISH_POTION_WORM_ITEM, createdAt: new Date().toISOString() })
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const affectionWanted = FISH_POTION_AFFECTION_ITEM.description
   const growthWanted = FISH_POTION_GROWTH_ITEM.description
   const genderWanted = FISH_POTION_GENDER_ITEM.description
+  const wormWanted = FISH_POTION_WORM_ITEM.description
   const patched = list.map((it) => {
     const id = String(it?.id || '')
     let next = it
@@ -356,6 +371,9 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
     }
     if (id === FISH_POTION_GENDER_ID && String(it?.description || '') !== genderWanted) {
       next = { ...next, description: genderWanted }
+    }
+    if (id === FISH_POTION_WORM_ID && String(it?.description || '') !== wormWanted) {
+      next = { ...next, description: wormWanted, name: FISH_POTION_WORM_ITEM.name, price: FISH_POTION_WORM_ITEM.price }
     }
     if ((id === FISH_POTION_GROWTH_ID || id === FISH_POTION_GENDER_ID) && !next.isHidden) {
       next = { ...next, isHidden: true }

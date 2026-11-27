@@ -587,6 +587,10 @@ export default function OceanAmbience({ mode = 'world' }) {
       const x = Number(e.detail?.x)
       const y = Number(e.detail?.y)
       if (!Number.isFinite(x) || !Number.isFinite(y) || !sim.current) return
+      const roster = rosterRef.current || []
+      const looks = sim.current.looks || {}
+      const anyHungry = roster.some((row) => looks[row?.id]?.hunger !== 'full')
+      if (!anyHungry) return
       const next = Array.from({ length: 3 }, (_, i) => ({
         id: genId() + i,
         x: x + (Math.random() - 0.5) * 28,
@@ -701,12 +705,19 @@ export default function OceanAmbience({ mode = 'world' }) {
         const me = getCurrentUser()
         const ownerName = getDisplayNameForAccount(fish.owner || me)
         const mine = String(fish.owner || '') === String(me || '')
-        const potions = mine ? listOwnedFishPotions(me) : { heat: 0, affection: 0, birth: 0, growth: 0, gender: 0 }
-        const canGrow = mine && potions.growth > 0
-        const canGender = mine && potions.gender > 0
-        const canBreedPotions = mine && fish.gender === 'f' && (potions.heat > 0 || potions.affection > 0 || potions.birth > 0)
-        const canPotions = canGrow || canGender || canBreedPotions
+        const potions = mine ? listOwnedFishPotions(me) : { heat: 0, affection: 0, birth: 0, growth: 0, gender: 0, worm: 0 }
+        const slot = fish.growthSlotId || fish.id
+        const pairedFemale = mine && fish.gender === 'f' && listBreedPairs(me).some((p) => p.femaleId === slot)
+        const canBreedPotions = mine && (fish.gender !== 'f' || pairedFemale)
+        const canPotions = mine
+        const potionNames = { worm: '紅蟲', growth: '成長藥水', gender: '變性藥水', heat: '發情藥水', affection: '好感藥水', birth: '催生藥水' }
         const give = (kind) => {
+          const label = potionNames[kind] || '藥水'
+          if ((potions[kind] || 0) < 1) {
+            setPotionMsg(`背包沒有${label}`)
+            return
+          }
+          if (!window.confirm(`確定對「${fish.nick || fish.species || '這隻魚'}」使用${label}？`)) return
           const r = useFishPotion(me, fish.growthSlotId || fish.id, kind)
           setPotionMsg(r.message || (r.success ? '已使用' : '無法使用'))
           if (r.success) {
@@ -722,25 +733,24 @@ export default function OceanAmbience({ mode = 'world' }) {
             }}
           >
             {fish.nick ? <strong>{fish.nick}</strong> : null}
-            <span>{fish.species || '魚'}{fish.gender === 'f' ? ' · 母' : fish.gender === 'm' ? ' · 公' : ''}{fish.generation > 0 ? ` · 第${fish.generation}代` : ''}{fish.pregnant ? ' · 懷孕' : ''}</span>
+            <span>{fish.species || '魚'}{fish.gender === 'f' ? ' · 母' : fish.gender === 'm' ? ' · 公' : ''}{fish.generation > 0 ? ` · 第${fish.generation}代` : ''}{fish.gender === 'f' && fish.pregnant ? ' · 懷孕' : ''}</span>
             <span>{mine ? `主人：${ownerName}（我的）` : `主人：${ownerName}`}</span>
             {potionMsg ? <span className="ocean-fish-potion-msg">{potionMsg}</span> : null}
             {canPotions ? (
               <div className="ocean-fish-potion-row">
-                {canGrow ? (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); give('growth') }}>成長藥水</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); give('worm') }}>紅蟲</button>
+                {canBreedPotions ? (
+                  <>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); give('growth') }}>成長藥水</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); give('gender') }}>變性藥水</button>
+                  </>
                 ) : null}
-                {canGender ? (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); give('gender') }}>變性藥水</button>
-                ) : null}
-                {potions.heat > 0 && fish.gender === 'f' ? (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); give('heat') }}>發情藥水</button>
-                ) : null}
-                {potions.affection > 0 && fish.gender === 'f' ? (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); give('affection') }}>好感藥水</button>
-                ) : null}
-                {potions.birth > 0 && fish.gender === 'f' ? (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); give('birth') }}>催生藥水</button>
+                {pairedFemale ? (
+                  <>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); give('heat') }}>發情藥水</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); give('affection') }}>好感藥水</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); give('birth') }}>催生藥水</button>
+                  </>
                 ) : null}
               </div>
             ) : null}

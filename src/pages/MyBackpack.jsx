@@ -363,7 +363,7 @@ function MyBackpack() {
                       </div>
                     ) : invItem.item && invItem.item.type === ITEM_TYPES.FISH_POTION ? (
                       <div className="w-full bg-gray-700 text-cyan-100 px-4 py-3 sm:py-2 rounded text-center text-base sm:text-sm leading-relaxed">
-                        點自己的魚使用。成長／變性藥水公母都能用；其餘藥水只限自己的母魚。
+                        點自己的魚使用。紅蟲、成長／變性藥水公母都能用；其餘藥水只限已配對的母魚。紅蟲每隻每天最多 2 次。
                       </div>
                     ) : invItem.item && invItem.item.type === ITEM_TYPES.FISH_SLOT ? (
                       <div className="w-full bg-gray-700 text-gray-400 px-4 py-3 sm:py-2 rounded text-center text-base sm:text-sm leading-relaxed">

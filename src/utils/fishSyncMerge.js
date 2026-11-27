@@ -109,7 +109,11 @@ function mergeGrowthRec(a, b) {
     gender: a.gender === 'f' || a.gender === 'm' ? a.gender : b.gender,
     pregnant,
     pregnantAt: pregnant ? (preg.pregnantAt || base.pregnantAt || 0) : 0,
-    courtshipMate: pregnant ? (preg.courtshipMate || base.courtshipMate || '') : (base.courtshipMate || other.courtshipMate || '')
+    courtshipMate: pregnant ? (preg.courtshipMate || base.courtshipMate || '') : (base.courtshipMate || other.courtshipMate || ''),
+    wormDay: String(a.wormDay || '') >= String(b.wormDay || '') ? String(a.wormDay || '') : String(b.wormDay || ''),
+    wormToday: String(a.wormDay || '') === String(b.wormDay || '')
+      ? Math.max(Number(a.wormToday) || 0, Number(b.wormToday) || 0)
+      : (String(a.wormDay || '') >= String(b.wormDay || '') ? Number(a.wormToday) || 0 : Number(b.wormToday) || 0)
   }
 }
 
@@ -125,6 +129,13 @@ function mergePetUser(a, b) {
   const live = new Set((owned || []).map((o) => String(o.id)))
   const growth = mergeMaps(a.growth, b.growth, mergeGrowthRec)
   const names = mergeMaps(a.names, b.names, (x, y) => (String(y || '').trim() ? y : x))
+  const favorites = mergeMaps(a.favorites, b.favorites, (x, y) => {
+    const na = x && typeof x === 'object' && 'on' in x ? x : (x === true ? { on: true, at: '' } : x)
+    const nb = y && typeof y === 'object' && 'on' in y ? y : (y === true ? { on: true, at: '' } : y)
+    if (!na) return nb
+    if (!nb) return na
+    return tsOf(nb.at) >= tsOf(na.at) ? nb : na
+  })
   const fedAt = mergeMaps(a.fedAt, b.fedAt, (x, y) => (tsOf(y) >= tsOf(x) ? y : x))
   const born = mergeMaps(a.born, b.born, (x, y) => ({ ...x, ...y }))
   const roamingA = Array.isArray(a.roaming) ? a.roaming : []
@@ -132,22 +143,30 @@ function mergePetUser(a, b) {
   const roaming = Array.isArray(a.roaming) || Array.isArray(b.roaming)
     ? [...new Set([...roamingA, ...roamingB].map((id) => String(id || '')).filter((id) => live.has(id)))]
     : null
-  const pairs = []
-  const seen = new Set()
+  const endedPairs = { ...(a.endedPairs || {}) }
+  Object.entries(b.endedPairs || {}).forEach(([k, v]) => {
+    if (tsOf(v) >= tsOf(endedPairs[k])) endedPairs[k] = v
+  })
+  const pairMap = {}
   ;[...(Array.isArray(a.breedPairs) ? a.breedPairs : []), ...(Array.isArray(b.breedPairs) ? b.breedPairs : [])].forEach((p) => {
     const maleId = String(p?.maleId || '')
     const femaleId = String(p?.femaleId || '')
+    if (!maleId || !femaleId || !live.has(maleId) || !live.has(femaleId)) return
     const k = `${maleId}:${femaleId}`
-    if (!maleId || !femaleId || seen.has(k) || !live.has(maleId) || !live.has(femaleId)) return
-    seen.add(k)
-    pairs.push({ maleId, femaleId })
+    const startedAt = Number(p?.startedAt) || 0
+    const endedAt = tsOf(endedPairs[k])
+    if (endedAt && startedAt <= endedAt) return
+    const prev = pairMap[k]
+    if (!prev || startedAt >= (Number(prev.startedAt) || 0)) pairMap[k] = { maleId, femaleId, startedAt }
   })
+  const pairs = Object.values(pairMap).slice(0, 3)
   const newer = tsOf(b.updatedAt) >= tsOf(a.updatedAt) ? b : a
   const showcase = live.has(String(newer.showcaseSlotId || '')) ? String(newer.showcaseSlotId) : ''
   return {
     ...a,
     ...b,
     names,
+    favorites,
     fedAt,
     growth,
     born,
@@ -156,7 +175,8 @@ function mergePetUser(a, b) {
     petBag: (a.ownedMigrated || b.ownedMigrated) ? [] : ([...(Array.isArray(a.petBag) ? a.petBag : []), ...(Array.isArray(b.petBag) ? b.petBag : [])]),
     vacant: { ...(a.vacant || {}), ...(b.vacant || {}) },
     roaming,
-    breedPairs: pairs.slice(0, 3),
+    breedPairs: pairs,
+    endedPairs,
     showcaseSlotId: showcase,
     removed,
     updatedAt: tsOf(b.updatedAt) >= tsOf(a.updatedAt) ? (b.updatedAt || a.updatedAt) : (a.updatedAt || b.updatedAt)
@@ -175,8 +195,17 @@ export function mergePetsStore(cloud, incoming) {
 }
 
 function qtyOf(list, id) {
-  const row = (list || []).find((r) => String(r?.itemId || '') === id)
-  return Math.max(0, Number(row?.quantity) || 0)
+  const want = remapInvItemId(id)
+  return (list || []).reduce((n, r) => {
+    if (remapInvItemId(r?.itemId) !== want) return n
+    return n + Math.max(0, Number(r?.quantity) || 0)
+  }, 0)
+}
+
+function remapInvItemId(id) {
+  const s = String(id || '')
+  if (s === 'fish_slot_expand') return 'fish_potion_worm'
+  return s
 }
 
 function mergeInvRows(aList, bList) {
@@ -184,7 +213,7 @@ function mergeInvRows(aList, bList) {
   if (!Array.isArray(bList)) return aList
   const map = new Map()
   ;[...aList, ...bList].forEach((row) => {
-    const id = String(row?.itemId || '')
+    const id = remapInvItemId(row?.itemId)
     if (!id) return
     const prev = map.get(id)
     const qty = fishSkinItemId(id)

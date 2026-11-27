@@ -697,20 +697,29 @@ function pickShade(parentGene, rand) {
   return pick(SHADE_IDS, rand)
 }
 
-function mixGlowGene(momG, dadG, gen, rand) {
+export function parentRareChance(dadGen, momGen) {
+  const a = Math.max(0, Number(dadGen) || 0)
+  const b = Math.max(0, Number(momGen) || 0)
+  const maxG = Math.max(a, b)
+  const minG = Math.min(a, b)
+  return Math.min(0.4, 0.001 + 0.009 * maxG + 0.005 * minG + 0.003 * minG * minG)
+}
+
+function mixGlowGene(momG, dadG, dadGen, momGen, rand) {
   const parentGlow = Math.max(Number(momG.glow) || 0, Number(dadG.glow) || 0)
   let glow = 0
   if (parentGlow > 0) {
     if (rand() < 0.64) glow = parentGlow
     else if (rand() < 0.22) glow = Math.max(1, parentGlow - 1)
   }
-  if (gen >= 4) {
-    if (rand() < 0.24) glow = Math.max(glow, 1)
-    if (rand() < 0.14) glow = 2
-  } else if (gen >= 3) {
-    if (rand() < 0.09) glow = Math.max(glow, 1)
-    if (rand() < 0.025) glow = 2
-  } else if (rand() < 0.01) glow = 1
+  const a = Math.max(0, Number(dadGen) || 0)
+  const b = Math.max(0, Number(momGen) || 0)
+  const maxG = Math.max(a, b)
+  const minG = Math.min(a, b)
+  const glow1 = Math.min(0.62, 0.0004 + maxG * 0.018 + minG * 0.04 + minG * minG * 0.008)
+  const glow2 = Math.min(0.32, minG >= 2 ? 0.008 + minG * 0.025 + maxG * 0.01 : maxG >= 4 ? 0.02 : 0)
+  if (rand() < glow1) glow = Math.max(glow, 1)
+  if (rand() < glow2) glow = 2
   return Math.max(0, Math.min(2, glow))
 }
 
@@ -753,34 +762,43 @@ export function mixParentMorphs(species, mother, father, prettier, extra = {}) {
   const rand = Math.random
   const lineage = family.map(packGene).filter(Boolean).slice(0, 8)
   const gen = Math.max(1, Number(extra.generation) || 1)
+  const dadGen = Number.isFinite(Number(extra.dadGen)) ? Math.max(0, Number(extra.dadGen)) : Math.max(0, gen - 1)
+  const momGen = Number.isFinite(Number(extra.momGen)) ? Math.max(0, Number(extra.momGen)) : Math.max(0, gen - 1)
+  const rare = rand() < parentRareChance(dadGen, momGen)
 
-  const pickFamilyColor = () => {
-    const r = rand()
-    if (r < 0.05) {
+  const pickFamilyColor = (forceOutsider) => {
+    if (forceOutsider) {
       const outsiders = ALL_COLOR_IDS.filter((c) => !familyColors.includes(c))
       return pick(outsiders.length ? outsiders : ALL_COLOR_IDS, rand)
     }
+    const r = rand()
     if (r < 0.14 && grands.length) return pick(grands, rand)
     if (r < 0.57) return pick([momG.bodyColor, momG.tailColor, momG.markColor].filter(Boolean), rand)
     return pick([dadG.bodyColor, dadG.tailColor, dadG.markColor].filter(Boolean), rand)
   }
 
-  const bodyColor = pickFamilyColor()
-  let tailColor = rand() < 0.36 ? bodyColor : pickFamilyColor()
-  let markColor = tailColor !== bodyColor ? tailColor : pickFamilyColor()
+  const bodyColor = pickFamilyColor(rare)
+  let tailColor = rare ? pickFamilyColor(rand() < 0.55) : (rand() < 0.36 ? bodyColor : pickFamilyColor(false))
+  let markColor = tailColor !== bodyColor ? tailColor : pickFamilyColor(rare && rand() < 0.4)
   const twoTone = bodyColor !== tailColor || bodyColor !== markColor
   const pr = rand()
   let pattern = 'solid'
-  if (twoTone) {
-    if (pr < 0.26) pattern = 'marble'
-    else if (pr < 0.46) pattern = 'blocks'
-    else if (pr < 0.66) pattern = 'spots'
-    else if (pr < 0.78 && (bodyColor === 'white' || tailColor === 'black' || bodyColor === 'black')) pattern = 'panda'
-    else if (pr < 0.9) pattern = 'wash'
+  if (rare) {
+    if (pr < 0.28) pattern = 'marble'
+    else if (pr < 0.5) pattern = 'blocks'
+    else if (pr < 0.7) pattern = 'spots'
+    else if (pr < 0.85) pattern = 'panda'
+    else pattern = 'wash'
+  } else if (twoTone) {
+    if (pr < 0.18) pattern = 'marble'
+    else if (pr < 0.32) pattern = 'blocks'
+    else if (pr < 0.46) pattern = 'spots'
+    else if (pr < 0.54 && (bodyColor === 'white' || tailColor === 'black' || bodyColor === 'black')) pattern = 'panda'
+    else if (pr < 0.66) pattern = 'wash'
     else pattern = 'solid'
-  } else if (pr < 0.16) pattern = 'wash'
-  else if (pr < 0.26) pattern = 'spots'
-  else if (pr < 0.32) pattern = 'marble'
+  } else if (pr < 0.08) pattern = 'wash'
+  else if (pr < 0.14) pattern = 'spots'
+  else if (pr < 0.18) pattern = 'marble'
 
   const form = mixFormGene(momG, dadG, gen, rand)
   const gene = {
@@ -792,7 +810,7 @@ export function mixParentMorphs(species, mother, father, prettier, extra = {}) {
     markShade: pick(SHADE_IDS, rand),
     shine: prettier ? Math.max(Number(momG.shine) || 1, Number(dadG.shine) || 1, pickWeighted(SHINE, rand).id) : pickWeighted(SHINE, rand).id,
     pattern,
-    glow: mixGlowGene(momG, dadG, gen, rand),
+    glow: mixGlowGene(momG, dadG, dadGen, momGen, rand),
     size: form.size,
     length: form.length,
     girth: form.girth
