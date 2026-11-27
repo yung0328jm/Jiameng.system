@@ -18,6 +18,8 @@ export const ITEM_TYPES = {
 export const FISH_POTION_HEAT_ID = 'fish_potion_heat'
 export const FISH_POTION_AFFECTION_ID = 'fish_potion_affection'
 export const FISH_POTION_BIRTH_ID = 'fish_potion_birth'
+export const FISH_POTION_GROWTH_ID = 'fish_potion_growth'
+export const FISH_POTION_GENDER_ID = 'fish_potion_gender'
 
 export const FISH_AROANA_ITEM_ID = 'fish_arowana'
 export const FISH_AROANA_BLUE_ITEM_ID = 'fish_arowana_blue'
@@ -264,6 +266,32 @@ const FISH_POTION_BIRTH_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const FISH_POTION_GROWTH_ITEM = {
+  id: FISH_POTION_GROWTH_ID,
+  name: '魚隻成長藥水',
+  type: 'fish_potion',
+  potion: 'growth',
+  description: '給自己的魚使用，立刻增加 20 次餵食成長（成魚需 45 次，每天最多 5 次約 9 天）。已成魚無效。公母都能用。僅管理員可兌換。',
+  icon: '🌿',
+  price: 16,
+  category: '水族藥水',
+  isHidden: true,
+  createdAt: new Date().toISOString()
+}
+
+const FISH_POTION_GENDER_ITEM = {
+  id: FISH_POTION_GENDER_ID,
+  name: '變性藥水',
+  type: 'fish_potion',
+  potion: 'gender',
+  description: '給自己的魚使用，公轉母、母轉公。懷孕中不可用。僅管理員可兌換。',
+  icon: '🔮',
+  price: 28,
+  category: '水族藥水',
+  isHidden: true,
+  createdAt: new Date().toISOString()
+}
+
 const FISH_PRICE_SEED = 20261127
 const FISH_SHOP_CATALOG = {
   [FISH_AROANA_ITEM_ID]: AROWANA_SHOP_ITEM,
@@ -308,8 +336,12 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_HEAT_ID)) extras.push({ ...FISH_POTION_HEAT_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_AFFECTION_ID)) extras.push({ ...FISH_POTION_AFFECTION_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_BIRTH_ID)) extras.push({ ...FISH_POTION_BIRTH_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_POTION_GROWTH_ID)) extras.push({ ...FISH_POTION_GROWTH_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === FISH_POTION_GENDER_ID)) extras.push({ ...FISH_POTION_GENDER_ITEM, createdAt: new Date().toISOString() })
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const affectionWanted = FISH_POTION_AFFECTION_ITEM.description
+  const growthWanted = FISH_POTION_GROWTH_ITEM.description
+  const genderWanted = FISH_POTION_GENDER_ITEM.description
   const patched = list.map((it) => {
     const id = String(it?.id || '')
     let next = it
@@ -318,6 +350,15 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
     }
     if (id === FISH_POTION_AFFECTION_ID && String(it?.description || '') !== affectionWanted) {
       next = { ...next, description: affectionWanted }
+    }
+    if (id === FISH_POTION_GROWTH_ID && String(it?.description || '') !== growthWanted) {
+      next = { ...next, description: growthWanted }
+    }
+    if (id === FISH_POTION_GENDER_ID && String(it?.description || '') !== genderWanted) {
+      next = { ...next, description: genderWanted }
+    }
+    if ((id === FISH_POTION_GROWTH_ID || id === FISH_POTION_GENDER_ID) && !next.isHidden) {
+      next = { ...next, isHidden: true }
     }
     const catalog = FISH_SHOP_CATALOG[id]
     if (catalog) {

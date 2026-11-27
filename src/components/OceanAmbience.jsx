@@ -666,8 +666,11 @@ export default function OceanAmbience({ mode = 'world' }) {
         const me = getCurrentUser()
         const ownerName = getDisplayNameForAccount(fish.owner || me)
         const mine = String(fish.owner || '') === String(me || '')
-        const potions = mine && fish.gender === 'f' ? listOwnedFishPotions(me) : { heat: 0, affection: 0, birth: 0 }
-        const canPotions = mine && fish.gender === 'f' && (potions.heat > 0 || potions.affection > 0 || potions.birth > 0)
+        const potions = mine ? listOwnedFishPotions(me) : { heat: 0, affection: 0, birth: 0, growth: 0, gender: 0 }
+        const canGrow = mine && potions.growth > 0
+        const canGender = mine && potions.gender > 0
+        const canBreedPotions = mine && fish.gender === 'f' && (potions.heat > 0 || potions.affection > 0 || potions.birth > 0)
+        const canPotions = canGrow || canGender || canBreedPotions
         const give = (kind) => {
           const r = useFishPotion(me, fish.growthSlotId || fish.id, kind)
           setPotionMsg(r.message || (r.success ? '已使用' : '無法使用'))
@@ -689,13 +692,19 @@ export default function OceanAmbience({ mode = 'world' }) {
             {potionMsg ? <span className="ocean-fish-potion-msg">{potionMsg}</span> : null}
             {canPotions ? (
               <div className="ocean-fish-potion-row">
-                {potions.heat > 0 ? (
+                {canGrow ? (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); give('growth') }}>成長藥水</button>
+                ) : null}
+                {canGender ? (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); give('gender') }}>變性藥水</button>
+                ) : null}
+                {potions.heat > 0 && fish.gender === 'f' ? (
                   <button type="button" onClick={(e) => { e.stopPropagation(); give('heat') }}>發情藥水</button>
                 ) : null}
-                {potions.affection > 0 ? (
+                {potions.affection > 0 && fish.gender === 'f' ? (
                   <button type="button" onClick={(e) => { e.stopPropagation(); give('affection') }}>好感藥水</button>
                 ) : null}
-                {potions.birth > 0 ? (
+                {potions.birth > 0 && fish.gender === 'f' ? (
                   <button type="button" onClick={(e) => { e.stopPropagation(); give('birth') }}>催生藥水</button>
                 ) : null}
               </div>

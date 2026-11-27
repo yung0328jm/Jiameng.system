@@ -13,6 +13,8 @@ import { addItemToInventory, countInventoryItem, getUserInventory, removeItemFro
 import {
   FISH_POTION_AFFECTION_ID,
   FISH_POTION_BIRTH_ID,
+  FISH_POTION_GENDER_ID,
+  FISH_POTION_GROWTH_ID,
   FISH_POTION_HEAT_ID,
   ITEM_TYPES,
   getItem,
@@ -25,6 +27,7 @@ export const PET_STORAGE_KEY = 'jiameng_pets'
 export const PET_ADULT_MEALS = 45
 export const PET_DAILY_GROWTH_CAP = 5
 export const PET_GROWTH_GAP_MS = 90 * 1000
+export const PET_GROWTH_POTION_MEALS = 20
 
 const PET_DAY_MS = 24 * 60 * 60 * 1000
 /** One birth cycle = 7 days: courtship + pregnancy + cooldown. */
@@ -1545,7 +1548,9 @@ export function listOwnedFishPotions(username) {
   return {
     heat: countInventoryItem(username, FISH_POTION_HEAT_ID),
     affection: countInventoryItem(username, FISH_POTION_AFFECTION_ID),
-    birth: countInventoryItem(username, FISH_POTION_BIRTH_ID)
+    birth: countInventoryItem(username, FISH_POTION_BIRTH_ID),
+    growth: countInventoryItem(username, FISH_POTION_GROWTH_ID),
+    gender: countInventoryItem(username, FISH_POTION_GENDER_ID)
   }
 }
 
@@ -1553,6 +1558,8 @@ function potionItemId(kind) {
   if (kind === 'heat') return FISH_POTION_HEAT_ID
   if (kind === 'affection') return FISH_POTION_AFFECTION_ID
   if (kind === 'birth') return FISH_POTION_BIRTH_ID
+  if (kind === 'growth') return FISH_POTION_GROWTH_ID
+  if (kind === 'gender') return FISH_POTION_GENDER_ID
   return ''
 }
 
@@ -1574,6 +1581,45 @@ export function useFishPotion(username, slotId, kind) {
   const vacant = { ...cur.vacant }
   const owned = [...(cur.owned || [])]
   if (dirty) saveUserPets(username, { ...cur, growth })
+  if (kind === 'growth') {
+    if (rec.growable === false) return { success: false, message: '這隻不會再長大' }
+    const meals = Number(rec.meals) || 0
+    if (meals >= PET_ADULT_MEALS) return { success: false, message: '已經是成魚' }
+    const nextMeals = Math.min(PET_ADULT_MEALS, meals + PET_GROWTH_POTION_MEALS)
+    const added = nextMeals - meals
+    if (added <= 0) return { success: false, message: '已經是成魚' }
+    growth[fish.id] = { ...rec, meals: nextMeals }
+    const spent = removeItemFromInventory(username, itemId, 1)
+    if (!spent.success) return spent
+    const saved = saveUserPets(username, { ...cur, growth })
+    if (!saved.success) {
+      addItemToInventory(username, itemId, 1)
+      return saved
+    }
+    return { success: true, message: `已使用成長藥水，餵食次數 +${added}` }
+  }
+  if (kind === 'gender') {
+    if (rec.pregnant) return { success: false, message: '懷孕中不能變性' }
+    const from = rec.gender === 'f' ? 'f' : 'm'
+    const to = from === 'f' ? 'm' : 'f'
+    growth[fish.id] = {
+      ...rec,
+      gender: to,
+      courtshipAt: 0,
+      courtshipHeld: 0,
+      courtshipMate: '',
+      lastBirthAt: 0
+    }
+    const spent = removeItemFromInventory(username, itemId, 1)
+    if (!spent.success) return spent
+    const breedPairs = normalizeBreedPairs(cur.breedPairs).filter((p) => p.maleId !== fish.id && p.femaleId !== fish.id)
+    const saved = saveUserPets(username, { ...cur, growth, breedPairs })
+    if (!saved.success) {
+      addItemToInventory(username, itemId, 1)
+      return saved
+    }
+    return { success: true, message: to === 'f' ? '已變成母魚' : '已變成公魚' }
+  }
   if (rec.gender !== 'f') return { success: false, message: '只能給母魚使用' }
   const now = Date.now()
   const pair = listBreedPairs(username).find((p) => p.femaleId === fish.id)

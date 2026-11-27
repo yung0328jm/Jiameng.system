@@ -537,6 +537,32 @@ export default function MyPets() {
                   >
                     放生
                   </button>
+                  {potions.growth > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const r = useFishPotion(user, fish.id, 'growth')
+                        setMessage(r.message || (r.success ? '已使用' : '無法使用'))
+                        refresh()
+                      }}
+                      className="shrink-0 px-3 py-1.5 rounded text-sm bg-lime-800 hover:bg-lime-700 text-white"
+                    >
+                      成長藥水
+                    </button>
+                  ) : null}
+                  {potions.gender > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const r = useFishPotion(user, fish.id, 'gender')
+                        setMessage(r.message || (r.success ? '已使用' : '無法使用'))
+                        refresh()
+                      }}
+                      className="shrink-0 px-3 py-1.5 rounded text-sm bg-violet-800 hover:bg-violet-700 text-white"
+                    >
+                      變性藥水
+                    </button>
+                  ) : null}
                   {look.gender === 'f' && (potions.heat > 0 || potions.affection > 0 || potions.birth > 0) ? (
                     <>
                       {potions.heat > 0 ? (
