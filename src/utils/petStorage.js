@@ -180,7 +180,10 @@ function hatchRecord(itemId, speciesKey, extra = {}) {
     hue: extra.hue != null ? extra.hue : randBetween(fam.hue[0], fam.hue[1]),
     sat: extra.sat != null ? extra.sat : randBetween(fam.sat[0], fam.sat[1]),
     bri: extra.bri != null ? extra.bri : randBetween(fam.bri[0], fam.bri[1]),
-    morph: extra.morph || rollFishMorph(speciesKey, extra.pretty ? { shine: 2 } : {}),
+    morph:
+      extra.morph && extra.morph.body
+        ? extra.morph
+        : rollFishMorph(speciesKey, extra.pretty ? { shine: 2, seed: extra.seed } : { seed: extra.seed }),
     pregnant: false,
     pregnantAt: 0,
     courtshipAt: 0,
@@ -271,7 +274,7 @@ function lookParts(rec, meals, speciesKey, growable) {
     morph,
     parts,
     art: morph.art || cat?.art || 'a',
-    rarity: cat ? rarityLabel(cat.w) : '',
+    rarity: rarityLabel(Number(morph.w) || cat?.w),
     morphLabel: reveal < 0.12 ? '未顯色' : morph.label || '',
     shineText: reveal < 0.4 ? '' : shineLabel(morph.shine)
   }
@@ -490,6 +493,7 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
   const mismatchBorn = !shop && bornMeta && rec && rec.species !== bornMeta.species
   const becameDefault = gifted && rec && String(rec.itemId || '').trim()
   const pairGender = gifted && username ? genderForDefaultPair(username, sid, cur) : ''
+  const lockSeed = `${username || ''}:${sid}:${species}`
   if (!rec || mismatchShop || mismatchBorn || becameDefault) {
     rec = hatchRecord(shop, species, {
       growable,
@@ -500,7 +504,9 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
       sat: bornMeta?.sat,
       bri: bornMeta?.bri,
       fam: bornMeta?.fam,
-      gender: lockedGender(rec, `${username || ''}:${sid}:${species}`, pairGender)
+      gender: lockedGender(rec, lockSeed, pairGender),
+      morph: rec?.morph,
+      seed: lockSeed
     })
     return { rec, dirty: true }
   }
@@ -518,15 +524,19 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
   }
   if (!rec.morph || !rec.morph.body || rec.morph.v !== MORPH_PALETTE_VER) {
     const found = morphById(species, rec.morph?.id)
+    const keep = found || (rec.morph?.body ? rec.morph : null)
     rec = {
       ...rec,
       morph: rollFishMorph(species, {
-        template: found || undefined,
+        template: keep || undefined,
         shine: rec.morph?.shine,
-        body: found?.body,
-        tail: found?.tail,
-        art: found?.art,
-        stable: Boolean(found),
+        w: rec.morph?.w,
+        body: keep?.body,
+        tail: keep?.tail,
+        art: keep?.art || rec.morph?.art,
+        overlay: keep?.overlay || rec.morph?.overlay,
+        stable: Boolean(keep),
+        seed: lockSeed,
         marks: rec.morph?.marks,
         wash: rec.morph?.wash,
         parentMarks: rec.morph?.marks,
@@ -537,12 +547,17 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
   } else {
     const nextMorph = { ...rec.morph }
     let patched = false
+    const catalog = morphById(species, nextMorph.id)
+    if (nextMorph.w == null && catalog) {
+      nextMorph.w = catalog.w
+      patched = true
+    }
     if (nextMorph.overlay && !nextMorph.marks) {
-      nextMorph.marks = rollOverlayMarks(nextMorph.overlay, species)
+      nextMorph.marks = rollOverlayMarks(nextMorph.overlay, species, { seed: `${lockSeed}:mark` })
       patched = true
     }
     if (!nextMorph.wash) {
-      nextMorph.wash = rollColorWash(species)
+      nextMorph.wash = rollColorWash(species, { seed: `${lockSeed}:wash` })
       patched = true
     }
     if (patched) {

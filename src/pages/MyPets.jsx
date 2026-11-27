@@ -319,7 +319,6 @@ export default function MyPets() {
                       {' · 寵物格'}
                       {look.growable ? ` · ${look.stage.label}` : ''}
                       {look.morphLabel ? ` · ${look.morphLabel}` : ''}
-                      {look.rarity ? ` · ${look.rarity}` : ''}
                       {look.shineText ? ` · ${look.shineText}` : ''}
                       {look.lengthText ? ` · ${look.lengthText}` : ''}
                     </p>
@@ -418,7 +417,6 @@ export default function MyPets() {
                   {fish.born ? ' · 育成' : ''}
                   {look.growable ? ` · ${look.stage.label}` : ''}
                   {look.morphLabel ? ` · ${look.morphLabel}` : ''}
-                  {look.rarity ? ` · ${look.rarity}` : ''}
                   {look.shineText ? ` · ${look.shineText}` : ''}
                   {look.lengthText ? ` · ${look.lengthText}` : ''}
                   {look.pregnant || breed?.phase === 'pregnant' ? ' · 懷孕中' : ''}
@@ -607,7 +605,6 @@ export default function MyPets() {
                       ))}
                     </div>
                     <p className="text-[11px] text-gray-200 mt-1">{row.label}</p>
-                    <p className="text-[10px] text-gray-500">{row.rarity}</p>
                   </div>
                 ))}
               </div>

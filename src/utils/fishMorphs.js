@@ -2,10 +2,17 @@ function clamp(n, a, b) {
   return Math.min(b, Math.max(a, n))
 }
 
-function pickWeighted(list) {
+export function hashToSeed(seed) {
+  const s = String(seed ?? '')
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619)
+  return h >>> 0
+}
+
+function pickWeighted(list, rand = Math.random) {
   const rows = list || []
   const total = rows.reduce((s, x) => s + (Number(x.w) || 1), 0)
-  let r = Math.random() * Math.max(total, 1)
+  let r = rand() * Math.max(total, 1)
   for (const row of rows) {
     r -= Number(row.w) || 1
     if (r <= 0) return row
@@ -122,22 +129,23 @@ const SHINE = [
   { id: 2, label: '高亮', bri: 1.1, w: 18 }
 ]
 
-function jitterPart(part, stable) {
+function jitterPart(part, stable, rand = Math.random) {
   const p = part || { h: 0, s: 1, b: 1 }
   if (p.tint) return { tint: p.tint }
   if (stable) {
     return { h: Number(p.h) || 0, s: Number(p.s) || 1, b: Number(p.b) || 1 }
   }
   return {
-    h: (Number(p.h) || 0) + (Math.random() - 0.5) * 10,
-    s: clamp((Number(p.s) || 1) + (Math.random() - 0.5) * 0.16, 0.08, 1.45),
-    b: clamp((Number(p.b) || 1) + (Math.random() - 0.5) * 0.12, 0.55, 1.32)
+    h: (Number(p.h) || 0) + (rand() - 0.5) * 10,
+    s: clamp((Number(p.s) || 1) + (rand() - 0.5) * 0.16, 0.08, 1.45),
+    b: clamp((Number(p.b) || 1) + (rand() - 0.5) * 0.12, 0.55, 1.32)
   }
 }
 
 function makeRng(seed) {
   if (seed == null) return Math.random
-  let t = (Number(seed) || 1) >>> 0
+  const n = typeof seed === 'number' && Number.isFinite(seed) ? seed : hashToSeed(seed)
+  let t = (n || 1) >>> 0
   return () => {
     t += 0x6d2b79f5
     let r = Math.imul(t ^ (t >>> 15), 1 | t)
@@ -292,15 +300,18 @@ export function rarityLabel(weight) {
 }
 
 export function rollFishMorph(speciesKey, extra = {}) {
+  const rand = extra.seed != null ? makeRng(hashToSeed(extra.seed)) : Math.random
   const list = FISH_MORPHS[speciesKey] || FISH_MORPHS.betta
-  const base = extra.template || pickWeighted(list) || list[0]
-  const shine = extra.shine != null ? extra.shine : pickWeighted(SHINE).id
+  const base = extra.template || pickWeighted(list, rand) || list[0]
+  const shine = extra.shine != null ? extra.shine : pickWeighted(SHINE, rand).id
   const stable = !!extra.stable
   const overlay = base.overlay || extra.overlay || ''
+  const markSeed = extra.markSeed != null ? extra.markSeed : extra.seed != null ? hashToSeed(`${extra.seed}:mark`) : undefined
   return {
     v: MORPH_PALETTE_VER,
     id: base.id,
     label: base.label,
+    w: Number(base.w) || extra.w || 10,
     overlay,
     art: extra.art || base.art || 'a',
     shine,
@@ -310,7 +321,7 @@ export function rollFishMorph(speciesKey, extra = {}) {
         : rollOverlayMarks(overlay, speciesKey, {
             parent: extra.parentMarks,
             inherit: extra.inheritMarks,
-            seed: extra.markSeed
+            seed: markSeed
           }),
     wash:
       extra.wash !== undefined
@@ -318,10 +329,10 @@ export function rollFishMorph(speciesKey, extra = {}) {
         : rollColorWash(speciesKey, {
             parent: extra.parentWash,
             inherit: extra.inheritMarks,
-            seed: extra.markSeed != null ? extra.markSeed + 97 : undefined
+            seed: markSeed != null ? Number(markSeed) + 97 : undefined
           }),
-    body: jitterPart(extra.body || base.body, stable),
-    tail: jitterPart(extra.tail || base.tail, stable)
+    body: jitterPart(extra.body || base.body, stable, rand),
+    tail: jitterPart(extra.tail || base.tail, stable, rand)
   }
 }
 
