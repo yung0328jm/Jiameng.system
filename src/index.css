@@ -230,6 +230,56 @@ body {
   height: 0;
 }
 
+body.tank-widewatch {
+  overflow: hidden;
+}
+
+body.tank-widewatch #root {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ocean-ambience.is-widewatch {
+  z-index: 80;
+  pointer-events: auto;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 110% 70% at 50% -15%, rgba(56, 189, 176, 0.22) 0%, transparent 52%),
+    radial-gradient(ellipse 70% 45% at 100% 100%, rgba(14, 116, 144, 0.28) 0%, transparent 55%),
+    linear-gradient(180deg, #0a2838 0%, #061820 48%, #041018 100%);
+}
+
+.ocean-ambience.is-widewatch-rotate {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: 100dvh;
+  height: 100dvw;
+  -webkit-transform: translate(-50%, -50%) rotate(-90deg);
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.ocean-widewatch-exit {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 30;
+  pointer-events: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  background: rgba(4, 16, 24, 0.72);
+  color: #e6c35c;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.ocean-widewatch-exit:active {
+  background: rgba(4, 16, 24, 0.9);
+}
+
 .ocean-world {
   position: relative;
   width: 100%;

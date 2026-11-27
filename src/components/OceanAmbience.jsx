@@ -31,12 +31,47 @@ function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+export const TANK_WIDE_CLASS = 'tank-widewatch'
+
+export function isTankWideWatch() {
+  return typeof document !== 'undefined' && document.body.classList.contains(TANK_WIDE_CLASS)
+}
+
+export async function enterTankWideWatch() {
+  if (typeof document === 'undefined') return
+  document.body.classList.add(TANK_WIDE_CLASS)
+  try {
+    const el = document.documentElement
+    if (el.requestFullscreen) await el.requestFullscreen()
+    else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen()
+  } catch (_) {}
+  try {
+    if (typeof screen !== 'undefined' && screen.orientation?.lock) {
+      await screen.orientation.lock('landscape')
+    }
+  } catch (_) {}
+}
+
+export async function exitTankWideWatch() {
+  if (typeof document === 'undefined') return
+  document.body.classList.remove(TANK_WIDE_CLASS)
+  try {
+    if (typeof screen !== 'undefined' && screen.orientation?.unlock) screen.orientation.unlock()
+  } catch (_) {}
+  try {
+    if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen()
+    else if (document.webkitFullscreenElement && document.webkitExitFullscreen) await document.webkitExitFullscreen()
+  } catch (_) {}
+}
+
 function isMobile() {
-  return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  if (typeof window === 'undefined') return false
+  return Math.min(window.innerWidth, window.innerHeight) <= 640
 }
 
 function headerClearance() {
   if (typeof document === 'undefined') return 140
+  if (isTankWideWatch()) return 36
   const nav = document.querySelector('[data-ocean-nav]')
   if (nav) {
     const bottom = nav.getBoundingClientRect().bottom
@@ -48,15 +83,22 @@ function headerClearance() {
 function layout(mode = 'world', fishCount = 0) {
   const mobile = isMobile()
   const viewW = window.innerWidth
-  const h = window.innerHeight
-  const pan = mode === 'tank' && mobile
+  const viewH = window.innerHeight
+  const wide = mode === 'tank' && isTankWideWatch()
+  const rotate = wide && viewH > viewW
+  const pan = mode === 'tank' && mobile && !wide
   const n = Math.max(0, Number(fishCount) || 0)
-  const w = pan
-    ? Math.round(Math.min(viewW * 6, Math.max(viewW * 2.7, viewW + n * 64)))
-    : viewW
+  const w = rotate
+    ? viewH
+    : pan
+      ? Math.round(Math.min(viewW * 6, Math.max(viewW * 2.7, viewW + n * 64)))
+      : viewW
+  const h = rotate ? viewW : viewH
   return {
     mobile,
     pan,
+    wide,
+    rotate,
     viewW,
     w,
     h,
@@ -65,6 +107,19 @@ function layout(mode = 'world', fishCount = 0) {
     dash: mobile ? 260 : 380,
     eatRange: mobile ? 22 : 32
   }
+}
+
+function mapClientToTank(clientX, clientY, panEl) {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  if (isTankWideWatch() && vh > vw) {
+    const w = vh
+    const h = vw
+    const dx = clientX - vw / 2
+    const dy = clientY - vh / 2
+    return { x: -dy + w / 2, y: dx + h / 2 }
+  }
+  return { x: clientX + (panEl?.scrollLeft || 0), y: clientY }
 }
 
 function baseFishSize(entry, index, mobile) {
@@ -260,11 +315,15 @@ export default function OceanAmbience({ mode = 'world' }) {
   const shooRef = useRef([])
   const panRef = useRef(null)
   const rosterRef = useRef(loadRoster(mode))
-  const bootLayout = typeof window === 'undefined' ? { w: 0, pan: false } : layout(mode, (rosterRef.current || []).length)
+  const bootLayout = typeof window === 'undefined' ? { w: 0, pan: false, wide: false, rotate: false } : layout(mode, (rosterRef.current || []).length)
   const worldWRef = useRef(bootLayout.w)
   const panFlagRef = useRef(!!bootLayout.pan)
+  const wideFlagRef = useRef(!!bootLayout.wide)
+  const rotateFlagRef = useRef(!!bootLayout.rotate)
   const [worldW, setWorldW] = useState(bootLayout.w)
   const [pan, setPan] = useState(!!bootLayout.pan)
+  const [wide, setWide] = useState(!!bootLayout.wide)
+  const [rotate, setRotate] = useState(!!bootLayout.rotate)
   const [actors, setActors] = useState(() => loadRoster(mode).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
@@ -282,6 +341,17 @@ export default function OceanAmbience({ mode = 'world' }) {
     const t = window.setTimeout(() => setInspect(null), 14000)
     return () => window.clearTimeout(t)
   }, [inspect])
+
+  useEffect(() => {
+    if (mode !== 'tank') return undefined
+    if (hidden) {
+      exitTankWideWatch()
+      return undefined
+    }
+    return () => {
+      exitTankWideWatch()
+    }
+  }, [hidden, mode])
 
   useEffect(() => {
     const refresh = () => {
@@ -316,8 +386,12 @@ export default function OceanAmbience({ mode = 'world' }) {
     const L0 = layout(mode, startRoster.length)
     worldWRef.current = L0.w
     panFlagRef.current = !!L0.pan
+    wideFlagRef.current = !!L0.wide
+    rotateFlagRef.current = !!L0.rotate
     setWorldW(L0.w)
     setPan(!!L0.pan)
+    setWide(!!L0.wide)
+    setRotate(!!L0.rotate)
     const startLooks = loadLooks(startRoster)
     sim.current = {
       food: [],
@@ -345,6 +419,14 @@ export default function OceanAmbience({ mode = 'world' }) {
       if (panFlagRef.current !== !!L.pan) {
         panFlagRef.current = !!L.pan
         setPan(!!L.pan)
+      }
+      if (wideFlagRef.current !== !!L.wide) {
+        wideFlagRef.current = !!L.wide
+        setWide(!!L.wide)
+      }
+      if (rotateFlagRef.current !== !!L.rotate) {
+        rotateFlagRef.current = !!L.rotate
+        setRotate(!!L.rotate)
       }
       const state = sim.current
       if (!state) return
@@ -609,9 +691,11 @@ export default function OceanAmbience({ mode = 'world' }) {
     raf = requestAnimationFrame(tick)
 
     const onFeed = (e) => {
-      const scrollX = panRef.current?.scrollLeft || 0
-      const x = Number(e.detail?.x) + scrollX
-      const y = Number(e.detail?.y)
+      const mapped = e.detail?.mapped
+        ? { x: Number(e.detail.x), y: Number(e.detail.y) }
+        : mapClientToTank(Number(e.detail?.x), Number(e.detail?.y), panRef.current)
+      const x = mapped.x
+      const y = mapped.y
       if (!Number.isFinite(x) || !Number.isFinite(y) || !sim.current) return
       const roster = rosterRef.current || []
       const looks = sim.current.looks || {}
@@ -641,10 +725,30 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${pan ? ' is-pan' : ''}`}
-      aria-hidden
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${pan ? ' is-pan' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
+      aria-hidden={!wide}
+      onPointerDown={(e) => {
+        if (!wide) return
+        if (e.target.closest('.ocean-fish-actor, .ocean-fish-owner-tip, .ocean-widewatch-exit')) return
+        const p = mapClientToTank(e.clientX, e.clientY, panRef.current)
+        window.dispatchEvent(new CustomEvent('ocean-feed', { detail: { x: p.x, y: p.y, mapped: true } }))
+      }}
     >
-      <div className="ocean-world" style={pan && worldW ? { width: `${worldW}px` } : undefined}>
+      {wide ? (
+        <button
+          type="button"
+          className="ocean-widewatch-exit"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            exitTankWideWatch()
+          }}
+        >
+          結束橫向
+        </button>
+      ) : null}
+      <div className="ocean-world" style={(pan || rotate) && worldW ? { width: `${worldW}px` } : undefined}>
       {mode === 'tank' ? (
         <div className="ocean-tank-beam" aria-hidden>
           <span className="ocean-tank-beam-core" />
@@ -705,10 +809,11 @@ export default function OceanAmbience({ mode = 'world' }) {
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
+            const p = mapClientToTank(e.clientX, e.clientY, panRef.current)
             shooRef.current.push({
               id: fish.id,
-              x: e.clientX + (panRef.current?.scrollLeft || 0),
-              y: e.clientY
+              x: p.x,
+              y: p.y
             })
             setInspect((cur) => (cur === fish.id ? null : fish.id))
           }}
