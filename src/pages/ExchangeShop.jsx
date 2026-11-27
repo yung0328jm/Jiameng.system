@@ -8,6 +8,7 @@ import { getAllEquippedEffects, unequipEffect, setFishSlotExpansions, normalizeF
 import { addShopFishToPets, purgeFishItemFromEveryone } from '../utils/petStorage'
 import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
+import CoinPurchasePanel from '../components/CoinPurchasePanel'
 
 function ExchangeShop() {
   const [shopItems, setShopItems] = useState([])
@@ -31,6 +32,7 @@ function ExchangeShop() {
   const [missingIdsInfo, setMissingIdsInfo] = useState({ count: 0, ids: [] })
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [searchText, setSearchText] = useState('')
+  const [shopRev, setShopRev] = useState(0)
 
   const loadItems = useCallback(() => {
     const role = getCurrentUserRole()
@@ -168,6 +170,7 @@ function ExchangeShop() {
       computeMissingItemIds()
       const user = getCurrentUser()
       if (user) setWalletBalance(getWalletBalance(user))
+      setShopRev((v) => v + 1)
     } catch (e) {
       if (typeof console !== 'undefined') console.warn('refetchExchangeShop', e)
     }
@@ -189,7 +192,7 @@ function ExchangeShop() {
     }
   }, [])
 
-  useRealtimeKeys(['jiameng_items', 'jiameng_wallets', 'jiameng_transactions'], refetchExchangeShop)
+  useRealtimeKeys(['jiameng_items', 'jiameng_wallets', 'jiameng_transactions', 'jiameng_coin_packages', 'jiameng_coin_purchases'], refetchExchangeShop)
 
   useEffect(() => {
     if (currentUser) {
@@ -415,6 +418,15 @@ function ExchangeShop() {
             </div>
           </div>
         )}
+
+        {currentUser ? (
+          <CoinPurchasePanel
+            currentUser={currentUser}
+            userRole={userRole}
+            revision={shopRev}
+            onBalanceChange={() => setWalletBalance(getWalletBalance(currentUser))}
+          />
+        ) : null}
 
         {/* 管理員：新增道具按鈕 */}
         {userRole === 'admin' && (

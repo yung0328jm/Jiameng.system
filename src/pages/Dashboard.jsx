@@ -77,14 +77,12 @@ import { getCompanyActivities, getPendingActivitiesCount } from '../utils/compan
 import { getDailyTodoUnreadCount } from '../utils/todoStorage'
 
 const MORE_FEATURES_TABS = ['memo', 'daily-todo', 'activities', 'monthly-report', 'leave-application', 'contractor-registration', 'food-order-admin']
+const FISH_SERVICE_TABS = ['my-pets', 'my-tank', 'fish-auction', 'fish-swap']
 const PERSONAL_SERVICE_TABS = [
   'exchange-shop',
   'exchange',
-  'fish-auction',
-  'fish-swap',
+  ...FISH_SERVICE_TABS,
   'my-backpack',
-  'my-pets',
-  'my-tank',
   'advance',
   'messages',
   'change-password',
@@ -143,6 +141,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   const latticeClicksRef = useRef({ n: 0, t: 0 })
   const [topMenuPosition, setTopMenuPosition] = useState({ top: 0, right: 0 })
   const [showPersonalServiceMenu, setShowPersonalServiceMenu] = useState(false)
+  const [showPersonalFishMenu, setShowPersonalFishMenu] = useState(false)
   const personalServiceButtonRef = useRef(null)
   const [personalServiceMenuPosition, setPersonalServiceMenuPosition] = useState({ top: 0, left: 0 })
   const [showMoreFeaturesMenu, setShowMoreFeaturesMenu] = useState(false)
@@ -1383,7 +1382,10 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   setMoreFeaturesMenuPosition({ top: rect.bottom + 4, left: rect.left })
                 }
                 setShowMoreFeaturesMenu(open)
-                if (open) setShowPersonalServiceMenu(false)
+                if (open) {
+                  setShowPersonalServiceMenu(false)
+                  setShowPersonalFishMenu(false)
+                }
               }}
               className={`
                 flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-3 sm:px-4 sm:py-2 rounded-md transition-all whitespace-nowrap min-h-[48px] min-w-[48px] sm:min-w-0 touch-manipulation cursor-pointer text-sm sm:text-base relative font-serif border
@@ -1470,6 +1472,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                   setPersonalServiceMenuPosition({ top: rect.bottom + 4, left: rect.left })
                 }
                 setShowPersonalServiceMenu(open)
+                if (!open) setShowPersonalFishMenu(false)
                 if (open) setShowMoreFeaturesMenu(false)
               }}
               className={`
@@ -1493,11 +1496,34 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
             </button>
             {showPersonalServiceMenu && typeof document !== 'undefined' && createPortal(
               <>
-                <div className="fixed inset-0 z-[9998]" onClick={() => setShowPersonalServiceMenu(false)} aria-hidden style={{ touchAction: 'none' }} />
+                <div className="fixed inset-0 z-[9998]" onClick={() => { setShowPersonalServiceMenu(false); setShowPersonalFishMenu(false) }} aria-hidden style={{ touchAction: 'none' }} />
                 <div
-                  className="fixed z-[9999] py-1 min-w-[160px] bg-cn-panel border border-cn-gold/40 rounded-md shadow-2xl"
+                  className="fixed z-[9999] py-1 min-w-[180px] bg-cn-panel border border-cn-gold/40 rounded-md shadow-2xl"
                   style={{ top: personalServiceMenuPosition.top, left: personalServiceMenuPosition.left, touchAction: 'manipulation' }}
                 >
+                  {showPersonalFishMenu ? (
+                    <>
+                      <button type="button" onClick={() => setShowPersonalFishMenu(false)} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-gold hover:bg-black/25 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        返回
+                      </button>
+                      <button type="button" onClick={() => { handleTabClick('my-pets', '/my-pets'); setShowPersonalServiceMenu(false); setShowPersonalFishMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                        <PetIcon /> 我的寵物
+                      </button>
+                      <button type="button" onClick={() => { handleTabClick('my-tank', '/my-tank'); setShowPersonalServiceMenu(false); setShowPersonalFishMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                        <PetIcon /> 我的魚缸
+                      </button>
+                      <button type="button" onClick={() => { handleTabClick('fish-auction', '/fish-auction'); setShowPersonalServiceMenu(false); setShowPersonalFishMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
+                        <PetIcon /> 魚類競拍
+                      </button>
+                      <button type="button" onClick={() => { handleTabClick('fish-swap', '/fish-swap'); setShowPersonalServiceMenu(false); setShowPersonalFishMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-b-lg cursor-pointer touch-manipulation">
+                        <PetIcon /> 魚類交換
+                      </button>
+                    </>
+                  ) : (
+                    <>
                   {!isNavHidden('performance') && (
                     <button type="button" onClick={() => { handleTabClick('performance', '/personal-performance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 rounded-t-lg cursor-pointer touch-manipulation">
                       <PerformanceIcon /> 個人績效
@@ -1513,23 +1539,17 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                     <BackpackIcon /> 我的背包
                     {backpackItemCount > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{backpackItemCount}</span>}
                   </button>
-                  <button type="button" onClick={() => { handleTabClick('my-pets', '/my-pets'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
-                    <PetIcon /> 我的寵物
-                  </button>
-                  <button type="button" onClick={() => { handleTabClick('my-tank', '/my-tank'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
-                    <PetIcon /> 我的魚缸
+                  <button type="button" onClick={() => setShowPersonalFishMenu(true)} className={`w-full text-left px-4 py-3 min-h-[44px] text-sm hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation ${FISH_SERVICE_TABS.includes(activeTab) ? 'text-cn-gold' : 'text-cn-parchment'}`}>
+                    <PetIcon /> 魚類
+                    <svg className="w-4 h-4 ml-auto opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </button>
                   <button type="button" onClick={() => { handleTabClick('exchange-shop', '/exchange-shop'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <ShopIcon /> 兌換商城
                   </button>
                   <button type="button" onClick={() => { handleTabClick('exchange', '/exchange'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <ExchangeIcon /> 交易所
-                  </button>
-                  <button type="button" onClick={() => { handleTabClick('fish-auction', '/fish-auction'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
-                    <PetIcon /> 魚類競拍
-                  </button>
-                  <button type="button" onClick={() => { handleTabClick('fish-swap', '/fish-swap'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
-                    <PetIcon /> 魚類交換
                   </button>
                   <button type="button" onClick={() => { handleTabClick('advance', '/advance'); setShowPersonalServiceMenu(false) }} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-cn-parchment hover:bg-black/25 flex items-center gap-2 cursor-pointer touch-manipulation">
                     <AdvanceIcon /> 工程款借貸
@@ -1539,6 +1559,8 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
                     <MailIcon /> 站內信
                     {navBadges.messages > 0 && <span className="ml-auto bg-cn-gold text-cn-ink rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold">{navBadges.messages}</span>}
                   </button>
+                    </>
+                  )}
                 </div>
               </>,
               document.body
