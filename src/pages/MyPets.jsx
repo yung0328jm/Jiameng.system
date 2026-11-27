@@ -282,13 +282,51 @@ export default function MyPets() {
               const bothIn = roamIds.includes(pair.maleId) && roamIds.includes(pair.femaleId)
               const momLeft = momLook ? femaleBirthsLeft(pets.growth?.[pair.femaleId]) : 0
               const dadLeft = dadLook ? femaleBirthsLeft(pets.growth?.[pair.maleId]) : 0
+              const dadPack = FISH_PACKS[dad?.key] || FISH_PACKS.betta
+              const momPack = FISH_PACKS[mom?.key] || FISH_PACKS.betta
+              const dadArt = dadLook?.art === 'b' ? 'b' : 'a'
+              const momArt = momLook?.art === 'b' ? 'b' : 'a'
               return (
                 <li key={`${pair.maleId}-${pair.femaleId}`} className="flex flex-wrap items-center gap-2 text-sm text-rose-50">
+                  <div className="flex items-center gap-1.5 shrink-0 rounded-lg bg-black/30 border border-rose-900/40 px-1.5 py-1">
+                    <div className="flex flex-col items-center">
+                      <div className="w-14 h-9 flex items-center justify-center overflow-hidden">
+                        {dad ? (
+                          <FishSprite
+                            src={dadPack[dadArt]}
+                            variant={dadArt}
+                            wide={!!dad.wide}
+                            shape={dad.shape}
+                            width={dad.wide ? 56 : 42}
+                            height={dad.wide ? 20 : 22}
+                            parts={dadLook?.parts}
+                          />
+                        ) : null}
+                      </div>
+                      <span className="text-[10px] text-sky-200 leading-none">公</span>
+                    </div>
+                    <span className="text-rose-300/80 text-xs">×</span>
+                    <div className="flex flex-col items-center">
+                      <div className="w-14 h-9 flex items-center justify-center overflow-hidden">
+                        {mom ? (
+                          <FishSprite
+                            src={momPack[momArt]}
+                            variant={momArt}
+                            wide={!!mom.wide}
+                            shape={mom.shape}
+                            width={mom.wide ? 56 : 42}
+                            height={mom.wide ? 20 : 22}
+                            parts={momLook?.parts}
+                          />
+                        ) : null}
+                      </div>
+                      <span className="text-[10px] text-pink-200 leading-none">母</span>
+                    </div>
+                  </div>
                   <span className="min-w-0 truncate">
-                    公 {recording ? m(dadName) : dadName}
-                    {dadLook?.gender === 'm' ? '' : ''}
+                    {recording ? m(dadName) : dadName}
                     {' × '}
-                    母 {recording ? m(momName) : momName}
+                    {recording ? m(momName) : momName}
                     {` · 公剩 ${dadLeft}/${MAX_BREED_BIRTHS} · 母剩 ${momLeft}/${MAX_BREED_BIRTHS}`}
                     {bothIn ? ' · 已在缸裡' : ' · 請放入魚缸'}
                   </span>
