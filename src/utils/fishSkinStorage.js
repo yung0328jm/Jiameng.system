@@ -326,11 +326,6 @@ export function unequipFishAtIndex(username, index) {
 }
 
 export function getFishSpeciesName(entry) {
-  const itemId = entry?.itemId
-  if (itemId) {
-    const item = getItem(itemId)
-    if (item?.name) return item.name
-  }
   const names = {
     betta: '鬥魚',
     guppy: '孔雀魚',
@@ -347,7 +342,11 @@ export function getFishSpeciesName(entry) {
     turtle_pig: '豬鼻龜',
     turtle_map: '地圖龜'
   }
-  return names[entry?.key] || '魚'
+  const item = entry?.itemId ? getItem(entry.itemId) : null
+  const key = (FISH_PACKS[entry?.key] && entry.key) || (item?.fishKey && FISH_PACKS[item.fishKey] && item.fishKey) || ''
+  if (names[key]) return names[key]
+  if (item?.name) return item.name
+  return '魚'
 }
 
 export function getAmbientFishRoster(username = getCurrentUser()) {

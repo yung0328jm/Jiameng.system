@@ -2,6 +2,7 @@
 import { getSupabaseClient } from './supabaseClient'
 import { isGuestCloudWriteBlocked } from './guestAuth'
 import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationMerge'
+import { mergeInventoriesStore, mergePetsStore, petsStoreRicher } from './fishSyncMerge'
 
 const SCHEDULE_KEY = 'jiameng_engineering_schedules'
 const LEAVE_KEY = 'jiameng_leave_applications'
@@ -791,6 +792,24 @@ export function subscribeRealtime(onUpdate) {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? [])
                 localStorage.setItem(key, val)
                 notifyKey(key)
+              } else if (key === 'jiameng_pets' || key === 'jiameng_inventories') {
+                const incoming = payload.new.data
+                const existing = (() => {
+                  try {
+                    const raw = localStorage.getItem(key)
+                    return raw ? JSON.parse(raw) : {}
+                  } catch (_) {
+                    return {}
+                  }
+                })()
+                const merged = key === 'jiameng_pets'
+                  ? mergePetsStore(existing, incoming)
+                  : mergeInventoriesStore(existing, incoming)
+                localStorage.setItem(key, JSON.stringify(merged))
+                notifyKey(key)
+                if (key === 'jiameng_pets' && petsStoreRicher(merged, incoming)) {
+                  healAppData(sb, { key, data: merged, updated_at: new Date().toISOString() })
+                }
               } else {
                 const val = typeof payload.new.data === 'string' ? payload.new.data : JSON.stringify(payload.new.data ?? {})
                 localStorage.setItem(key, val)

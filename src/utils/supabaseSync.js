@@ -3,6 +3,7 @@ import { getSupabaseClient, isSupabaseEnabled } from './supabaseClient'
 import { isGuestCloudWriteBlocked } from './guestAuth'
 import { REALTIME_UPDATE_EVENT } from './supabaseRealtime'
 import { applyLeaveApplicationsFromCloud, rowToLeaveRecord } from './leaveApplicationMerge'
+import { mergeInventoriesStore, mergePetsStore, petsStoreRicher } from './fishSyncMerge'
 
 const MEMOS_KEY = 'jiameng_memos'
 
@@ -504,6 +505,30 @@ async function _doUpsert(sb, key, value) {
     }
   }
 
+  if (key === 'jiameng_pets') {
+    try {
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      data = mergePetsStore(cloudRow?.data, data)
+      try { localStorage.setItem(key, JSON.stringify(data)) } catch (_) {}
+    } catch (e) {
+      console.warn('[Sync] Blocked jiameng_pets overwrite; cloud read failed', e)
+      return
+    }
+  }
+
+  if (key === 'jiameng_inventories') {
+    try {
+      const { data: cloudRow, error: cloudErr } = await sb.from('app_data').select('data').eq('key', key).maybeSingle()
+      if (cloudErr) throw cloudErr
+      data = mergeInventoriesStore(cloudRow?.data, data)
+      try { localStorage.setItem(key, JSON.stringify(data)) } catch (_) {}
+    } catch (e) {
+      console.warn('[Sync] Blocked jiameng_inventories overwrite; cloud read failed', e)
+      return
+    }
+  }
+
   const { error } = await sb.from('app_data').upsert({ key, data, updated_at: new Date().toISOString() }, { onConflict: 'key' })
   if (error) throw error
 }
@@ -709,6 +734,25 @@ export async function syncFromSupabase() {
           const lastWrite = parseInt(localStorage.getItem('jiameng_card_collection_last_write') || '', 10)
           if (lastWrite && (Date.now() - lastWrite < 8000)) return
         }
+        if (key === 'jiameng_pets' || key === 'jiameng_inventories') {
+          const existing = (() => {
+            try {
+              const raw = localStorage.getItem(key)
+              return raw ? JSON.parse(raw) : {}
+            } catch (_) {
+              return {}
+            }
+          })()
+          const merged = key === 'jiameng_pets'
+            ? mergePetsStore(existing, r.data)
+            : mergeInventoriesStore(existing, r.data)
+          localStorage.setItem(key, JSON.stringify(merged))
+          if (key === 'jiameng_pets' && petsStoreRicher(merged, r.data)) {
+            try { syncKeyToSupabase(key, JSON.stringify(merged)) } catch (_) {}
+          }
+          try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
+          return
+        }
         localStorage.setItem(key, typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? {}))
         try { window.dispatchEvent(new CustomEvent(REALTIME_UPDATE_EVENT, { detail: { key } })) } catch (_) {}
       } catch (_) {}
@@ -834,6 +878,19 @@ export async function refreshAppDataKeyFromSupabase(key) {
       const merged = Array.from(byId.values()).sort(
         (a, b) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0)
       )
+      localStorage.setItem(key, JSON.stringify(merged))
+    } else if (key === 'jiameng_pets' || key === 'jiameng_inventories') {
+      const existing = (() => {
+        try {
+          const raw = localStorage.getItem(key)
+          return raw ? JSON.parse(raw) : {}
+        } catch (_) {
+          return {}
+        }
+      })()
+      const merged = key === 'jiameng_pets'
+        ? mergePetsStore(existing, row.data)
+        : mergeInventoriesStore(existing, row.data)
       localStorage.setItem(key, JSON.stringify(merged))
     } else {
       const val = typeof row.data === 'string' ? row.data : JSON.stringify(row.data ?? (Array.isArray(row.data) ? [] : {}))
