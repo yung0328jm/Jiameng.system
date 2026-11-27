@@ -99,6 +99,7 @@ function layout(mode = 'world', fishCount = 0) {
     pan,
     wide,
     rotate,
+    wrapX: mode === 'world' && mobile,
     viewW,
     w,
     h,
@@ -238,17 +239,45 @@ function layerBand(L, size, layer) {
 
 function clampFish(fish, L, size, layer = fish._layer) {
   const { minY, maxY } = layerBand(L, size, layer)
-  fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
   fish.y = Math.max(minY, Math.min(maxY, fish.y))
+  if (L.wrapX) {
+    const span = L.w + size.width
+    if (span <= 1) return
+    let wrapped = false
+    if (fish.x > L.w) {
+      fish.x -= span
+      wrapped = true
+    } else if (fish.x < -size.width) {
+      fish.x += span
+      wrapped = true
+    }
+    if (wrapped) {
+      const inward = fish.face >= 0 ? L.w * 0.28 : L.w * 0.55
+      fish.tx = Math.max(12, Math.min(L.w - size.width - 12, inward))
+      fish.turnAt = performance.now() + 1400 + Math.random() * 1800
+    }
+    return
+  }
+  fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
 }
 
 function pickWander(fish, L, size) {
   const padX = L.pan ? 8 : 16
   const { minY, maxY } = layerBand(L, size, fish._layer)
-  const maxX = Math.max(40, L.w - size.width - padX * 2)
   const spanY = Math.max(12, maxY - minY)
-  fish.tx = padX + Math.random() * maxX
   fish.ty = minY + Math.random() * spanY
+  if (L.wrapX) {
+    const face = fish.face >= 0 ? 1 : -1
+    if (Math.random() < 0.62) {
+      fish.tx = face > 0 ? L.w + size.width * 0.85 : -size.width * 0.85
+    } else {
+      fish.tx = padX + Math.random() * Math.max(40, L.w - size.width - padX * 2)
+    }
+    fish.turnAt = performance.now() + 1800 + Math.random() * 3800
+    return
+  }
+  const maxX = Math.max(40, L.w - size.width - padX * 2)
+  fish.tx = padX + Math.random() * maxX
   fish.turnAt = performance.now() + 1600 + Math.random() * 4200
 }
 
@@ -284,7 +313,8 @@ function shooFish(fish, L, size, fromX, fromY) {
   const dist = Math.sqrt(dx * dx + dy * dy) || 1
   const run = L.mobile ? 220 : 300
   const { minY, maxY } = layerBand(L, size, fish._layer)
-  fish.tx = Math.max(12, Math.min(L.w - size.width - 12, fish.x + (dx / dist) * run))
+  const nx = fish.x + (dx / dist) * run
+  fish.tx = L.wrapX ? nx : Math.max(12, Math.min(L.w - size.width - 12, nx))
   fish.ty = Math.max(minY, Math.min(maxY, fish.y + (dy / dist) * run))
   fish.fleeUntil = performance.now() + 650
   fish.turnAt = fish.fleeUntil + 500
