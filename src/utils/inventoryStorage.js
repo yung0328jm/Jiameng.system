@@ -9,6 +9,16 @@ function remapRetiredItemId(id) {
   return s
 }
 
+function tsOf(v) {
+  return Date.parse(String(v || '')) || 0
+}
+
+function matchingUserKeys(inventories, username) {
+  const want = String(username || '').trim()
+  if (!want) return []
+  return Object.keys(inventories || {}).filter((k) => String(k).trim() === want)
+}
+
 export function remapInventoryRows(list) {
   const map = new Map()
   ;(Array.isArray(list) ? list : []).forEach((row) => {
@@ -17,13 +27,22 @@ export function remapInventoryRows(list) {
     const qty = Math.max(0, Number(row?.quantity) || 0)
     if (qty <= 0 && !row?.qtyAt) return
     const prev = map.get(itemId)
-    map.set(itemId, {
-      ...(prev || {}),
-      ...row,
-      itemId,
-      quantity: (Number(prev?.quantity) || 0) + qty,
-      obtainedAt: row?.obtainedAt || prev?.obtainedAt
-    })
+    if (!prev) {
+      map.set(itemId, { ...row, itemId, quantity: qty })
+      return
+    }
+    const pt = tsOf(prev.qtyAt)
+    const rt = tsOf(row.qtyAt)
+    if (rt > pt || (rt === pt && qty <= (Number(prev.quantity) || 0))) {
+      map.set(itemId, {
+        ...prev,
+        ...row,
+        itemId,
+        quantity: qty,
+        obtainedAt: row?.obtainedAt || prev.obtainedAt,
+        qtyAt: row?.qtyAt || prev.qtyAt
+      })
+    }
   })
   return Array.from(map.values())
 }
@@ -39,12 +58,9 @@ export const getUserInventory = (username) => {
   try {
     const data = localStorage.getItem(INVENTORY_STORAGE_KEY)
     const inventories = data ? JSON.parse(data) : {}
-    const arr = remapInventoryRows(inventories[username] || [])
-    const raw = inventories[username]
-    if (JSON.stringify(arr) !== JSON.stringify(Array.isArray(raw) ? raw : [])) {
-      inventories[username] = arr
-      persistAll(inventories)
-    }
+    const keys = matchingUserKeys(inventories, username)
+    const rows = keys.flatMap((k) => (Array.isArray(inventories[k]) ? inventories[k] : []))
+    const arr = remapInventoryRows(rows)
     return arr.filter((row) => (Number(row?.quantity) || 0) > 0)
   } catch (error) {
     console.error('Error getting user inventory:', error)
@@ -64,20 +80,22 @@ export const addItemToInventory = (username, rawItemId, quantity = 1) => {
     const data = localStorage.getItem(INVENTORY_STORAGE_KEY)
     const inventories = data ? JSON.parse(data) : {}
     
-    if (!inventories[username]) {
-      inventories[username] = []
+    const userKey = matchingUserKeys(inventories, username)[0] || String(username || '').trim()
+    if (!userKey) return { success: false, message: '帳號無效' }
+    if (!inventories[userKey]) {
+      inventories[userKey] = []
     }
     
     const itemId = remapRetiredItemId(rawItemId)
     if (!itemId) return { success: false, message: '道具無效' }
-    inventories[username] = remapInventoryRows(inventories[username])
-    const existingItem = inventories[username].find(item => item.itemId === itemId)
+    inventories[userKey] = remapInventoryRows(inventories[userKey])
+    const existingItem = inventories[userKey].find(item => item.itemId === itemId)
     const now = new Date().toISOString()
     if (existingItem) {
       existingItem.quantity += quantity
       existingItem.qtyAt = now
     } else {
-      inventories[username].push({
+      inventories[userKey].push({
         itemId,
         quantity,
         obtainedAt: now,
@@ -101,25 +119,30 @@ export const removeItemFromInventory = (username, rawItemId, quantity = 1) => {
     const data = localStorage.getItem(INVENTORY_STORAGE_KEY)
     const inventories = data ? JSON.parse(data) : {}
     
-    if (!inventories[username]) {
+    const keys = matchingUserKeys(inventories, username)
+    if (!keys.length) {
       return { success: false, message: '背包為空' }
     }
 
     const itemId = remapRetiredItemId(rawItemId)
-    inventories[username] = remapInventoryRows(inventories[username])
-    const itemIndex = inventories[username].findIndex(item => item.itemId === itemId)
-    if (itemIndex === -1) {
-      return { success: false, message: '道具不存在' }
-    }
-    
-    const item = inventories[username][itemIndex]
     const now = new Date().toISOString()
-    if (item.quantity <= quantity) {
-      item.quantity = 0
-      item.qtyAt = now
-    } else {
-      item.quantity -= quantity
-      item.qtyAt = now
+    let found = false
+    keys.forEach((userKey) => {
+      inventories[userKey] = remapInventoryRows(inventories[userKey])
+      const itemIndex = inventories[userKey].findIndex(item => item.itemId === itemId)
+      if (itemIndex === -1) return
+      found = true
+      const item = inventories[userKey][itemIndex]
+      if (item.quantity <= quantity) {
+        item.quantity = 0
+        item.qtyAt = now
+      } else {
+        item.quantity -= quantity
+        item.qtyAt = now
+      }
+    })
+    if (!found) {
+      return { success: false, message: '道具不存在' }
     }
     
     const val = JSON.stringify(inventories)

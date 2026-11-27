@@ -205,14 +205,6 @@ export function mergePetsStore(cloud, incoming) {
   return out
 }
 
-function qtyOf(list, id) {
-  const want = remapInvItemId(id)
-  return (list || []).reduce((n, r) => {
-    if (remapInvItemId(r?.itemId) !== want) return n
-    return n + Math.max(0, Number(r?.quantity) || 0)
-  }, 0)
-}
-
 function remapInvItemId(id) {
   const s = String(id || '')
   if (s === 'fish_slot_expand') return 'fish_potion_worm'
@@ -221,7 +213,24 @@ function remapInvItemId(id) {
 
 function rowForId(list, id) {
   const want = remapInvItemId(id)
-  return (list || []).find((r) => remapInvItemId(r?.itemId) === want) || null
+  let best = null
+  ;(list || []).forEach((r) => {
+    if (remapInvItemId(r?.itemId) !== want) return
+    if (!best) {
+      best = r
+      return
+    }
+    const tr = tsOf(r.qtyAt)
+    const tb = tsOf(best.qtyAt)
+    const q = Math.max(0, Number(r.quantity) || 0)
+    const bq = Math.max(0, Number(best.quantity) || 0)
+    if (tr > tb || (tr === tb && q <= bq)) best = r
+  })
+  return best
+}
+
+function qtyOf(list, id) {
+  return Math.max(0, Number(rowForId(list, id)?.quantity) || 0)
 }
 
 function pickInvQty(aList, bList, id) {
@@ -229,13 +238,16 @@ function pickInvQty(aList, bList, id) {
   const rb = rowForId(bList, id)
   const ta = tsOf(ra?.qtyAt)
   const tb = tsOf(rb?.qtyAt)
-  if (ta && tb) return ta >= tb ? qtyOf(aList, id) : qtyOf(bList, id)
-  if (ta) return qtyOf(aList, id)
-  if (tb) return qtyOf(bList, id)
-  if (id.startsWith('fish_potion_') || fishSkinItemId(id)) {
-    return Math.min(qtyOf(aList, id), qtyOf(bList, id))
+  const qa = qtyOf(aList, id)
+  const qb = qtyOf(bList, id)
+  if (ta && tb) {
+    if (ta === tb) return Math.min(qa, qb)
+    return ta > tb ? qa : qb
   }
-  return Math.max(qtyOf(aList, id), qtyOf(bList, id))
+  if (ta) return qa
+  if (tb) return qb
+  if (id.startsWith('fish_potion_') || fishSkinItemId(id)) return Math.min(qa, qb)
+  return Math.max(qa, qb)
 }
 
 function mergeInvRows(aList, bList) {
@@ -258,9 +270,21 @@ function mergeInvRows(aList, bList) {
   })
 }
 
+function normalizeInvMap(raw) {
+  const src = asObjectMap(raw)
+  const out = {}
+  Object.keys(src).forEach((k) => {
+    const nk = String(k || '').trim()
+    if (!nk) return
+    const rows = Array.isArray(src[k]) ? src[k] : []
+    out[nk] = out[nk] ? mergeInvRows(out[nk], rows) : rows
+  })
+  return out
+}
+
 export function mergeInventoriesStore(cloud, incoming) {
-  const a = asObjectMap(cloud)
-  const b = asObjectMap(incoming)
+  const a = normalizeInvMap(cloud)
+  const b = normalizeInvMap(incoming)
   const out = {}
   new Set([...Object.keys(a), ...Object.keys(b)]).forEach((user) => {
     out[user] = mergeInvRows(a[user], b[user])

@@ -61,10 +61,11 @@ function MyBackpack() {
   useRealtimeKeys(['jiameng_inventories', 'jiameng_items', 'jiameng_exchange_requests', 'jiameng_equipped_effects', 'jiameng_pets'], refetchBackpack)
 
   const loadInventory = () => {
-    if (!currentUser) return
-    migrateOwned(currentUser)
+    const user = getCurrentUser() || currentUser
+    if (!user) return
+    migrateOwned(user)
     
-    const userInventory = getUserInventory(currentUser)
+    const userInventory = getUserInventory(user)
     const allItems = getItems()
     
     // 將背包中的道具與道具定義合併
