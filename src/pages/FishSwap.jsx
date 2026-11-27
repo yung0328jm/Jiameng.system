@@ -106,7 +106,6 @@ export default function FishSwap() {
             {species}
             {look.gender ? ` · ${look.gender === 'f' ? '母' : '公'}` : ''}
             {look.stage?.label ? ` · ${look.stage.label}` : ''}
-            {look.morphLabel && look.morphLabel !== '未顯色' ? ` · ${look.morphLabel}` : ''}
             {look.lengthText ? ` · ${look.lengthText}` : ''}
           </p>
           <p className="text-xs text-gray-500 mt-1">掛出者：{getDisplayNameForAccount(detail.seller)}</p>
@@ -155,7 +154,6 @@ export default function FishSwap() {
                             <span className="text-sm text-cyan-100">
                               {nick || species}
                               {app.gender ? ` · ${genderLabel(app.gender)}` : ''}
-                              {app.morphLabel ? ` · ${app.morphLabel}` : ''}
                             </span>
                           </label>
                         </li>

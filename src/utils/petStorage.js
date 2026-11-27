@@ -22,7 +22,7 @@ import {
   getItems
 } from './itemStorage'
 import { addTransaction, addWalletBalance } from './walletStorage'
-import { FISH_MORPHS, MORPH_PALETTE_VER, mixParentMorphs, morphById, morphPartFilters, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks, shineLabel } from './fishMorphs'
+import { MORPH_PALETTE_VER, ensureMorphLineage, mixParentMorphs, morphById, morphPartFilters, rarityLabel, rollColorWash, rollFishMorph, rollOverlayMarks, shineLabel } from './fishMorphs'
 
 export const PET_STORAGE_KEY = 'jiameng_pets'
 export const PET_ADULT_MEALS = 45
@@ -180,10 +180,11 @@ function hatchRecord(itemId, speciesKey, extra = {}) {
     hue: extra.hue != null ? extra.hue : randBetween(fam.hue[0], fam.hue[1]),
     sat: extra.sat != null ? extra.sat : randBetween(fam.sat[0], fam.sat[1]),
     bri: extra.bri != null ? extra.bri : randBetween(fam.bri[0], fam.bri[1]),
-    morph:
-      extra.morph && extra.morph.body
+    morph: ensureMorphLineage(
+      extra.morph && (extra.morph.body || extra.morph.gene)
         ? extra.morph
-        : rollFishMorph(speciesKey, extra.pretty ? { shine: 2, seed: extra.seed } : { seed: extra.seed }),
+        : rollFishMorph(speciesKey, { seed: extra.seed, fry: true, shine: extra.pretty ? 2 : undefined })
+    ),
     pregnant: false,
     pregnantAt: 0,
     courtshipAt: 0,
@@ -251,17 +252,7 @@ export function colorFilterFromGrowth(rec, meals) {
 }
 
 function fallbackMorph(speciesKey) {
-  const list = FISH_MORPHS[speciesKey] || FISH_MORPHS.betta
-  const base = list[0]
-  return {
-    id: base.id,
-    label: base.label,
-    overlay: base.overlay || '',
-    art: base.art || 'a',
-    shine: 1,
-    body: { ...base.body },
-    tail: { ...base.tail }
-  }
+  return rollFishMorph(speciesKey, { fry: true, stable: true, seed: `fallback:${speciesKey || 'betta'}` })
 }
 
 function lookParts(rec, meals, speciesKey, growable) {
@@ -505,7 +496,7 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
       bri: bornMeta?.bri,
       fam: bornMeta?.fam,
       gender: lockedGender(rec, lockSeed, pairGender),
-      morph: rec?.morph,
+      morph: rec?.morph || bornMeta?.morph,
       seed: lockSeed
     })
     return { rec, dirty: true }
@@ -522,27 +513,17 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
     rec = { ...rec, growable }
     dirty = true
   }
-  if (!rec.morph || !rec.morph.body || rec.morph.v !== MORPH_PALETTE_VER) {
-    const found = morphById(species, rec.morph?.id)
-    const keep = found || (rec.morph?.body ? rec.morph : null)
+  if (!rec.morph?.gene || rec.morph.v !== MORPH_PALETTE_VER) {
     rec = {
       ...rec,
       morph: rollFishMorph(species, {
-        template: keep || undefined,
-        shine: rec.morph?.shine,
-        w: rec.morph?.w,
-        body: keep?.body,
-        tail: keep?.tail,
-        art: keep?.art || rec.morph?.art,
-        overlay: keep?.overlay || rec.morph?.overlay,
-        stable: Boolean(keep),
         seed: lockSeed,
-        marks: rec.morph?.marks,
-        wash: rec.morph?.wash,
-        parentMarks: rec.morph?.marks,
-        parentWash: rec.morph?.wash
+        fry: true,
+        from: rec.morph,
+        lineage: rec.morph?.lineage
       })
     }
+    rec = { ...rec, morph: ensureMorphLineage(rec.morph) }
     dirty = true
   } else {
     const nextMorph = { ...rec.morph }
@@ -560,8 +541,10 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
       nextMorph.wash = rollColorWash(species, { seed: `${lockSeed}:wash` })
       patched = true
     }
+    const lined = ensureMorphLineage(nextMorph)
+    if (lined !== nextMorph) patched = true
     if (patched) {
-      rec = { ...rec, morph: nextMorph }
+      rec = { ...rec, morph: lined }
       dirty = true
     }
   }
@@ -1288,7 +1271,8 @@ function writeSnapToSlot(username, slotId, snap, asBorn) {
       hue: rec.hue,
       sat: rec.sat,
       bri: rec.bri,
-      fam: rec.fam
+      fam: rec.fam,
+      morph: rec.morph
     }
   } else {
     delete born[slotId]

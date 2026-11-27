@@ -119,7 +119,6 @@ export default function FishAuction() {
             {species}
             {look.gender ? ` · ${look.gender === 'f' ? '母' : '公'}` : ''}
             {look.stage?.label ? ` · ${look.stage.label}` : ''}
-            {look.morphLabel && look.morphLabel !== '未顯色' ? ` · ${look.morphLabel}` : ''}
             {look.lengthText ? ` · ${look.lengthText}` : ''}
           </p>
           <p className="text-xs text-gray-500 mt-1">賣家：{getDisplayNameForAccount(detail.seller)}</p>

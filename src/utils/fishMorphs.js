@@ -20,127 +20,75 @@ function pickWeighted(list, rand = Math.random) {
   return rows[0] || null
 }
 
-/**
- * Each morph is keyed to sprite A or B (they are different base colors):
- * betta a=藍身紅尾, b=紅鬥；arowana a=金龍, b=紅龍；
- * arowana_blue a=金身藍尾, b=藍底金鱗；ray_crown a=皇冠褐, b=黑鑽白點；
- * ray_albino a=白子黃冠, b=金粉白子；arapaima a=銀腹紅尾, b=橄欖紅尾；
- * guppy a=霓虹藍, b=禮服紅；gar a=褐斑, b=白化；genghis a=灰鯊, b=白化；
- * koi_platinum a=白金, b=山吹；redtail_cat a=紅尾招財, b=乳白.
- * Filters are small offsets from that art, not wild hue-rotate.
- */
-export const FISH_MORPHS = {
-  arowana: [
-    { id: 'gold', label: '金龍', w: 20, art: 'a', body: { h: 0, s: 1.06, b: 1.04 }, tail: { h: 0, s: 1.02, b: 1.0 } },
-    { id: 'xbg', label: '過背金', w: 10, art: 'a', body: { h: 6, s: 1.18, b: 1.1 }, tail: { h: 4, s: 1.1, b: 1.06 } },
-    { id: 'rtg', label: '紅尾金龍', w: 16, art: 'a', body: { h: 2, s: 1.08, b: 1.04 }, tail: { tint: 'red', s: 1, b: 1 } },
-    { id: 'chili', label: '辣椒紅龍', w: 10, art: 'b', body: { h: 0, s: 1.12, b: 1.0 }, tail: { h: -4, s: 1.18, b: 0.98 } },
-    { id: 'blood', label: '血紅', w: 5, art: 'b', body: { h: -8, s: 1.22, b: 0.9 }, tail: { h: -10, s: 1.2, b: 0.88 } },
-    { id: 'green', label: '青龍', w: 8, art: 'a', body: { tint: 'green' }, tail: { tint: 'green' } },
-    { id: 'gold_blue', label: '金藍混搭', w: 10, art: 'a', body: { h: 4, s: 1.12, b: 1.06 }, tail: { tint: 'blue' } },
-    { id: 'red_blue', label: '紅藍混搭', w: 8, art: 'b', body: { h: 0, s: 1.08, b: 1.0 }, tail: { tint: 'blue' } },
-    { id: 'pearl', label: '珍珠金', w: 6, art: 'a', overlay: 'spots', body: { h: 4, s: 0.9, b: 1.14 }, tail: { h: 6, s: 1.0, b: 1.06 } }
-  ],
-  arowana_blue: [
-    { id: 'mgbb', label: '藍底過背', w: 22, art: 'b', body: { h: 0, s: 1.08, b: 1.04 }, tail: { h: 0, s: 1.1, b: 1.02 } },
-    { id: 'blue_gold', label: '藍底金鱗', w: 16, art: 'a', body: { h: 0, s: 1.1, b: 1.06 }, tail: { h: 0, s: 1.04, b: 1.02 } },
-    { id: 'blue_red', label: '藍底紅尾', w: 12, art: 'b', body: { h: 0, s: 1.02, b: 1.02 }, tail: { tint: 'red' } },
-    { id: 'highback', label: '高背金', w: 8, art: 'a', body: { h: -4, s: 1.2, b: 1.12 }, tail: { h: 8, s: 0.85, b: 1.06 } },
-    { id: 'silver', label: '銀龍', w: 10, art: 'a', body: { h: 0, s: 0.12, b: 1.22 }, tail: { h: 0, s: 0.18, b: 1.16 } }
-  ],
-  betta: [
-    { id: 'bicolor', label: '雙色紅尾', w: 18, art: 'a', body: { h: 0, s: 1.06, b: 1.02 }, tail: { h: -6, s: 1.12, b: 1.0 } },
-    { id: 'solid_blue', label: '藍鬥', w: 12, art: 'a', body: { tint: 'blue' }, tail: { tint: 'blue' } },
-    { id: 'solid_red', label: '紅鬥', w: 12, art: 'b', body: { h: 0, s: 1.12, b: 1.0 }, tail: { h: 0, s: 1.1, b: 0.98 } },
-    { id: 'red_blue', label: '紅藍雙色', w: 10, art: 'a', body: { tint: 'red' }, tail: { tint: 'blue' } },
-    { id: 'butterfly', label: '蝴蝶', w: 9, art: 'a', body: { h: 4, s: 1.08, b: 1.02 }, tail: { h: 8, s: 0.32, b: 1.22 } },
-    { id: 'panda', label: '熊貓', w: 8, art: 'a', overlay: 'panda', body: { h: 0, s: 0.06, b: 1.28 }, tail: { h: 0, s: 0.06, b: 1.28 } },
-    { id: 'marble', label: '大理石', w: 9, art: 'a', overlay: 'marble', body: { h: 4, s: 0.75, b: 1.08 }, tail: { h: -8, s: 1.12, b: 1.0 } },
-    { id: 'koi', label: '錦鯉', w: 8, art: 'b', overlay: 'marble', body: { h: 0, s: 1.1, b: 1.08 }, tail: { h: 0, s: 0.28, b: 1.22 } },
-    { id: 'mustard', label: '芥末氣', w: 6, art: 'a', body: { h: 8, s: 0.45, b: 0.5 }, tail: { tint: 'yellow' } }
-  ],
-  ray_crown: [
-    { id: 'crown', label: '皇冠', w: 24, art: 'a', body: { h: 0, s: 1.04, b: 1.0 }, tail: { h: 0, s: 0.98, b: 0.98 } },
-    { id: 'black_diamond', label: '黑鑽', w: 12, art: 'b', body: { h: 0, s: 1.02, b: 0.98 }, tail: { h: 0, s: 0.95, b: 0.92 } },
-    { id: 'panda', label: '熊貓', w: 10, art: 'a', overlay: 'panda', body: { h: 0, s: 0.06, b: 1.28 }, tail: { h: 0, s: 0.06, b: 1.28 } },
-    { id: 'leopard', label: '雪豹', w: 8, art: 'b', overlay: 'spots', body: { h: 8, s: 0.55, b: 1.12 }, tail: { h: 4, s: 0.4, b: 1.06 } }
-  ],
-  ray_albino: [
-    { id: 'albino', label: '白子', w: 24, art: 'a', body: { h: 0, s: 0.7, b: 1.08 }, tail: { h: 0, s: 0.55, b: 1.06 } },
-    { id: 'golden', label: '金冠', w: 12, art: 'b', body: { h: 4, s: 1.12, b: 1.06 }, tail: { h: 2, s: 1.0, b: 1.04 } },
-    { id: 'albino_panda', label: '白熊貓', w: 10, art: 'a', overlay: 'panda', body: { h: 0, s: 0.16, b: 1.24 }, tail: { h: 0, s: 0.16, b: 1.24 } }
-  ],
-  arapaima: [
-    { id: 'silver', label: '銀腹', w: 16, art: 'a', body: { h: 0, s: 0.55, b: 1.08 }, tail: { h: -4, s: 1.2, b: 1.0 } },
-    { id: 'red_tail', label: '紅尾巨骨', w: 18, art: 'a', body: { h: 0, s: 0.85, b: 1.0 }, tail: { h: -6, s: 1.35, b: 1.02 } },
-    { id: 'olive', label: '橄欖褐', w: 16, art: 'b', body: { h: 0, s: 1.02, b: 0.98 }, tail: { h: 0, s: 1.12, b: 1.0 } }
-  ],
-  guppy: [
-    { id: 'neon', label: '霓虹藍', w: 18, art: 'a', body: { h: 0, s: 1.08, b: 1.04 }, tail: { h: 8, s: 1.12, b: 1.02 } },
-    { id: 'tuxedo', label: '禮服紅', w: 16, art: 'b', body: { h: 0, s: 1.06, b: 1.0 }, tail: { h: -8, s: 1.18, b: 1.02 } },
-    { id: 'mosaic', label: '馬賽克', w: 10, art: 'a', overlay: 'marble', body: { h: 6, s: 1.1, b: 1.06 }, tail: { h: 12, s: 1.2, b: 1.04 } },
-    { id: 'cobra', label: '蛇紋', w: 9, art: 'b', overlay: 'spots', body: { h: 4, s: 0.85, b: 1.04 }, tail: { h: -4, s: 1.1, b: 1.0 } },
-    { id: 'platinum', label: '白金', w: 8, art: 'a', body: { h: 0, s: 0.18, b: 1.26 }, tail: { h: 10, s: 0.7, b: 1.16 } },
-    { id: 'gold', label: '黃金', w: 8, art: 'b', body: { tint: 'yellow' }, tail: { tint: 'yellow' } }
-  ],
-  gar: [
-    { id: 'olive', label: '褐斑', w: 20, art: 'a', body: { h: 0, s: 1.04, b: 1.0 }, tail: { h: 0, s: 1.0, b: 0.98 } },
-    { id: 'albino', label: '白化', w: 12, art: 'b', body: { h: 0, s: 0.55, b: 1.18 }, tail: { h: 4, s: 0.6, b: 1.12 } },
-    { id: 'gold', label: '黃金雀鱔', w: 8, art: 'b', body: { tint: 'gold' }, tail: { tint: 'gold' } },
-    { id: 'blackgold', label: '黑金', w: 7, art: 'a', body: { h: -8, s: 0.7, b: 0.82 }, tail: { h: 12, s: 1.1, b: 1.06 } }
-  ],
-  genghis: [
-    { id: 'steel', label: '灰鯊', w: 20, art: 'a', body: { h: 0, s: 0.85, b: 1.0 }, tail: { h: 0, s: 0.8, b: 0.98 } },
-    { id: 'dark', label: '黑金', w: 12, art: 'a', body: { h: -8, s: 0.55, b: 0.78 }, tail: { h: 4, s: 0.7, b: 0.86 } },
-    { id: 'albino', label: '白化', w: 10, art: 'b', body: { h: 0, s: 0.35, b: 1.18 }, tail: { h: 4, s: 0.4, b: 1.12 } },
-    { id: 'gold', label: '黃金', w: 8, art: 'b', body: { tint: 'yellow' }, tail: { tint: 'gold' } }
-  ],
-  koi_platinum: [
-    { id: 'platinum', label: '白金', w: 20, art: 'a', body: { h: 0, s: 0.22, b: 1.16 }, tail: { h: 0, s: 0.2, b: 1.12 } },
-    { id: 'pearl', label: '珍珠白', w: 12, art: 'a', body: { h: 6, s: 0.18, b: 1.22 }, tail: { h: 8, s: 0.16, b: 1.18 } },
-    { id: 'yamabuki', label: '山吹', w: 12, art: 'b', body: { h: 0, s: 0.7, b: 1.08 }, tail: { h: 4, s: 0.55, b: 1.06 } },
-    { id: 'blush', label: '淡紅白金', w: 8, art: 'a', overlay: 'marble', body: { h: -8, s: 0.45, b: 1.1 }, tail: { h: -10, s: 0.55, b: 1.06 } }
-  ],
-  redtail_cat: [
-    { id: 'classic', label: '紅尾招財', w: 20, art: 'a', body: { h: 0, s: 0.7, b: 0.96 }, tail: { tint: 'red' } },
-    { id: 'dark', label: '暗紋', w: 12, art: 'a', body: { h: -6, s: 0.55, b: 0.82 }, tail: { h: -12, s: 1.2, b: 0.9 } },
-    { id: 'cream', label: '乳白', w: 10, art: 'b', body: { h: 6, s: 0.45, b: 1.16 }, tail: { h: -8, s: 1.15, b: 1.04 } }
-  ],
-  turtle_slider: [
-    { id: 'redear', label: '紅耳', w: 20, art: 'a', body: { h: 0, s: 1.06, b: 1.02 }, tail: { h: -8, s: 1.18, b: 1.0 } },
-    { id: 'yellowbelly', label: '黃腹', w: 14, art: 'b', body: { h: 8, s: 1.08, b: 1.06 }, tail: { h: 10, s: 1.04, b: 1.04 } },
-    { id: 'pastel', label: '淡彩', w: 8, art: 'b', body: { h: 4, s: 0.55, b: 1.18 }, tail: { h: 6, s: 0.6, b: 1.14 } }
-  ],
-  turtle_pig: [
-    { id: 'grey', label: '灰青', w: 20, art: 'a', body: { h: 0, s: 0.7, b: 1.02 }, tail: { h: 0, s: 0.65, b: 1.0 } },
-    { id: 'charcoal', label: '深灰', w: 12, art: 'a', body: { h: -4, s: 0.45, b: 0.86 }, tail: { h: 0, s: 0.4, b: 0.88 } },
-    { id: 'albino', label: '白化', w: 8, art: 'b', body: { h: 8, s: 0.28, b: 1.22 }, tail: { h: 6, s: 0.32, b: 1.16 } }
-  ],
-  turtle_map: [
-    { id: 'map', label: '地圖紋', w: 18, art: 'a', overlay: 'marble', body: { h: 4, s: 0.95, b: 1.04 }, tail: { h: 2, s: 0.9, b: 1.0 } },
-    { id: 'yellowspot', label: '黃斑', w: 14, art: 'b', overlay: 'spots', body: { h: 10, s: 1.08, b: 1.06 }, tail: { h: 8, s: 1.0, b: 1.02 } },
-    { id: 'darkkeel', label: '黑瘤', w: 8, art: 'a', body: { h: -6, s: 0.7, b: 0.88 }, tail: { h: 0, s: 0.65, b: 0.9 } }
-  ]
+function pick(arr, rand = Math.random) {
+  if (!arr?.length) return null
+  return arr[Math.floor(rand() * arr.length)]
 }
+
+export const FISH_COLORS = {
+  white: { id: 'white', h: 0, s: 0.08, b: 1.3, art: 'a' },
+  cream: { id: 'cream', h: 16, s: 0.28, b: 1.18, art: 'a' },
+  yellow: { id: 'yellow', tint: 'yellow', s: 1, b: 1, art: 'b' },
+  gold: { id: 'gold', tint: 'gold', s: 1, b: 1, art: 'a' },
+  copper: { id: 'copper', tint: 'red', s: 0.92, b: 0.82, art: 'b' },
+  red: { id: 'red', tint: 'red', s: 1, b: 1, art: 'b' },
+  wine: { id: 'wine', tint: 'red', s: 1.12, b: 0.72, art: 'b' },
+  purple: { id: 'purple', tint: 'purple', s: 1, b: 1, art: 'a' },
+  blue: { id: 'blue', tint: 'blue', s: 1, b: 1, art: 'a' },
+  teal: { id: 'teal', tint: 'green', s: 0.9, b: 1.08, art: 'a' },
+  green: { id: 'green', tint: 'green', s: 1, b: 1, art: 'a' },
+  olive: { id: 'olive', h: 28, s: 0.72, b: 0.92, art: 'a' },
+  black: { id: 'black', h: 0, s: 0.18, b: 0.58, art: 'b' },
+  silver: { id: 'silver', h: 0, s: 0.12, b: 1.16, art: 'a' }
+}
+
+const ALL_COLOR_IDS = Object.keys(FISH_COLORS)
+
+const SHADES = {
+  dark: { id: 'dark', bri: 0.76, sat: 1.16 },
+  deep: { id: 'deep', bri: 0.88, sat: 1.1 },
+  mid: { id: 'mid', bri: 1, sat: 1 },
+  pale: { id: 'pale', bri: 1.14, sat: 0.78 },
+  light: { id: 'light', bri: 1.28, sat: 0.52 }
+}
+
+const SHADE_IDS = Object.keys(SHADES)
 
 const SHINE = [
-  { id: 0, label: '暗色', bri: 0.9, w: 18 },
-  { id: 1, label: '普通', bri: 1, w: 64 },
-  { id: 2, label: '高亮', bri: 1.1, w: 18 }
+  { id: 0, label: '暗色', bri: 0.86, w: 22 },
+  { id: 1, label: '普通', bri: 1, w: 56 },
+  { id: 2, label: '高亮', bri: 1.14, w: 22 }
 ]
 
-function jitterPart(part, stable, rand = Math.random) {
-  const p = part || { h: 0, s: 1, b: 1 }
-  if (p.tint) return { tint: p.tint }
-  if (stable) {
-    return { h: Number(p.h) || 0, s: Number(p.s) || 1, b: Number(p.b) || 1 }
-  }
-  return {
-    h: (Number(p.h) || 0) + (rand() - 0.5) * 10,
-    s: clamp((Number(p.s) || 1) + (rand() - 0.5) * 0.16, 0.08, 1.45),
-    b: clamp((Number(p.b) || 1) + (rand() - 0.5) * 0.12, 0.55, 1.32)
-  }
+export const SPECIES_COLOR_POOLS = {
+  betta: ['red', 'wine', 'blue', 'purple', 'white', 'yellow', 'black', 'copper'],
+  guppy: ['blue', 'red', 'yellow', 'white', 'purple', 'gold', 'black', 'wine'],
+  gar: ['olive', 'gold', 'white', 'black', 'red', 'purple', 'green', 'cream'],
+  genghis: ['black', 'silver', 'gold', 'white', 'blue', 'red', 'cream', 'olive'],
+  koi_platinum: ['white', 'red', 'yellow', 'black', 'purple', 'gold', 'cream', 'wine'],
+  redtail_cat: ['red', 'cream', 'black', 'gold', 'white', 'purple', 'wine', 'silver'],
+  arowana: ['gold', 'red', 'green', 'blue', 'white', 'purple', 'wine', 'silver'],
+  arowana_blue: ['blue', 'gold', 'white', 'red', 'purple', 'silver', 'black', 'cream'],
+  ray_crown: ['gold', 'black', 'white', 'red', 'purple', 'silver', 'cream', 'olive'],
+  ray_albino: ['white', 'gold', 'yellow', 'purple', 'cream', 'red', 'silver', 'wine'],
+  arapaima: ['silver', 'red', 'olive', 'gold', 'black', 'wine', 'cream', 'green'],
+  turtle_slider: ['olive', 'yellow', 'red', 'black', 'white', 'cream', 'gold', 'green'],
+  turtle_pig: ['silver', 'black', 'white', 'gold', 'cream', 'olive', 'wine', 'red'],
+  turtle_map: ['olive', 'yellow', 'black', 'white', 'green', 'gold', 'cream', 'red']
 }
+
+export const MORPH_PALETTE_VER = 7
+
+function speciesPool(speciesKey) {
+  return SPECIES_COLOR_POOLS[speciesKey] || SPECIES_COLOR_POOLS.betta
+}
+
+export const FISH_MORPHS = Object.fromEntries(
+  Object.entries(SPECIES_COLOR_POOLS).map(([key, colors]) => [
+    key,
+    colors.map((id) => ({ id, color: id, w: 10, art: FISH_COLORS[id]?.art || 'a' }))
+  ])
+)
 
 function makeRng(seed) {
   if (seed == null) return Math.random
@@ -198,51 +146,44 @@ export function rollOverlayMarks(kind, speciesKey, opts = {}) {
       marks.tw = jitterAround(parent?.tw ?? (ray ? 15 : 12), 6, 8, 22, rand, amount || 1)
       marks.th = jitterAround(parent?.th ?? (ray ? 17 : 14), 6, 8, 24, rand, amount || 1)
     }
-    if (opts.stable) {
-      marks.hx = hx0
-      marks.hy = hy0
-      marks.hw = ray ? 16 : 16
-      marks.hh = ray ? 18 : 22
-      marks.gx = undefined
-      marks.gy = undefined
-      marks.gw = undefined
-      marks.gh = undefined
-      marks.tx = ray ? 64 : undefined
-      marks.ty = ray ? 40 : undefined
-      marks.tw = ray ? 15 : undefined
-      marks.th = ray ? 17 : undefined
-    }
     return marks
   }
 
   if (kind === 'spots') {
     const src = Array.isArray(parent?.dots) ? parent.dots : null
-    const n = src ? src.length : 11 + Math.floor(rand() * 6)
+    const n = src ? src.length : (opts.dense ? 16 : 8) + Math.floor(rand() * 8)
     const dots = []
     for (let i = 0; i < n; i++) {
       const d = src?.[i]
       dots.push({
-        x: jitterAround(d?.x ?? 50 + rand() * 34, 6, 42, 90, rand, src ? amount : 1),
-        y: jitterAround(d?.y ?? 34 + rand() * 28, 6, 30, 68, rand, src ? amount : 1),
-        r: jitterAround(d?.r ?? 1.15 + rand() * 0.55, 0.35, 0.9, 2.1, rand, src ? amount : 1)
+        x: jitterAround(d?.x ?? 48 + rand() * 38, 6, 40, 92, rand, src ? amount : 1),
+        y: jitterAround(d?.y ?? 32 + rand() * 32, 6, 28, 70, rand, src ? amount : 1),
+        r: jitterAround(d?.r ?? 1.05 + rand() * (opts.dense ? 0.9 : 0.55), 0.35, 0.8, 2.4, rand, src ? amount : 1)
       })
     }
-    if (opts.stable) return { dots: null }
     return { dots }
   }
 
   if (kind === 'marble') {
-    const blobs = (parent?.blobs || [
-      { x: 32, y: 40, w: 40, h: 28 },
-      { x: 68, y: 58, w: 34, h: 24 },
-      { x: 54, y: 28, w: 22, h: 18 }
-    ]).map((b) => ({
-      x: jitterAround(b.x, 16, 18, 82, rand, amount || 1),
-      y: jitterAround(b.y, 14, 22, 72, rand, amount || 1),
-      w: jitterAround(b.w, 12, 16, 48, rand, amount || 1),
-      h: jitterAround(b.h, 10, 12, 36, rand, amount || 1)
+    const big = !!opts.blocks
+    const fallback = big
+      ? [
+          { x: 28, y: 38, w: 54, h: 38 },
+          { x: 72, y: 58, w: 48, h: 34 },
+          { x: 50, y: 24, w: 36, h: 28 },
+          { x: 62, y: 46, w: 30, h: 24 }
+        ]
+      : [
+          { x: 32, y: 40, w: 40, h: 28 },
+          { x: 68, y: 58, w: 34, h: 24 },
+          { x: 54, y: 28, w: 22, h: 18 }
+        ]
+    const blobs = (parent?.blobs || fallback).map((b) => ({
+      x: jitterAround(b.x, big ? 18 : 16, 16, 84, rand, amount || 1),
+      y: jitterAround(b.y, big ? 16 : 14, 20, 74, rand, amount || 1),
+      w: jitterAround(b.w, big ? 16 : 12, big ? 22 : 16, big ? 62 : 48, rand, amount || 1),
+      h: jitterAround(b.h, big ? 14 : 10, big ? 18 : 12, big ? 48 : 36, rand, amount || 1)
     }))
-    if (opts.stable) return { blobs: null }
     return { blobs }
   }
 
@@ -275,69 +216,234 @@ export function rollColorWash(speciesKey, opts = {}) {
   const parent = opts.parent || null
   const amount = opts.inherit ? 0.46 : 1
   const ray = isRaySpecies(speciesKey)
+  const mix0 = opts.mix != null ? Number(opts.mix) : 0.24
   return {
-    bodySat: jitterAround(parent?.bodySat ?? 1, 0.28, 0.72, 1.32, rand, amount),
-    bodyBri: jitterAround(parent?.bodyBri ?? 1, 0.2, 0.8, 1.24, rand, amount),
-    bodyHue: jitterAround(parent?.bodyHue ?? 0, 14, -16, 16, rand, amount),
-    tailSat: jitterAround(parent?.tailSat ?? 1, 0.3, 0.7, 1.36, rand, amount),
-    tailBri: jitterAround(parent?.tailBri ?? 1, 0.2, 0.8, 1.24, rand, amount),
-    tailHue: jitterAround(parent?.tailHue ?? 0, 16, -18, 18, rand, amount),
+    bodySat: jitterAround(parent?.bodySat ?? 1, 0.2, 0.78, 1.22, rand, amount),
+    bodyBri: jitterAround(parent?.bodyBri ?? 1, 0.14, 0.86, 1.16, rand, amount),
+    bodyHue: jitterAround(parent?.bodyHue ?? 0, 8, -10, 10, rand, amount),
+    tailSat: jitterAround(parent?.tailSat ?? 1, 0.2, 0.78, 1.24, rand, amount),
+    tailBri: jitterAround(parent?.tailBri ?? 1, 0.14, 0.86, 1.16, rand, amount),
+    tailHue: jitterAround(parent?.tailHue ?? 0, 8, -12, 12, rand, amount),
     wx: jitterAround(parent?.wx ?? (ray ? 48 : 64), 28, 24, 90, rand, amount),
     wy: jitterAround(parent?.wy ?? 46, 18, 26, 72, rand, amount),
     ww: jitterAround(parent?.ww ?? 36, 22, 18, 62, rand, amount),
     wh: jitterAround(parent?.wh ?? 30, 18, 16, 52, rand, amount),
-    mix: jitterAround(parent?.mix ?? 0.24, 0.18, 0.1, 0.46, rand, amount)
+    mix: jitterAround(parent?.mix ?? mix0, 0.12, 0.06, 0.5, rand, amount)
   }
 }
 
-export const MORPH_PALETTE_VER = 6
+function colorPart(colorId, shadeId, rand = Math.random) {
+  const c = FISH_COLORS[colorId] || FISH_COLORS.red
+  const sh = SHADES[shadeId] || SHADES.mid
+  const satJ = 1 + (rand() - 0.5) * 0.1
+  const briJ = 1 + (rand() - 0.5) * 0.08
+  if (c.tint) {
+    return {
+      tint: c.tint,
+      s: clamp((Number(c.s) || 1) * sh.sat * satJ, 0.35, 1.45),
+      b: clamp((Number(c.b) || 1) * sh.bri * briJ, 0.48, 1.36)
+    }
+  }
+  return {
+    h: (Number(c.h) || 0) + (rand() - 0.5) * 6,
+    s: clamp((Number(c.s) || 1) * sh.sat * satJ, 0.05, 1.4),
+    b: clamp((Number(c.b) || 1) * sh.bri * briJ, 0.48, 1.4)
+  }
+}
+
+function overlayForPattern(pattern) {
+  if (pattern === 'spots') return 'spots'
+  if (pattern === 'marble' || pattern === 'blocks') return 'marble'
+  if (pattern === 'panda') return 'panda'
+  return ''
+}
+
+export function geneFromMorph(morph) {
+  if (morph?.gene?.bodyColor) return { ...morph.gene }
+  const tint = morph?.body?.tint || morph?.tail?.tint
+  let bodyColor = morph?.color || ''
+  if (!FISH_COLORS[bodyColor]) {
+    if (tint === 'blue') bodyColor = 'blue'
+    else if (tint === 'red') bodyColor = 'red'
+    else if (tint === 'gold') bodyColor = 'gold'
+    else if (tint === 'green') bodyColor = 'green'
+    else if (tint === 'yellow') bodyColor = 'yellow'
+    else if (tint === 'purple') bodyColor = 'purple'
+    else if (Number(morph?.body?.s) < 0.22 && Number(morph?.body?.b) > 1.12) bodyColor = 'white'
+    else if (Number(morph?.body?.b) < 0.78) bodyColor = 'black'
+    else bodyColor = 'olive'
+  }
+  const tailTint = morph?.tail?.tint
+  let tailColor = bodyColor
+  if (tailTint === 'blue') tailColor = 'blue'
+  else if (tailTint === 'red') tailColor = 'red'
+  else if (tailTint === 'gold') tailColor = 'gold'
+  else if (tailTint === 'purple') tailColor = 'purple'
+  else if (tailTint === 'yellow') tailColor = 'yellow'
+  const pattern = morph?.overlay === 'spots' ? 'spots' : morph?.overlay === 'panda' ? 'panda' : morph?.overlay === 'marble' ? 'marble' : 'solid'
+  const bri = Number(morph?.body?.b)
+  const shade = bri < 0.8 ? 'dark' : bri < 0.92 ? 'deep' : bri > 1.22 ? 'light' : bri > 1.1 ? 'pale' : 'mid'
+  return {
+    bodyColor,
+    tailColor,
+    markColor: tailColor !== bodyColor ? tailColor : bodyColor,
+    bodyShade: shade,
+    tailShade: shade,
+    markShade: shade,
+    shine: Number(morph?.shine) || 1,
+    pattern
+  }
+}
+
+function packGene(g) {
+  if (!g?.bodyColor) return null
+  return {
+    bodyColor: g.bodyColor,
+    tailColor: g.tailColor || g.bodyColor,
+    markColor: g.markColor || g.tailColor || g.bodyColor,
+    bodyShade: g.bodyShade || g.shade || 'mid',
+    tailShade: g.tailShade || g.shade || 'mid',
+    markShade: g.markShade || 'mid',
+    shine: Number(g.shine) || 1,
+    pattern: g.pattern || 'solid'
+  }
+}
+
+export function ensureMorphLineage(morph) {
+  if (!morph?.body && !morph?.gene) return morph
+  if (Array.isArray(morph.lineage) && morph.lineage.length) return morph
+  const self = packGene(morph.gene || geneFromMorph(morph))
+  return { ...morph, lineage: self ? [self] : [] }
+}
+
+function collectGenes(morph) {
+  const out = []
+  const seen = new Set()
+  const push = (row) => {
+    const g = packGene(row?.gene ? row.gene : row)
+    if (!g) return
+    const k = `${g.bodyColor}:${g.tailColor}:${g.pattern}`
+    if (seen.has(k)) return
+    seen.add(k)
+    out.push(g)
+  }
+  push(morph)
+  ;(Array.isArray(morph?.lineage) ? morph.lineage : []).forEach(push)
+  return out
+}
+
+function collectColors(genes) {
+  const set = new Set()
+  genes.forEach((g) => {
+    if (g.bodyColor) set.add(g.bodyColor)
+    if (g.tailColor) set.add(g.tailColor)
+    if (g.markColor) set.add(g.markColor)
+  })
+  return [...set]
+}
+
+function rollFryGene(species, rand) {
+  const pool = speciesPool(species)
+  const color = pick(pool, rand)
+  const shade = pick(SHADE_IDS, rand)
+  const shine = pickWeighted(SHINE, rand).id
+  const r = rand()
+  const pattern = r < 0.88 ? 'solid' : r < 0.95 ? 'wash' : 'spots'
+  const tailShade = rand() < 0.22 ? pick(SHADE_IDS, rand) : shade
+  return {
+    bodyColor: color,
+    tailColor: color,
+    markColor: color,
+    bodyShade: shade,
+    tailShade,
+    markShade: shade,
+    shine,
+    pattern
+  }
+}
+
+function paintFromGene(species, gene, extra = {}) {
+  const rand = extra.seed != null ? makeRng(hashToSeed(String(extra.seed))) : Math.random
+  const g = packGene(gene) || rollFryGene(species, rand)
+  const pattern = g.pattern || 'solid'
+  const overlay = overlayForPattern(pattern)
+  const markSeed = extra.seed != null ? hashToSeed(`${extra.seed}:mark`) : undefined
+  const washMix = pattern === 'wash' ? 0.4 : pattern === 'solid' ? 0.08 : 0.22
+  const body = extra.stable
+    ? colorPart(g.bodyColor, g.bodyShade, () => 0.5)
+    : colorPart(g.bodyColor, g.bodyShade, rand)
+  const tail = extra.stable
+    ? colorPart(g.tailColor, g.tailShade, () => 0.5)
+    : colorPart(g.tailColor, g.tailShade, rand)
+  const overlayPart = overlay
+    ? colorPart(g.markColor || g.tailColor, g.markShade || 'mid', extra.stable ? () => 0.5 : rand)
+    : undefined
+  return {
+    v: MORPH_PALETTE_VER,
+    id: `gene-${g.bodyColor}-${g.tailColor}-${pattern}-${g.bodyShade}`,
+    gene: g,
+    color: g.bodyColor,
+    w: pattern === 'solid' ? 16 : 8,
+    overlay,
+    overlayPart,
+    art: FISH_COLORS[g.bodyColor]?.art || 'a',
+    shine: g.shine,
+    lineage: Array.isArray(extra.lineage) ? extra.lineage : undefined,
+    marks: extra.marks !== undefined
+      ? extra.marks
+      : overlay
+        ? rollOverlayMarks(overlay, species, {
+            parent: extra.parentMarks,
+            inherit: extra.inheritMarks,
+            seed: markSeed,
+            blocks: pattern === 'blocks',
+            dense: pattern === 'spots' && extra.dense
+          })
+        : null,
+    wash: extra.wash !== undefined
+      ? extra.wash
+      : rollColorWash(species, {
+          parent: extra.parentWash,
+          inherit: extra.inheritMarks,
+          seed: markSeed != null ? Number(markSeed) + 97 : undefined,
+          mix: washMix
+        }),
+    body,
+    tail
+  }
+}
+
+export function rollFishMorph(speciesKey, extra = {}) {
+  const species = speciesKey || 'betta'
+  if (extra.gene) return ensureMorphLineage(paintFromGene(species, extra.gene, extra))
+  if (extra.from?.gene) return ensureMorphLineage(paintFromGene(species, extra.from.gene, { ...extra, lineage: extra.lineage || extra.from.lineage }))
+  if (extra.from?.body || extra.template?.body) {
+    const src = extra.from || extra.template
+    return ensureMorphLineage(paintFromGene(species, geneFromMorph(src), {
+      ...extra,
+      lineage: extra.lineage || src.lineage,
+      parentMarks: src.marks,
+      parentWash: src.wash
+    }))
+  }
+  const rand = extra.seed != null ? makeRng(hashToSeed(extra.seed)) : Math.random
+  const gene = extra.fry === false && extra.template?.color
+    ? geneFromMorph(extra.template)
+    : rollFryGene(species, rand)
+  if (extra.shine != null) gene.shine = extra.shine
+  return ensureMorphLineage(paintFromGene(species, gene, extra))
+}
+
+export function morphById(speciesKey, id) {
+  const pool = FISH_MORPHS[speciesKey] || []
+  return pool.find((x) => x.id === id) || null
+}
 
 export function rarityLabel(weight) {
   const w = Number(weight) || 0
   if (w >= 16) return '常見'
   if (w >= 10) return '少見'
   return '稀有'
-}
-
-export function rollFishMorph(speciesKey, extra = {}) {
-  const rand = extra.seed != null ? makeRng(hashToSeed(extra.seed)) : Math.random
-  const list = FISH_MORPHS[speciesKey] || FISH_MORPHS.betta
-  const base = extra.template || pickWeighted(list, rand) || list[0]
-  const shine = extra.shine != null ? extra.shine : pickWeighted(SHINE, rand).id
-  const stable = !!extra.stable
-  const overlay = base.overlay || extra.overlay || ''
-  const markSeed = extra.markSeed != null ? extra.markSeed : extra.seed != null ? hashToSeed(`${extra.seed}:mark`) : undefined
-  return {
-    v: MORPH_PALETTE_VER,
-    id: base.id,
-    label: base.label,
-    w: Number(base.w) || extra.w || 10,
-    overlay,
-    art: extra.art || base.art || 'a',
-    shine,
-    marks:
-      extra.marks !== undefined
-        ? extra.marks
-        : rollOverlayMarks(overlay, speciesKey, {
-            parent: extra.parentMarks,
-            inherit: extra.inheritMarks,
-            seed: markSeed
-          }),
-    wash:
-      extra.wash !== undefined
-        ? extra.wash
-        : rollColorWash(speciesKey, {
-            parent: extra.parentWash,
-            inherit: extra.inheritMarks,
-            seed: markSeed != null ? Number(markSeed) + 97 : undefined
-          }),
-    body: jitterPart(extra.body || base.body, stable, rand),
-    tail: jitterPart(extra.tail || base.tail, stable, rand)
-  }
-}
-
-export function morphById(speciesKey, id) {
-  return (FISH_MORPHS[speciesKey] || []).find((x) => x.id === id) || null
 }
 
 export function shineLabel(shine) {
@@ -367,6 +473,9 @@ function tintFilter(name, shine, wash = {}) {
   if (name === 'yellow') {
     return `grayscale(1) sepia(1) hue-rotate(${(28 + hueAdd).toFixed(1)}deg) saturate(${(4.2 * satMul).toFixed(2)}) brightness(${(1.02 * bri).toFixed(2)})`
   }
+  if (name === 'purple') {
+    return `grayscale(1) sepia(1) hue-rotate(${(258 + hueAdd).toFixed(1)}deg) saturate(${(4.8 * satMul).toFixed(2)}) brightness(${(0.68 * bri).toFixed(2)})`
+  }
   return ''
 }
 
@@ -382,7 +491,11 @@ function partCss(part, reveal, shine, wash = {}) {
     if (t < 0.55) {
       return `grayscale(1) saturate(${(0.15 * t).toFixed(2)}) brightness(1.12) contrast(0.88)`
     }
-    return tintFilter(part.tint, shine, { sat: satMul, bri: briMul, hue: hueAdd })
+    return tintFilter(part.tint, shine, {
+      sat: satMul * (Number(part.s) || 1),
+      bri: briMul * (Number(part.b) || 1),
+      hue: hueAdd
+    })
   }
   const hue = ((Number(part?.h) || 0) + hueAdd) * t
   const gray = clamp(1 - t, 0, 1)
@@ -393,25 +506,28 @@ function partCss(part, reveal, shine, wash = {}) {
 }
 
 export function morphPartFilters(morph, reveal) {
-  const rec = morph && morph.body ? morph : rollFishMorph('betta', { stable: true })
+  const rec = morph && morph.body ? morph : rollFishMorph('betta', { fry: true, stable: true, seed: 'fallback' })
   const t = clamp(Number(reveal) || 0, 0, 1)
   const wash = rec.wash || {}
   const overlayKind = t < 0.12 ? '' : rec.overlay || ''
-  const overlayOpacity = overlayKind ? clamp((t - 0.12) / 0.7, 0.08, 0.9) : 0
-  const overlayFilter =
-    overlayKind === 'panda'
-      ? partCss({ h: 0, s: 0.05, b: 0.32 }, t, rec.shine)
+  const overlayOpacity = overlayKind ? clamp((t - 0.12) / 0.7, 0.08, 0.92) : 0
+  const overlayPart =
+    rec.overlayPart ||
+    (overlayKind === 'panda'
+      ? { h: 0, s: 0.05, b: 0.32 }
       : overlayKind === 'spots'
-        ? partCss({ h: 18, s: 0.4, b: 1.22 }, t, rec.shine)
+        ? { h: 18, s: 0.4, b: 1.22 }
         : overlayKind === 'marble'
-          ? partCss({ h: 0, s: 0.2, b: 1.18 }, t, rec.shine)
-          : ''
+          ? { h: 0, s: 0.2, b: 1.18 }
+          : null)
+  const overlayFilter = overlayPart ? partCss(overlayPart, t, rec.shine) : ''
   const bodyWash = { sat: wash.bodySat, bri: wash.bodyBri, hue: wash.bodyHue }
   const tailWash = { sat: wash.tailSat, bri: wash.tailBri, hue: wash.tailHue }
   const washMask =
     t > 0.2 && wash.wx != null
       ? ellipseCss(Number(wash.ww) || 36, Number(wash.wh) || 30, Number(wash.wx) || 64, Number(wash.wy) || 46, 42, 78)
       : ''
+  const washOn = rec.gene?.pattern === 'wash' || Number(wash.mix) > 0.18
   return {
     body: partCss(rec.body, t, rec.shine, bodyWash),
     tail: partCss(rec.tail, t, rec.shine, tailWash),
@@ -420,80 +536,128 @@ export function morphPartFilters(morph, reveal) {
     overlayOpacity,
     overlayMask: overlayKind ? overlayMaskImage(overlayKind, rec.marks) : '',
     washMask,
-    washFilter: partCss(rec.body, t, rec.shine, {
+    washFilter: partCss(rec.overlayPart || rec.tail || rec.body, t, rec.shine, {
       sat: (Number(wash.bodySat) || 1) * 1.18,
       bri: (Number(wash.bodyBri) || 1) * 0.92,
       hue: (Number(wash.bodyHue) || 0) + (Number(wash.tailHue) || 0) * 0.25
     }),
-    washOpacity: t > 0.2 ? clamp(Number(wash.mix) || 0.22, 0.08, 0.48) : 0
+    washOpacity: t > 0.2 && washOn ? clamp(Number(wash.mix) || 0.22, 0.08, 0.52) : t > 0.2 ? clamp(Number(wash.mix) || 0.08, 0.04, 0.16) : 0
   }
 }
 
 export function listSpeciesMorphLooks(speciesKey) {
-  return (FISH_MORPHS[speciesKey] || []).map((m) => {
-    const overlay = m.overlay || ''
-    const samples = [11, 27, 43].map((seed, i) =>
-      morphPartFilters(
-        {
-          id: m.id,
-          label: m.label,
-          overlay,
-          shine: i,
-          body: m.body,
-          tail: m.tail,
-          marks: overlay ? rollOverlayMarks(overlay, speciesKey, { seed }) : null,
-          wash: rollColorWash(speciesKey, { seed: seed + 5 })
-        },
-        1
-      )
-    )
-    return {
-      id: m.id,
-      label: m.label,
-      rarity: rarityLabel(m.w),
-      art: m.art || 'a',
-      parts: samples[1],
-      samples
+  const pool = speciesPool(speciesKey)
+  const patterns = ['solid', 'wash', 'spots', 'marble', 'blocks', 'panda']
+  const rows = []
+  pool.forEach((color, i) => {
+    const gene = {
+      bodyColor: color,
+      tailColor: color,
+      markColor: color,
+      bodyShade: SHADE_IDS[i % SHADE_IDS.length],
+      tailShade: SHADE_IDS[(i + 1) % SHADE_IDS.length],
+      markShade: SHADE_IDS[i % SHADE_IDS.length],
+      shine: i % 3,
+      pattern: 'solid'
     }
+    const morph = paintFromGene(speciesKey, gene, { seed: `${speciesKey}-solid-${i}`, stable: true })
+    rows.push({
+      id: morph.id,
+      art: morph.art,
+      parts: morphPartFilters(morph, 1),
+      samples: [0, 1, 2].map((shine) =>
+        morphPartFilters(paintFromGene(speciesKey, { ...gene, shine }, { seed: `${speciesKey}-s-${i}-${shine}`, stable: true }), 1)
+      )
+    })
   })
+  for (let i = 0; i < 16; i++) {
+    const a = pool[i % pool.length]
+    const b = pool[(i + 3) % pool.length]
+    const pattern = patterns[1 + (i % (patterns.length - 1))]
+    const gene = {
+      bodyColor: a,
+      tailColor: pattern === 'wash' ? a : b,
+      markColor: b,
+      bodyShade: SHADE_IDS[i % SHADE_IDS.length],
+      tailShade: SHADE_IDS[(i + 2) % SHADE_IDS.length],
+      markShade: SHADE_IDS[(i + 1) % SHADE_IDS.length],
+      shine: (i + 1) % 3,
+      pattern
+    }
+    const morph = paintFromGene(speciesKey, gene, { seed: `${speciesKey}-mix-${i}`, stable: true })
+    rows.push({
+      id: morph.id,
+      art: morph.art,
+      parts: morphPartFilters(morph, 1),
+      samples: [0, 1, 2].map((k) =>
+        morphPartFilters(
+          paintFromGene(speciesKey, { ...gene, bodyShade: SHADE_IDS[k % SHADE_IDS.length], shine: k }, { seed: `${speciesKey}-m-${i}-${k}`, stable: true }),
+          1
+        )
+      )
+    })
+  }
+  return rows.slice(0, 24)
+}
+
+function pickShade(parentGene, rand) {
+  if (parentGene?.bodyShade && rand() < 0.42) return parentGene.bodyShade
+  return pick(SHADE_IDS, rand)
 }
 
 export function mixParentMorphs(species, mother, father, prettier) {
-  const list = FISH_MORPHS[species] || FISH_MORPHS.betta
-  const rare = Math.random() < 0.28
-  if (rare) {
-    const rares = list.filter((x) => (x.w || 10) <= 10)
-    return rollFishMorph(species, { template: pickWeighted(rares.length ? rares : list), shine: prettier ? 2 : undefined })
+  const momG = geneFromMorph(mother)
+  const dadG = geneFromMorph(father)
+  const family = [...collectGenes(mother), ...collectGenes(father)]
+  const parentColors = collectColors([momG, dadG])
+  const familyColors = collectColors(family)
+  const grands = familyColors.filter((c) => !parentColors.includes(c))
+  const rand = Math.random
+  const lineage = family.map(packGene).filter(Boolean).slice(0, 8)
+
+  const pickFamilyColor = () => {
+    const r = rand()
+    if (r < 0.05) {
+      const outsiders = ALL_COLOR_IDS.filter((c) => !familyColors.includes(c))
+      return pick(outsiders.length ? outsiders : ALL_COLOR_IDS, rand)
+    }
+    if (r < 0.14 && grands.length) return pick(grands, rand)
+    if (r < 0.57) return pick([momG.bodyColor, momG.tailColor, momG.markColor].filter(Boolean), rand)
+    return pick([dadG.bodyColor, dadG.tailColor, dadG.markColor].filter(Boolean), rand)
   }
-  if (mother?.body && father?.tail && Math.random() < 0.42) {
-    const overlay = mother.overlay || father.overlay || ''
-    const parentMarks = (mother.overlay && mother.marks) || (father.overlay && father.marks) || null
-    return rollFishMorph(species, {
-      template: {
-        id: 'hybrid',
-        label: '混血顯色',
-        w: 1,
-        art: mother.art || father.art || 'a',
-        overlay,
-        body: mother.body,
-        tail: father.tail
-      },
-      body: mother.body,
-      tail: father.tail,
-      art: mother.art || father.art || 'a',
-      parentMarks,
-      parentWash: mother.wash || father.wash,
-      inheritMarks: true,
-      shine: prettier ? Math.max(Number(mother.shine) || 1, Number(father.shine) || 1) : undefined
-    })
+
+  const bodyColor = pickFamilyColor()
+  let tailColor = rand() < 0.36 ? bodyColor : pickFamilyColor()
+  let markColor = tailColor !== bodyColor ? tailColor : pickFamilyColor()
+  const twoTone = bodyColor !== tailColor || bodyColor !== markColor
+  const pr = rand()
+  let pattern = 'solid'
+  if (twoTone) {
+    if (pr < 0.26) pattern = 'marble'
+    else if (pr < 0.46) pattern = 'blocks'
+    else if (pr < 0.66) pattern = 'spots'
+    else if (pr < 0.78 && (bodyColor === 'white' || tailColor === 'black' || bodyColor === 'black')) pattern = 'panda'
+    else if (pr < 0.9) pattern = 'wash'
+    else pattern = 'solid'
+  } else if (pr < 0.16) pattern = 'wash'
+  else if (pr < 0.26) pattern = 'spots'
+  else if (pr < 0.32) pattern = 'marble'
+
+  const gene = {
+    bodyColor,
+    tailColor,
+    markColor: pattern === 'solid' ? tailColor : markColor,
+    bodyShade: pickShade(momG, rand),
+    tailShade: pickShade(dadG, rand),
+    markShade: pick(SHADE_IDS, rand),
+    shine: prettier ? Math.max(Number(momG.shine) || 1, Number(dadG.shine) || 1, pickWeighted(SHINE, rand).id) : pickWeighted(SHINE, rand).id,
+    pattern
   }
-  const inherit = Math.random() < 0.55 ? mother : father
-  const found = morphById(species, inherit?.id)
-  return rollFishMorph(species, {
-    template: found || pickWeighted(list),
-    shine: inherit?.shine,
-    parentMarks: inherit?.marks,
-    parentWash: inherit?.wash,
-    inheritMarks: true
+
+  return paintFromGene(species, gene, {
+    lineage,
+    parentMarks: mother?.marks || father?.marks,
+    parentWash: mother?.wash || father?.wash,
+    inheritMarks: pattern === mother?.gene?.pattern || pattern === father?.gene?.pattern
   })
 }

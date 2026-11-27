@@ -318,8 +318,6 @@ export default function MyPets() {
                       {sex ? ` · ${sex}` : ''}
                       {' · 寵物格'}
                       {look.growable ? ` · ${look.stage.label}` : ''}
-                      {look.morphLabel ? ` · ${look.morphLabel}` : ''}
-                      {look.shineText ? ` · ${look.shineText}` : ''}
                       {look.lengthText ? ` · ${look.lengthText}` : ''}
                     </p>
                     {look.growable && (
@@ -416,8 +414,6 @@ export default function MyPets() {
                   {sex ? ` · ${sex}` : ''}
                   {fish.born ? ' · 育成' : ''}
                   {look.growable ? ` · ${look.stage.label}` : ''}
-                  {look.morphLabel ? ` · ${look.morphLabel}` : ''}
-                  {look.shineText ? ` · ${look.shineText}` : ''}
                   {look.lengthText ? ` · ${look.lengthText}` : ''}
                   {look.pregnant || breed?.phase === 'pregnant' ? ' · 懷孕中' : ''}
                 </p>
@@ -577,7 +573,7 @@ export default function MyPets() {
       {isAdmin ? (
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-cn-gold">體色圖鑑</h2>
-        <p className="text-xs text-gray-400 mt-1">僅管理員可見。同名體色也會有深淺與分布差，每格三隻為個體樣本。</p>
+        <p className="text-xs text-gray-400 mt-1">僅管理員可見。魚苗近乎單色，繁殖混父母主色與花紋，小機率祖代或突變；每種約 24 種變化樣本。</p>
         {Object.keys(FISH_PACKS).map((key) => {
           const pack = FISH_PACKS[key]
           const rows = listSpeciesMorphLooks(key)
@@ -604,7 +600,6 @@ export default function MyPets() {
                         />
                       ))}
                     </div>
-                    <p className="text-[11px] text-gray-200 mt-1">{row.label}</p>
                   </div>
                 ))}
               </div>
