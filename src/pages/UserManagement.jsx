@@ -142,6 +142,7 @@ function UserManagement() {
         label: nick || getFishSpeciesName(f),
         species: getFishSpeciesName(f),
         meals: Number(look.meals) || 0,
+        generation: Math.max(Number(look.generation) || 0, Number(f.generation) || 0),
         stage: look.stage?.label || '',
         showcase: f.id === sid
       }
@@ -807,7 +808,7 @@ function UserManagement() {
                             {f.label}{f.showcase ? ' · 展示中' : ''}
                           </div>
                           <div className="text-gray-400 text-xs">
-                            {f.species} · {f.stage || '成長中'} · 餵食 {f.meals}/{PET_ADULT_MEALS}
+                            {f.species}{f.generation > 0 ? ` · 第${f.generation}代` : ''} · {f.stage || '成長中'} · 餵食 {f.meals}/{PET_ADULT_MEALS}
                           </div>
                         </div>
                         <button

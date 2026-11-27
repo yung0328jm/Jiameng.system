@@ -619,7 +619,7 @@ function lookFromRecord(rec, growable, speciesKey) {
       gender: rec?.gender === 'f' ? 'f' : rec?.gender === 'm' ? 'm' : '',
       pregnant: !!rec?.pregnant,
       births: Math.max(0, Math.floor(Number(rec?.births) || 0)),
-      generation: 0,
+      generation: Number(rec?.generation) || 0,
       lengthCm: cm,
       lengthText: formatFishLength(cm, sp),
       species: sp

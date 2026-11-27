@@ -543,6 +543,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           shineText: look.shineText || '',
           gender: look.gender || '',
           pregnant: !!look.pregnant,
+          generation: Math.max(0, Number(look.generation) || 0),
           width: size.width,
           height: size.height,
           owner: entry.owner || getCurrentUser() || '',
@@ -693,7 +694,7 @@ export default function OceanAmbience({ mode = 'world' }) {
             }}
           >
             {fish.nick ? <strong>{fish.nick}</strong> : null}
-            <span>{fish.species || '魚'}{fish.gender === 'f' ? ' · 母' : fish.gender === 'm' ? ' · 公' : ''}{fish.pregnant ? ' · 懷孕' : ''}</span>
+            <span>{fish.species || '魚'}{fish.gender === 'f' ? ' · 母' : fish.gender === 'm' ? ' · 公' : ''}{fish.generation > 0 ? ` · 第${fish.generation}代` : ''}{fish.pregnant ? ' · 懷孕' : ''}</span>
             <span>{mine ? `主人：${ownerName}（我的）` : `主人：${ownerName}`}</span>
             {potionMsg ? <span className="ocean-fish-potion-msg">{potionMsg}</span> : null}
             {canPotions ? (

@@ -400,6 +400,7 @@ export default function MyPets() {
           const adult = !look.growable || look.stage?.key === 'adult'
           const usesLeft = femaleBirthsLeft(pets.growth?.[fish.id])
           const picked = pickMale === fish.id || pickFemale === fish.id
+          const gen = Math.max(Number(look.generation) || 0, Number(fish.generation) || 0)
           return (
             <li
               key={fish.id}
@@ -430,6 +431,7 @@ export default function MyPets() {
                   {recording ? m(species) : species}
                   {sex ? ` · ${sex}` : ''}
                   {fish.born ? ' · 育成' : ''}
+                  {gen > 0 ? ` · 第${gen}代` : ''}
                   {look.growable ? ` · ${look.stage.label}` : ''}
                   {look.lengthText ? ` · ${look.lengthText}` : ''}
                   {` · 繁育 ${usesLeft}/${MAX_BREED_BIRTHS}`}

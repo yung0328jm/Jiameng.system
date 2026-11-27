@@ -118,6 +118,7 @@ export default function FishAuction() {
           <p className="text-gray-400 text-sm mt-1">
             {species}
             {look.gender ? ` · ${look.gender === 'f' ? '母' : '公'}` : ''}
+            {Number(look.generation) > 0 ? ` · 第${look.generation}代` : ''}
             {look.stage?.label ? ` · ${look.stage.label}` : ''}
             {look.lengthText ? ` · ${look.lengthText}` : ''}
           </p>
