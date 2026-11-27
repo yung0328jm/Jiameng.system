@@ -94,8 +94,14 @@ function mergeGrowthRec(a, b) {
   const mealsB = Number(b.meals) || 0
   const base = mealsB > mealsA ? b : a
   const other = base === b ? a : b
-  const pregnant = !!(a.pregnant || b.pregnant)
-  const preg = a.pregnant ? a : b
+  const lastBirthAt = Math.max(Number(a.lastBirthAt) || 0, Number(b.lastBirthAt) || 0)
+  const pregAtA = a.pregnant ? Number(a.pregnantAt) || 0 : 0
+  const pregAtB = b.pregnant ? Number(b.pregnantAt) || 0 : 0
+  const pregnantAt = Math.max(pregAtA, pregAtB)
+  const pregnant = pregnantAt > 0 && lastBirthAt < pregnantAt && !!(a.pregnant || b.pregnant)
+  const breed = lastBirthAt >= pregnantAt
+    ? ((Number(a.lastBirthAt) || 0) >= (Number(b.lastBirthAt) || 0) ? a : b)
+    : (pregAtA >= pregAtB ? a : b)
   const species = FISH_PACKS[a.species] && a.species !== 'betta'
     ? a.species
     : (FISH_PACKS[b.species] ? b.species : (base.species || other.species || 'betta'))
@@ -107,9 +113,14 @@ function mergeGrowthRec(a, b) {
     births: Math.max(Number(a.births) || 0, Number(b.births) || 0),
     morph: base.morph || other.morph,
     gender: a.gender === 'f' || a.gender === 'm' ? a.gender : b.gender,
+    lastBirthAt,
     pregnant,
-    pregnantAt: pregnant ? (preg.pregnantAt || base.pregnantAt || 0) : 0,
-    courtshipMate: pregnant ? (preg.courtshipMate || base.courtshipMate || '') : (base.courtshipMate || other.courtshipMate || ''),
+    pregnantAt: pregnant ? pregnantAt : 0,
+    courtshipAt: pregnant ? Number(breed.courtshipAt) || 0 : (lastBirthAt > 0 ? 0 : Number(breed.courtshipAt) || 0),
+    courtshipHeld: pregnant ? Number(breed.courtshipHeld) || 0 : (lastBirthAt > 0 ? 0 : Number(breed.courtshipHeld) || 0),
+    courtshipMate: pregnant
+      ? (breed.courtshipMate || base.courtshipMate || other.courtshipMate || '')
+      : (base.courtshipMate || other.courtshipMate || ''),
     wormDay: String(a.wormDay || '') >= String(b.wormDay || '') ? String(a.wormDay || '') : String(b.wormDay || ''),
     wormToday: String(a.wormDay || '') === String(b.wormDay || '')
       ? Math.max(Number(a.wormToday) || 0, Number(b.wormToday) || 0)

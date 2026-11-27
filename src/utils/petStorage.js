@@ -990,14 +990,17 @@ function ensureRecord(cur, slotId, itemId, speciesKey, bornMeta, username) {
       wormToday: prev?.wormToday,
       seed: lockSeed
     })
-    if (prev?.pregnant) {
-      rec = {
-        ...rec,
-        pregnant: true,
-        pregnantAt: prev.pregnantAt,
-        courtshipMate: prev.courtshipMate,
-        courtshipAt: prev.courtshipAt
-      }
+    const lastBirthAt = Number(prev?.lastBirthAt) || 0
+    const pregnantAt = Number(prev?.pregnantAt) || 0
+    const stillPregnant = !!prev?.pregnant && lastBirthAt < pregnantAt
+    rec = {
+      ...rec,
+      lastBirthAt,
+      pregnant: stillPregnant,
+      pregnantAt: stillPregnant ? pregnantAt : 0,
+      courtshipMate: prev?.courtshipMate || '',
+      courtshipAt: stillPregnant ? Number(prev?.courtshipAt) || 0 : 0,
+      courtshipHeld: stillPregnant ? Number(prev?.courtshipHeld) || 0 : 0
     }
     return { rec, dirty: true }
   }
@@ -1282,6 +1285,20 @@ export function tickPetBreeding(username) {
       return
     }
     if (rec.pregnant) {
+      const lastBirth = Number(rec.lastBirthAt) || 0
+      const pregAt = Number(rec.pregnantAt) || 0
+      if (lastBirth > 0 && lastBirth >= pregAt && now - lastBirth < PET_BIRTH_COOLDOWN_MS) {
+        growth[pair.femaleId] = {
+          ...rec,
+          pregnant: false,
+          pregnantAt: 0,
+          courtshipAt: 0,
+          courtshipHeld: 0,
+          courtshipMate: pair.maleId
+        }
+        dirty = true
+        return
+      }
       if (rec.courtshipMate !== pair.maleId) {
         growth[pair.femaleId] = { ...rec, courtshipMate: pair.maleId }
         dirty = true
