@@ -1,7 +1,24 @@
 import { getCurrentUser } from './authStorage'
 import { getEquippedEffects, setFishSlots, setFishSlotExpansions } from './effectStorage'
 import { getUserInventory } from './inventoryStorage'
-import { getItem, ITEM_TYPES } from './itemStorage'
+import {
+  FISH_AROANA_BLUE_ITEM_ID,
+  FISH_AROANA_ITEM_ID,
+  FISH_ARAPAIMA_ITEM_ID,
+  FISH_BETTA_ITEM_ID,
+  FISH_GAR_ITEM_ID,
+  FISH_GENGHIS_ITEM_ID,
+  FISH_GUPPY_ITEM_ID,
+  FISH_KOI_PLATINUM_ITEM_ID,
+  FISH_RAY_ALBINO_ITEM_ID,
+  FISH_RAY_CROWN_ITEM_ID,
+  FISH_REDTAIL_CAT_ITEM_ID,
+  FISH_TURTLE_MAP_ITEM_ID,
+  FISH_TURTLE_PIG_ITEM_ID,
+  FISH_TURTLE_SLIDER_ITEM_ID,
+  ITEM_TYPES,
+  getItem
+} from './itemStorage'
 
 export const DEFAULT_FISH_SLOTS = 2
 export const MAX_FISH_SLOTS = 50
@@ -325,6 +342,56 @@ export function unequipFishAtIndex(username, index) {
   return result
 }
 
+const FISH_ITEM_SPECIES = {
+  [FISH_AROANA_ITEM_ID]: 'arowana',
+  [FISH_AROANA_BLUE_ITEM_ID]: 'arowana_blue',
+  [FISH_RAY_CROWN_ITEM_ID]: 'ray_crown',
+  [FISH_RAY_ALBINO_ITEM_ID]: 'ray_albino',
+  [FISH_ARAPAIMA_ITEM_ID]: 'arapaima',
+  [FISH_BETTA_ITEM_ID]: 'betta',
+  [FISH_GUPPY_ITEM_ID]: 'guppy',
+  [FISH_GAR_ITEM_ID]: 'gar',
+  [FISH_GENGHIS_ITEM_ID]: 'genghis',
+  [FISH_KOI_PLATINUM_ITEM_ID]: 'koi_platinum',
+  [FISH_REDTAIL_CAT_ITEM_ID]: 'redtail_cat',
+  [FISH_TURTLE_SLIDER_ITEM_ID]: 'turtle_slider',
+  [FISH_TURTLE_PIG_ITEM_ID]: 'turtle_pig',
+  [FISH_TURTLE_MAP_ITEM_ID]: 'turtle_map'
+}
+
+function speciesFromItemId(itemId) {
+  const id = String(itemId || '').trim()
+  if (!id) return ''
+  const item = getItem(id)
+  if (item?.fishKey && FISH_PACKS[item.fishKey]) return item.fishKey
+  if (FISH_ITEM_SPECIES[id] && FISH_PACKS[FISH_ITEM_SPECIES[id]]) return FISH_ITEM_SPECIES[id]
+  return ''
+}
+
+function speciesFromNick(nick) {
+  const s = String(nick || '')
+  if (/藍底過背|過背金龍/.test(s)) return 'arowana_blue'
+  if (/霸王龍|紅龍|金龍|銀龍|龍魚/.test(s) && !/鬥魚|孔雀/.test(s)) return 'arowana'
+  return ''
+}
+
+export function speciesKeyFromRefs({ itemId, key, rec, bornSpecies, nick } = {}) {
+  const fromItem = speciesFromItemId(itemId) || speciesFromItemId(rec?.itemId)
+  if (fromItem) return fromItem
+  const recSp = String(rec?.species || '').trim()
+  if (recSp && FISH_PACKS[recSp] && recSp !== 'betta') return recSp
+  const born = String(bornSpecies || '').trim()
+  if (born && FISH_PACKS[born] && born !== 'betta') return born
+  const stored = String(key || '').trim()
+  if (stored && FISH_PACKS[stored] && stored !== 'betta') return stored
+  const fromNick = speciesFromNick(nick)
+  if (fromNick) return fromNick
+  if (stored && FISH_PACKS[stored]) return stored
+  if (recSp && FISH_PACKS[recSp]) return recSp
+  if (born && FISH_PACKS[born]) return born
+  return 'betta'
+}
+
 export function getFishSpeciesName(entry) {
   const names = {
     betta: '鬥魚',
@@ -343,7 +410,7 @@ export function getFishSpeciesName(entry) {
     turtle_map: '地圖龜'
   }
   const item = entry?.itemId ? getItem(entry.itemId) : null
-  const key = (FISH_PACKS[entry?.key] && entry.key) || (item?.fishKey && FISH_PACKS[item.fishKey] && item.fishKey) || ''
+  const key = speciesKeyFromRefs({ itemId: entry?.itemId, key: entry?.key, rec: { itemId: entry?.itemId, species: entry?.key } })
   if (names[key]) return names[key]
   if (item?.name) return item.name
   return '魚'

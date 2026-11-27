@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { FISH_PACKS, getFishSpeciesName, speciesAdultScale, speciesSwimLayer } from '../utils/fishSkinStorage'
+import { FISH_PACKS, getFishSpeciesName, speciesAdultScale, speciesKeyFromRefs, speciesSwimLayer } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getShowcaseWorldRoster,
@@ -523,14 +523,20 @@ export default function OceanAmbience({ mode = 'world' }) {
       setActors(state.fish.map((f, i) => {
         const entry = currentRoster[i] || {}
         const look = state.looks?.[entry.id] || {}
-        const size = sizes[i] || fishSize(entry, i, L.mobile, look.scale, look)
-        const pack = FISH_PACKS[entry.key] || FISH_PACKS.betta
+        const speciesKey = speciesKeyFromRefs({
+          itemId: entry.itemId,
+          key: entry.key,
+          rec: { species: look.species, itemId: entry.itemId },
+          nick: entry.nick
+        })
+        const pack = FISH_PACKS[speciesKey] || FISH_PACKS[entry.key] || FISH_PACKS.betta
+        const size = sizes[i] || fishSize({ ...entry, key: pack.key, wide: pack.wide, shape: pack.shape || 'fish' }, i, L.mobile, look.scale, look)
         const art = look.art === 'b' ? 'b' : 'a'
         return {
           id: entry.id || `fish-${i}`,
           src: pack[art] || entry.src,
-          wide: !!entry.wide,
-          shape: entry.shape || 'fish',
+          wide: !!pack.wide,
+          shape: pack.shape || entry.shape || 'fish',
           variant: art,
           parts: look.parts || null,
           morphLabel: look.morphLabel || '',
@@ -542,7 +548,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           owner: entry.owner || getCurrentUser() || '',
           growthSlotId: entry.growthSlotId || entry.id || '',
           nick: entry.nick || '',
-          species: getFishSpeciesName(entry),
+          species: getFishSpeciesName({ ...entry, key: pack.key }),
           x: f.x,
           y: f.y,
           face: f.face,

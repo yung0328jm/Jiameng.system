@@ -14,7 +14,16 @@ import { getWalletBalance } from '../utils/walletStorage'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems, ITEM_TYPES } from '../utils/itemStorage'
 import { getFishSpeciesName } from '../utils/fishSkinStorage'
-import { clearShowcaseFish, getTankRoster, getUserPets, purgeFishItemFromUser } from '../utils/petStorage'
+import {
+  PET_ADULT_MEALS,
+  PET_GROWTH_POTION_MEALS,
+  addFishMeals,
+  clearShowcaseFish,
+  getPetAppearance,
+  getTankRoster,
+  getUserPets,
+  purgeFishItemFromUser
+} from '../utils/petStorage'
 import { getPerformanceViewerAccount, setPerformanceViewerAccount } from '../utils/performanceViewerStorage'
 import { isGuestAccount } from '../utils/guestAuth'
 
@@ -123,12 +132,26 @@ function UserManagement() {
     }).sort((a, b) => (String(a.name).localeCompare(String(b.name), 'zh-Hant')))
     const pets = getUserPets(account || '')
     const sid = String(pets.showcaseSlotId || '')
-    const shown = sid ? getTankRoster(account || '').find((f) => f.id === sid) : null
+    const roster = getTankRoster(account || '')
+    const shown = sid ? roster.find((f) => f.id === sid) : null
+    const fishList = roster.map((f) => {
+      const look = getPetAppearance(account, f.id, f.itemId, f.key)
+      const nick = String(pets.names?.[f.id] || '').trim()
+      return {
+        id: f.id,
+        label: nick || getFishSpeciesName(f),
+        species: getFishSpeciesName(f),
+        meals: Number(look.meals) || 0,
+        stage: look.stage?.label || '',
+        showcase: f.id === sid
+      }
+    })
     return {
       balance,
       inventory,
       showcaseLabel: shown ? getFishSpeciesName(shown) : '',
-      showcaseSlotId: shown ? sid : ''
+      showcaseSlotId: shown ? sid : '',
+      fishList
     }
   }
 
@@ -720,18 +743,32 @@ function UserManagement() {
                     <div className="text-cyan-100 text-sm font-semibold">{selectedAssetsData.showcaseLabel}</div>
                   </div>
                   {currentUserRole === 'admin' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!window.confirm(`取消「${selectedAssetsUser.name}」的展示魚？`)) return
-                        clearShowcaseFish(selectedAssetsUser.account)
-                        setAssetsRevision((v) => v + 1)
-                        setSelectedAssetsData(buildUserAssetsData(selectedAssetsUser.account))
-                      }}
-                      className="shrink-0 text-xs px-2.5 py-1.5 rounded border border-red-500/50 text-red-300 hover:bg-red-900/30"
-                    >
-                      取消展示
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const r = addFishMeals(selectedAssetsUser.account, selectedAssetsData.showcaseSlotId, PET_GROWTH_POTION_MEALS)
+                          alert(r.message || (r.success ? '已增加餵食次數' : '無法增加'))
+                          setAssetsRevision((v) => v + 1)
+                          setSelectedAssetsData(buildUserAssetsData(selectedAssetsUser.account))
+                        }}
+                        className="text-xs px-2.5 py-1.5 rounded border border-lime-500/50 text-lime-200 hover:bg-lime-900/30"
+                      >
+                        餵食+{PET_GROWTH_POTION_MEALS}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!window.confirm(`取消「${selectedAssetsUser.name}」的展示魚？`)) return
+                          clearShowcaseFish(selectedAssetsUser.account)
+                          setAssetsRevision((v) => v + 1)
+                          setSelectedAssetsData(buildUserAssetsData(selectedAssetsUser.account))
+                        }}
+                        className="text-xs px-2.5 py-1.5 rounded border border-red-500/50 text-red-300 hover:bg-red-900/30"
+                      >
+                        取消展示
+                      </button>
+                    </div>
                   )}
                 </div>
               ) : null}
@@ -756,6 +793,40 @@ function UserManagement() {
                   </div>
                 </div>
               </div>
+
+              {currentUserRole === 'admin' && Array.isArray(selectedAssetsData.fishList) && selectedAssetsData.fishList.length > 0 ? (
+                <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 border-b border-gray-700 text-gray-200 text-sm font-semibold">
+                    寵物魚（餵食 {PET_ADULT_MEALS} 次成魚）
+                  </div>
+                  <div className="max-h-56 overflow-auto divide-y divide-gray-700">
+                    {selectedAssetsData.fishList.map((f) => (
+                      <div key={f.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-cyan-100 text-sm truncate">
+                            {f.label}{f.showcase ? ' · 展示中' : ''}
+                          </div>
+                          <div className="text-gray-400 text-xs">
+                            {f.species} · {f.stage || '成長中'} · 餵食 {f.meals}/{PET_ADULT_MEALS}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const r = addFishMeals(selectedAssetsUser.account, f.id, PET_GROWTH_POTION_MEALS)
+                            alert(r.message || (r.success ? '已增加餵食次數' : '無法增加'))
+                            setAssetsRevision((v) => v + 1)
+                            setSelectedAssetsData(buildUserAssetsData(selectedAssetsUser.account))
+                          }}
+                          className="shrink-0 text-xs px-2.5 py-1.5 rounded border border-lime-500/50 text-lime-200 hover:bg-lime-900/30"
+                        >
+                          餵食+{PET_GROWTH_POTION_MEALS}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
                 <div className="px-4 py-2 border-b border-gray-700 text-gray-200 text-sm font-semibold">
