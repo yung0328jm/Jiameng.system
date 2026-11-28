@@ -373,11 +373,11 @@ function pickWander(fish, L, size, roamAll = false) {
   fish.turnAt = performance.now() + 1600 + Math.random() * 4200
 }
 
-function spawnFish(i, count, L, size, layer) {
+function spawnFish(i, count, L, size, layer, roamAll = false) {
   const cols = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count))))
   const col = i % cols
   const cellW = L.w / cols
-  const { minY, maxY } = layerBand(L, size, layer)
+  const { minY, maxY } = swimBand(L, size, layer, roamAll)
   const y = minY + ((i * 37) % Math.max(12, maxY - minY))
   return {
     x: col * cellW + Math.max(10, (cellW - size.width) * 0.28),
@@ -387,6 +387,7 @@ function spawnFish(i, count, L, size, layer) {
     eatUntil: 0,
     fleeUntil: 0,
     _layer: layer,
+    _roamAll: roamAll,
     tx: col * cellW + cellW * 0.45,
     ty: minY + (maxY - minY) * 0.45,
     turnAt: 0
@@ -534,7 +535,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       looksAt: 0,
       breedPairs: mode === 'tank' ? listBreedPairs(host || getCurrentUser()) : [],
       fish: startRoster.map((entry, i) =>
-        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale, startLooks[entry.id]), speciesSwimLayer(entry?.key))
+        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale, startLooks[entry.id]), speciesSwimLayer(entry?.key), mode !== 'tank')
       )
     }
 
@@ -584,7 +585,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         const i = state.fish.length
         const look = state.looks?.[currentRoster[i]?.id] || {}
         const size = fishSize(currentRoster[i], i, L.mobile, look.scale, look)
-        state.fish.push(spawnFish(i, currentRoster.length, L, size, speciesSwimLayer(currentRoster[i]?.key)))
+        state.fish.push(spawnFish(i, currentRoster.length, L, size, speciesSwimLayer(currentRoster[i]?.key), mode !== 'tank'))
       }
       if (state.fish.length > currentRoster.length) {
         state.fish.length = currentRoster.length
@@ -622,7 +623,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         fish._w = size.width
         fish._h = size.height
         fish._layer = speciesSwimLayer(entry?.key)
-        fish._roamAll = mode === 'tank' && hungry
+        fish._roamAll = mode !== 'tank' || hungry
         clampFish(fish, L, size, fish._layer, fish._roamAll)
       })
 
