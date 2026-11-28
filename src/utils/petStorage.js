@@ -1165,29 +1165,59 @@ export function recordPetEat(username, slotId, itemId, speciesKey, helperAccount
   return saved
 }
 
+function isUnboundPersonnelLabel(acc, userAccounts) {
+  const name = String(acc || '').trim()
+  if (!name) return false
+  if (userAccounts?.has(name)) return false
+  try {
+    for (const cat of ['participants', 'responsible_persons']) {
+      for (const opt of getDropdownOptionsByCategory(cat) || []) {
+        const val = String(opt?.value || '').trim()
+        const bound = String(opt?.boundAccount || '').trim()
+        if (val === name && (!bound || bound === val)) return true
+      }
+    }
+  } catch (_) {}
+  return false
+}
+
 export function listVisitTanks(viewer) {
   const me = String(viewer || '').trim()
   const seen = new Set()
   const out = []
-  const real = new Set()
-  try {
-    ;(getUsers() || []).forEach((u) => {
-      const acc = String(u?.account || '').trim()
-      if (!acc || isGuestAccount(acc) || String(u?.role || '') === 'resigned') return
-      real.add(acc)
-    })
-  } catch (_) {}
+  const users = (() => {
+    try {
+      return getUsers() || []
+    } catch (_) {
+      return []
+    }
+  })()
+  const userAccounts = new Set(
+    users.map((u) => String(u?.account || '').trim()).filter((acc) => acc && !isGuestAccount(acc))
+  )
+  const resigned = new Set(
+    users.filter((u) => String(u?.role || '') === 'resigned').map((u) => String(u?.account || '').trim()).filter(Boolean)
+  )
   const add = (raw) => {
-    const acc = String(raw || '').trim()
-    if (!acc || acc === me || !real.has(acc) || seen.has(acc) || isTankClosed(acc)) return
+    let acc = String(raw || '').trim()
+    if (!acc || acc === me || isGuestAccount(acc) || seen.has(acc) || resigned.has(acc) || isTankClosed(acc)) return
+    if (!userAccounts.has(acc)) {
+      const named = users.find((u) => String(u?.name || '').trim() === acc)
+      if (named?.account) acc = String(named.account).trim()
+    }
+    if (!acc || acc === me || seen.has(acc) || resigned.has(acc) || isTankClosed(acc)) return
+    if (isUnboundPersonnelLabel(acc, userAccounts)) return
     seen.add(acc)
     out.push({ account: acc, count: listRoamingSlotIds(acc).length })
   }
-  real.forEach(add)
+  users.forEach((u) => add(u?.account))
   try {
     ;['participants', 'responsible_persons'].forEach((cat) => {
-      ;(getDropdownOptionsByCategory(cat) || []).forEach((opt) => add(opt?.boundAccount))
+      ;(getDropdownOptionsByCategory(cat) || []).forEach((opt) => add(opt?.boundAccount || opt?.value))
     })
+  } catch (_) {}
+  try {
+    Object.keys(readAll()).forEach(add)
   } catch (_) {}
   out.sort((a, b) =>
     getDisplayNameForAccount(a.account).localeCompare(getDisplayNameForAccount(b.account), 'zh-Hant')
