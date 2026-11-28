@@ -43,7 +43,10 @@ function TankScenery() {
       </div>
       <div className="ocean-tank-glass" />
       <div className="ocean-tank-rim ocean-tank-rim-top" />
+      <div className="ocean-tank-frame ocean-tank-frame-left" />
+      <div className="ocean-tank-frame ocean-tank-frame-right" />
       <div className="ocean-tank-rim ocean-tank-rim-bot" />
+      <div className="ocean-tank-base" />
     </div>
   )
 }
@@ -89,7 +92,17 @@ export const TANK_ZOOM_STEPS = [1, 2, 4, 8]
 export const TANK_ZOOM_MAX = 8
 const TANK_ZOOM_EVENT = 'ocean-tank-zoom'
 
-let tankZoom = 1
+let tankZoom = 0
+
+function tankUiBottom() {
+  if (typeof document === 'undefined') return 140
+  if (isTankWideWatch()) return 56
+  const ui = document.querySelector('[data-ocean-tank-ui]')
+  if (ui) return Math.max(12, Math.ceil(ui.getBoundingClientRect().bottom) + 10)
+  const nav = document.querySelector('[data-ocean-nav]')
+  if (nav) return Math.max(12, Math.ceil(nav.getBoundingClientRect().bottom) + 8)
+  return isMobile() ? 128 : 148
+}
 
 function tankFitZoom() {
   if (typeof window === 'undefined') return 0.12
@@ -98,7 +111,9 @@ function tankFitZoom() {
   const rotate = wide && box.h > box.w
   const viewHpx = rotate ? box.w : box.h
   const viewSpan = rotate ? box.h : box.w
-  const heightFillW = Math.max(1, viewHpx * (TANK_CM.length / TANK_CM.height))
+  const uiTop = rotate ? 0 : tankUiBottom()
+  const innerH = Math.max(80, viewHpx - uiTop)
+  const heightFillW = Math.max(1, innerH * (TANK_CM.length / TANK_CM.height))
   return Math.max(0.05, Math.min(1, viewSpan / heightFillW))
 }
 
@@ -131,7 +146,8 @@ export function stepTankZoom(dir) {
 }
 
 export function resetTankZoom() {
-  return setTankZoom(1)
+  tankZoom = 0
+  return setTankZoom(tankFitZoom())
 }
 
 function isMobile() {
@@ -167,14 +183,16 @@ function layout(mode = 'world', fishCount = 0) {
   const rotate = wide && viewH > viewW
   const viewHpx = rotate ? viewW : viewH
   const viewSpan = rotate ? viewH : viewW
+  const uiTop = mode === 'tank' && !rotate ? tankUiBottom() : (mode === 'tank' && wide ? 56 : 0)
+  const innerH = Math.max(80, viewHpx - uiTop)
   const fitZoom = tankFitZoom()
   const zoom = mode === 'tank' ? Math.max(fitZoom, getTankZoom()) : 1
-  const tankFrontW = Math.round(viewHpx * (TANK_CM.length / TANK_CM.height) * zoom)
-  const worldH = Math.round(viewHpx * zoom)
-  const pan = mode === 'tank' && (viewSpan + 2 < tankFrontW || worldH > viewHpx + 2)
+  const tankFrontW = Math.round(innerH * (TANK_CM.length / TANK_CM.height) * zoom)
+  const worldH = Math.round(innerH * zoom)
+  const pan = mode === 'tank' && (viewSpan + 2 < tankFrontW || worldH > innerH + 2)
   const w = pan ? tankFrontW : Math.min(viewSpan, tankFrontW)
-  const h = pan ? worldH : Math.min(viewHpx, worldH)
-  const floor = mode === 'tank' ? (mobile ? 4 : 16) : 8
+  const h = pan ? worldH : Math.min(innerH, worldH)
+  const floor = mode === 'tank' ? Math.round(Math.max(22, Math.min(52, h * 0.16))) : 8
   const fit = mode === 'tank' && zoom <= fitZoom + 0.02
   return {
     mobile,
@@ -185,12 +203,13 @@ function layout(mode = 'world', fishCount = 0) {
     wrapX: mode === 'world' && mobile,
     viewW,
     viewH: viewHpx,
+    uiTop,
     w,
     h,
     zoom,
     fitZoom,
     floor,
-    top: fit ? 8 : headerClearance(),
+    top: 14,
     cruise: (mobile ? 52 : 78) * zoom,
     dash: (mobile ? 260 : 380) * zoom,
     eatRange: (mobile ? 36 : 48) * zoom
@@ -202,6 +221,9 @@ function mapClientToTank(clientX, clientY, panEl) {
   const vh = window.innerHeight
   const sl = panEl?.scrollLeft || 0
   const st = panEl?.scrollTop || 0
+  const padTop = panEl && typeof getComputedStyle === 'function'
+    ? parseFloat(getComputedStyle(panEl).paddingTop) || 0
+    : 0
   if (isTankWideWatch() && vh > vw) {
     const w = vh
     const h = vw
@@ -209,7 +231,10 @@ function mapClientToTank(clientX, clientY, panEl) {
     const dy = clientY - vh / 2
     return { x: -dy + w / 2 + sl, y: dx + h / 2 + st }
   }
-  return { x: clientX + sl, y: clientY + st }
+  const rect = panEl?.getBoundingClientRect?.()
+  const left = rect?.left || 0
+  const top = rect?.top || 0
+  return { x: clientX - left + sl, y: clientY - top - padTop + st }
 }
 
 function scaleSimToWorld(state, sx, sy) {
@@ -235,7 +260,22 @@ function fishSize(entry, L, form = {}) {
   const lengthCm = Number.isFinite(cm) && cm > 0 ? cm : (FISH_ADULT_CM[entry?.key] || FISH_ADULT_CM.betta)
   const length = Number(form.lengthMul) > 0 ? form.lengthMul : 1
   const girth = Number(form.girthMul) > 0 ? form.girthMul : 1
-  return fishScreenSize(lengthCm, L?.w, L?.h, entry?.shape, entry?.wide, girth / length)
+  const size = fishScreenSize(lengthCm, L?.w, L?.h, entry?.shape, entry?.wide, girth / length)
+  const maxH = Math.max(8, (Number(L?.h) || size.height) - (Number(L?.top) || 0) - (Number(L?.floor) || 0) - 2)
+  const maxW = Math.max(16, (Number(L?.w) || size.width) - 8)
+  let width = size.width
+  let height = size.height
+  if (height > maxH) {
+    const k = maxH / height
+    width = Math.max(8, Math.round(width * k))
+    height = maxH
+  }
+  if (width > maxW) {
+    const k = maxW / width
+    width = maxW
+    height = Math.max(8, Math.round(height * k))
+  }
+  return { width, height }
 }
 
 function tankBeam(L) {
@@ -392,7 +432,11 @@ function separateFish(fish, i, all, sizes) {
 
 function clampFish(fish, L, size, layer = fish._layer, roamAll = false) {
   const { minY, maxY } = swimBand(L, size, layer, roamAll)
-  fish.y = Math.max(minY, Math.min(maxY, fish.y))
+  const floorY = Math.max(0, L.h - size.height - (L.floor || 0))
+  const topY = Math.min(Number(L.top) || 0, floorY)
+  const lo = Math.max(topY, Math.min(minY, floorY))
+  const hi = Math.max(lo, Math.min(maxY, floorY))
+  fish.y = Math.max(lo, Math.min(hi, fish.y))
   if (L.wrapX) {
     const span = L.w + size.width
     if (span <= 1) return
@@ -411,7 +455,9 @@ function clampFish(fish, L, size, layer = fish._layer, roamAll = false) {
     }
     return
   }
-  fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
+  const side = 16
+  const maxX = Math.max(0, L.w - size.width - side)
+  fish.x = Math.max(Math.min(side, maxX), Math.min(maxX, fish.x))
 }
 
 function pickWander(fish, L, size, roamAll = false) {
@@ -523,6 +569,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   const [rotate, setRotate] = useState(!!bootLayout.rotate)
   const [zoom, setZoom] = useState(() => getTankZoom())
   const [fitZoom, setFitZoom] = useState(() => (typeof window === 'undefined' ? 0.12 : tankFitZoom()))
+  const [uiTop, setUiTop] = useState(() => bootLayout.uiTop || 0)
   const zoomRef = useRef(getTankZoom())
   const pinchRef = useRef(null)
   const [actors, setActors] = useState(() => loadRoster(mode, host).map((f, i) => ({
@@ -691,6 +738,9 @@ export default function OceanAmbience({ mode = 'world' }) {
       }
       if (L.fitZoom) {
         setFitZoom((cur) => (Math.abs(cur - L.fitZoom) > 0.0008 ? L.fitZoom : cur))
+      }
+      if (L.uiTop != null) {
+        setUiTop((cur) => (cur !== L.uiTop ? L.uiTop : cur))
       }
       if (panFlagRef.current !== !!L.pan) {
         panFlagRef.current = !!L.pan
@@ -1082,6 +1132,11 @@ export default function OceanAmbience({ mode = 'world' }) {
     <div
       ref={panRef}
       className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${zoom > 1.02 ? ' is-close' : ''}${mode === 'tank' && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
+      style={
+        mode === 'tank' && !rotate
+          ? { ['--tank-ui-top']: `${uiTop || 0}px` }
+          : undefined
+      }
       aria-hidden={!wide}
       onPointerDown={(e) => {
         if (!wide) return

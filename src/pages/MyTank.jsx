@@ -60,7 +60,7 @@ export default function MyTank() {
 
   return (
     <div className="relative z-[41] max-w-3xl mx-auto text-cn-parchment pb-8 pointer-events-none">
-      <div className="pointer-events-auto mb-5">
+      <div className="pointer-events-auto mb-5" data-ocean-tank-ui>
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
           {visiting ? `${hostName}的魚缸` : '我的魚缸'}
         </h1>
