@@ -306,12 +306,24 @@ const TANK_DECOR_ART = {
   sand: '/tank-decor/sand.png',
   blacksand: '/tank-decor/blacksand.png',
   volcsand: '/tank-decor/volcsand.png',
-  quartz: '/tank-decor/quartz.png'
+  quartz: '/tank-decor/quartz.png',
+  guandi: '/tank-decor/guandi.png',
+  tudi: '/tank-decor/tudi.png',
+  qilin: '/tank-decor/qilin.png',
+  cointree: '/tank-decor/cointree.png',
+  shishi: '/tank-decor/shishi.png',
+  censer: '/tank-decor/censer.png',
+  anubias: '/tank-decor/anubias.png',
+  crypt: '/tank-decor/crypt.png',
+  rotala: '/tank-decor/rotala.png',
+  ludwigia: '/tank-decor/ludwigia.png',
+  hydro: '/tank-decor/hydro.png',
+  buce: '/tank-decor/buce.png'
 }
 
 function tankDecorBox(look, worldH) {
   const h = Math.max(80, Number(worldH) || 160)
-  if (look === 'wood' || look === 'moss' || look === 'spider' || look === 'redmoor' || look === 'mangrove' || look === 'cholla') {
+  if (look === 'wood' || look === 'moss' || look === 'spider' || look === 'redmoor' || look === 'mangrove' || look === 'cholla' || look === 'anubias') {
     return { w: Math.max(72, Math.round(h * 0.58)), h: Math.max(40, Math.round(h * 0.3)) }
   }
   if (look === 'rock' || look === 'lava' || look === 'ohko' || look === 'ryuoh' || look === 'strata' || look === 'petrified' || look === 'river' || look === 'elephant' || look === 'taihu' || look === 'blacklava' || look === 'mountain') {
@@ -327,13 +339,16 @@ function tankDecorBox(look, worldH) {
     return { w: Math.max(88, Math.round(h * 0.72)), h: Math.max(28, Math.round(h * 0.2)) }
   }
   if (look === 'cave') return { w: Math.max(60, Math.round(h * 0.44)), h: Math.max(40, Math.round(h * 0.3)) }
-  if (look === 'tape') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
-  if (look === 'fern') return { w: Math.max(52, Math.round(h * 0.38)), h: Math.max(64, Math.round(h * 0.5)) }
-  if (look === 'guanyin') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
-  if (look === 'dragon' || look === 'buddha' || look === 'caishen') {
+  if (look === 'tape' || look === 'rotala' || look === 'ludwigia') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
+  if (look === 'fern' || look === 'crypt' || look === 'buce') return { w: Math.max(52, Math.round(h * 0.38)), h: Math.max(64, Math.round(h * 0.5)) }
+  if (look === 'hydro') return { w: Math.max(64, Math.round(h * 0.46)), h: Math.max(32, Math.round(h * 0.24)) }
+  if (look === 'guanyin' || look === 'guandi' || look === 'tudi') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
+  if (look === 'dragon' || look === 'buddha' || look === 'caishen' || look === 'cointree') {
     return { w: Math.max(48, Math.round(h * 0.34)), h: Math.max(70, Math.round(h * 0.54)) }
   }
-  if (look === 'pixiu' || look === 'toad') return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(48, Math.round(h * 0.36)) }
+  if (look === 'pixiu' || look === 'toad' || look === 'qilin' || look === 'shishi' || look === 'censer') {
+    return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(48, Math.round(h * 0.36)) }
+  }
   return { w: Math.max(52, Math.round(h * 0.4)), h: Math.max(68, Math.round(h * 0.52)) }
 }
 
@@ -1010,7 +1025,6 @@ export default function OceanAmbience({ mode = 'world' }) {
   const tankOwner = visiting ? host : me
   const [tankLights, setTankLights] = useState(() => listTankLights(tankOwner))
   const tankLightsRef = useRef(tankLights)
-  const visitLightOnRef = useRef({})
   const [lightHudOpen, setLightHudOpen] = useState(false)
   const [clockMs, setClockMs] = useState(() => Date.now())
   const daylight = tankDaylight(new Date(clockMs))
@@ -1207,16 +1221,8 @@ export default function OceanAmbience({ mode = 'world' }) {
 
   useEffect(() => {
     const owner = visiting ? host : getCurrentUser()
-    if (!visiting) visitLightOnRef.current = {}
-    const applyVisitLights = (list) => {
-      if (!visiting) return list
-      const map = visitLightOnRef.current || {}
-      return (Array.isArray(list) ? list : []).map((lamp) => (
-        Object.prototype.hasOwnProperty.call(map, lamp.id) ? { ...lamp, on: !!map[lamp.id] } : lamp
-      ))
-    }
     const refresh = () => {
-      setTankLights(applyVisitLights(listTankLights(owner)))
+      setTankLights(listTankLights(owner))
       setTankDecors(listTankDecors(owner))
       if (!visiting) setPlaceables(listTankPlaceables(getCurrentUser()))
     }
@@ -2319,7 +2325,7 @@ export default function OceanAmbience({ mode = 'world' }) {
             </div>
           ) : null}
           {(() => {
-            const plantLooks = new Set(['plant', 'fern', 'tape', 'moss'])
+            const plantLooks = new Set(['plant', 'fern', 'tape', 'moss', 'anubias', 'crypt', 'rotala', 'ludwigia', 'hydro', 'buce'])
             const sandLooks = new Set(['coral', 'brick', 'sand', 'blacksand', 'volcsand', 'quartz'])
             const groups = [
               { label: '燈具', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_LIGHT) },
@@ -2383,12 +2389,6 @@ export default function OceanAmbience({ mode = 'world' }) {
                 type="button"
                 className={lamp.on ? 'is-on' : ''}
                 onClick={() => {
-                  if (visiting) {
-                    const nextOn = !lamp.on
-                    visitLightOnRef.current = { ...visitLightOnRef.current, [lamp.id]: nextOn }
-                    setTankLights((prev) => prev.map((row) => (row.id === lamp.id ? { ...row, on: nextOn } : row)))
-                    return
-                  }
                   const r = toggleTankLight(tankOwner, lamp.id)
                   if (r.success) setTankLights(r.lights || [])
                 }}

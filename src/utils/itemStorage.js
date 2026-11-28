@@ -22,7 +22,7 @@ export const SHOP_CAT_PLANT = '植物類'
 export const SHOP_CAT_SAND = '底沙類'
 export const SHOP_CAT_DECOR = '擺件'
 export const SHOP_CAT_LIGHT = '燈具'
-const PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss'])
+const PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss', 'anubias', 'crypt', 'rotala', 'ludwigia', 'hydro', 'buce'])
 const SAND_LOOKS = new Set(['coral', 'brick', 'sand', 'blacksand', 'volcsand', 'quartz'])
 
 export function aquariumShopCategory(item) {
@@ -559,6 +559,36 @@ const TANK_SAND_SHOP_ITEMS = [
   createdAt: new Date().toISOString()
 }))
 
+const TANK_CN_SHOP_ITEMS = [
+  { id: 'tank_decor_censer', name: '香爐', look: 'censer', icon: '🪔', price: 15 },
+  { id: 'tank_decor_tudi', name: '土地公', look: 'tudi', icon: '🧓', price: 16 },
+  { id: 'tank_decor_cointree', name: '銅錢樹', look: 'cointree', icon: '🪙', price: 17 },
+  { id: 'tank_decor_shishi', name: '石獅', look: 'shishi', icon: '🦁', price: 18 },
+  { id: 'tank_decor_qilin', name: '麒麟', look: 'qilin', icon: '🦄', price: 19 },
+  { id: 'tank_decor_guandi', name: '關公', look: 'guandi', icon: '⚔️', price: 20 }
+].map((row) => ({
+  ...row,
+  type: 'tank_decor',
+  description: TANK_DECOR_DESC,
+  category: SHOP_CAT_DECOR,
+  createdAt: new Date().toISOString()
+}))
+
+const TANK_MORE_PLANT_SHOP_ITEMS = [
+  { id: 'tank_decor_hydro', name: '天胡荽', look: 'hydro', icon: '🍀', price: 9 },
+  { id: 'tank_decor_crypt', name: '小水蘭', look: 'crypt', icon: '🌱', price: 10 },
+  { id: 'tank_decor_rotala', name: '紅宮廷', look: 'rotala', icon: '🌿', price: 12 },
+  { id: 'tank_decor_anubias', name: '小水榕', look: 'anubias', icon: '🍃', price: 13 },
+  { id: 'tank_decor_ludwigia', name: '紅丁香', look: 'ludwigia', icon: '🌺', price: 13 },
+  { id: 'tank_decor_buce', name: '布氏椒草', look: 'buce', icon: '🪴', price: 14 }
+].map((row) => ({
+  ...row,
+  type: 'tank_decor',
+  description: TANK_DECOR_DESC,
+  category: SHOP_CAT_PLANT,
+  createdAt: new Date().toISOString()
+}))
+
 const TANK_LIGHT_DESC = '到我的魚缸點「編輯」即可擺在缸頂。每盞有獨立開關。'
 
 const TANK_LIGHT_SHOP_ITEM = {
@@ -597,8 +627,8 @@ const TANK_LIGHT_BAR_SHOP_ITEM = {
   createdAt: new Date().toISOString()
 }
 
-const TANK_AQUA_PRICE_SEED = 20261128
-const TANK_AQUA_CATALOG = Object.fromEntries([
+const TANK_AQUA_PRICE_SEED = 20261129
+const TANK_AQUA_PRICE_ITEMS = [
   TANK_PLANT_SHOP_ITEM,
   TANK_WOOD_SHOP_ITEM,
   TANK_ROCK_SHOP_ITEM,
@@ -615,10 +645,16 @@ const TANK_AQUA_CATALOG = Object.fromEntries([
   TANK_TOAD_SHOP_ITEM,
   ...TANK_SCAPE_SHOP_ITEMS,
   ...TANK_SAND_SHOP_ITEMS,
+  ...TANK_CN_SHOP_ITEMS,
+  ...TANK_MORE_PLANT_SHOP_ITEMS,
   TANK_LIGHT_SHOP_ITEM,
   TANK_LIGHT_COLOR_SHOP_ITEM,
   TANK_LIGHT_BAR_SHOP_ITEM
-].map((it) => [it.id, it]))
+]
+TANK_AQUA_PRICE_ITEMS.forEach((it) => {
+  it.price = Math.round(Number(it.price) * 6)
+})
+const TANK_AQUA_CATALOG = Object.fromEntries(TANK_AQUA_PRICE_ITEMS.map((it) => [it.id, it]))
 
 const FISH_PRICE_SEED = 20261127
 const FISH_SHOP_CATALOG = {
@@ -688,6 +724,12 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
     if (!list.some((it) => String(it?.id || '') === item.id)) extras.push({ ...item, createdAt: new Date().toISOString() })
   })
   TANK_SAND_SHOP_ITEMS.forEach((item) => {
+    if (!list.some((it) => String(it?.id || '') === item.id)) extras.push({ ...item, createdAt: new Date().toISOString() })
+  })
+  TANK_CN_SHOP_ITEMS.forEach((item) => {
+    if (!list.some((it) => String(it?.id || '') === item.id)) extras.push({ ...item, createdAt: new Date().toISOString() })
+  })
+  TANK_MORE_PLANT_SHOP_ITEMS.forEach((item) => {
     if (!list.some((it) => String(it?.id || '') === item.id)) extras.push({ ...item, createdAt: new Date().toISOString() })
   })
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
