@@ -69,6 +69,7 @@ function TankScenery({ w = 0, h = 0, lights = [], unlit = false, shade = 0 }) {
       <div className="ocean-tank-back" />
       <div className="ocean-tank-caustic" />
       <div className="ocean-tank-surface" />
+      {unlit ? <div className="ocean-tank-ambient" style={{ opacity: shade }} /> : null}
       {lamps.map((lamp) => {
         const kind = lamp.kind || 'barrel'
         const color = lamp.color || 'white'
@@ -78,7 +79,7 @@ function TankScenery({ w = 0, h = 0, lights = [], unlit = false, shade = 0 }) {
             {lamp.on ? (
               <div
                 className={`ocean-tank-beam is-${kind} is-${color}`}
-                style={{ left, width: kind === 'bar' ? '54%' : '22%' }}
+                style={{ left, width: kind === 'bar' ? '54%' : '14%' }}
               >
                 <span className="ocean-tank-beam-core" />
                 <span className="ocean-tank-beam-glow" />
@@ -91,7 +92,6 @@ function TankScenery({ w = 0, h = 0, lights = [], unlit = false, shade = 0 }) {
           </div>
         )
       })}
-      {unlit ? <div className="ocean-tank-ambient" style={{ opacity: shade }} /> : null}
       <div className="ocean-tank-glass" />
       <div className="ocean-tank-rim ocean-tank-rim-top" style={sized ? { width: `${width}px` } : undefined} />
       <div
@@ -575,10 +575,10 @@ function beamFromLight(L, lamp) {
   const xFrac = Number(lamp?.x) || 0.5
   const cx = L.w * Math.max(0.05, Math.min(0.95, xFrac))
   if (kind === 'bar') {
-    return { cx, topHalf: L.w * 0.26, botHalf: L.w * 0.32 }
+    return { cx, topHalf: L.w * 0.24, botHalf: L.w * 0.28 }
   }
-  const topHalf = L.w * (L.mobile ? 0.055 : 0.042)
-  const botHalf = L.w * (L.mobile ? 0.13 : 0.11)
+  const topHalf = L.w * (L.mobile ? 0.038 : 0.028)
+  const botHalf = L.w * (L.mobile ? 0.072 : 0.058)
   return { cx, topHalf, botHalf }
 }
 
@@ -587,10 +587,6 @@ function tankDaylight(now = new Date()) {
   if (h >= 5 && h < 11) return { key: 'morn', shade: 0.32, fish: 0.74 }
   if (h >= 11 && h < 17) return { key: 'aft', shade: 0.58, fish: 0.44 }
   return { key: 'night', shade: 0.84, fish: 0.2 }
-}
-
-function anyTankLightOn(lights) {
-  return (lights || []).some((row) => row && row.on !== false)
 }
 
 function fishInTankBeam(fish, size, L, lights) {
@@ -1007,9 +1003,8 @@ export default function OceanAmbience({ mode = 'world' }) {
   const tankLightsRef = useRef(tankLights)
   const [clockMs, setClockMs] = useState(() => Date.now())
   const daylight = tankDaylight(new Date(clockMs))
-  const tankUnlit = mode === 'tank' && !anyTankLightOn(tankLights)
+  const tankUnlit = mode === 'tank'
   const daylightRef = useRef(daylight)
-  const tankUnlitRef = useRef(tankUnlit)
   const [placeLight, setPlaceLight] = useState(() => !visiting && isPlacingTankLight())
   const placeLightRef = useRef(false)
   const [tankEdit, setTankEdit] = useState(false)
@@ -1073,7 +1068,6 @@ export default function OceanAmbience({ mode = 'world' }) {
   rallySpeciesRef.current = rallySpecies
   tankLightsRef.current = tankLights
   daylightRef.current = daylight
-  tankUnlitRef.current = tankUnlit
   placeLightRef.current = !!placeLight
   tankEditRef.current = !!tankEdit
   placeItemRef.current = placeItem
@@ -1793,7 +1787,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         if (!node?.el) return
         const beam = mode === 'tank' ? fishInTankBeam(f, size, L, tankLightsRef.current) : { amount: 0, color: 'white' }
         const lit = beam.amount
-        const ambient = mode === 'tank' && tankUnlitRef.current ? daylightRef.current : null
+        const ambient = mode === 'tank' ? daylightRef.current : null
         const px = Math.round(f.x * 4) / 4
         const py = Math.round(f.y * 4) / 4
         const tf = `translate3d(${px}px, ${py}px, 0)`
@@ -2017,7 +2011,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight || tankEdit ? ' is-place-light' : ''}${tankEdit ? ' is-tank-edit' : ''}${tankUnlit ? ` is-unlit is-tod-${daylight.key}` : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight || tankEdit ? ' is-place-light' : ''}${tankEdit ? ' is-tank-edit' : ''}${mode === 'tank' ? ` is-unlit is-tod-${daylight.key}` : ''}`}
       style={
         mode === 'tank' && !rotate
           ? { ['--tank-ui-top']: `${uiTop || 0}px` }
@@ -2417,11 +2411,17 @@ export default function OceanAmbience({ mode = 'world' }) {
         const scale = Number(row.scale) || 1
         const rot = Number(row.rot) || 0
         const selected = pickProp?.kind === 'decor' && pickProp?.id === row.id
+        const inBeam = fishInTankBeam(
+          { x: row.x * worldW, y: row.y * worldH },
+          { width: 8, height: 8 },
+          { w: worldW, h: worldH },
+          tankLights
+        ).amount > 0.12
         return (
         <button
           key={row.id}
           type="button"
-          className={`ocean-tank-decor is-${look}${selected ? ' is-sel' : ''}`}
+          className={`ocean-tank-decor is-${look}${selected ? ' is-sel' : ''}${inBeam ? ' is-beam-lit' : ''}`}
           style={{
             left: `${row.x * 100}%`,
             top: `${row.y * 100}%`,
