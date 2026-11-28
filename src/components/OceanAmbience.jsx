@@ -961,13 +961,13 @@ function setFishRallyTarget(fish, L, size, rally) {
   startKick(fish, performance.now(), 0.45 + Math.random() * 0.3)
 }
 
-function spawnFish(i, count, L, size, layer, roamAll = false) {
+function spawnFish(i, count, L, size, layer, roamAll = false, rally = null) {
   const cols = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count))))
   const col = i % cols
   const cellW = L.w / cols
   const { minY, maxY } = swimBand(L, size, layer, roamAll)
   const y = minY + ((i * 37) % Math.max(12, maxY - minY))
-  return {
+  const fish = {
     x: col * cellW + Math.max(10, (cellW - size.width) * 0.28),
     y,
     face: i % 2 === 0 ? 1 : -1,
@@ -980,6 +980,13 @@ function spawnFish(i, count, L, size, layer, roamAll = false) {
     ty: minY + (maxY - minY) * 0.45,
     turnAt: 0
   }
+  if (rally && Number.isFinite(Number(rally.x))) {
+    setFishRallyTarget(fish, L, size, rally)
+    fish.x = fish.tx
+    fish.y = fish.ty
+    fish.dash = false
+  }
+  return fish
 }
 
 function shooFish(fish, L, size, fromX, fromY) {
@@ -1468,6 +1475,8 @@ export default function OceanAmbience({ mode = 'world' }) {
     setWide(!!L0.wide)
     setRotate(!!L0.rotate)
     const startLooks = loadLooks(startRoster, visiting)
+    const startRallies = mode === 'tank' ? listTankRallies(host || getCurrentUser()) : []
+    const startLive = worldRallies(startRallies, L0)
     sim.current = {
       food: [],
       hearts: [],
@@ -1475,10 +1484,20 @@ export default function OceanAmbience({ mode = 'world' }) {
       looks: startLooks,
       looksAt: 0,
       breedPairs: mode === 'tank' ? listBreedPairs(host || getCurrentUser()) : [],
-      rallies: mode === 'tank' ? listTankRallies(host || getCurrentUser()) : [],
-      fish: startRoster.map((entry, i) =>
-        spawnFish(i, startRoster.length, L0, fishSize(entry, L0, startLooks[entry.id]), speciesSwimLayer(entry?.key), mode !== 'tank')
-      )
+      rallies: startRallies,
+      rallyShow: {},
+      fish: startRoster.map((entry, i) => {
+        const size = fishSize(entry, L0, startLooks[entry.id])
+        return spawnFish(
+          i,
+          startRoster.length,
+          L0,
+          size,
+          speciesSwimLayer(entry?.key),
+          mode !== 'tank',
+          rallyForFish(entry, startLooks[entry.id], startLive)
+        )
+      })
     }
 
     let last = performance.now()
@@ -1542,7 +1561,15 @@ export default function OceanAmbience({ mode = 'world' }) {
         const i = state.fish.length
         const look = state.looks?.[currentRoster[i]?.id] || {}
         const size = fishSize(currentRoster[i], L, look)
-        state.fish.push(spawnFish(i, currentRoster.length, L, size, speciesSwimLayer(currentRoster[i]?.key), mode !== 'tank'))
+        state.fish.push(spawnFish(
+          i,
+          currentRoster.length,
+          L,
+          size,
+          speciesSwimLayer(currentRoster[i]?.key),
+          mode !== 'tank',
+          rallyForFish(currentRoster[i], look, worldRallies(state.rallies, L))
+        ))
       }
       if (state.fish.length > currentRoster.length) {
         state.fish.length = currentRoster.length
@@ -1870,10 +1897,14 @@ export default function OceanAmbience({ mode = 'world' }) {
 
       const markLayer = rallyMarkRef.current
       if (markLayer) {
+        liveRallies.forEach((row) => {
+          if (!state.rallyShow?.[row.species]) return
+          if (rallyGroupSettled(row, state.fish, sizes)) delete state.rallyShow[row.species]
+        })
         const rings = liveRallies.filter((row) => (
           Number.isFinite(row.x)
           && Number.isFinite(row.y)
-          && !rallyGroupSettled(row, state.fish, sizes)
+          && !!state.rallyShow?.[row.species]
         ))
         while (markLayer.childNodes.length > rings.length) markLayer.removeChild(markLayer.lastChild)
         rings.forEach((rally, i) => {
@@ -2014,7 +2045,10 @@ export default function OceanAmbience({ mode = 'world' }) {
           x / Math.max(1, L.w),
           y / Math.max(1, L.h)
         )
-        if (sim.current) sim.current.rallies = saved.rallies || []
+        if (sim.current) {
+          sim.current.rallies = saved.rallies || []
+          sim.current.rallyShow = { ...(sim.current.rallyShow || {}), [rallySpeciesRef.current || 'all']: true }
+        }
         setRallyList(saved.rallies || [])
         rallyPhaseRef.current = 'on'
         rallyIgnoreFeedUntil.current = performance.now() + 700
