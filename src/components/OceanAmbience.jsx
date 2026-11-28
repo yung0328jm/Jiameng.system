@@ -314,20 +314,51 @@ function mapClientToTank(clientX, clientY, panEl) {
   const vh = window.innerHeight
   const sl = panEl?.scrollLeft || 0
   const st = panEl?.scrollTop || 0
-  const padTop = panEl && typeof getComputedStyle === 'function'
-    ? parseFloat(getComputedStyle(panEl).paddingTop) || 0
-    : 0
+  const world = panEl?.querySelector?.('.ocean-world')
+  const worldRect = world?.getBoundingClientRect?.()
   if (isTankWideWatch() && vh > vw) {
+    if (worldRect && worldRect.width > 1 && worldRect.height > 1) {
+      const dx = clientX - vw / 2
+      const dy = clientY - vh / 2
+      const lx = -dy
+      const ly = dx
+      const cx = worldRect.left + worldRect.width / 2 - vw / 2
+      const cy = worldRect.top + worldRect.height / 2 - vh / 2
+      return { x: lx - cx + worldRect.width / 2, y: ly - cy + worldRect.height / 2 }
+    }
     const w = vh
     const h = vw
     const dx = clientX - vw / 2
     const dy = clientY - vh / 2
     return { x: -dy + w / 2 + sl, y: dx + h / 2 + st }
   }
+  if (worldRect && worldRect.width > 1 && worldRect.height > 1) {
+    return { x: clientX - worldRect.left, y: clientY - worldRect.top }
+  }
   const rect = panEl?.getBoundingClientRect?.()
+  const padTop = panEl && typeof getComputedStyle === 'function'
+    ? parseFloat(getComputedStyle(panEl).paddingTop) || 0
+    : 0
   const left = rect?.left || 0
   const top = rect?.top || 0
   return { x: clientX - left + sl, y: clientY - top - padTop + st }
+}
+
+function clampRallyPoint(x, y, L) {
+  const r = rallyRadius(L)
+  const top = Math.max(12, Number(L?.top) || 14)
+  const floor = Math.max(12, (Number(L?.floor) || 10) + 8)
+  const w = Math.max(8, Number(L?.w) || 8)
+  const h = Math.max(8, Number(L?.h) || 8)
+  const minX = Math.min(r, w / 2)
+  const maxX = Math.max(minX, w - r)
+  const minY = Math.min(top + r * 0.25, h / 2)
+  const maxY = Math.max(minY, h - floor - r * 0.2)
+  return {
+    x: Math.max(minX, Math.min(maxX, x)),
+    y: Math.max(minY, Math.min(maxY, y)),
+    r
+  }
 }
 
 function scaleSimToWorld(state, sx, sy) {
@@ -1512,9 +1543,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         const L = stableLayout(mode, (rosterRef.current || []).length)
         sim.current.rally = {
           species: rallySpeciesRef.current || 'all',
-          x,
-          y,
-          r: rallyRadius(L)
+          ...clampRallyPoint(x, y, L)
         }
         rallyPhaseRef.current = 'on'
         rallyIgnoreFeedUntil.current = performance.now() + 700
