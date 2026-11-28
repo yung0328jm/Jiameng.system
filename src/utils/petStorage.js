@@ -29,6 +29,7 @@ import { MORPH_PALETTE_VER, ensureMorphLineage, mixParentMorphs, morphById, morp
 export const PET_STORAGE_KEY = 'jiameng_pets'
 export const PET_ADULT_MEALS = 45
 export const PET_DAILY_GROWTH_CAP = 5
+export const PET_HELP_DAILY_CAP = 3
 export const PET_GROWTH_GAP_MS = 90 * 1000
 export const PET_GROWTH_POTION_MEALS = 20
 export const PET_WORM_MEALS = 2
@@ -530,8 +531,21 @@ export function formatFishLength(cm, speciesKey) {
   const n = Number(cm) || 0
   const key = String(speciesKey || '')
   const unit = key.startsWith('turtle') ? '甲長' : key.startsWith('ray') ? '盤徑' : '體長'
-  const text = n < 20 ? String(Number(n.toFixed(1))) : String(Math.round(n))
+  const rounded = n < 100 ? Number(n.toFixed(1)) : Math.round(n)
+  const text = Number.isInteger(rounded) ? String(rounded) : String(rounded)
   return `${unit} ${text} cm`
+}
+
+/** Sprite length vs typical adult of the same species, matching the shown 體長. */
+export function spriteLengthRatio(look, speciesKey) {
+  const sp = look?.species || speciesKey || 'betta'
+  const adult = FISH_ADULT_CM[sp] || FISH_ADULT_CM.betta
+  const cm = Number(look?.lengthCm)
+  if (Number.isFinite(cm) && cm > 0 && adult > 0) {
+    return Math.max(0.16, Math.min(2.8, cm / adult))
+  }
+  const scale = Number(look?.scale)
+  return Number.isFinite(scale) && scale > 0 ? Math.max(0.18, scale) : 1
 }
 
 export function growthStage(meals, speciesKey) {
@@ -1093,36 +1107,76 @@ export function addFishMeals(username, slotId, amount = PET_GROWTH_POTION_MEALS)
   return { success: true, added, meals: nextMeals, message: `餵食次數 +${added}（現在 ${nextMeals}/${PET_ADULT_MEALS}）` }
 }
 
-export function recordPetEat(username, slotId, itemId, speciesKey) {
+export function recordPetEat(username, slotId, itemId, speciesKey, helperAccount = '') {
   if (!username || !slotId) return { success: false }
   const cur = getUserPets(username)
   const sid = String(slotId)
   const rec0 = cur.growth[sid]
   const shop = String(itemId || rec0?.itemId || '').trim()
   const bornMeta = shop ? null : cur.born?.[sid]
-  const fedAt = { ...cur.fedAt, [sid]: new Date().toISOString() }
+  const helper = String(helperAccount || '').trim()
+  const isHelp = !!(helper && helper !== username)
   const growth = { ...cur.growth }
   const { rec } = ensureRecord(cur, sid, shop, speciesKey, bornMeta, username)
   let next = rec
+  let counted = false
   const growable = rec.growable !== false
   if (growable) {
     const now = Date.now()
     const day = dayKey(now)
     const today = rec.day === day ? Number(rec.today) || 0 : 0
+    const helpToday = rec.helpDay === day ? Number(rec.helpToday) || 0 : 0
     const gap = now - (Number(rec.lastCountAt) || 0)
-    if (today < PET_DAILY_GROWTH_CAP && gap >= PET_GROWTH_GAP_MS) {
+    const ownerOk = !isHelp && today < PET_DAILY_GROWTH_CAP
+    const helpOk = isHelp && helpToday < PET_HELP_DAILY_CAP
+    if ((ownerOk || helpOk) && gap >= PET_GROWTH_GAP_MS) {
       next = { ...rec }
       next.meals = (Number(next.meals) || 0) + 1
-      next.today = today + 1
-      next.day = day
       next.lastCountAt = now
       next.hue = clamp(next.hue + (Math.random() - 0.5) * 4.2, next.hueMin, next.hueMax)
       next.sat = clamp(next.sat + (Math.random() - 0.5) * 0.035, next.satMin, next.satMax)
       next.bri = clamp(next.bri + (Math.random() - 0.5) * 0.02, next.briMin, next.briMax)
+      if (isHelp) {
+        const prevHelpers = rec.helpDay === day && Array.isArray(rec.helpers) ? rec.helpers : []
+        next.helpToday = helpToday + 1
+        next.helpDay = day
+        const row = { account: helper, at: new Date(now).toISOString() }
+        next.helpers = [row, ...prevHelpers.filter((h) => String(h?.account || '') !== helper)].slice(0, 8)
+      } else {
+        next.today = today + 1
+        next.day = day
+      }
+      counted = true
     }
   }
+  const fedAt = counted
+    ? { ...cur.fedAt, [sid]: new Date().toISOString() }
+    : cur.fedAt
   growth[sid] = next
   return saveUserPets(username, { ...cur, fedAt, growth })
+}
+
+export function listVisitTanks(viewer) {
+  const me = String(viewer || '').trim()
+  const all = readAll()
+  const out = []
+  Object.keys(all).forEach((owner) => {
+    const acc = String(owner || '').trim()
+    if (!acc || acc === me || isGuestAccount(acc)) return
+    const count = listRoamingSlotIds(acc).length
+    if (count <= 0) return
+    out.push({ account: acc, count })
+  })
+  out.sort((a, b) => a.account.localeCompare(b.account, 'zh-Hant'))
+  return out
+}
+
+export function recentHelpers(rec, now = Date.now()) {
+  const day = dayKey(now)
+  if (String(rec?.helpDay || '') !== day) return []
+  return (Array.isArray(rec?.helpers) ? rec.helpers : [])
+    .map((h) => ({ account: String(h?.account || '').trim(), at: h?.at || '' }))
+    .filter((h) => h.account)
 }
 
 function mixOffspringColors(mother, father, species) {
@@ -2061,11 +2115,56 @@ export function applyPetBagOnEquip(username) {
   migrateOwned(username)
 }
 
-export function hungerStatus(fedAtIso, now = Date.now()) {
+export function hungerStatus(fedAtIso, rec, now = Date.now(), opts = {}) {
   const t = Date.parse(fedAtIso || '')
   if (!Number.isFinite(t)) return { key: 'hungry', label: '還沒餵過', hours: Infinity }
   const hours = (now - t) / 3600000
-  if (hours < 6) return { key: 'full', label: '吃飽了', hours }
+  const wait = nextFeedWait(fedAtIso, rec, now, opts)
+  if (wait.reason === 'day') return { key: 'full', label: opts.asHelper ? '幫忙次數用完' : '今天餵滿了', hours }
+  if (wait.waiting) return { key: 'full', label: '吃飽了', hours }
   if (hours < 18) return { key: 'ok', label: '還可以', hours }
   return { key: 'hungry', label: '肚子餓了', hours }
+}
+
+function nextLocalMidnight(now) {
+  const d = new Date(now)
+  d.setHours(24, 0, 0, 0)
+  return d.getTime()
+}
+
+export function formatFeedCountdown(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const pad = (n) => String(n).padStart(2, '0')
+  if (h > 0) return `${h}:${pad(m)}:${pad(sec)}`
+  return `${m}:${pad(sec)}`
+}
+
+export function nextFeedWait(fedAtIso, rec, now = Date.now(), opts = {}) {
+  const growable = rec?.growable !== false
+  const meals = Number(rec?.meals) || 0
+  const day = dayKey(now)
+  const today = rec?.day === day ? Number(rec.today) || 0 : 0
+  const helpToday = rec?.helpDay === day ? Number(rec.helpToday) || 0 : 0
+  const asHelper = !!opts.asHelper
+  const cap = asHelper ? PET_HELP_DAILY_CAP : PET_DAILY_GROWTH_CAP
+  const used = asHelper ? helpToday : today
+  const base = { today, helpToday, cap, used, asHelper }
+  if (!growable || meals >= PET_ADULT_MEALS) {
+    return { waiting: false, ms: 0, text: '', reason: 'adult', ...base }
+  }
+  if (used >= cap) {
+    const ms = nextLocalMidnight(now) - now
+    if (ms > 0) return { waiting: true, ms, text: formatFeedCountdown(ms), reason: 'day', ...base }
+  }
+  const lastCount = Number(rec?.lastCountAt) || 0
+  const lastEat = Date.parse(fedAtIso || '') || 0
+  const last = Math.max(lastCount, lastEat)
+  if (last > 0) {
+    const ms = last + PET_GROWTH_GAP_MS - now
+    if (ms > 0) return { waiting: true, ms, text: formatFeedCountdown(ms), reason: 'gap', ...base }
+  }
+  return { waiting: false, ms: 0, text: '', reason: '', ...base }
 }

@@ -124,8 +124,29 @@ function mergeGrowthRec(a, b) {
     wormDay: String(a.wormDay || '') >= String(b.wormDay || '') ? String(a.wormDay || '') : String(b.wormDay || ''),
     wormToday: String(a.wormDay || '') === String(b.wormDay || '')
       ? Math.max(Number(a.wormToday) || 0, Number(b.wormToday) || 0)
-      : (String(a.wormDay || '') >= String(b.wormDay || '') ? Number(a.wormToday) || 0 : Number(b.wormToday) || 0)
+      : (String(a.wormDay || '') >= String(b.wormDay || '') ? Number(a.wormToday) || 0 : Number(b.wormToday) || 0),
+    lastCountAt: Math.max(Number(a.lastCountAt) || 0, Number(b.lastCountAt) || 0),
+    day: String(a.day || '') >= String(b.day || '') ? String(a.day || '') : String(b.day || ''),
+    today: String(a.day || '') === String(b.day || '')
+      ? Math.max(Number(a.today) || 0, Number(b.today) || 0)
+      : (String(a.day || '') >= String(b.day || '') ? Number(a.today) || 0 : Number(b.today) || 0),
+    helpDay: String(a.helpDay || '') >= String(b.helpDay || '') ? String(a.helpDay || '') : String(b.helpDay || ''),
+    helpToday: String(a.helpDay || '') === String(b.helpDay || '')
+      ? Math.max(Number(a.helpToday) || 0, Number(b.helpToday) || 0)
+      : (String(a.helpDay || '') >= String(b.helpDay || '') ? Number(a.helpToday) || 0 : Number(b.helpToday) || 0),
+    helpers: mergeHelperRows(a.helpers, b.helpers)
   }
+}
+
+function mergeHelperRows(a, b) {
+  const map = new Map()
+  ;[...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].forEach((h) => {
+    const acc = String(h?.account || '').trim()
+    if (!acc) return
+    const prev = map.get(acc)
+    if (!prev || tsOf(h.at) >= tsOf(prev.at)) map.set(acc, { account: acc, at: h.at || prev?.at || '' })
+  })
+  return Array.from(map.values()).sort((x, y) => tsOf(y.at) - tsOf(x.at)).slice(0, 8)
 }
 
 function mergePetUser(a, b) {

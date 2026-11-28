@@ -244,9 +244,7 @@ body.tank-widewatch #root {
   pointer-events: auto;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 110% 70% at 50% -15%, rgba(56, 189, 176, 0.22) 0%, transparent 52%),
-    radial-gradient(ellipse 70% 45% at 100% 100%, rgba(14, 116, 144, 0.28) 0%, transparent 55%),
-    linear-gradient(180deg, #0a2838 0%, #061820 48%, #041018 100%);
+    linear-gradient(180deg, #163e4c 0%, #0c2e3a 42%, #082430 100%);
 }
 
 .ocean-ambience.is-widewatch-rotate {
@@ -280,6 +278,26 @@ body.tank-widewatch #root {
   background: rgba(4, 16, 24, 0.9);
 }
 
+.ocean-feed-hud {
+  position: fixed;
+  top: max(4.6rem, calc(env(safe-area-inset-top, 0px) + 4.1rem));
+  left: 50%;
+  z-index: 42;
+  transform: translateX(-50%);
+  pointer-events: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(4, 16, 24, 0.72);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #fde68a;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ocean-ambience.is-widewatch .ocean-feed-hud {
+  top: 44px;
+}
+
 .ocean-world {
   position: relative;
   width: 100%;
@@ -290,6 +308,7 @@ body.tank-widewatch #root {
 .ocean-bubble {
   position: absolute;
   bottom: 0;
+  z-index: 2;
   border-radius: 9999px;
   background: radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.85), rgba(165, 243, 252, 0.35) 42%, rgba(8, 47, 73, 0.08) 100%);
   border: 1px solid rgba(186, 230, 253, 0.5);
@@ -349,6 +368,7 @@ body.tank-widewatch #root {
   position: absolute;
   left: 0;
   top: 0;
+  z-index: 2;
   width: 9px;
   height: 7px;
   margin-left: -4px;
@@ -357,6 +377,109 @@ body.tank-widewatch #root {
   background: radial-gradient(circle at 35% 30%, #f3d089, #c2781a 62%, #7a4a0c 100%);
   box-shadow: 0 0 5px rgba(194, 120, 26, 0.45);
   pointer-events: none;
+}
+
+.ocean-tank-scenery {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ocean-ambience.is-pan .ocean-tank-scenery {
+  position: sticky;
+  left: 0;
+  width: 100vw;
+  height: 100%;
+}
+
+.ocean-ambience.is-tank .ocean-world {
+  background:
+    linear-gradient(180deg, rgba(12, 48, 62, 0.55) 0%, rgba(8, 36, 48, 0.2) 22%, transparent 40%),
+    linear-gradient(180deg, #16485a 0%, #0d3342 36%, #0a2834 70%, #081f28 100%);
+}
+
+.ocean-tank-back {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.38) 0%, transparent 10%, transparent 90%, rgba(0, 0, 0, 0.38) 100%),
+    linear-gradient(180deg, #1c5c68 0%, #11424e 48%, #0c303c 100%);
+  box-shadow: inset 0 0 90px rgba(0, 16, 24, 0.55);
+}
+
+.ocean-tank-caustic {
+  position: absolute;
+  inset: 0;
+  opacity: 0.28;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(ellipse 18% 10% at 18% 12%, rgba(255, 255, 255, 0.35), transparent 70%),
+    radial-gradient(ellipse 22% 12% at 48% 8%, rgba(186, 230, 253, 0.32), transparent 72%),
+    radial-gradient(ellipse 16% 9% at 76% 14%, rgba(255, 255, 255, 0.22), transparent 70%),
+    radial-gradient(ellipse 28% 14% at 62% 22%, rgba(125, 211, 252, 0.16), transparent 75%);
+  background-size: 140% 120%;
+  -webkit-animation: ocean-caustic-shift 11s ease-in-out infinite alternate;
+  animation: ocean-caustic-shift 11s ease-in-out infinite alternate;
+}
+
+@-webkit-keyframes ocean-caustic-shift {
+  0% { -webkit-transform: translate3d(0, 0, 0) scale(1); transform: translate3d(0, 0, 0) scale(1); }
+  100% { -webkit-transform: translate3d(-4%, 2%, 0) scale(1.06); transform: translate3d(-4%, 2%, 0) scale(1.06); }
+}
+
+@keyframes ocean-caustic-shift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-4%, 2%, 0) scale(1.06); }
+}
+
+.ocean-tank-surface {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 16%;
+  background: linear-gradient(
+    180deg,
+    rgba(210, 240, 255, 0.22) 0%,
+    rgba(125, 211, 252, 0.08) 42%,
+    transparent 100%
+  );
+}
+
+.ocean-tank-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 7%, transparent 16%, transparent 84%, rgba(255, 255, 255, 0.05) 93%, rgba(0, 0, 0, 0.22) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 9%, transparent 88%, rgba(0, 0, 0, 0.18) 100%);
+  box-shadow: inset 0 0 0 2px rgba(210, 230, 240, 0.18), inset 0 0 40px rgba(0, 20, 30, 0.18);
+}
+
+.ocean-tank-rim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 6;
+}
+
+.ocean-tank-rim-top {
+  top: 0;
+  height: 11px;
+  background: linear-gradient(180deg, #3a3d42 0%, #1a1c1f 55%, #0d0e10 100%);
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.35);
+}
+
+.ocean-tank-rim-bot {
+  bottom: 0;
+  height: 14px;
+  background: linear-gradient(180deg, #2c241c 0%, #161310 100%);
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.3);
 }
 
 .ocean-tank-beam {
@@ -418,7 +541,7 @@ body.tank-widewatch #root {
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 2;
+  z-index: 7;
   pointer-events: none;
   min-width: 7rem;
   max-width: 13rem;

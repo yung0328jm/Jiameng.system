@@ -681,7 +681,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
     if (path.includes('exchange')) return 'exchange'
     if (path.includes('my-backpack')) return 'my-backpack'
     if (path.includes('my-pets')) return 'my-pets'
-    if (path.includes('my-tank')) return 'my-tank'
+    if (path.includes('my-tank') || /\/tank\//.test(path)) return 'my-tank'
     if (path.includes('check-in')) return 'check-in'
     if (path.includes('daily-todo')) return 'daily-todo'
     if (path.includes('leave-application')) return 'leave-application'

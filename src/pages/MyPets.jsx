@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import FishSprite from '../components/FishSprite'
 import { useNavigate } from 'react-router-dom'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
+import { getDisplayNameForAccount } from '../utils/displayName'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 import { useRecordingMode } from '../contexts/RecordingModeContext'
 import { maskForRecording as m } from '../utils/recordingModeMask'
@@ -28,6 +29,8 @@ import {
   getTankRoster,
   getUserPets,
   hungerStatus,
+  nextFeedWait,
+  recentHelpers,
   isPetFavorite,
   listBreedPairs,
   listOwnedFishPotions,
@@ -42,6 +45,7 @@ import {
   setPetFavorite,
   setPetName,
   setShowcaseFish,
+  spriteLengthRatio,
   startBreedPair,
   stopBreedPair,
   tickPetBreeding,
@@ -55,18 +59,20 @@ function hungerClass(key) {
 }
 
 function spriteBox(fish, look, compact) {
+  const ratio = spriteLengthRatio(look, fish.key)
   const len = look.lengthMul || 1
   const girth = look.girthMul || 1
   const shape = fish.shape
   const wide = !!fish.wide
+  const aspect = girth / len
   if (compact) {
     const w = shape === 'ray' || shape === 'turtle' ? 72 : shape === 'koi' ? 84 : shape === 'shark' ? 88 : shape === 'cichlid' ? 70 : wide ? 82 : 58
     const h = shape === 'ray' || shape === 'turtle' ? 40 : shape === 'koi' ? 42 : shape === 'shark' ? 40 : shape === 'cichlid' ? 38 : wide ? 30 : 28
-    return { w: Math.round(w * len), h: Math.round(h * girth) }
+    return { w: Math.round(w * ratio), h: Math.round(h * ratio * aspect) }
   }
   const w = shape === 'ray' || shape === 'turtle' ? 118 : shape === 'koi' ? 140 : shape === 'shark' ? 148 : shape === 'cichlid' ? 110 : wide ? 140 : 92
   const h = shape === 'ray' || shape === 'turtle' ? 68 : shape === 'koi' ? 70 : shape === 'shark' ? 68 : shape === 'cichlid' ? 62 : wide ? 52 : 44
-  return { w: Math.round(w * len), h: Math.round(h * girth) }
+  return { w: Math.round(w * ratio), h: Math.round(h * ratio * aspect) }
 }
 
 export default function MyPets() {
@@ -489,11 +495,14 @@ export default function MyPets() {
         {filteredRoster.map((fish) => {
           const i = roster.findIndex((f) => f.id === fish.id)
           const species = getFishSpeciesName(fish)
-          const hunger = hungerStatus(pets.fedAt[fish.id])
+          const hunger = hungerStatus(pets.fedAt[fish.id], pets.growth?.[fish.id])
+          const feedWait = nextFeedWait(pets.fedAt[fish.id], pets.growth?.[fish.id])
+          const helperNames = recentHelpers(pets.growth?.[fish.id])
+            .map((h) => getDisplayNameForAccount(h.account))
+            .filter(Boolean)
           const look = getPetAppearance(user, fish.id, fish.itemId, fish.key)
           const nick = String(drafts[fish.id] || '').trim()
           const shown = nick || `第 ${i + 1} 隻`
-          const imgScale = look.growable ? Math.max(0.22, look.scale) : 1
           const sex = genderLabel(look.gender)
           const breed = breeding[fish.id]
           const pack = FISH_PACKS[fish.key] || FISH_PACKS.betta
@@ -536,17 +545,15 @@ export default function MyPets() {
                     {fav ? '★' : '☆'}
                   </button>
                   <div className="w-full h-12 flex items-center justify-center overflow-hidden">
-                    <div style={{ transform: `scale(${imgScale})` }}>
-                      <FishSprite
-                        src={pack[art]}
-                        variant={art}
-                        wide={!!fish.wide}
-                        shape={fish.shape}
-                        width={box.w}
-                        height={box.h}
-                        parts={look.parts}
-                      />
-                    </div>
+                    <FishSprite
+                      src={pack[art]}
+                      variant={art}
+                      wide={!!fish.wide}
+                      shape={fish.shape}
+                      width={box.w}
+                      height={box.h}
+                      parts={look.parts}
+                    />
                   </div>
                   <span className="text-[11px] text-cyan-100 truncate w-full text-center px-0.5">
                     {recording ? m(shown) : shown}
@@ -555,6 +562,11 @@ export default function MyPets() {
                     {recording ? m(species) : species}
                     {sex ? ` · ${sex}` : ''}
                   </span>
+                  {look.growable && feedWait.waiting ? (
+                    <span className="text-[10px] text-amber-200/90 truncate w-full text-center">{feedWait.text}</span>
+                  ) : look.growable ? (
+                    <span className="text-[10px] text-emerald-300/80 truncate w-full text-center">{feedWait.today}/{feedWait.cap}</span>
+                  ) : null}
                 </div>
               </li>
             )
@@ -576,7 +588,7 @@ export default function MyPets() {
                 className="shrink-0 w-28 sm:w-36 h-16 sm:h-20 flex items-center justify-center rounded-lg bg-black/30 border border-gray-700 overflow-hidden"
                 title="收合"
               >
-                <div style={{ transform: `scale(${imgScale})` }}>
+                <div>
                   <FishSprite
                     src={pack[art]}
                     variant={art}
@@ -647,7 +659,18 @@ export default function MyPets() {
                     </div>
                   </div>
                 ) : null}
-                <p className={`text-xs mt-1 ${hungerClass(hunger.key)}`}>{hunger.label}</p>
+                {look.growable ? (
+                  <p className={`text-xs mt-1 ${feedWait.waiting ? 'text-amber-200' : 'text-emerald-300'}`}>
+                    今天 {Math.min(feedWait.today, feedWait.cap)}/{feedWait.cap} 次
+                    {feedWait.helpToday > 0 ? ` · 幫忙 ${feedWait.helpToday}/3` : ''}
+                    {feedWait.waiting ? ` · 下次可餵 ${feedWait.text}` : ' · 現在可餵'}
+                  </p>
+                ) : (
+                  <p className={`text-xs mt-1 ${hungerClass(hunger.key)}`}>{hunger.label}</p>
+                )}
+                {helperNames.length ? (
+                  <p className="text-[11px] text-sky-200/90 mt-1">{helperNames.join('、')}幫忙餵食過</p>
+                ) : null}
                 {roamIds.includes(fish.id) && (
                   <p className="text-[11px] text-sky-200 mt-1">已放入我的魚缸</p>
                 )}

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { FISH_PACKS, getFishSpeciesName, speciesAdultScale, speciesKeyFromRefs, speciesSwimLayer } from '../utils/fishSkinStorage'
@@ -9,9 +9,13 @@ import {
   getShowcaseWorldRoster,
   getTankRoamRoster,
   getUserPets,
+  formatFeedCountdown,
   hungerStatus,
+  nextFeedWait,
+  spriteLengthRatio,
   listBreedPairs,
   listOwnedFishPotions,
+  recentHelpers,
   recordPetEat,
   tickPetBreeding,
   useFishPotion
@@ -26,6 +30,23 @@ const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
   duration: `${10 + (i % 7) * 2.2}s`,
   delay: `${-(i * 1.3)}s`
 }))
+
+function TankScenery() {
+  return (
+    <div className="ocean-tank-scenery" aria-hidden>
+      <div className="ocean-tank-back" />
+      <div className="ocean-tank-caustic" />
+      <div className="ocean-tank-surface" />
+      <div className="ocean-tank-beam">
+        <span className="ocean-tank-beam-core" />
+        <span className="ocean-tank-beam-glow" />
+      </div>
+      <div className="ocean-tank-glass" />
+      <div className="ocean-tank-rim ocean-tank-rim-top" />
+      <div className="ocean-tank-rim ocean-tank-rim-bot" />
+    </div>
+  )
+}
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -94,6 +115,7 @@ function layout(mode = 'world', fishCount = 0) {
       ? Math.round(Math.min(viewW * 6, Math.max(viewW * 2.7, viewW + n * 64)))
       : viewW
   const h = rotate ? viewW : viewH
+  const floor = mode === 'tank' ? 16 : 8
   return {
     mobile,
     pan,
@@ -103,6 +125,7 @@ function layout(mode = 'world', fishCount = 0) {
     viewW,
     w,
     h,
+    floor,
     top: headerClearance(),
     cruise: mobile ? 52 : 78,
     dash: mobile ? 260 : 380,
@@ -123,46 +146,44 @@ function mapClientToTank(clientX, clientY, panEl) {
   return { x: clientX + (panEl?.scrollLeft || 0), y: clientY }
 }
 
-function baseFishSize(entry, index, mobile) {
+function baseFishSize(entry, mobile) {
   const sp = speciesAdultScale(entry?.key)
-  const k = index % 2 === 0 ? 1 : 0.88
   if (entry?.shape === 'ray' || entry?.shape === 'turtle') {
-    const w = Math.round((mobile ? 70 : 118) * sp * k)
+    const w = Math.round((mobile ? 70 : 118) * sp)
     return { width: w, height: Math.round(w * (entry?.shape === 'turtle' ? 0.72 : 0.58)) }
   }
   if (entry?.shape === 'cichlid') {
-    const w = Math.round((mobile ? 78 : 132) * sp * k)
+    const w = Math.round((mobile ? 78 : 132) * sp)
     return { width: w, height: Math.round(w * 0.56) }
   }
   if (entry?.shape === 'shark') {
-    const w = Math.round((mobile ? 90 : 152) * sp * k)
+    const w = Math.round((mobile ? 90 : 152) * sp)
     return { width: w, height: Math.round(w * 0.46) }
   }
   if (entry?.shape === 'koi') {
-    const w = Math.round((mobile ? 86 : 146) * sp * k)
+    const w = Math.round((mobile ? 86 : 146) * sp)
     return { width: w, height: Math.round(w * 0.5) }
   }
   if (entry?.shape === 'giant') {
-    const w = Math.round((mobile ? 96 : 160) * sp * k)
+    const w = Math.round((mobile ? 96 : 160) * sp)
     return { width: w, height: Math.round(w * 0.28) }
   }
   if (entry?.wide) {
-    const w = Math.round((mobile ? 88 : 148) * sp * k)
+    const w = Math.round((mobile ? 88 : 148) * sp)
     return { width: w, height: Math.round(w * 0.32) }
   }
-  const w = Math.round((mobile ? 72 : 128) * sp * k)
+  const w = Math.round((mobile ? 72 : 128) * sp)
   return { width: w, height: Math.round(w * 0.52) }
 }
 
 function fishSize(entry, index, mobile, scale = 1, form = {}) {
-  const base = baseFishSize(entry, index, mobile)
-  const raw = Number(scale)
-  const s = Number.isFinite(raw) && raw > 0 ? Math.max(0.18, raw) : 1
+  const base = baseFishSize(entry, mobile)
+  const s = spriteLengthRatio(form, entry?.key)
   const length = Number(form.lengthMul) > 0 ? form.lengthMul : 1
   const girth = Number(form.girthMul) > 0 ? form.girthMul : 1
   return {
-    width: Math.max(36, Math.round(base.width * s * length)),
-    height: Math.max(20, Math.round(base.height * s * girth))
+    width: Math.max(36, Math.round(base.width * s)),
+    height: Math.max(20, Math.round(base.height * s * (girth / length)))
   }
 }
 
@@ -198,17 +219,36 @@ function cruiseSpeed(L, entry, size) {
   return L.cruise * fromWidth * kind
 }
 
-function loadLooks(roster) {
+function tankHostFromPath(pathname) {
+  const m = String(pathname || '').match(/\/tank\/([^/?#]+)/)
+  if (!m) return ''
+  try {
+    return decodeURIComponent(m[1])
+  } catch (_) {
+    return String(m[1] || '')
+  }
+}
+
+function loadLooks(roster, asHelper) {
   const map = {}
   const petsByOwner = {}
+  const opts = { asHelper: !!asHelper }
   ;(roster || []).forEach((entry) => {
     const id = entry?.id || ''
     const owner = entry?.owner || getCurrentUser()
     const slot = entry?.growthSlotId || id
     if (!petsByOwner[owner]) petsByOwner[owner] = getUserPets(owner)
+    const rec = petsByOwner[owner]?.growth?.[slot]
+    const fedAt = petsByOwner[owner]?.fedAt?.[slot]
+    const wait = nextFeedWait(fedAt, rec, Date.now(), opts)
     map[id] = {
       ...getPetAppearance(owner, slot, entry?.itemId, entry?.key),
-      hunger: hungerStatus(petsByOwner[owner]?.fedAt?.[slot]).key
+      hunger: hungerStatus(fedAt, rec, Date.now(), opts).key,
+      helpers: recentHelpers(rec),
+      feedWait: {
+        ...wait,
+        readyAt: wait.waiting ? Date.now() + wait.ms : 0
+      }
     }
   })
   return map
@@ -225,7 +265,7 @@ const LAYER_BANDS = {
 function layerBand(L, size, layer) {
   const [t0, t1] = LAYER_BANDS[layer] || LAYER_BANDS.mid
   const topPad = L.top ?? headerClearance()
-  const floor = 8
+  const floor = L.floor ?? 8
   const usable = Math.max(120, L.h - topPad - floor)
   let minY = topPad + usable * t0
   let maxY = topPad + usable * t1 - size.height
@@ -327,24 +367,31 @@ function rosterKey(roster) {
 }
 
 
-function loadRoster(mode) {
-  const user = getCurrentUser()
+function loadRoster(mode, host) {
+  const user = mode === 'tank' ? (host || getCurrentUser()) : getCurrentUser()
   return mode === 'tank' ? getTankRoamRoster(user) : getShowcaseWorldRoster(user)
 }
 
 export default function OceanAmbience({ mode = 'world' }) {
   const location = useLocation()
-  const onTankPage = String(location?.pathname || '').includes('my-tank')
+  const navigate = useNavigate()
+  const path = String(location?.pathname || '')
+  const host = tankHostFromPath(path)
+  const me = getCurrentUser()
+  const visiting = mode === 'tank' && !!host && host !== me
+  const onTankPage = path.includes('my-tank') || /\/tank\//.test(path)
   const hidden = (mode === 'world' && onTankPage) || (mode === 'tank' && !onTankPage)
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
   const [hearts, setHearts] = useState([])
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
+  const [feedHud, setFeedHud] = useState('')
+  const feedHudRef = useRef('')
   const lookBump = useRef(0)
   const shooRef = useRef([])
   const panRef = useRef(null)
-  const rosterRef = useRef(loadRoster(mode))
+  const rosterRef = useRef(loadRoster(mode, host))
   const bootLayout = typeof window === 'undefined' ? { w: 0, pan: false, wide: false, rotate: false } : layout(mode, (rosterRef.current || []).length)
   const worldWRef = useRef(bootLayout.w)
   const panFlagRef = useRef(!!bootLayout.pan)
@@ -354,7 +401,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   const [pan, setPan] = useState(!!bootLayout.pan)
   const [wide, setWide] = useState(!!bootLayout.wide)
   const [rotate, setRotate] = useState(!!bootLayout.rotate)
-  const [actors, setActors] = useState(() => loadRoster(mode).map((f, i) => ({
+  const [actors, setActors] = useState(() => loadRoster(mode, host).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
     y: 120 + i * 80,
@@ -385,7 +432,7 @@ export default function OceanAmbience({ mode = 'world' }) {
 
   useEffect(() => {
     const refresh = () => {
-      const next = loadRoster(mode)
+      const next = loadRoster(mode, host)
       if (rosterKey(rosterRef.current) === rosterKey(next)) return
       rosterRef.current = next
     }
@@ -408,7 +455,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       window.clearInterval(timer)
       window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
     }
-  }, [mode])
+  }, [mode, host])
 
   useEffect(() => {
     if (hidden) return undefined
@@ -422,14 +469,14 @@ export default function OceanAmbience({ mode = 'world' }) {
     setPan(!!L0.pan)
     setWide(!!L0.wide)
     setRotate(!!L0.rotate)
-    const startLooks = loadLooks(startRoster)
+    const startLooks = loadLooks(startRoster, visiting)
     sim.current = {
       food: [],
       hearts: [],
       heartAt: {},
       looks: startLooks,
       looksAt: 0,
-      breedPairs: mode === 'tank' ? listBreedPairs(getCurrentUser()) : [],
+      breedPairs: mode === 'tank' ? listBreedPairs(host || getCurrentUser()) : [],
       fish: startRoster.map((entry, i) =>
         spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale, startLooks[entry.id]), speciesSwimLayer(entry?.key))
       )
@@ -466,15 +513,15 @@ export default function OceanAmbience({ mode = 'world' }) {
       if (
         state.rosterSig !== sig ||
         !state.looks ||
-        now - (state.looksAt || 0) > 2000 ||
+        now - (state.looksAt || 0) > (mode === 'tank' ? 800 : 2000) ||
         state.lookTick !== lookBump.current
       ) {
-        tickPetBreeding(getCurrentUser())
-        state.looks = loadLooks(currentRoster)
+        if (!visiting) tickPetBreeding(getCurrentUser())
+        state.looks = loadLooks(currentRoster, visiting)
         state.looksAt = now
         state.lookTick = lookBump.current
         state.rosterSig = sig
-        if (mode === 'tank') state.breedPairs = listBreedPairs(getCurrentUser())
+        if (mode === 'tank') state.breedPairs = listBreedPairs(host || getCurrentUser())
       }
 
       while (state.fish.length < currentRoster.length) {
@@ -585,13 +632,16 @@ export default function OceanAmbience({ mode = 'world' }) {
             target.eaten = true
             fish.eatUntil = now + 220
             fish.dash = false
+            const owner = entry?.owner || getCurrentUser()
+            const helper = visiting || (owner && owner !== getCurrentUser()) ? getCurrentUser() : ''
             recordPetEat(
-              entry?.owner || getCurrentUser(),
+              owner,
               entry?.growthSlotId || entry?.id,
               entry?.itemId,
-              entry?.key
+              entry?.key,
+              helper
             )
-            state.looks = loadLooks(currentRoster)
+            state.looks = loadLooks(currentRoster, visiting)
             state.looksAt = now
             pickWander(fish, L, size)
             return
@@ -711,9 +761,38 @@ export default function OceanAmbience({ mode = 'world' }) {
           tilt: f.tilt || 0,
           dash: f.dash,
           eating: now < f.eatUntil,
-          lit: mode === 'tank' ? fishInTankBeam(f, size, L) : 0
+          lit: mode === 'tank' ? fishInTankBeam(f, size, L) : 0,
+          feedWait: look.feedWait || null,
+          helpers: look.helpers || []
         }
       }))
+
+      if (mode === 'tank') {
+        let ready = 0
+        let soonest = Infinity
+        currentRoster.forEach((row) => {
+          const w = state.looks?.[row?.id]?.feedWait
+          if (!w || w.reason === 'adult') return
+          if (!w.waiting) ready += 1
+          else if (w.readyAt && w.readyAt < soonest) soonest = w.readyAt
+        })
+        const left = soonest < Infinity ? soonest - now : 0
+        const anyGrow = currentRoster.some((row) => {
+          const w = state.looks?.[row?.id]?.feedWait
+          return w && w.reason !== 'adult'
+        })
+        const line = ready > 0
+          ? (visiting ? `幫忙可餵 ${ready} 隻` : `可餵食 ${ready} 隻`)
+          : left > 0
+            ? (visiting ? `下次幫忙 ${formatFeedCountdown(left)}` : `下次可餵 ${formatFeedCountdown(left)}`)
+            : visiting && anyGrow
+              ? '今天幫忙次數已滿'
+              : ''
+        if (line !== feedHudRef.current) {
+          feedHudRef.current = line
+          setFeedHud(line)
+        }
+      }
 
       raf = requestAnimationFrame(tick)
     }
@@ -730,7 +809,22 @@ export default function OceanAmbience({ mode = 'world' }) {
       const roster = rosterRef.current || []
       const looks = sim.current.looks || {}
       const anyHungry = roster.some((row) => looks[row?.id]?.hunger !== 'full')
-      if (!anyHungry) return
+      if (!anyHungry) {
+        let soonest = Infinity
+        roster.forEach((row) => {
+          const at = looks[row?.id]?.feedWait?.readyAt || 0
+          if (at > 0 && at < soonest) soonest = at
+        })
+        const left = soonest < Infinity ? soonest - Date.now() : 0
+        const line = left > 0
+          ? (visiting ? `下次幫忙 ${formatFeedCountdown(left)}` : `下次可餵 ${formatFeedCountdown(left)}`)
+          : visiting
+            ? '今天幫忙次數已滿'
+            : '今天都餵滿了'
+        feedHudRef.current = line
+        setFeedHud(line)
+        return
+      }
       const next = Array.from({ length: 3 }, (_, i) => ({
         id: genId() + i,
         x: x + (Math.random() - 0.5) * 28,
@@ -748,7 +842,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       cancelAnimationFrame(raf)
       window.removeEventListener('ocean-feed', onFeed)
     }
-  }, [hidden, mode])
+  }, [hidden, mode, host, visiting])
 
   if (hidden || typeof document === 'undefined') return null
 
@@ -764,6 +858,9 @@ export default function OceanAmbience({ mode = 'world' }) {
         window.dispatchEvent(new CustomEvent('ocean-feed', { detail: { x: p.x, y: p.y, mapped: true } }))
       }}
     >
+      {mode === 'tank' && feedHud ? (
+        <div className="ocean-feed-hud">{feedHud}</div>
+      ) : null}
       {wide ? (
         <button
           type="button"
@@ -778,13 +875,8 @@ export default function OceanAmbience({ mode = 'world' }) {
           結束橫向
         </button>
       ) : null}
+      {mode === 'tank' ? <TankScenery /> : null}
       <div className="ocean-world" style={(pan || rotate) && worldW ? { width: `${worldW}px` } : undefined}>
-      {mode === 'tank' ? (
-        <div className="ocean-tank-beam" aria-hidden>
-          <span className="ocean-tank-beam-core" />
-          <span className="ocean-tank-beam-glow" />
-        </div>
-      ) : null}
       {bubbles.map((b) => (
         <span
           key={b.id}
@@ -880,6 +972,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         const pairedFemale = mine && fish.gender === 'f' && listBreedPairs(me).some((p) => p.femaleId === slot)
         const canBreedPotions = mine && (fish.gender !== 'f' || pairedFemale)
         const canPotions = mine
+        const showVisit = !mine && !!fish.owner && !visiting
         const potionNames = { worm: '紅蟲', growth: '成長藥水', gender: '變性藥水', heat: '發情藥水', affection: '好感藥水', birth: '催生藥水' }
         const give = (kind) => {
           const label = potionNames[kind] || '藥水'
@@ -892,12 +985,12 @@ export default function OceanAmbience({ mode = 'world' }) {
           setPotionMsg(r.message || (r.success ? '已使用' : '無法使用'))
           if (r.success) {
             lookBump.current += 1
-            rosterRef.current = loadRoster(mode)
+            rosterRef.current = loadRoster(mode, host)
           }
         }
         return (
           <div
-            className={`ocean-fish-owner-tip${canPotions ? ' is-actions' : ''}`}
+            className={`ocean-fish-owner-tip${canPotions || showVisit ? ' is-actions' : ''}`}
             style={{
               transform: `translate3d(${fish.x + (fish.width || 0) / 2}px, ${fish.y}px, 0) translate(-50%, calc(-100% - 8px))`
             }}
@@ -905,6 +998,32 @@ export default function OceanAmbience({ mode = 'world' }) {
             {fish.nick ? <strong>{fish.nick}</strong> : null}
             <span>{fish.species || '魚'}{fish.gender === 'f' ? ' · 母' : fish.gender === 'm' ? ' · 公' : ''}{fish.generation > 0 ? ` · 第${fish.generation}代` : ''}{fish.gender === 'f' && fish.pregnant ? ' · 懷孕' : ''}</span>
             <span>{mine ? `主人：${ownerName}（我的）` : `主人：${ownerName}`}</span>
+            {fish.feedWait && fish.feedWait.reason !== 'adult' ? (
+              <span>
+                {mine
+                  ? `今天 ${Math.min(fish.feedWait.today || 0, 5)}/5 次`
+                  : `幫忙 ${Math.min(fish.feedWait.helpToday || fish.feedWait.used || 0, fish.feedWait.cap || 3)}/${fish.feedWait.cap || 3} 次`}
+                {fish.feedWait.waiting
+                  ? ` · ${mine ? '下次可餵' : '下次幫忙'} ${formatFeedCountdown(Math.max(0, (fish.feedWait.readyAt || 0) - Date.now()))}`
+                  : mine ? ' · 現在可餵' : ' · 現在可幫忙'}
+              </span>
+            ) : null}
+            {(fish.helpers || []).length ? (
+              <span>
+                {(fish.helpers || []).map((h) => getDisplayNameForAccount(h.account)).filter(Boolean).join('、')}幫忙餵食過
+              </span>
+            ) : null}
+            {showVisit ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate(`/tank/${encodeURIComponent(fish.owner)}`)
+                }}
+              >
+                參觀魚缸
+              </button>
+            ) : null}
             {potionMsg ? <span className="ocean-fish-potion-msg">{potionMsg}</span> : null}
             {canPotions ? (
               <div className="ocean-fish-potion-row">
