@@ -17,6 +17,7 @@ import {
   listOwnedFishPotions,
   recentHelpers,
   recordPetEat,
+  PET_GROWTH_GAP_MS,
   tickPetBreeding,
   useFishPotion
 } from '../utils/petStorage'
@@ -289,6 +290,45 @@ function swimBand(L, size, layer, roamAll) {
   return roamAll ? waterColumn(L, size) : layerBand(L, size, layer)
 }
 
+function fishIsFull(fish, look, now) {
+  if (!fish) return true
+  if (fish.sated || now < (fish.satedUntil || 0)) return true
+  if (look?.hunger === 'full') return true
+  const wait = look?.feedWait
+  if (wait?.waiting || wait?.reason === 'day') return true
+  return false
+}
+
+function mouthOf(fish, size, entry) {
+  const mouthRatio = entry?.shape === 'ray' || entry?.shape === 'turtle' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
+  return {
+    x: fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio),
+    y: fish.y + size.height * 0.5
+  }
+}
+
+function separateFish(fish, i, all, sizes) {
+  const size = sizes[i]
+  const cx = fish.x + size.width * 0.5
+  const cy = fish.y + size.height * 0.5
+  let sx = 0
+  let sy = 0
+  all.forEach((other, j) => {
+    if (j === i || !sizes[j]) return
+    const ox = other.x + sizes[j].width * 0.5
+    const oy = other.y + sizes[j].height * 0.5
+    const dx = cx - ox
+    const dy = cy - oy
+    const minD = (size.width + sizes[j].width) * 0.42
+    const d = Math.sqrt(dx * dx + dy * dy) || 0.001
+    if (d >= minD) return
+    const push = (minD - d) / minD
+    sx += (dx / d) * push
+    sy += (dy / d) * push
+  })
+  return { sx, sy }
+}
+
 function clampFish(fish, L, size, layer = fish._layer, roamAll = false) {
   const { minY, maxY } = swimBand(L, size, layer, roamAll)
   fish.y = Math.max(minY, Math.min(maxY, fish.y))
@@ -368,7 +408,7 @@ function shooFish(fish, L, size, fromX, fromY) {
   const nx = fish.x + (dx / dist) * run
   fish.tx = L.wrapX ? nx : Math.max(12, Math.min(L.w - size.width - 12, nx))
   fish.ty = Math.max(minY, Math.min(maxY, fish.y + (dy / dist) * run))
-  fish.fleeUntil = performance.now() + 650
+  fish.fleeUntil = performance.now() + 900
   fish.turnAt = fish.fleeUntil + 500
   fish.eatUntil = 0
   fish.dash = true
@@ -578,13 +618,30 @@ export default function OceanAmbience({ mode = 'world' }) {
         const size = sizes[i]
         const entry = currentRoster[i]
         const look = state.looks?.[entry?.id]
-        if (look?.hunger !== 'full') fish.sated = false
-        const hungry = look?.hunger !== 'full' && !fish.sated
+        const hungry = !fishIsFull(fish, look, now)
         fish._w = size.width
         fish._h = size.height
         fish._layer = speciesSwimLayer(entry?.key)
         fish._roamAll = mode === 'tank' && hungry
         clampFish(fish, L, size, fish._layer, fish._roamAll)
+      })
+
+      const foodClaim = new Map()
+      ;(state.food || []).forEach((p) => {
+        if (p.eaten) return
+        let bestI = -1
+        let bestD = Infinity
+        state.fish.forEach((fish, i) => {
+          if (now < (fish.fleeUntil || 0)) return
+          if (fishIsFull(fish, state.looks?.[currentRoster[i]?.id], now)) return
+          const mouth = mouthOf(fish, sizes[i], currentRoster[i])
+          const d = (p.x - mouth.x) ** 2 + (p.y - mouth.y) ** 2
+          if (d < bestD) {
+            bestD = d
+            bestI = i
+          }
+        })
+        if (bestI >= 0) foodClaim.set(p.id, bestI)
       })
 
       const pendingShoo = shooRef.current
@@ -600,25 +657,18 @@ export default function OceanAmbience({ mode = 'world' }) {
       state.fish.forEach((fish, i) => {
         const entry = currentRoster[i]
         const size = sizes[i]
-        const mouthRatio = entry?.shape === 'ray' || entry?.shape === 'turtle' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
-        const mouthX = fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio)
-        const mouthY = fish.y + size.height * 0.5
-        const live = state.food.filter((p) => !p.eaten)
-        let target = null
-        let best = Infinity
-        live.forEach((p) => {
-          const dx = p.x - mouthX
-          const dy = p.y - mouthY
-          const d = dx * dx + dy * dy
-          if (d < best) {
-            best = d
-            target = p
-          }
-        })
+        const look = state.looks?.[entry?.id]
+        const mouth = mouthOf(fish, size, entry)
+        const target = (state.food || []).find((p) => !p.eaten && foodClaim.get(p.id) === i) || null
+        const full = fishIsFull(fish, look, now)
+        const sep = separateFish(fish, i, state.fish, sizes)
 
         if (now < fish.eatUntil) {
           fish.dash = false
           fish.tilt += (0 - (fish.tilt || 0)) * Math.min(1, 8 * dt)
+          fish.x += sep.sx * 90 * dt
+          fish.y += sep.sy * 90 * dt
+          clampFish(fish, L, size, fish._layer, false)
           return
         }
 
@@ -632,23 +682,23 @@ export default function OceanAmbience({ mode = 'world' }) {
           } else {
             fish.dash = true
             aimAlong(fish, fx, fy)
-            const sprint = L.dash * (L.mobile ? 1.65 : 1.75)
-            fish.x += (fx / fd) * sprint * dt
-            fish.y += (fy / fd) * sprint * dt
+            const sprint = L.dash * (L.mobile ? 1.7 : 1.85)
+            fish.x += (fx / fd) * sprint * dt + sep.sx * 110 * dt
+            fish.y += (fy / fd) * sprint * dt + sep.sy * 110 * dt
             clampFish(fish, L, size, fish._layer, fish._roamAll)
             return
           }
         }
 
-        const full = state.looks?.[entry?.id]?.hunger === 'full' || !!fish.sated
         if (target && !full) {
-          const dx = target.x - mouthX
-          const dy = target.y - mouthY
+          const dx = target.x - mouth.x
+          const dy = target.y - mouth.y
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
           if (dist < L.eatRange) {
             target.eaten = true
-            fish.eatUntil = now + 280
+            fish.eatUntil = now + 220
             fish.sated = true
+            fish.satedUntil = now + PET_GROWTH_GAP_MS
             fish._roamAll = false
             fish.dash = false
             const owner = entry?.owner || getCurrentUser()
@@ -662,15 +712,33 @@ export default function OceanAmbience({ mode = 'world' }) {
             )
             state.looks = loadLooks(currentRoster, visiting)
             state.looksAt = now
+            state.fish.forEach((other, j) => {
+              if (j === i || !sizes[j]) return
+              const ocx = other.x + sizes[j].width * 0.5
+              const ocy = other.y + sizes[j].height * 0.5
+              const od = Math.hypot(ocx - target.x, ocy - target.y)
+              if (od < 140) shooFish(other, L, sizes[j], target.x, target.y)
+            })
             pickWander(fish, L, size, false)
             return
           }
           fish.dash = true
           aimAlong(fish, dx, dy)
-          fish.x += (dx / dist) * L.dash * dt
-          fish.y += (dy / dist) * L.dash * dt
+          fish.x += (dx / dist) * L.dash * dt + sep.sx * 80 * dt
+          fish.y += (dy / dist) * L.dash * dt + sep.sy * 80 * dt
           clampFish(fish, L, size, fish._layer, true)
         } else {
+          if (!full) {
+            const near = (state.food || []).find((p) => !p.eaten)
+            if (near) {
+              const nd = Math.hypot(near.x - mouth.x, near.y - mouth.y)
+              if (nd < 130) {
+                shooFish(fish, L, size, near.x, near.y)
+                fish.dash = true
+                return
+              }
+            }
+          }
           fish.dash = false
           if (mode === 'tank' && (!fish.turnAt || now > fish.turnAt)) {
             const slot = entry?.growthSlotId || entry?.id
@@ -697,8 +765,8 @@ export default function OceanAmbience({ mode = 'world' }) {
           if (!fish.turnAt || now > fish.turnAt || dist < 18) {
             pickWander(fish, L, size, fish._roamAll)
           }
-          const wx = (fish.tx ?? fish.x) - fish.x
-          const wy = (fish.ty ?? fish.y) - fish.y
+          const wx = (fish.tx ?? fish.x) - fish.x + sep.sx * 40
+          const wy = (fish.ty ?? fish.y) - fish.y + sep.sy * 40
           const wd = Math.sqrt(wx * wx + wy * wy) || 1
           aimAlong(fish, wx, wy)
           const speed = cruiseSpeed(L, entry, size)
@@ -827,7 +895,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       if (!Number.isFinite(x) || !Number.isFinite(y) || !sim.current) return
       const roster = rosterRef.current || []
       const looks = sim.current.looks || {}
-      const anyHungry = roster.some((row, i) => looks[row?.id]?.hunger !== 'full' && !sim.current.fish[i]?.sated)
+      const anyHungry = roster.some((row, i) => !fishIsFull(sim.current.fish[i], looks[row?.id], Date.now()))
       if (!anyHungry) {
         let soonest = Infinity
         roster.forEach((row) => {
