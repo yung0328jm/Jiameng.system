@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { FISH_ADULT_CM, FISH_PACKS, TANK_CM, fishScreenSize, getFishSpeciesName, speciesAdultScale, speciesKeyFromRefs, speciesSwimLayer } from '../utils/fishSkinStorage'
+import { FISH_ADULT_CM, FISH_PACKS, TANK_CM, fishScreenSize, getFishSpeciesName, speciesAdultScale, speciesKeyFromRefs, speciesSwimLayer, tankPxPerCm } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getShowcaseWorldRoster,
@@ -32,9 +32,17 @@ const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
   delay: `${-(i * 1.3)}s`
 }))
 
-function TankScenery() {
+function TankScenery({ w = 0, h = 0 }) {
+  const width = Math.max(0, Math.round(Number(w) || 0))
+  const height = Math.max(0, Math.round(Number(h) || 0))
+  const frame = Math.max(10, Math.min(20, Math.round(width * 0.012)))
+  const sized = width > 0 && height > 0
   return (
-    <div className="ocean-tank-scenery" aria-hidden>
+    <div
+      className="ocean-tank-scenery"
+      aria-hidden
+      style={sized ? { width: `${width}px`, height: `${height}px` } : undefined}
+    >
       <div className="ocean-tank-back" />
       <div className="ocean-tank-caustic" />
       <div className="ocean-tank-surface" />
@@ -43,10 +51,16 @@ function TankScenery() {
         <span className="ocean-tank-beam-glow" />
       </div>
       <div className="ocean-tank-glass" />
-      <div className="ocean-tank-rim ocean-tank-rim-top" />
-      <div className="ocean-tank-frame ocean-tank-frame-left" />
-      <div className="ocean-tank-frame ocean-tank-frame-right" />
-      <div className="ocean-tank-rim ocean-tank-rim-bot" />
+      <div className="ocean-tank-rim ocean-tank-rim-top" style={sized ? { width: `${width}px` } : undefined} />
+      <div
+        className="ocean-tank-frame ocean-tank-frame-left"
+        style={sized ? { width: `${frame}px`, height: `${height}px` } : undefined}
+      />
+      <div
+        className="ocean-tank-frame ocean-tank-frame-right"
+        style={sized ? { width: `${frame}px`, height: `${height}px`, left: `${Math.max(0, width - frame)}px` } : undefined}
+      />
+      <div className="ocean-tank-rim ocean-tank-rim-bot" style={sized ? { width: `${width}px` } : undefined} />
     </div>
   )
 }
@@ -224,7 +238,7 @@ function layout(mode = 'world', fishCount = 0) {
   const zoom = mode === 'tank' ? Math.max(fitZoom, getTankZoom()) : 1
   const tankFrontW = Math.round(innerH * (TANK_CM.length / TANK_CM.height) * zoom)
   const worldH = Math.round(innerH * zoom)
-  const pan = mode === 'tank' && (viewSpan + 2 < tankFrontW || worldH > innerH + 2)
+  const pan = mode === 'tank' && (zoom > fitZoom + 0.03 || viewSpan + 2 < tankFrontW || worldH > innerH + 2)
   const fit = mode === 'tank' && zoom <= fitZoom + 0.02
   let w = pan ? tankFrontW : Math.min(viewSpan, tankFrontW)
   let h = pan ? worldH : Math.min(innerH, worldH)
@@ -255,8 +269,13 @@ function layout(mode = 'world', fishCount = 0) {
     top: 14,
     cruise: (mobile ? 52 : 78) * zoom,
     dash: (mobile ? 260 : 380) * zoom,
-    eatRange: (mobile ? 36 : 48) * zoom
+    eatRange: Math.max(8, (mobile ? 14 : 18) * zoom + tankPxPerCm(w, h) * 2)
   }
+}
+
+function feedPelletPx(worldW, worldH, tank) {
+  if (!tank) return 7
+  return Math.max(1.6, Math.min(10, 0.28 * tankPxPerCm(worldW, worldH)))
 }
 
 function mapClientToTank(clientX, clientY, panEl) {
@@ -1222,10 +1241,13 @@ export default function OceanAmbience({ mode = 'world' }) {
 
   if (hidden || typeof document === 'undefined') return null
 
+  const pellet = feedPelletPx(worldW, worldH, mode === 'tank')
+  const pelletH = Math.max(1.2, pellet * 0.78)
+
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${zoom > 1.02 ? ' is-close' : ''}${mode === 'tank' && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
       style={
         mode === 'tank' && !rotate
           ? { ['--tank-ui-top']: `${uiTop || 0}px` }
@@ -1301,12 +1323,12 @@ export default function OceanAmbience({ mode = 'world' }) {
       <div
         className="ocean-world"
         style={
-          mode === 'tank' && worldH
-            ? { width: '100%', height: `${worldH}px` }
+          mode === 'tank' && worldW && worldH
+            ? { width: `${worldW}px`, height: `${worldH}px` }
             : undefined
         }
       >
-      {mode === 'tank' ? <TankScenery /> : null}
+      {mode === 'tank' ? <TankScenery w={worldW} h={worldH} /> : null}
       {bubbles.map((b) => (
         <span
           key={b.id}
@@ -1327,7 +1349,13 @@ export default function OceanAmbience({ mode = 'world' }) {
         <span
           key={p.id}
           className="ocean-feed"
-          style={{ transform: `translate3d(${p.x}px, ${p.y}px, 0)` }}
+          style={{
+            width: `${pellet}px`,
+            height: `${pelletH}px`,
+            marginLeft: `${-pellet / 2}px`,
+            marginTop: `${-pelletH / 2}px`,
+            transform: `translate3d(${p.x}px, ${p.y}px, 0)`
+          }}
         />
       ))}
 

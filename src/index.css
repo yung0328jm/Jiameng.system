@@ -234,11 +234,11 @@ body {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  max-width: 100%;
   overflow: hidden;
 }
 
 .ocean-ambience.is-tank.is-fit .ocean-tank-shell {
+  max-width: 100%;
   box-shadow:
     0 22px 48px rgba(0, 0, 0, 0.62),
     0 0 0 1px rgba(20, 14, 10, 0.9);
@@ -257,6 +257,13 @@ body {
   overscroll-behavior-x: contain;
   touch-action: pan-x;
   scrollbar-width: none;
+}
+
+.ocean-ambience.is-tank.is-pan {
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
 }
 
 .ocean-ambience.is-pan.is-close,
@@ -475,13 +482,13 @@ body.tank-widewatch #root {
   left: 0;
   top: 0;
   z-index: 2;
-  width: 9px;
-  height: 7px;
-  margin-left: -4px;
-  margin-top: -3px;
+  width: 3px;
+  height: 2px;
+  margin-left: -1.5px;
+  margin-top: -1px;
   border-radius: 60% 45% 55% 50%;
   background: radial-gradient(circle at 35% 30%, #f3d089, #c2781a 62%, #7a4a0c 100%);
-  box-shadow: 0 0 5px rgba(194, 120, 26, 0.45);
+  box-shadow: 0 0 2px rgba(194, 120, 26, 0.35);
   pointer-events: none;
 }
 
@@ -494,13 +501,6 @@ body.tank-widewatch #root {
   height: 100%;
   pointer-events: none;
   overflow: hidden;
-}
-
-.ocean-ambience.is-pan .ocean-tank-scenery {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 
 .ocean-ambience.is-tank .ocean-world {
@@ -570,8 +570,8 @@ body.tank-widewatch #root {
 .ocean-tank-rim {
   position: absolute;
   left: 0;
-  right: 0;
   z-index: 6;
+  width: 100%;
 }
 
 .ocean-tank-rim-top {
@@ -592,9 +592,9 @@ body.tank-widewatch #root {
 .ocean-tank-frame {
   position: absolute;
   top: 0;
-  bottom: 0;
   z-index: 7;
-  width: clamp(12px, 1.8%, 28px);
+  width: 16px;
+  height: 100%;
   pointer-events: none;
   background:
     linear-gradient(90deg, rgba(0, 0, 0, 0.55) 0%, transparent 38%, rgba(255, 255, 255, 0.05) 52%, transparent 66%, rgba(0, 0, 0, 0.5) 100%),
@@ -608,6 +608,7 @@ body.tank-widewatch #root {
 }
 
 .ocean-tank-frame-right {
+  left: auto;
   right: 0;
   border-left: 1px solid rgba(0, 0, 0, 0.65);
 }
@@ -677,6 +678,7 @@ body.tank-widewatch #root {
   will-change: transform, filter;
   pointer-events: auto;
   cursor: pointer;
+  touch-action: pan-x pan-y;
   transition: filter 0.16s linear;
 }
 
