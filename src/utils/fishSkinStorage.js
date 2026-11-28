@@ -24,7 +24,7 @@ export const DEFAULT_FISH_SLOTS = 2
 export const MAX_FISH_SLOTS = 50
 
 /** Front-glass tank used for on-screen scale (length × width × height, cm). */
-export const TANK_CM = { length: 300, width: 150, height: 90 }
+export const TANK_CM = { length: 600, width: 150, height: 90 }
 
 /** Typical adult size in cm (betta TL, ray disc, arowana/arapaima TL). */
 export const FISH_ADULT_CM = {
@@ -79,7 +79,7 @@ export function fishBodyAspect(shape, wide) {
   return 0.52
 }
 
-/** Pixels per cm so the 300×90 cm front glass fits the current view. */
+/** Pixels per cm so the 600×90 cm front glass fits the current view. */
 export function tankPxPerCm(viewW, viewH) {
   const w = Math.max(1, Number(viewW) || 1)
   const h = Math.max(1, Number(viewH) || 1)

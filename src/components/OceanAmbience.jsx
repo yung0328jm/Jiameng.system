@@ -85,6 +85,40 @@ export async function exitTankWideWatch() {
   } catch (_) {}
 }
 
+export const TANK_ZOOM_STEPS = [1, 2, 4, 8]
+export const TANK_ZOOM_MAX = 8
+const TANK_ZOOM_EVENT = 'ocean-tank-zoom'
+
+let tankZoom = 1
+
+export function getTankZoom() {
+  return tankZoom
+}
+
+export function setTankZoom(z) {
+  const next = Math.max(1, Math.min(TANK_ZOOM_MAX, Math.round((Number(z) || 1) * 100) / 100))
+  if (Math.abs(next - tankZoom) < 0.001) return tankZoom
+  tankZoom = next
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(TANK_ZOOM_EVENT, { detail: { zoom: next } }))
+  }
+  return next
+}
+
+export function stepTankZoom(dir) {
+  const z = getTankZoom()
+  if (dir > 0) {
+    const nxt = TANK_ZOOM_STEPS.find((s) => s > z + 0.04)
+    return setTankZoom(nxt || TANK_ZOOM_STEPS[TANK_ZOOM_STEPS.length - 1])
+  }
+  const prev = TANK_ZOOM_STEPS.filter((s) => s < z - 0.04)
+  return setTankZoom(prev.length ? prev[prev.length - 1] : 1)
+}
+
+export function resetTankZoom() {
+  return setTankZoom(1)
+}
+
 function isMobile() {
   if (typeof window === 'undefined') return false
   return Math.min(window.innerWidth, window.innerHeight) <= 640
@@ -116,11 +150,14 @@ function layout(mode = 'world', fishCount = 0) {
   const viewH = box.h
   const wide = mode === 'tank' && isTankWideWatch()
   const rotate = wide && viewH > viewW
-  const h = rotate ? viewW : viewH
+  const viewHpx = rotate ? viewW : viewH
   const viewSpan = rotate ? viewH : viewW
-  const tankFrontW = Math.round(h * (TANK_CM.length / TANK_CM.height))
-  const pan = mode === 'tank' && mobile && !wide && viewSpan < tankFrontW
+  const zoom = mode === 'tank' ? getTankZoom() : 1
+  const tankFrontW = Math.round(viewHpx * (TANK_CM.length / TANK_CM.height) * zoom)
+  const worldH = Math.round(viewHpx * zoom)
+  const pan = mode === 'tank' && (viewSpan < tankFrontW || zoom > 1.02)
   const w = pan ? tankFrontW : viewSpan
+  const h = pan ? worldH : viewHpx
   const floor = mode === 'tank' ? (mobile ? 4 : 16) : 8
   return {
     mobile,
@@ -129,27 +166,49 @@ function layout(mode = 'world', fishCount = 0) {
     rotate,
     wrapX: mode === 'world' && mobile,
     viewW,
+    viewH: viewHpx,
     w,
     h,
+    zoom,
     floor,
     top: headerClearance(),
-    cruise: mobile ? 52 : 78,
-    dash: mobile ? 260 : 380,
-    eatRange: mobile ? 36 : 48
+    cruise: (mobile ? 52 : 78) * zoom,
+    dash: (mobile ? 260 : 380) * zoom,
+    eatRange: (mobile ? 36 : 48) * zoom
   }
 }
 
 function mapClientToTank(clientX, clientY, panEl) {
   const vw = window.innerWidth
   const vh = window.innerHeight
+  const sl = panEl?.scrollLeft || 0
+  const st = panEl?.scrollTop || 0
   if (isTankWideWatch() && vh > vw) {
     const w = vh
     const h = vw
     const dx = clientX - vw / 2
     const dy = clientY - vh / 2
-    return { x: -dy + w / 2, y: dx + h / 2 }
+    return { x: -dy + w / 2 + sl, y: dx + h / 2 + st }
   }
-  return { x: clientX + (panEl?.scrollLeft || 0), y: clientY }
+  return { x: clientX + sl, y: clientY + st }
+}
+
+function scaleSimToWorld(state, sx, sy) {
+  if (!state || !(sx !== 1 || sy !== 1)) return
+  ;(state.fish || []).forEach((f) => {
+    f.x *= sx
+    f.y *= sy
+    f.tx = (Number(f.tx) || 0) * sx
+    f.ty = (Number(f.ty) || 0) * sy
+  })
+  ;(state.food || []).forEach((p) => {
+    p.x *= sx
+    p.y *= sy
+  })
+  ;(state.hearts || []).forEach((h) => {
+    h.x *= sx
+    h.y *= sy
+  })
 }
 
 function fishSize(entry, L, form = {}) {
@@ -434,13 +493,18 @@ export default function OceanAmbience({ mode = 'world' }) {
   const rosterRef = useRef(loadRoster(mode, host))
   const bootLayout = typeof window === 'undefined' ? { w: 0, pan: false, wide: false, rotate: false } : layout(mode, (rosterRef.current || []).length)
   const worldWRef = useRef(bootLayout.w)
+  const worldHRef = useRef(bootLayout.h || 0)
   const panFlagRef = useRef(!!bootLayout.pan)
   const wideFlagRef = useRef(!!bootLayout.wide)
   const rotateFlagRef = useRef(!!bootLayout.rotate)
   const [worldW, setWorldW] = useState(bootLayout.w)
+  const [worldH, setWorldH] = useState(bootLayout.h || 0)
   const [pan, setPan] = useState(!!bootLayout.pan)
   const [wide, setWide] = useState(!!bootLayout.wide)
   const [rotate, setRotate] = useState(!!bootLayout.rotate)
+  const [zoom, setZoom] = useState(() => getTankZoom())
+  const zoomRef = useRef(getTankZoom())
+  const pinchRef = useRef(null)
   const [actors, setActors] = useState(() => loadRoster(mode, host).map((f, i) => ({
     ...f,
     x: 40 + i * 80,
@@ -467,12 +531,71 @@ export default function OceanAmbience({ mode = 'world' }) {
     if (mode !== 'tank') return undefined
     if (hidden) {
       exitTankWideWatch()
+      resetTankZoom()
       return undefined
     }
     return () => {
       exitTankWideWatch()
+      resetTankZoom()
     }
   }, [hidden, mode])
+
+  useEffect(() => {
+    if (hidden || mode !== 'tank') return undefined
+    const onZoom = (e) => {
+      const next = Number(e?.detail?.zoom) || getTankZoom()
+      const prev = Math.max(0.01, zoomRef.current || 1)
+      zoomRef.current = next
+      setZoom(next)
+      const el = panRef.current
+      if (!el || Math.abs(prev - next) < 0.001) return
+      const ratio = next / prev
+      const vw = el.clientWidth
+      const vh = el.clientHeight
+      const sl = el.scrollLeft
+      const st = el.scrollTop
+      requestAnimationFrame(() => {
+        el.scrollLeft = Math.max(0, (sl + vw / 2) * ratio - vw / 2)
+        el.scrollTop = Math.max(0, (st + vh / 2) * ratio - vh / 2)
+      })
+    }
+    window.addEventListener(TANK_ZOOM_EVENT, onZoom)
+    const el = panRef.current
+    const distOf = (e) => {
+      if (!e.touches || e.touches.length < 2) return 0
+      const a = e.touches[0]
+      const b = e.touches[1]
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+    }
+    const onStart = (e) => {
+      if (e.touches.length === 2) pinchRef.current = { dist: distOf(e), zoom: getTankZoom() }
+    }
+    const onMove = (e) => {
+      if (!pinchRef.current || e.touches.length !== 2) return
+      e.preventDefault()
+      const d = distOf(e)
+      if (d < 10 || pinchRef.current.dist < 10) return
+      setTankZoom(pinchRef.current.zoom * (d / pinchRef.current.dist))
+    }
+    const onEnd = () => {
+      pinchRef.current = null
+    }
+    if (el) {
+      el.addEventListener('touchstart', onStart, { passive: true })
+      el.addEventListener('touchmove', onMove, { passive: false })
+      el.addEventListener('touchend', onEnd)
+      el.addEventListener('touchcancel', onEnd)
+    }
+    return () => {
+      window.removeEventListener(TANK_ZOOM_EVENT, onZoom)
+      if (el) {
+        el.removeEventListener('touchstart', onStart)
+        el.removeEventListener('touchmove', onMove)
+        el.removeEventListener('touchend', onEnd)
+        el.removeEventListener('touchcancel', onEnd)
+      }
+    }
+  }, [hidden, mode, pan])
 
   useEffect(() => {
     const refresh = () => {
@@ -533,9 +656,16 @@ export default function OceanAmbience({ mode = 'world' }) {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       const L = layout(mode, (rosterRef.current || []).length)
-      if (worldWRef.current !== L.w) {
+      if (worldWRef.current !== L.w || worldHRef.current !== L.h) {
+        const ox = Math.max(1, worldWRef.current || L.w)
+        const oy = Math.max(1, worldHRef.current || L.h)
+        if (sim.current && ox > 8 && oy > 8) {
+          scaleSimToWorld(sim.current, L.w / ox, L.h / oy)
+        }
         worldWRef.current = L.w
+        worldHRef.current = L.h
         setWorldW(L.w)
+        setWorldH(L.h)
       }
       if (panFlagRef.current !== !!L.pan) {
         panFlagRef.current = !!L.pan
@@ -853,7 +983,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           if (!w.waiting) ready += 1
           else if (w.readyAt && w.readyAt < soonest) soonest = w.readyAt
         })
-        const left = soonest < Infinity ? soonest - now : 0
+        const left = soonest < Infinity ? Math.max(0, soonest - Date.now()) : 0
         const anyGrow = currentRoster.some((row) => {
           const w = state.looks?.[row?.id]?.feedWait
           return w && w.reason !== 'adult'
@@ -926,18 +1056,49 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${zoom > 1.02 ? ' is-close' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
       aria-hidden={!wide}
       onPointerDown={(e) => {
         if (!wide) return
         if (!visiting && e.target.closest('.ocean-fish-actor')) return
-        if (e.target.closest('.ocean-fish-owner-tip, .ocean-widewatch-exit')) return
+        if (e.target.closest('.ocean-fish-owner-tip, .ocean-widewatch-exit, .ocean-zoom-bar')) return
         const p = mapClientToTank(e.clientX, e.clientY, panRef.current)
         window.dispatchEvent(new CustomEvent('ocean-feed', { detail: { x: p.x, y: p.y, mapped: true } }))
       }}
     >
       {mode === 'tank' && feedHud ? (
         <div className="ocean-feed-hud">{feedHud}</div>
+      ) : null}
+      {mode === 'tank' ? (
+        <div className="ocean-zoom-bar">
+          <button
+            type="button"
+            className="ocean-zoom-btn"
+            disabled={zoom <= 1.02}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              stepTankZoom(-1)
+            }}
+          >
+            拉開
+          </button>
+          <span className="ocean-zoom-label">{zoom <= 1.02 ? '遠看' : `${zoom % 1 ? zoom.toFixed(1) : zoom}×`}</span>
+          <button
+            type="button"
+            className="ocean-zoom-btn"
+            disabled={zoom >= TANK_ZOOM_MAX - 0.02}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              stepTankZoom(1)
+            }}
+          >
+            走近看
+          </button>
+        </div>
       ) : null}
       {wide ? (
         <button
@@ -953,8 +1114,18 @@ export default function OceanAmbience({ mode = 'world' }) {
           結束橫向
         </button>
       ) : null}
+      <div
+        className="ocean-world"
+        style={
+          (pan || rotate) && worldW
+            ? {
+                width: `${worldW}px`,
+                height: zoom > 1.02 && worldH ? `${worldH}px` : undefined
+              }
+            : undefined
+        }
+      >
       {mode === 'tank' ? <TankScenery /> : null}
-      <div className="ocean-world" style={(pan || rotate) && worldW ? { width: `${worldW}px` } : undefined}>
       {bubbles.map((b) => (
         <span
           key={b.id}

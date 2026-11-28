@@ -2243,7 +2243,7 @@ function nextLocalMidnight(now) {
 }
 
 export function formatFeedCountdown(ms) {
-  const s = Math.max(0, Math.ceil(ms / 1000))
+  const s = Math.max(0, Math.ceil(Math.min(Number(ms) || 0, 24 * 3600000) / 1000))
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const sec = s % 60
@@ -2266,14 +2266,14 @@ export function nextFeedWait(fedAtIso, rec, now = Date.now(), opts = {}) {
     return { waiting: false, ms: 0, text: '', reason: 'adult', ...base }
   }
   if (used >= cap) {
-    const ms = nextLocalMidnight(now) - now
+    const ms = Math.max(0, nextLocalMidnight(now) - now)
     if (ms > 0) return { waiting: true, ms, text: formatFeedCountdown(ms), reason: 'day', ...base }
   }
   const lastCount = Number(rec?.lastCountAt) || 0
   const lastEat = Date.parse(fedAtIso || '') || 0
   const last = Math.max(lastCount, lastEat)
   if (last > 0) {
-    const ms = last + PET_GROWTH_GAP_MS - now
+    const ms = Math.min(PET_GROWTH_GAP_MS, last + PET_GROWTH_GAP_MS - now)
     if (ms > 0) return { waiting: true, ms, text: formatFeedCountdown(ms), reason: 'gap', ...base }
   }
   return { waiting: false, ms: 0, text: '', reason: '', ...base }

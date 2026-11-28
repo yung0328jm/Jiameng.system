@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import OceanAmbience, { enterTankWideWatch } from '../components/OceanAmbience'
+import OceanAmbience, { enterTankWideWatch, stepTankZoom } from '../components/OceanAmbience'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { isTankClosed, listTankVisitors, listVisitTanks, noteTankVisit } from '../utils/petStorage'
@@ -87,6 +87,20 @@ export default function MyTank() {
             className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
           >
             橫向模式
+          </button>
+          <button
+            type="button"
+            onClick={() => stepTankZoom(1)}
+            className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
+          >
+            走近看
+          </button>
+          <button
+            type="button"
+            onClick={() => stepTankZoom(-1)}
+            className="px-4 py-2 rounded-md border border-gray-600/80 bg-black/40 text-sm text-cn-parchment hover:bg-black/55"
+          >
+            拉開
           </button>
           <button
             type="button"
