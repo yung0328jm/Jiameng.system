@@ -911,6 +911,20 @@ function worldRallies(rows, L) {
   }))
 }
 
+function rallyGroupSettled(rally, fishList, sizes) {
+  const limit = Math.max(24, Number(rally?.r) || 48) * 1.35
+  for (let i = 0; i < (fishList || []).length; i += 1) {
+    const fish = fishList[i]
+    if (!fish?._rally || fish._rally.species !== rally.species) continue
+    const size = sizes[i]
+    if (!size) continue
+    const cx = fish.x + size.width * 0.5
+    const cy = fish.y + size.height * 0.5
+    if (Math.hypot(cx - rally.x, cy - rally.y) > limit) return false
+  }
+  return true
+}
+
 function rallyGroupLabel(species, roster) {
   if (!species || species === 'all') return '全部'
   const hit = rosterSpeciesOptions(roster).find((row) => row.key === species)
@@ -1856,7 +1870,11 @@ export default function OceanAmbience({ mode = 'world' }) {
 
       const markLayer = rallyMarkRef.current
       if (markLayer) {
-        const rings = liveRallies.filter((row) => Number.isFinite(row.x) && Number.isFinite(row.y))
+        const rings = liveRallies.filter((row) => (
+          Number.isFinite(row.x)
+          && Number.isFinite(row.y)
+          && !rallyGroupSettled(row, state.fish, sizes)
+        ))
         while (markLayer.childNodes.length > rings.length) markLayer.removeChild(markLayer.lastChild)
         rings.forEach((rally, i) => {
           let ring = markLayer.childNodes[i]
