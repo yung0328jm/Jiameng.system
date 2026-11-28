@@ -1018,6 +1018,23 @@ body.tank-widewatch #root {
   appearance: none;
 }
 
+.ocean-tank-decor.is-bed {
+  z-index: 0;
+  overflow: hidden;
+  transform-origin: 50% 100%;
+  border-radius: 48% 48% 2px 2px / 92% 92% 6px 6px;
+}
+
+.ocean-tank-decor.is-bed .ocean-tank-decor-art {
+  width: 112%;
+  height: 155%;
+  margin-left: -6%;
+  margin-top: -6%;
+  object-fit: cover;
+  object-position: 50% 40%;
+  filter: drop-shadow(0 3px 5px rgba(8, 16, 12, 0.3));
+}
+
 .ocean-ambience.is-tank-edit .ocean-tank-decor {
   pointer-events: auto;
   touch-action: none;

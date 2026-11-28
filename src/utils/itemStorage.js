@@ -22,8 +22,12 @@ export const SHOP_CAT_PLANT = '植物類'
 export const SHOP_CAT_SAND = '底沙類'
 export const SHOP_CAT_DECOR = '擺件'
 export const SHOP_CAT_LIGHT = '燈具'
-const PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss', 'anubias', 'crypt', 'rotala', 'ludwigia', 'hydro', 'buce'])
-const SAND_LOOKS = new Set(['coral', 'brick', 'sand', 'blacksand', 'volcsand', 'quartz'])
+export const PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss', 'anubias', 'crypt', 'rotala', 'ludwigia', 'hydro', 'buce'])
+export const SAND_LOOKS = new Set(['coral', 'brick', 'sand', 'blacksand', 'volcsand', 'quartz'])
+
+export function isSandLook(look) {
+  return SAND_LOOKS.has(String(look || ''))
+}
 
 export function aquariumShopCategory(item) {
   const type = String(item?.type || '')

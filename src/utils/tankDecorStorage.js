@@ -1,4 +1,5 @@
 import { syncKeyToSupabase } from './supabaseSync'
+import { isSandLook } from './itemStorage'
 
 export const TANK_DECORS_KEY = 'jiameng_tank_decors'
 export const TANK_EDIT_EVENT = 'ocean-tank-edit'
@@ -26,6 +27,11 @@ function clampFrac(n, lo = 0.06, hi = 0.94) {
   return Math.max(lo, Math.min(hi, v))
 }
 
+function clampDecorY(look, n) {
+  if (isSandLook(look)) return clampFrac(n, 0.9, 0.985)
+  return clampFrac(n, 0.18, 0.94)
+}
+
 function clampScale(n) {
   const v = Number(n)
   if (!Number.isFinite(v)) return 1
@@ -51,7 +57,7 @@ function normalizeDecor(row) {
     itemId,
     look: String(row?.look || 'plant'),
     x: clampFrac(row?.x),
-    y: clampFrac(row?.y, 0.18, 0.94),
+    y: clampDecorY(row?.look, row?.y == null ? (isSandLook(row?.look) ? 0.97 : 0.72) : row.y),
     scale: clampScale(row?.scale == null ? 1 : row.scale),
     rot: clampRot(row?.rot == null ? 0 : row.rot),
     flip: clampFlip(row?.flip)
@@ -81,7 +87,7 @@ export function placeTankDecor(account, itemId, xFrac, yFrac, look = 'plant') {
       itemId: id,
       look: String(look || 'plant'),
       x: clampFrac(xFrac),
-      y: clampFrac(yFrac, 0.18, 0.94),
+      y: clampDecorY(look, isSandLook(look) ? 0.97 : yFrac),
       scale: 1,
       rot: 0,
       flip: 1
@@ -105,7 +111,7 @@ export function updateTankDecor(account, decorId, patch = {}) {
     return {
       ...row,
       x: patch.x == null ? row.x : clampFrac(patch.x),
-      y: patch.y == null ? row.y : clampFrac(patch.y, 0.18, 0.94),
+      y: patch.y == null ? row.y : clampDecorY(row.look, patch.y),
       scale: patch.scale == null ? row.scale : clampScale(patch.scale),
       rot: patch.rot == null ? row.rot : clampRot(patch.rot),
       flip: patch.flip == null ? row.flip : clampFlip(patch.flip)

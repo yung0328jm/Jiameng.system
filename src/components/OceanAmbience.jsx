@@ -22,7 +22,7 @@ import {
   useFishPotion
 } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
-import { TANK_LIGHT_ITEM_ID, getItem, ITEM_TYPES } from '../utils/itemStorage'
+import { TANK_LIGHT_ITEM_ID, getItem, ITEM_TYPES, PLANT_LOOKS, SAND_LOOKS, isSandLook } from '../utils/itemStorage'
 import { TANK_DECOR_ART } from '../utils/tankDecorArt'
 import { addItemToInventory, getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import {
@@ -299,8 +299,12 @@ function listTankPlaceables(user) {
   }).filter((row) => row && row.qty > 0)
 }
 
-function tankDecorBox(look, worldH) {
+function tankDecorBox(look, worldH, worldW = 0) {
   const h = Math.max(80, Number(worldH) || 160)
+  const ww = Math.max(120, Number(worldW) || Math.round(h * 1.8))
+  if (isSandLook(look)) {
+    return { w: Math.max(220, Math.round(ww * 0.98)), h: Math.max(64, Math.round(h * 0.28)) }
+  }
   if (look === 'wood' || look === 'moss' || look === 'spider' || look === 'redmoor' || look === 'mangrove' || look === 'cholla' || look === 'anubias') {
     return { w: Math.max(72, Math.round(h * 0.58)), h: Math.max(40, Math.round(h * 0.3)) }
   }
@@ -312,9 +316,6 @@ function tankDecorBox(look, worldH) {
   }
   if (look === 'pagoda' || look === 'lantern' || look === 'waterfall') {
     return { w: Math.max(42, Math.round(h * 0.3)), h: Math.max(70, Math.round(h * 0.54)) }
-  }
-  if (look === 'coral' || look === 'brick' || look === 'sand' || look === 'blacksand' || look === 'volcsand' || look === 'quartz') {
-    return { w: Math.max(88, Math.round(h * 0.72)), h: Math.max(28, Math.round(h * 0.2)) }
   }
   if (look === 'cave') return { w: Math.max(60, Math.round(h * 0.44)), h: Math.max(40, Math.round(h * 0.3)) }
   if (look === 'tape' || look === 'rotala' || look === 'ludwigia') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
@@ -2276,7 +2277,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="ocean-tank-edit-row">
-            <p>{moveProp ? '點魚缸換位置' : placeItem ? `按住拖到魚缸擺放${placeItem.name}` : pickProp?.kind === 'light' ? '可拖曳換位置或收回' : pickProp ? '可拖曳、旋轉、鏡向、放大縮小或收回' : '選背包道具拖到魚缸，或拖缸裡的道具'}</p>
+            <p>{moveProp ? '點魚缸換位置' : placeItem ? (isSandLook(placeItem.look) ? `拖到魚缸，${placeItem.name}會鋪在缸底` : `按住拖到魚缸擺放${placeItem.name}`) : pickProp?.kind === 'light' ? '可拖曳換位置或收回' : pickProp?.kind === 'decor' && isSandLook(tankDecors.find((it) => it.id === pickProp.id)?.look) ? '底沙鋪在缸底，可左右拖、鋪寬鋪窄或收回' : pickProp ? '可拖曳、旋轉、鏡向、放大縮小或收回' : '選背包道具拖到魚缸，或拖缸裡的道具'}</p>
             <button
               type="button"
               className="is-cancel"
@@ -2305,7 +2306,7 @@ export default function OceanAmbience({ mode = 'world' }) {
                       if (r.success) setTankDecors(r.decors || [])
                     }}
                   >
-                    縮小
+                    {isSandLook(tankDecors.find((it) => it.id === pickProp.id)?.look) ? '鋪窄' : '縮小'}
                   </button>
                   <button
                     type="button"
@@ -2316,8 +2317,10 @@ export default function OceanAmbience({ mode = 'world' }) {
                       if (r.success) setTankDecors(r.decors || [])
                     }}
                   >
-                    放大
+                    {isSandLook(tankDecors.find((it) => it.id === pickProp.id)?.look) ? '鋪寬' : '放大'}
                   </button>
+                  {isSandLook(tankDecors.find((it) => it.id === pickProp.id)?.look) ? null : (
+                    <>
                   <button
                     type="button"
                     onClick={() => {
@@ -2352,6 +2355,8 @@ export default function OceanAmbience({ mode = 'world' }) {
                   >
                     鏡向
                   </button>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
@@ -2426,13 +2431,11 @@ export default function OceanAmbience({ mode = 'world' }) {
             </div>
           ) : null}
           {(() => {
-            const plantLooks = new Set(['plant', 'fern', 'tape', 'moss', 'anubias', 'crypt', 'rotala', 'ludwigia', 'hydro', 'buce'])
-            const sandLooks = new Set(['coral', 'brick', 'sand', 'blacksand', 'volcsand', 'quartz'])
             const groups = [
               { label: '燈具', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_LIGHT) },
-              { label: '植物類', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && plantLooks.has(row.look)) },
-              { label: '底沙類', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && sandLooks.has(row.look)) },
-              { label: '擺件', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && !plantLooks.has(row.look) && !sandLooks.has(row.look)) }
+              { label: '植物類', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && PLANT_LOOKS.has(row.look)) },
+              { label: '底沙類', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && SAND_LOOKS.has(row.look)) },
+              { label: '擺件', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && !PLANT_LOOKS.has(row.look) && !SAND_LOOKS.has(row.look)) }
             ]
             if (!placeables.length) {
               return <span className="ocean-tank-edit-empty">背包沒有水族道具</span>
@@ -2549,10 +2552,11 @@ export default function OceanAmbience({ mode = 'world' }) {
       {mode === 'tank' ? <TankScenery w={worldW} h={worldH} lights={tankLights} unlit={tankUnlit} shade={daylight.shade} /> : null}
       {mode === 'tank' ? tankDecors.map((row) => {
         const look = row.look || 'plant'
-        const box = tankDecorBox(look, worldH)
+        const sand = isSandLook(look)
+        const box = tankDecorBox(look, worldH, worldW)
         const scale = Number(row.scale) || 1
-        const rot = Number(row.rot) || 0
-        const flip = (Number(row.flip) || 1) < 0 ? -1 : 1
+        const rot = sand ? 0 : (Number(row.rot) || 0)
+        const flip = sand ? 1 : ((Number(row.flip) || 1) < 0 ? -1 : 1)
         const selected = pickProp?.kind === 'decor' && pickProp?.id === row.id
         const inBeam = fishInTankBeam(
           { x: row.x * worldW, y: row.y * worldH },
@@ -2564,13 +2568,15 @@ export default function OceanAmbience({ mode = 'world' }) {
         <button
           key={row.id}
           type="button"
-          className={`ocean-tank-decor is-${look}${selected ? ' is-sel' : ''}${inBeam ? ' is-beam-lit' : ''}`}
+          className={`ocean-tank-decor is-${look}${sand ? ' is-bed' : ''}${selected ? ' is-sel' : ''}${inBeam ? ' is-beam-lit' : ''}`}
           style={{
             left: `${row.x * 100}%`,
-            top: `${row.y * 100}%`,
+            top: `${sand ? 100 : row.y * 100}%`,
             width: `${Math.round(box.w * scale)}px`,
             height: `${Math.round(box.h * scale)}px`,
-            transform: `translate(-50%, -92%) scaleX(${flip}) rotate(${rot}deg)`
+            transform: sand
+              ? 'translate(-50%, -100%)'
+              : `translate(-50%, -92%) scaleX(${flip}) rotate(${rot}deg)`
           }}
           onPointerDown={(e) => {
             e.stopPropagation()
