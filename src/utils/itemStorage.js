@@ -777,11 +777,11 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
         priceSeedVer: TANK_AQUA_PRICE_SEED
       }
     }
-    if (id === FISH_POTION_GROWTH_ID && next.isHidden) {
-      next = { ...next, isHidden: false, description: FISH_POTION_GROWTH_ITEM.description }
-    }
-    if (id === FISH_POTION_GENDER_ID && next.isHidden) {
-      next = { ...next, isHidden: false, description: FISH_POTION_GENDER_ITEM.description }
+    if (
+      (id === FISH_POTION_GROWTH_ID || id === FISH_POTION_GENDER_ID)
+      && Number(next?.potionUnhideVer) !== 20261128
+    ) {
+      next = { ...next, isHidden: false, potionUnhideVer: 20261128 }
     }
     const catalog = FISH_SHOP_CATALOG[id]
     if (catalog) {
