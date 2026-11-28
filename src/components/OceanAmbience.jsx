@@ -44,6 +44,12 @@ import {
   recallTankDecor,
   updateTankDecor
 } from '../utils/tankDecorStorage'
+import {
+  clearAllTankRallies,
+  clearTankRally,
+  listTankRallies,
+  upsertTankRally
+} from '../utils/tankRallyStorage'
 import FishSprite from './FishSprite'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
@@ -554,11 +560,6 @@ function scaleSimToWorld(state, sx, sy) {
     h.x *= sx
     h.y *= sy
   })
-  if (state.rally) {
-    state.rally.x *= sx
-    state.rally.y *= sy
-    state.rally.r *= (Math.abs(sx) + Math.abs(sy)) * 0.5
-  }
 }
 
 function showcaseFishSize(entry, mobile, form = {}) {
@@ -883,19 +884,37 @@ function pickWander(fish, L, size, roamAll = false) {
 }
 
 function rallyRadius(L) {
-  return Math.max(28, Math.min(Number(L?.h) * 0.14, Number(L?.w) * 0.07) || 40)
+  return Math.max(42, Math.min(Number(L?.h) * 0.2, Number(L?.w) * 0.11) || 56)
 }
 
-function fishMatchesRally(entry, look, rally) {
-  if (!rally || !entry) return false
-  if (!rally.species || rally.species === 'all') return true
-  const key = speciesKeyFromRefs({
-    itemId: entry.itemId,
-    key: entry.key,
-    rec: { species: look?.species, itemId: entry.itemId },
-    nick: entry.nick
-  })
-  return key === rally.species
+function fishSpeciesKey(entry, look) {
+  return speciesKeyFromRefs({
+    itemId: entry?.itemId,
+    key: entry?.key,
+    rec: { species: look?.species, itemId: entry?.itemId },
+    nick: entry?.nick
+  }) || entry?.key || ''
+}
+
+function rallyForFish(entry, look, rallies) {
+  if (!entry || !Array.isArray(rallies) || !rallies.length) return null
+  const key = fishSpeciesKey(entry, look)
+  const specific = rallies.find((row) => row.species && row.species !== 'all' && row.species === key)
+  if (specific) return specific
+  return rallies.find((row) => !row.species || row.species === 'all') || null
+}
+
+function worldRallies(rows, L) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    ...clampRallyPoint((Number(row.xf) || 0.5) * L.w, (Number(row.yf) || 0.5) * L.h, L)
+  }))
+}
+
+function rallyGroupLabel(species, roster) {
+  if (!species || species === 'all') return '全部'
+  const hit = rosterSpeciesOptions(roster).find((row) => row.key === species)
+  return hit?.name || species
 }
 
 function rosterSpeciesOptions(roster) {
@@ -1049,6 +1068,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   const rallyMarkRef = useRef(null)
   const rallyIgnoreFeedUntil = useRef(0)
   const tankOwner = visiting ? host : me
+  const [rallyList, setRallyList] = useState(() => (mode === 'tank' ? listTankRallies(visiting ? host : me) : []))
   const [tankLights, setTankLights] = useState(() => listTankLights(tankOwner))
   const tankLightsRef = useRef(tankLights)
   const [lightHudOpen, setLightHudOpen] = useState(false)
@@ -1260,6 +1280,14 @@ export default function OceanAmbience({ mode = 'world' }) {
     const refresh = () => {
       setTankLights(listTankLights(owner))
       setTankDecors(listTankDecors(owner))
+      const rallies = listTankRallies(owner)
+      setRallyList(rallies)
+      if (sim.current) sim.current.rallies = rallies
+      if (rallies.length && rallyPhaseRef.current !== 'pick' && rallyPhaseRef.current !== 'aim') {
+        setRallyPhase('on')
+      } else if (!rallies.length && rallyPhaseRef.current === 'on') {
+        setRallyPhase('')
+      }
       if (!visiting) setPlaceables(listTankPlaceables(getCurrentUser()))
     }
     refresh()
@@ -1270,6 +1298,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         key !== '__ALL__' &&
         key !== 'jiameng_tank_lights' &&
         key !== 'jiameng_tank_decors' &&
+        key !== 'jiameng_tank_rallies' &&
         key !== 'jiameng_inventories'
       ) return
       refresh()
@@ -1368,9 +1397,12 @@ export default function OceanAmbience({ mode = 'world' }) {
   useEffect(() => {
     if (hidden || mode !== 'tank') return undefined
     const onRally = (e) => {
+      if (visiting) return
       const action = e?.detail?.action
       if (action === 'clear') {
-        if (sim.current) sim.current.rally = null
+        const r = clearAllTankRallies(getCurrentUser())
+        if (sim.current) sim.current.rallies = r.rallies || []
+        setRallyList(r.rallies || [])
         setRallyPhase('')
         return
       }
@@ -1378,7 +1410,7 @@ export default function OceanAmbience({ mode = 'world' }) {
     }
     window.addEventListener(TANK_RALLY_EVENT, onRally)
     return () => window.removeEventListener(TANK_RALLY_EVENT, onRally)
-  }, [hidden, mode])
+  }, [hidden, mode, visiting])
 
   useEffect(() => {
     const refresh = () => {
@@ -1429,7 +1461,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       looks: startLooks,
       looksAt: 0,
       breedPairs: mode === 'tank' ? listBreedPairs(host || getCurrentUser()) : [],
-      rally: null,
+      rallies: mode === 'tank' ? listTankRallies(host || getCurrentUser()) : [],
       fish: startRoster.map((entry, i) =>
         spawnFish(i, startRoster.length, L0, fishSize(entry, L0, startLooks[entry.id]), speciesSwimLayer(entry?.key), mode !== 'tank')
       )
@@ -1535,6 +1567,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       const sizes = currentRoster.map((entry, i) =>
         fishSize(entry, L, state.looks?.[entry?.id])
       )
+      const liveRallies = mode === 'tank' ? worldRallies(state.rallies, L) : []
       state.fish.forEach((fish, i) => {
         const size = sizes[i]
         const entry = currentRoster[i]
@@ -1544,9 +1577,8 @@ export default function OceanAmbience({ mode = 'world' }) {
         fish._h = size.height
         fish._layer = speciesSwimLayer(entry?.key)
         fish._headHome = mode === 'tank' && !hungry && !inHomeLayer(fish, L, size)
-        const rallied = mode === 'tank' && fishMatchesRally(entry, look, state.rally)
-        fish._rally = rallied ? state.rally : null
-        fish._roamAll = mode !== 'tank' || hungry || fish._headHome || rallied
+        fish._rally = liveRallies.length ? rallyForFish(entry, look, liveRallies) : null
+        fish._roamAll = mode !== 'tank' || hungry || fish._headHome || !!fish._rally
         clampFish(fish, L, size, fish._layer, fish._roamAll)
       })
 
@@ -1668,12 +1700,14 @@ export default function OceanAmbience({ mode = 'world' }) {
           if (fish._rally) {
             const rcx = fish.x + size.width * 0.5
             const rcy = fish.y + size.height * 0.5
+            const limit = Math.max(24, Number(fish._rally.r) || 48)
             const rd = Math.hypot(rcx - fish._rally.x, rcy - fish._rally.y)
-            if (rd > fish._rally.r * 1.2) {
-              fish.tx = fish._rally.x - size.width * 0.5
-              fish.ty = fish._rally.y - size.height * 0.5
-              fish.dash = rd > fish._rally.r * 1.8
-              fish.turnAt = now + 360
+            if (rd > limit * 1.25) {
+              setFishRallyTarget(fish, L, size, fish._rally)
+              fish.dash = rd > limit * 1.9
+            } else if (!fish.turnAt || now > fish.turnAt) {
+              setFishRallyTarget(fish, L, size, fish._rally)
+              fish.dash = false
             }
           } else if (mode === 'tank' && (!fish.turnAt || now > fish.turnAt)) {
             const slot = entry?.growthSlotId || entry?.id
@@ -1820,18 +1854,23 @@ export default function OceanAmbience({ mode = 'world' }) {
         '♥'
       )
 
-      const mark = rallyMarkRef.current
-      if (mark) {
-        const rally = state.rally
-        if (rally && Number.isFinite(rally.x) && Number.isFinite(rally.y)) {
+      const markLayer = rallyMarkRef.current
+      if (markLayer) {
+        const rings = liveRallies.filter((row) => Number.isFinite(row.x) && Number.isFinite(row.y))
+        while (markLayer.childNodes.length > rings.length) markLayer.removeChild(markLayer.lastChild)
+        rings.forEach((rally, i) => {
+          let ring = markLayer.childNodes[i]
+          if (!ring) {
+            ring = document.createElement('span')
+            ring.className = 'ocean-rally-mark'
+            markLayer.appendChild(ring)
+          }
           const rr = Math.max(16, Number(rally.r) || 32)
-          mark.style.display = 'block'
-          mark.style.width = `${rr * 2}px`
-          mark.style.height = `${rr * 2}px`
-          mark.style.transform = `translate3d(${rally.x - rr}px, ${rally.y - rr}px, 0)`
-        } else {
-          mark.style.display = 'none'
-        }
+          ring.style.display = 'block'
+          ring.style.width = `${rr * 2}px`
+          ring.style.height = `${rr * 2}px`
+          ring.style.transform = `translate3d(${rally.x - rr}px, ${rally.y - rr}px, 0)`
+        })
       }
 
       const nodes = actorNodeRef.current
@@ -1948,12 +1987,17 @@ export default function OceanAmbience({ mode = 'world' }) {
       const y = mapped.y
       if (!Number.isFinite(x) || !Number.isFinite(y) || !sim.current) return
       if (performance.now() < (rallyIgnoreFeedUntil.current || 0)) return
-      if (mode === 'tank' && rallyPhaseRef.current === 'aim') {
+      if (mode === 'tank' && rallyPhaseRef.current === 'aim' && !visiting) {
         const L = stableLayout(mode, (rosterRef.current || []).length)
-        sim.current.rally = {
-          species: rallySpeciesRef.current || 'all',
-          ...clampRallyPoint(x, y, L)
-        }
+        const owner = getCurrentUser()
+        const saved = upsertTankRally(
+          owner,
+          rallySpeciesRef.current || 'all',
+          x / Math.max(1, L.w),
+          y / Math.max(1, L.h)
+        )
+        if (sim.current) sim.current.rallies = saved.rallies || []
+        setRallyList(saved.rallies || [])
         rallyPhaseRef.current = 'on'
         rallyIgnoreFeedUntil.current = performance.now() + 700
         setRallyPhase('on')
@@ -2072,7 +2116,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight || tankEdit ? ' is-place-light' : ''}${tankEdit ? ' is-tank-edit' : ''}${mode === 'tank' ? ` is-unlit is-tod-${daylight.key}` : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' || rallyList.length ? ' is-rally-on' : ''}${placeLight || tankEdit ? ' is-place-light' : ''}${tankEdit ? ' is-tank-edit' : ''}${mode === 'tank' ? ` is-unlit is-tod-${daylight.key}` : ''}`}
       style={
         mode === 'tank' && !rotate
           ? { ['--tank-ui-top']: `${uiTop || 0}px` }
@@ -2097,56 +2141,37 @@ export default function OceanAmbience({ mode = 'world' }) {
       {mode === 'tank' && feedHud ? (
         <div className="ocean-feed-hud">{feedHud}</div>
       ) : null}
-      {mode === 'tank' && (!isMobile() || rallyPhase === 'on') ? (
+      {mode === 'tank' && !isMobile() ? (
         <div className="ocean-zoom-bar">
-          {isMobile() ? null : (
-            <>
-              <button
-                type="button"
-                className="ocean-zoom-btn"
-                disabled={zoom <= fitZoom + 0.02}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  pinchRef.current = { fx: 0.5, fy: 0.5 }
-                  stepTankZoom(-1)
-                }}
-              >
-                拉開
-              </button>
-              <span className="ocean-zoom-label">{zoom <= fitZoom + 0.02 ? '整缸' : zoom < 1.02 ? '遠看' : `${zoom % 1 ? zoom.toFixed(1) : zoom}×`}</span>
-              <button
-                type="button"
-                className="ocean-zoom-btn"
-                disabled={zoom >= TANK_ZOOM_MAX - 0.02}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  pinchRef.current = { fx: 0.5, fy: 0.5 }
-                  stepTankZoom(1)
-                }}
-              >
-                走近看
-              </button>
-            </>
-          )}
-          {rallyPhase === 'on' ? (
-            <button
-              type="button"
-              className="ocean-zoom-btn"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                if (sim.current) sim.current.rally = null
-                setRallyPhase('')
-              }}
-            >
-              解散
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="ocean-zoom-btn"
+            disabled={zoom <= fitZoom + 0.02}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              pinchRef.current = { fx: 0.5, fy: 0.5 }
+              stepTankZoom(-1)
+            }}
+          >
+            拉開
+          </button>
+          <span className="ocean-zoom-label">{zoom <= fitZoom + 0.02 ? '整缸' : zoom < 1.02 ? '遠看' : `${zoom % 1 ? zoom.toFixed(1) : zoom}×`}</span>
+          <button
+            type="button"
+            className="ocean-zoom-btn"
+            disabled={zoom >= TANK_ZOOM_MAX - 0.02}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              pinchRef.current = { fx: 0.5, fy: 0.5 }
+              stepTankZoom(1)
+            }}
+          >
+            走近看
+          </button>
         </div>
       ) : null}
       {mode === 'tank' && rallyPhase === 'pick' ? createPortal(
@@ -2156,7 +2181,7 @@ export default function OceanAmbience({ mode = 'world' }) {
             onPointerDown={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              setRallyPhase(sim.current?.rally ? 'on' : '')
+              setRallyPhase((sim.current?.rallies || []).length ? 'on' : '')
             }}
           />
           <div
@@ -2164,10 +2189,10 @@ export default function OceanAmbience({ mode = 'world' }) {
             style={{ top: Math.max(12, (uiTop || 0) + 8) }}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <p>集結誰？</p>
+            <p>集結誰？可分組多次指定</p>
             <button
               type="button"
-              className={rallySpecies === 'all' ? 'is-on' : ''}
+              className={rallySpecies === 'all' || rallyList.some((row) => row.species === 'all') ? 'is-on' : ''}
               onClick={() => {
                 setRallySpecies('all')
                 setRallyLabel('全部')
@@ -2180,7 +2205,7 @@ export default function OceanAmbience({ mode = 'world' }) {
               <button
                 key={row.key}
                 type="button"
-                className={rallySpecies === row.key ? 'is-on' : ''}
+                className={rallySpecies === row.key || rallyList.some((it) => it.species === row.key) ? 'is-on' : ''}
                 onClick={() => {
                   setRallySpecies(row.key)
                   setRallyLabel(row.name)
@@ -2193,7 +2218,7 @@ export default function OceanAmbience({ mode = 'world' }) {
             <button
               type="button"
               className="is-cancel"
-              onClick={() => setRallyPhase(sim.current?.rally ? 'on' : '')}
+              onClick={() => setRallyPhase((sim.current?.rallies || []).length ? 'on' : '')}
             >
               取消
             </button>
@@ -2207,18 +2232,42 @@ export default function OceanAmbience({ mode = 'world' }) {
         </div>,
         document.body
       ) : null}
-      {mode === 'tank' && rallyPhase === 'on' ? createPortal(
+      {mode === 'tank' && !visiting && rallyPhase !== 'pick' && rallyPhase !== 'aim' && rallyList.length ? createPortal(
         <div className="ocean-rally-hud is-actions" style={{ top: Math.max(12, (uiTop || 0) + 8) }}>
-          <span>集結中 · {rallyLabel}</span>
+          <span>集結中 · {rallyList.map((row) => rallyGroupLabel(row.species, rosterRef.current)).join('、')}</span>
           <button
             type="button"
-            onClick={() => {
-              if (sim.current) sim.current.rally = null
-              setRallyPhase('')
-            }}
+            onClick={() => setRallyPhase('pick')}
           >
-            解散
+            再集結
           </button>
+          {rallyList.map((row) => (
+            <button
+              key={row.species}
+              type="button"
+              onClick={() => {
+                const r = clearTankRally(getCurrentUser(), row.species)
+                if (sim.current) sim.current.rallies = r.rallies || []
+                setRallyList(r.rallies || [])
+                if (!(r.rallies || []).length) setRallyPhase('')
+              }}
+            >
+              解散{rallyGroupLabel(row.species, rosterRef.current)}
+            </button>
+          ))}
+          {rallyList.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => {
+                const r = clearAllTankRallies(getCurrentUser())
+                if (sim.current) sim.current.rallies = []
+                setRallyList([])
+                setRallyPhase('')
+              }}
+            >
+              全部解散
+            </button>
+          ) : null}
         </div>,
         document.body
       ) : null}
@@ -2579,7 +2628,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         />
       ))}
 
-      <span ref={rallyMarkRef} className="ocean-rally-mark" />
+      <div ref={rallyMarkRef} className="ocean-rally-marks" />
       <div ref={foodLayerRef} className="ocean-float-layer" />
       <div ref={heartLayerRef} className="ocean-float-layer is-hearts" />
 

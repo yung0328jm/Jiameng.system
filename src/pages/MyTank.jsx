@@ -88,13 +88,15 @@ export default function MyTank() {
           >
             橫向
           </button>
-          <button
-            type="button"
-            onClick={() => openTankRally()}
-            className="shrink-0 px-2.5 py-1.5 rounded-md border border-cn-gold/50 bg-black/40 text-xs sm:text-sm text-cn-gold hover:bg-black/55"
-          >
-            集結
-          </button>
+          {!visiting ? (
+            <button
+              type="button"
+              onClick={() => openTankRally()}
+              className="shrink-0 px-2.5 py-1.5 rounded-md border border-cn-gold/50 bg-black/40 text-xs sm:text-sm text-cn-gold hover:bg-black/55"
+            >
+              集結
+            </button>
+          ) : null}
           {!visiting ? (
             <button
               type="button"

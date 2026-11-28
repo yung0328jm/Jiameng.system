@@ -417,12 +417,19 @@ body.tank-widewatch #root {
   pointer-events: none;
 }
 
+.ocean-rally-marks {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .ocean-rally-mark {
   position: absolute;
   left: 0;
   top: 0;
   z-index: 1;
-  display: none;
+  display: block;
   border: 2px dashed rgba(250, 204, 21, 0.72);
   border-radius: 50%;
   box-shadow: 0 0 16px rgba(250, 204, 21, 0.28);
@@ -455,8 +462,13 @@ body.tank-widewatch #root {
 .ocean-rally-hud.is-actions {
   pointer-events: auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  max-width: min(96vw, 720px);
+  white-space: normal;
+  border-radius: 16px;
 }
 
 .ocean-rally-hud button {
