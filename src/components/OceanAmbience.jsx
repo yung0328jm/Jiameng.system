@@ -2300,11 +2300,11 @@ export default function OceanAmbience({ mode = 'world' }) {
             </div>
           ) : null}
           {(() => {
-            const liveLooks = new Set(['plant', 'fern', 'tape', 'moss'])
+            const plantLooks = new Set(['plant', 'fern', 'tape', 'moss'])
             const groups = [
               { label: '燈具', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_LIGHT) },
-              { label: '活體', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && liveLooks.has(row.look)) },
-              { label: '擺件', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && !liveLooks.has(row.look)) }
+              { label: '植物類', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && plantLooks.has(row.look)) },
+              { label: '擺件', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && !plantLooks.has(row.look)) }
             ]
             if (!placeables.length) {
               return <span className="ocean-tank-edit-empty">背包沒有水族道具</span>

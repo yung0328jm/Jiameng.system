@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment, useCallback, useMemo } from 'react'
-import { getItems, createItem, updateItem, deleteItem, setItems, ITEM_TYPES, SHOP_CAT_LIVE, SHOP_CAT_DECOR, SHOP_CAT_LIGHT } from '../utils/itemStorage'
+import { getItems, createItem, updateItem, deleteItem, setItems, ITEM_TYPES, SHOP_CAT_LIVE, SHOP_CAT_PLANT, SHOP_CAT_DECOR, SHOP_CAT_LIGHT } from '../utils/itemStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
@@ -54,7 +54,7 @@ function ExchangeShop() {
       const prev = map.get(key) || { key, label, count: 0 }
       map.set(key, { ...prev, count: prev.count + 1 })
     })
-    const pin = [SHOP_CAT_LIVE, SHOP_CAT_DECOR, SHOP_CAT_LIGHT]
+    const pin = [SHOP_CAT_LIVE, SHOP_CAT_PLANT, SHOP_CAT_DECOR, SHOP_CAT_LIGHT]
     return Array.from(map.values()).sort((a, b) => {
       const ia = pin.indexOf(a.label)
       const ib = pin.indexOf(b.label)
@@ -741,6 +741,7 @@ function ExchangeShop() {
           {[
             { key: 'all', label: '全部' },
             { key: SHOP_CAT_LIVE, label: '活體' },
+            { key: SHOP_CAT_PLANT, label: '植物類' },
             { key: SHOP_CAT_DECOR, label: '擺件' },
             { key: SHOP_CAT_LIGHT, label: '燈具' }
           ].map((row) => (
@@ -1092,7 +1093,7 @@ function ExchangeShop() {
                     list="exchange-shop-category-list"
                     value={itemForm.category}
                     onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
-                    placeholder="例如：活體 / 擺件 / 燈具"
+                    placeholder="例如：活體 / 植物類 / 擺件 / 燈具"
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                   />
                   <datalist id="exchange-shop-category-list">

@@ -18,16 +18,17 @@ export const ITEM_TYPES = {
 }
 
 export const SHOP_CAT_LIVE = '活體'
+export const SHOP_CAT_PLANT = '植物類'
 export const SHOP_CAT_DECOR = '擺件'
 export const SHOP_CAT_LIGHT = '燈具'
-const LIVE_PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss'])
+const PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss'])
 
 export function aquariumShopCategory(item) {
   const type = String(item?.type || '')
   if (type === ITEM_TYPES.FISH_SKIN) return SHOP_CAT_LIVE
   if (type === ITEM_TYPES.TANK_LIGHT) return SHOP_CAT_LIGHT
   if (type === ITEM_TYPES.TANK_DECOR) {
-    return LIVE_PLANT_LOOKS.has(String(item?.look || '')) ? SHOP_CAT_LIVE : SHOP_CAT_DECOR
+    return PLANT_LOOKS.has(String(item?.look || '')) ? SHOP_CAT_PLANT : SHOP_CAT_DECOR
   }
   return String(item?.category || '').trim()
 }
@@ -349,7 +350,7 @@ const TANK_PLANT_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🌿',
   price: 12,
-  category: SHOP_CAT_LIVE,
+  category: SHOP_CAT_PLANT,
   createdAt: new Date().toISOString()
 }
 
@@ -397,7 +398,7 @@ const TANK_FERN_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🌱',
   price: 13,
-  category: SHOP_CAT_LIVE,
+  category: SHOP_CAT_PLANT,
   createdAt: new Date().toISOString()
 }
 
@@ -409,7 +410,7 @@ const TANK_MOSS_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🍃',
   price: 14,
-  category: SHOP_CAT_LIVE,
+  category: SHOP_CAT_PLANT,
   createdAt: new Date().toISOString()
 }
 
@@ -433,7 +434,7 @@ const TANK_TAPE_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🌾',
   price: 11,
-  category: SHOP_CAT_LIVE,
+  category: SHOP_CAT_PLANT,
   createdAt: new Date().toISOString()
 }
 
