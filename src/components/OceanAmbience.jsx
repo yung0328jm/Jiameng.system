@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { FISH_PACKS, getFishSpeciesName, speciesAdultScale, speciesKeyFromRefs, speciesSwimLayer } from '../utils/fishSkinStorage'
+import { FISH_ADULT_CM, FISH_PACKS, TANK_CM, fishScreenSize, getFishSpeciesName, speciesKeyFromRefs, speciesSwimLayer } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getShowcaseWorldRoster,
@@ -12,7 +12,6 @@ import {
   formatFeedCountdown,
   hungerStatus,
   nextFeedWait,
-  spriteLengthRatio,
   listBreedPairs,
   listOwnedFishPotions,
   recentHelpers,
@@ -102,16 +101,27 @@ function headerClearance() {
   return isMobile() ? 128 : 148
 }
 
+function viewBox() {
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null
+  return {
+    w: Math.max(1, Math.round(vv?.width || window.innerWidth || 1)),
+    h: Math.max(1, Math.round(vv?.height || window.innerHeight || 1))
+  }
+}
+
 function layout(mode = 'world', fishCount = 0) {
   const mobile = isMobile()
-  const viewW = window.innerWidth
-  const viewH = window.innerHeight
+  const box = viewBox()
+  const viewW = box.w
+  const viewH = box.h
   const wide = mode === 'tank' && isTankWideWatch()
   const rotate = wide && viewH > viewW
-  const pan = false
-  const w = rotate ? viewH : viewW
   const h = rotate ? viewW : viewH
-  const floor = mode === 'tank' ? 16 : 8
+  const viewSpan = rotate ? viewH : viewW
+  const tankFrontW = Math.round(h * (TANK_CM.length / TANK_CM.height))
+  const pan = mode === 'tank' && mobile && !wide && viewSpan < tankFrontW
+  const w = pan ? tankFrontW : viewSpan
+  const floor = mode === 'tank' ? (mobile ? 4 : 16) : 8
   return {
     mobile,
     pan,
@@ -142,45 +152,12 @@ function mapClientToTank(clientX, clientY, panEl) {
   return { x: clientX + (panEl?.scrollLeft || 0), y: clientY }
 }
 
-function baseFishSize(entry, mobile) {
-  const sp = speciesAdultScale(entry?.key)
-  if (entry?.shape === 'ray' || entry?.shape === 'turtle') {
-    const w = Math.round((mobile ? 70 : 118) * sp)
-    return { width: w, height: Math.round(w * (entry?.shape === 'turtle' ? 0.72 : 0.58)) }
-  }
-  if (entry?.shape === 'cichlid') {
-    const w = Math.round((mobile ? 78 : 132) * sp)
-    return { width: w, height: Math.round(w * 0.56) }
-  }
-  if (entry?.shape === 'shark') {
-    const w = Math.round((mobile ? 90 : 152) * sp)
-    return { width: w, height: Math.round(w * 0.46) }
-  }
-  if (entry?.shape === 'koi') {
-    const w = Math.round((mobile ? 86 : 146) * sp)
-    return { width: w, height: Math.round(w * 0.5) }
-  }
-  if (entry?.shape === 'giant') {
-    const w = Math.round((mobile ? 96 : 160) * sp)
-    return { width: w, height: Math.round(w * 0.28) }
-  }
-  if (entry?.wide) {
-    const w = Math.round((mobile ? 88 : 148) * sp)
-    return { width: w, height: Math.round(w * 0.32) }
-  }
-  const w = Math.round((mobile ? 72 : 128) * sp)
-  return { width: w, height: Math.round(w * 0.52) }
-}
-
-function fishSize(entry, index, mobile, scale = 1, form = {}) {
-  const base = baseFishSize(entry, mobile)
-  const s = spriteLengthRatio(form, entry?.key)
+function fishSize(entry, L, form = {}) {
+  const cm = Number(form.lengthCm)
+  const lengthCm = Number.isFinite(cm) && cm > 0 ? cm : (FISH_ADULT_CM[entry?.key] || FISH_ADULT_CM.betta)
   const length = Number(form.lengthMul) > 0 ? form.lengthMul : 1
   const girth = Number(form.girthMul) > 0 ? form.girthMul : 1
-  return {
-    width: Math.max(36, Math.round(base.width * s)),
-    height: Math.max(20, Math.round(base.height * s * (girth / length)))
-  }
+  return fishScreenSize(lengthCm, L?.w, L?.h, entry?.shape, entry?.wide, girth / length)
 }
 
 function tankBeam(L) {
@@ -545,7 +522,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       looksAt: 0,
       breedPairs: mode === 'tank' ? listBreedPairs(host || getCurrentUser()) : [],
       fish: startRoster.map((entry, i) =>
-        spawnFish(i, startRoster.length, L0, fishSize(entry, i, L0.mobile, startLooks[entry.id]?.scale, startLooks[entry.id]), speciesSwimLayer(entry?.key), mode !== 'tank')
+        spawnFish(i, startRoster.length, L0, fishSize(entry, L0, startLooks[entry.id]), speciesSwimLayer(entry?.key), mode !== 'tank')
       )
     }
 
@@ -594,7 +571,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       while (state.fish.length < currentRoster.length) {
         const i = state.fish.length
         const look = state.looks?.[currentRoster[i]?.id] || {}
-        const size = fishSize(currentRoster[i], i, L.mobile, look.scale, look)
+        const size = fishSize(currentRoster[i], L, look)
         state.fish.push(spawnFish(i, currentRoster.length, L, size, speciesSwimLayer(currentRoster[i]?.key), mode !== 'tank'))
       }
       if (state.fish.length > currentRoster.length) {
@@ -623,7 +600,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       })
 
       const sizes = currentRoster.map((entry, i) =>
-        fishSize(entry, i, L.mobile, state.looks?.[entry?.id]?.scale, state.looks?.[entry?.id])
+        fishSize(entry, L, state.looks?.[entry?.id])
       )
       state.fish.forEach((fish, i) => {
         const size = sizes[i]
@@ -835,7 +812,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           nick: entry.nick
         })
         const pack = FISH_PACKS[speciesKey] || FISH_PACKS[entry.key] || FISH_PACKS.betta
-        const size = sizes[i] || fishSize({ ...entry, key: pack.key, wide: pack.wide, shape: pack.shape || 'fish' }, i, L.mobile, look.scale, look)
+        const size = sizes[i] || fishSize({ ...entry, key: pack.key, wide: pack.wide, shape: pack.shape || 'fish' }, L, look)
         const art = look.art === 'b' ? 'b' : 'a'
         return {
           id: entry.id || `fish-${i}`,

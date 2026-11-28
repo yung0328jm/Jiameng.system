@@ -23,6 +23,9 @@ import {
 export const DEFAULT_FISH_SLOTS = 2
 export const MAX_FISH_SLOTS = 50
 
+/** Front-glass tank used for on-screen scale (length × width × height, cm). */
+export const TANK_CM = { length: 300, width: 150, height: 90 }
+
 /** Typical adult size in cm (betta TL, ray disc, arowana/arapaima TL). */
 export const FISH_ADULT_CM = {
   betta: 7,
@@ -63,6 +66,38 @@ export function speciesAdultScale(speciesKey) {
   const adult = FISH_ADULT_CM[speciesKey] || FISH_ADULT_CM.betta
   const raw = Math.pow(adult / FISH_ADULT_CM.betta, 0.36)
   return Math.min(2.2, Math.max(0.92, raw))
+}
+
+export function fishBodyAspect(shape, wide) {
+  if (shape === 'turtle') return 0.72
+  if (shape === 'ray') return 0.58
+  if (shape === 'cichlid') return 0.56
+  if (shape === 'shark') return 0.46
+  if (shape === 'koi') return 0.5
+  if (shape === 'giant') return 0.28
+  if (wide) return 0.32
+  return 0.52
+}
+
+/** Pixels per cm so the 300×90 cm front glass fits the current view. */
+export function tankPxPerCm(viewW, viewH) {
+  const w = Math.max(1, Number(viewW) || 1)
+  const h = Math.max(1, Number(viewH) || 1)
+  return Math.min(w / TANK_CM.length, h / TANK_CM.height)
+}
+
+export function fishScreenSize(lengthCm, viewW, viewH, shape, wide, girthRatio = 1) {
+  const cm = Math.max(0.5, Number(lengthCm) || FISH_ADULT_CM.betta)
+  const px = tankPxPerCm(viewW, viewH)
+  const width = Math.max(8, Math.round(cm * px))
+  const aspect = fishBodyAspect(shape, wide) * (Number(girthRatio) > 0 ? girthRatio : 1)
+  let height = Math.max(5, Math.round(width * aspect))
+  const maxH = Math.max(5, Math.round(TANK_CM.height * px * 0.92))
+  if (height > maxH && height > 0) {
+    const k = maxH / height
+    return { width: Math.max(8, Math.round(width * k)), height: maxH }
+  }
+  return { width, height }
 }
 
 /** Water-column band: top / upperMid / mid / lowerMid / bottom. */
