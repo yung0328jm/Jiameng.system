@@ -1,5 +1,8 @@
 import { syncKeyToSupabase } from './supabaseSync'
 import { getCurrentUser } from './authStorage'
+import { getUsers } from './storage'
+import { getDisplayNameForAccount } from './displayName'
+import { getDropdownOptionsByCategory } from './dropdownStorage'
 import { isGuestAccount, isGuestCloudWriteBlocked } from './guestAuth'
 import { getAllEquippedEffects } from './effectStorage'
 import {
@@ -1162,16 +1165,29 @@ export function recordPetEat(username, slotId, itemId, speciesKey, helperAccount
 
 export function listVisitTanks(viewer) {
   const me = String(viewer || '').trim()
-  const all = readAll()
+  const seen = new Set()
   const out = []
-  Object.keys(all).forEach((owner) => {
-    const acc = String(owner || '').trim()
-    if (!acc || acc === me || isGuestAccount(acc)) return
-    const count = listRoamingSlotIds(acc).length
-    if (count <= 0) return
-    out.push({ account: acc, count })
-  })
-  out.sort((a, b) => a.account.localeCompare(b.account, 'zh-Hant'))
+  const add = (raw) => {
+    const acc = String(raw || '').trim()
+    if (!acc || acc === me || isGuestAccount(acc) || seen.has(acc)) return
+    seen.add(acc)
+    out.push({ account: acc, count: listRoamingSlotIds(acc).length })
+  }
+  try {
+    ;(getUsers() || []).forEach((u) => {
+      if (String(u?.role || '') === 'resigned') return
+      add(u?.account)
+    })
+  } catch (_) {}
+  try {
+    ;['participants', 'responsible_persons'].forEach((cat) => {
+      ;(getDropdownOptionsByCategory(cat) || []).forEach((opt) => add(opt?.boundAccount))
+    })
+  } catch (_) {}
+  Object.keys(readAll()).forEach(add)
+  out.sort((a, b) =>
+    getDisplayNameForAccount(a.account).localeCompare(getDisplayNameForAccount(b.account), 'zh-Hant')
+  )
   return out
 }
 
