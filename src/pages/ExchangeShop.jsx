@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment, useCallback, useMemo } from 'react'
-import { getItems, createItem, updateItem, deleteItem, setItems, ITEM_TYPES } from '../utils/itemStorage'
+import { getItems, createItem, updateItem, deleteItem, setItems, ITEM_TYPES, SHOP_CAT_LIVE, SHOP_CAT_DECOR, SHOP_CAT_LIGHT } from '../utils/itemStorage'
 import { addItemToInventory } from '../utils/inventoryStorage'
 import { getWalletBalance, subtractWalletBalance, addTransaction } from '../utils/walletStorage'
 import { getCurrentUserRole, getCurrentUser } from '../utils/authStorage'
@@ -54,7 +54,17 @@ function ExchangeShop() {
       const prev = map.get(key) || { key, label, count: 0 }
       map.set(key, { ...prev, count: prev.count + 1 })
     })
-    return Array.from(map.values()).sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label, 'zh-Hant'))
+    const pin = [SHOP_CAT_LIVE, SHOP_CAT_DECOR, SHOP_CAT_LIGHT]
+    return Array.from(map.values()).sort((a, b) => {
+      const ia = pin.indexOf(a.label)
+      const ib = pin.indexOf(b.label)
+      if (ia !== -1 || ib !== -1) {
+        if (ia === -1) return 1
+        if (ib === -1) return -1
+        return ia - ib
+      }
+      return (b.count - a.count) || a.label.localeCompare(b.label, 'zh-Hant')
+    })
   }, [shopItems])
 
   const filteredItems = useMemo(() => {
@@ -727,6 +737,27 @@ function ExchangeShop() {
         )}
 
         {/* 分類/搜尋（避免幾百種難找） */}
+        <div className="mb-2 flex flex-wrap gap-2">
+          {[
+            { key: 'all', label: '全部' },
+            { key: SHOP_CAT_LIVE, label: '活體' },
+            { key: SHOP_CAT_DECOR, label: '擺件' },
+            { key: SHOP_CAT_LIGHT, label: '燈具' }
+          ].map((row) => (
+            <button
+              key={row.key}
+              type="button"
+              onClick={() => setCategoryFilter(row.key)}
+              className={`min-h-[40px] px-3 py-1.5 rounded-full text-sm font-semibold border ${
+                categoryFilter === row.key
+                  ? 'bg-yellow-400 text-gray-900 border-yellow-300'
+                  : 'bg-gray-800 text-gray-200 border-gray-600'
+              }`}
+            >
+              {row.label}
+            </button>
+          ))}
+        </div>
         <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row gap-2 sm:items-center">
           <input
             value={searchText}
@@ -1035,7 +1066,14 @@ function ExchangeShop() {
                   <label className="block text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2">道具類型</label>
                   <select
                     value={itemForm.type}
-                    onChange={(e) => setItemForm({ ...itemForm, type: e.target.value })}
+                    onChange={(e) => {
+                      const type = e.target.value
+                      let category = itemForm.category
+                      if (type === ITEM_TYPES.FISH_SKIN) category = SHOP_CAT_LIVE
+                      if (type === ITEM_TYPES.TANK_LIGHT) category = SHOP_CAT_LIGHT
+                      if (type === ITEM_TYPES.TANK_DECOR) category = SHOP_CAT_DECOR
+                      setItemForm({ ...itemForm, type, category })
+                    }}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white focus:outline-none focus:border-yellow-400 text-sm"
                   >
                     <option value="general">一般道具</option>
@@ -1043,7 +1081,7 @@ function ExchangeShop() {
                     <option value="special">特殊道具</option>
                     <option value="fish_skin">魚類（進我的寵物）</option>
                     <option value="tank_light">魚缸燈（桶燈／調色／排燈）</option>
-                    <option value="tank_decor">水族道具</option>
+                    <option value="tank_decor">水族擺件</option>
                   </select>
                 </div>
 
@@ -1054,7 +1092,7 @@ function ExchangeShop() {
                     list="exchange-shop-category-list"
                     value={itemForm.category}
                     onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
-                    placeholder="例如：咖啡 / 票券 / 特殊"
+                    placeholder="例如：活體 / 擺件 / 燈具"
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 sm:px-4 sm:py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 text-sm"
                   />
                   <datalist id="exchange-shop-category-list">

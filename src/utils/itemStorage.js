@@ -17,6 +17,21 @@ export const ITEM_TYPES = {
   TANK_DECOR: 'tank_decor'
 }
 
+export const SHOP_CAT_LIVE = '活體'
+export const SHOP_CAT_DECOR = '擺件'
+export const SHOP_CAT_LIGHT = '燈具'
+const LIVE_PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss'])
+
+export function aquariumShopCategory(item) {
+  const type = String(item?.type || '')
+  if (type === ITEM_TYPES.FISH_SKIN) return SHOP_CAT_LIVE
+  if (type === ITEM_TYPES.TANK_LIGHT) return SHOP_CAT_LIGHT
+  if (type === ITEM_TYPES.TANK_DECOR) {
+    return LIVE_PLANT_LOOKS.has(String(item?.look || '')) ? SHOP_CAT_LIVE : SHOP_CAT_DECOR
+  }
+  return String(item?.category || '').trim()
+}
+
 export const FISH_POTION_HEAT_ID = 'fish_potion_heat'
 export const FISH_POTION_AFFECTION_ID = 'fish_potion_affection'
 export const FISH_POTION_BIRTH_ID = 'fish_potion_birth'
@@ -334,7 +349,7 @@ const TANK_PLANT_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🌿',
   price: 12,
-  category: '水族佈置',
+  category: SHOP_CAT_LIVE,
   createdAt: new Date().toISOString()
 }
 
@@ -346,7 +361,7 @@ const TANK_WOOD_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🪵',
   price: 16,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -358,7 +373,7 @@ const TANK_ROCK_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🪨',
   price: 14,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -370,7 +385,7 @@ const TANK_CAVE_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🛖',
   price: 15,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -382,7 +397,7 @@ const TANK_FERN_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🌱',
   price: 13,
-  category: '水族佈置',
+  category: SHOP_CAT_LIVE,
   createdAt: new Date().toISOString()
 }
 
@@ -394,7 +409,7 @@ const TANK_MOSS_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🍃',
   price: 14,
-  category: '水族佈置',
+  category: SHOP_CAT_LIVE,
   createdAt: new Date().toISOString()
 }
 
@@ -406,7 +421,7 @@ const TANK_LAVA_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🌋',
   price: 13,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -418,7 +433,7 @@ const TANK_TAPE_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🌾',
   price: 11,
-  category: '水族佈置',
+  category: SHOP_CAT_LIVE,
   createdAt: new Date().toISOString()
 }
 
@@ -430,7 +445,7 @@ const TANK_DRAGON_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🐉',
   price: 22,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -442,7 +457,7 @@ const TANK_PIXIU_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🦁',
   price: 20,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -454,7 +469,7 @@ const TANK_BUDDHA_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🪷',
   price: 18,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -466,7 +481,7 @@ const TANK_GUANYIN_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🙏',
   price: 18,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -478,7 +493,7 @@ const TANK_CAISHEN_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🧧',
   price: 19,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -490,7 +505,7 @@ const TANK_TOAD_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🐸',
   price: 16,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }
 
@@ -519,7 +534,7 @@ const TANK_SCAPE_SHOP_ITEMS = [
   ...row,
   type: 'tank_decor',
   description: TANK_DECOR_DESC,
-  category: '水族佈置',
+  category: '擺件',
   createdAt: new Date().toISOString()
 }))
 
@@ -533,7 +548,7 @@ const TANK_LIGHT_SHOP_ITEM = {
   description: TANK_LIGHT_DESC,
   icon: '💡',
   price: 18,
-  category: '水族佈置',
+  category: SHOP_CAT_LIGHT,
   createdAt: new Date().toISOString()
 }
 
@@ -545,7 +560,7 @@ const TANK_LIGHT_COLOR_SHOP_ITEM = {
   description: '白光、藍光、紅光可切換。每盞有獨立開關。',
   icon: '🔵',
   price: 24,
-  category: '水族佈置',
+  category: SHOP_CAT_LIGHT,
   createdAt: new Date().toISOString()
 }
 
@@ -557,7 +572,7 @@ const TANK_LIGHT_BAR_SHOP_ITEM = {
   description: '長條燈，約兩盞可罩滿整缸長度。每盞有獨立開關。',
   icon: '▬',
   price: 28,
-  category: '水族佈置',
+  category: SHOP_CAT_LIGHT,
   createdAt: new Date().toISOString()
 }
 
@@ -656,6 +671,10 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
     }
     if (id === TANK_LIGHT_ITEM_ID && (it?.name !== TANK_LIGHT_SHOP_ITEM.name || it?.look !== 'barrel')) {
       next = { ...next, name: TANK_LIGHT_SHOP_ITEM.name, look: 'barrel', description: TANK_LIGHT_DESC, icon: TANK_LIGHT_SHOP_ITEM.icon }
+    }
+    const aquaCat = aquariumShopCategory(next)
+    if (aquaCat && String(next?.category || '') !== aquaCat && (next?.type === ITEM_TYPES.FISH_SKIN || next?.type === ITEM_TYPES.TANK_LIGHT || next?.type === ITEM_TYPES.TANK_DECOR)) {
+      next = { ...next, category: aquaCat }
     }
     if ((id === FISH_POTION_GROWTH_ID || id === FISH_POTION_GENDER_ID) && !next.isHidden) {
       next = { ...next, isHidden: true }

@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
-import { getItems, ITEM_TYPES } from '../utils/itemStorage'
+import { getItems, ITEM_TYPES, SHOP_CAT_LIVE, SHOP_CAT_DECOR, SHOP_CAT_LIGHT, aquariumShopCategory } from '../utils/itemStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { createExchangeRequest, getUserExchangeRequests } from '../utils/exchangeRequestStorage'
 import { getEquippedEffects, equipEffect, unequipEffect } from '../utils/effectStorage'
@@ -19,6 +19,7 @@ function MyBackpack() {
   const [exchangeRequests, setExchangeRequests] = useState([])
   const [equippedEffects, setEquippedEffects] = useState({})
   const [previewItemId, setPreviewItemId] = useState(null) // 點擊預覽時顯示的道具 id
+  const [packFilter, setPackFilter] = useState('all')
 
   const refetchBackpack = () => {
     const user = getCurrentUser()
@@ -232,6 +233,30 @@ function MyBackpack() {
           </div>
         </div>
 
+        {inventory.length > 0 ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {[
+              { key: 'all', label: '全部' },
+              { key: SHOP_CAT_LIVE, label: '活體' },
+              { key: SHOP_CAT_DECOR, label: '擺件' },
+              { key: SHOP_CAT_LIGHT, label: '燈具' }
+            ].map((row) => (
+              <button
+                key={row.key}
+                type="button"
+                onClick={() => setPackFilter(row.key)}
+                className={`min-h-[40px] px-3 py-1.5 rounded-full text-sm font-semibold border ${
+                  packFilter === row.key
+                    ? 'bg-purple-400 text-gray-900 border-purple-300'
+                    : 'bg-gray-800 text-gray-200 border-gray-600'
+                }`}
+              >
+                {row.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {/* 道具列表 */}
         {inventory.length === 0 ? (
           <div className="text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
@@ -241,7 +266,11 @@ function MyBackpack() {
           </div>
         ) : (
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-1 sm:gap-2">
-            {inventory.map((raw) => {
+            {inventory.filter((raw) => {
+              if (packFilter === 'all') return true
+              const cat = aquariumShopCategory(raw.item) || String(raw.item?.category || '').trim()
+              return cat === packFilter
+            }).map((raw) => {
               const invItem = { ...raw, displayKey: raw.itemId, displayName: raw.name, isFishCard: false }
               const fullCardEl = (
                 <div

@@ -2299,24 +2299,36 @@ export default function OceanAmbience({ mode = 'world' }) {
               </button>
             </div>
           ) : null}
-          <div className="ocean-tank-edit-row">
-            {placeables.length ? placeables.map((row) => (
-              <button
-                key={row.itemId}
-                type="button"
-                className={placeItem?.itemId === row.itemId ? 'is-on' : ''}
-                onClick={() => {
-                  setPlaceItem(row)
-                  setPickProp(null)
-                  setMoveProp(false)
-                }}
-              >
-                {row.icon} {row.name} ×{row.qty}
-              </button>
-            )) : (
-              <span className="ocean-tank-edit-empty">背包沒有水族道具</span>
-            )}
-          </div>
+          {(() => {
+            const liveLooks = new Set(['plant', 'fern', 'tape', 'moss'])
+            const groups = [
+              { label: '燈具', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_LIGHT) },
+              { label: '活體', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && liveLooks.has(row.look)) },
+              { label: '擺件', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && !liveLooks.has(row.look)) }
+            ]
+            if (!placeables.length) {
+              return <span className="ocean-tank-edit-empty">背包沒有水族道具</span>
+            }
+            return groups.filter((g) => g.rows.length).map((g) => (
+              <div key={g.label} className="ocean-tank-edit-row">
+                <p>{g.label}</p>
+                {g.rows.map((row) => (
+                  <button
+                    key={row.itemId}
+                    type="button"
+                    className={placeItem?.itemId === row.itemId ? 'is-on' : ''}
+                    onClick={() => {
+                      setPlaceItem(row)
+                      setPickProp(null)
+                      setMoveProp(false)
+                    }}
+                  >
+                    {row.icon} {row.name} ×{row.qty}
+                  </button>
+                ))}
+              </div>
+            ))
+          })()}
         </div>,
         document.body
       ) : null}
