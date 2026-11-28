@@ -229,12 +229,23 @@ body {
   background: #0b0a09;
 }
 
-.ocean-ambience.is-tank.is-fit .ocean-world {
+.ocean-tank-shell {
+  position: relative;
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
   max-width: 100%;
+}
+
+.ocean-ambience.is-tank.is-fit .ocean-tank-shell {
   box-shadow:
     0 22px 48px rgba(0, 0, 0, 0.62),
     0 0 0 1px rgba(20, 14, 10, 0.9);
+}
+
+.ocean-ambience.is-tank.is-fit .ocean-world {
+  flex: 0 0 auto;
+  max-width: 100%;
 }
 
 .ocean-ambience.is-pan {
@@ -596,20 +607,16 @@ body.tank-widewatch #root {
 }
 
 .ocean-tank-base {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 7;
-  height: 16%;
-  min-height: 22px;
-  max-height: 56px;
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  height: clamp(28px, 9vw, 48px);
   pointer-events: none;
   background:
     linear-gradient(180deg, #3a2e22 0%, #16110c 14%, #050504 42%, #000 100%);
   box-shadow:
     inset 0 2px 0 rgba(70, 55, 40, 0.35),
-    0 -10px 18px rgba(0, 0, 0, 0.35);
+    0 12px 18px rgba(0, 0, 0, 0.45);
 }
 
 .ocean-tank-beam {

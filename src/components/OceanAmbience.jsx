@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { FISH_ADULT_CM, FISH_PACKS, TANK_CM, fishScreenSize, getFishSpeciesName, speciesKeyFromRefs, speciesSwimLayer } from '../utils/fishSkinStorage'
+import { FISH_ADULT_CM, FISH_PACKS, TANK_CM, fishScreenSize, getFishSpeciesName, speciesAdultScale, speciesKeyFromRefs, speciesSwimLayer } from '../utils/fishSkinStorage'
 import {
   getPetAppearance,
   getShowcaseWorldRoster,
@@ -12,6 +12,7 @@ import {
   formatFeedCountdown,
   hungerStatus,
   nextFeedWait,
+  spriteLengthRatio,
   listBreedPairs,
   listOwnedFishPotions,
   recentHelpers,
@@ -46,7 +47,6 @@ function TankScenery() {
       <div className="ocean-tank-frame ocean-tank-frame-left" />
       <div className="ocean-tank-frame ocean-tank-frame-right" />
       <div className="ocean-tank-rim ocean-tank-rim-bot" />
-      <div className="ocean-tank-base" />
     </div>
   )
 }
@@ -112,7 +112,7 @@ function tankFitZoom() {
   const viewHpx = rotate ? box.w : box.h
   const viewSpan = rotate ? box.h : box.w
   const uiTop = rotate ? 0 : tankUiBottom()
-  const innerH = Math.max(80, viewHpx - uiTop)
+  const innerH = Math.max(80, viewHpx - uiTop - 36)
   const heightFillW = Math.max(1, innerH * (TANK_CM.length / TANK_CM.height))
   return Math.max(0.05, Math.min(1, viewSpan / heightFillW))
 }
@@ -184,18 +184,26 @@ function layout(mode = 'world', fishCount = 0) {
   const viewHpx = rotate ? viewW : viewH
   const viewSpan = rotate ? viewH : viewW
   const uiTop = mode === 'tank' && !rotate ? tankUiBottom() : (mode === 'tank' && wide ? 56 : 0)
-  const innerH = Math.max(80, viewHpx - uiTop)
+  const innerH = Math.max(80, viewHpx - uiTop - (mode === 'tank' ? 36 : 0))
   const fitZoom = tankFitZoom()
   const zoom = mode === 'tank' ? Math.max(fitZoom, getTankZoom()) : 1
   const tankFrontW = Math.round(innerH * (TANK_CM.length / TANK_CM.height) * zoom)
   const worldH = Math.round(innerH * zoom)
   const pan = mode === 'tank' && (viewSpan + 2 < tankFrontW || worldH > innerH + 2)
-  const w = pan ? tankFrontW : Math.min(viewSpan, tankFrontW)
-  const h = pan ? worldH : Math.min(innerH, worldH)
-  const floor = mode === 'tank' ? Math.round(Math.max(22, Math.min(52, h * 0.16))) : 8
   const fit = mode === 'tank' && zoom <= fitZoom + 0.02
+  let w = pan ? tankFrontW : Math.min(viewSpan, tankFrontW)
+  let h = pan ? worldH : Math.min(innerH, worldH)
+  if (mode !== 'tank') {
+    w = viewSpan
+    h = viewHpx
+  } else if (fit) {
+    const minFitH = Math.round(innerH * (mobile ? 0.34 : 0.22))
+    h = Math.min(innerH, Math.max(h, minFitH))
+  }
+  const floor = mode === 'tank' ? 10 : 8
   return {
     mobile,
+    tank: mode === 'tank',
     pan,
     fit,
     wide,
@@ -255,7 +263,43 @@ function scaleSimToWorld(state, sx, sy) {
   })
 }
 
+function showcaseFishSize(entry, mobile, form = {}) {
+  const sp = speciesAdultScale(entry?.key)
+  let width
+  let height
+  if (entry?.shape === 'ray' || entry?.shape === 'turtle') {
+    width = Math.round((mobile ? 70 : 118) * sp)
+    height = Math.round(width * (entry?.shape === 'turtle' ? 0.72 : 0.58))
+  } else if (entry?.shape === 'cichlid') {
+    width = Math.round((mobile ? 78 : 132) * sp)
+    height = Math.round(width * 0.56)
+  } else if (entry?.shape === 'shark') {
+    width = Math.round((mobile ? 90 : 152) * sp)
+    height = Math.round(width * 0.46)
+  } else if (entry?.shape === 'koi') {
+    width = Math.round((mobile ? 86 : 146) * sp)
+    height = Math.round(width * 0.5)
+  } else if (entry?.shape === 'giant') {
+    width = Math.round((mobile ? 96 : 160) * sp)
+    height = Math.round(width * 0.28)
+  } else if (entry?.wide) {
+    width = Math.round((mobile ? 88 : 148) * sp)
+    height = Math.round(width * 0.32)
+  } else {
+    width = Math.round((mobile ? 72 : 128) * sp)
+    height = Math.round(width * 0.52)
+  }
+  const s = spriteLengthRatio(form, entry?.key)
+  const length = Number(form.lengthMul) > 0 ? form.lengthMul : 1
+  const girth = Number(form.girthMul) > 0 ? form.girthMul : 1
+  return {
+    width: Math.max(36, Math.round(width * s)),
+    height: Math.max(20, Math.round(height * s * (girth / length)))
+  }
+}
+
 function fishSize(entry, L, form = {}) {
+  if (!L?.tank) return showcaseFishSize(entry, !!L?.mobile, form)
   const cm = Number(form.lengthCm)
   const lengthCm = Number.isFinite(cm) && cm > 0 ? cm : (FISH_ADULT_CM[entry?.key] || FISH_ADULT_CM.betta)
   const length = Number(form.lengthMul) > 0 ? form.lengthMul : 1
@@ -1195,16 +1239,21 @@ export default function OceanAmbience({ mode = 'world' }) {
         </button>
       ) : null}
       <div
-        className="ocean-world"
+        className={mode === 'tank' ? 'ocean-tank-shell' : undefined}
         style={
           mode === 'tank' && worldW
-            ? {
-                width: `${worldW}px`,
-                height: worldH ? `${worldH}px` : '100%'
-              }
+            ? { width: `${worldW}px` }
             : (pan || rotate) && worldW
               ? { width: `${worldW}px` }
               : undefined
+        }
+      >
+      <div
+        className="ocean-world"
+        style={
+          mode === 'tank' && worldH
+            ? { width: '100%', height: `${worldH}px` }
+            : undefined
         }
       >
       {mode === 'tank' ? <TankScenery /> : null}
@@ -1378,6 +1427,8 @@ export default function OceanAmbience({ mode = 'world' }) {
           </div>
         )
       })()}
+      </div>
+      {mode === 'tank' ? <div className="ocean-tank-base" /> : null}
       </div>
     </div>,
     document.body
