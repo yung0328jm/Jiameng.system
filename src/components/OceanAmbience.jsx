@@ -226,11 +226,6 @@ function startKick(fish, now, strength = 0.7) {
   fish.nextKick = now + 220 + Math.random() * 520
 }
 
-function cruiseGain(fish) {
-  if (fish.dash) return 1
-  return 0.16 + Math.min(1.2, (fish.kick || 0) * 1.28)
-}
-
 function stepLiveSwim(fish, size, now, dt) {
   const dx = fish.x - (fish._px ?? fish.x)
   const dy = fish.y - (fish._py ?? fish.y)
@@ -238,24 +233,21 @@ function stepLiveSwim(fish, size, now, dt) {
   fish._py = fish.y
   const spd = Math.hypot(dx, dy) / Math.max(dt, 0.0008)
   if (fish.dash) startKick(fish, now, 1)
-  if (now < (fish.eatUntil || 0)) fish.kick = Math.max(fish.kick || 0, 0.12)
-  if (now > (fish.nextKick || 0)) {
-    if ((fish.kick || 0) < 0.1 && Math.random() < 0.64) {
-      startKick(fish, now, 0.42 + Math.random() * 0.52)
-    } else {
-      fish.kick = 0
-      fish.nextKick = now + 480 + Math.random() * 1700
-    }
-  }
-  fish.kick = Math.max(0, (fish.kick || 0) - dt / Math.max(0.4, fish.kickDecay || 1))
+  if (now > (fish.nextKick || 0)) startKick(fish, now, 0.5 + Math.random() * 0.3)
+  fish.kick = Math.max(0.4, (fish.kick || 0.4) - dt / Math.max(0.4, fish.kickDecay || 1))
   const moving = now >= (fish.eatUntil || 0)
-  const effort = Math.min(1.2, (fish.kick || 0) * 0.85 + (fish.dash ? 0.28 : 0) + Math.min(0.18, spd / 520))
+  const effort = Math.min(1.2, (fish.kick || 0) * 0.7 + (fish.dash ? 0.28 : 0) + Math.min(0.2, spd / 480))
   const beat = (moving ? 5.4 : 1.6) + effort * 4.8 + (fish.dash ? 3.2 : 0)
   fish.swimPhase = (fish.swimPhase || Math.random() * 6.28) + dt * beat
   const hh = size?.height || 48
   fish.swimAmp = hh * (moving ? 0.1 + effort * 0.04 : 0.018)
   fish.finAmp = hh * (moving ? 0.016 + effort * 0.02 : 0.006)
   fish.swimEffort = effort
+}
+
+function inHomeLayer(fish, L, size) {
+  const { minY, maxY } = layerBand(L, size, fish._layer)
+  return fish.y >= minY - 8 && fish.y <= maxY + 8
 }
 
 function tankHostFromPath(pathname) {
@@ -667,7 +659,8 @@ export default function OceanAmbience({ mode = 'world' }) {
         fish._w = size.width
         fish._h = size.height
         fish._layer = speciesSwimLayer(entry?.key)
-        fish._roamAll = mode !== 'tank' || hungry
+        fish._headHome = mode === 'tank' && !hungry && !inHomeLayer(fish, L, size)
+        fish._roamAll = mode !== 'tank' || hungry || fish._headHome
         clampFish(fish, L, size, fish._layer, fish._roamAll)
       })
 
@@ -713,7 +706,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           fish.tilt += (0 - (fish.tilt || 0)) * Math.min(1, 8 * dt)
           fish.x += sep.sx * 90 * dt
           fish.y += sep.sy * 90 * dt
-          clampFish(fish, L, size, fish._layer, false)
+          clampFish(fish, L, size, fish._layer, fish._roamAll)
           return
         }
 
@@ -723,7 +716,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           const fd = Math.sqrt(fx * fx + fy * fy) || 1
           if (fd < 28) {
             fish.fleeUntil = 0
-            pickWander(fish, L, size, fish._roamAll)
+            pickWander(fish, L, size, fish._headHome ? false : fish._roamAll)
           } else {
             fish.dash = true
             aimAlong(fish, fx, fy)
@@ -744,7 +737,8 @@ export default function OceanAmbience({ mode = 'world' }) {
             fish.eatUntil = now + 220
             fish.sated = true
             fish.satedUntil = now + PET_GROWTH_GAP_MS
-            fish._roamAll = false
+            fish._headHome = mode === 'tank' && !inHomeLayer(fish, L, size)
+            fish._roamAll = mode !== 'tank' || fish._headHome
             fish.dash = false
             const owner = entry?.owner || getCurrentUser()
             const helper = visiting || (owner && owner !== getCurrentUser()) ? getCurrentUser() : ''
@@ -808,13 +802,13 @@ export default function OceanAmbience({ mode = 'world' }) {
           const dy = (fish.ty ?? fish.y) - fish.y
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
           if (!fish.turnAt || now > fish.turnAt || dist < 18) {
-            pickWander(fish, L, size, fish._roamAll)
+            pickWander(fish, L, size, fish._headHome ? false : fish._roamAll)
           }
           const wx = (fish.tx ?? fish.x) - fish.x + sep.sx * 40
           const wy = (fish.ty ?? fish.y) - fish.y + sep.sy * 40
           const wd = Math.sqrt(wx * wx + wy * wy) || 1
           aimAlong(fish, wx, wy)
-          const speed = cruiseSpeed(L, entry, size) * cruiseGain(fish)
+          const speed = cruiseSpeed(L, entry, size) * (fish._headHome ? 1.2 : 1)
           fish.x += (wx / wd) * speed * dt
           fish.y += (wy / wd) * speed * dt
           clampFish(fish, L, size, fish._layer, fish._roamAll)
