@@ -605,19 +605,6 @@ body.tank-widewatch #root {
   transform-origin: 50% 50%;
 }
 
-.ocean-fish-actor.is-dash .ocean-betta {
-  --swim-t: 0.2s;
-}
-
-.ocean-fish-actor.is-dash .ocean-betta-tail,
-.ocean-fish-actor.is-dash .ocean-betta-body,
-.ocean-fish-actor.is-dash .ocean-betta-dorsal,
-.ocean-fish-actor.is-dash .ocean-betta-pectoral,
-.ocean-fish-actor.is-dash .ocean-betta-ventral {
-  -webkit-animation-duration: 0.18s;
-  animation-duration: 0.18s;
-}
-
 .ocean-fish-actor.is-eating .ocean-betta {
   -webkit-animation: ocean-eat 0.22s ease-out;
   animation: ocean-eat 0.22s ease-out;
@@ -736,8 +723,8 @@ body.tank-widewatch #root {
     transform: translate3d(0, 0, 0);
   }
   50% {
-    -webkit-transform: translate3d(0, -12px, 0);
-    transform: translate3d(0, -12px, 0);
+    -webkit-transform: translate3d(0, -5px, 0);
+    transform: translate3d(0, -5px, 0);
   }
 }
 
@@ -748,8 +735,8 @@ body.tank-widewatch #root {
     transform: translate3d(0, 0, 0);
   }
   50% {
-    -webkit-transform: translate3d(0, -12px, 0);
-    transform: translate3d(0, -12px, 0);
+    -webkit-transform: translate3d(0, -5px, 0);
+    transform: translate3d(0, -5px, 0);
   }
 }
 
@@ -758,11 +745,14 @@ body.tank-widewatch #root {
   width: 168px;
   height: 88px;
   pointer-events: none;
-  --swim-t: 0.78s;
-  -webkit-perspective: 220px;
-  perspective: 220px;
-  -webkit-transform-style: preserve-3d;
-  transform-style: preserve-3d;
+  overflow: visible;
+}
+
+.ocean-betta-canvas {
+  position: absolute;
+  left: 0;
+  display: block;
+  pointer-events: none;
 }
 
 .ocean-betta-b {
@@ -830,19 +820,6 @@ body.tank-widewatch #root {
   height: 88px;
 }
 
-.ocean-betta-ray .ocean-betta-tail {
-  -webkit-transform-origin: 40% 50%;
-  transform-origin: 40% 50%;
-}
-
-.ocean-betta-wide .ocean-betta-tail,
-.ocean-betta-shark .ocean-betta-tail,
-.ocean-betta-koi .ocean-betta-tail,
-.ocean-betta-giant .ocean-betta-tail {
-  -webkit-transform-origin: 34% 50%;
-  transform-origin: 34% 50%;
-}
-
 .ocean-betta-layer {
   position: absolute;
   left: 0;
@@ -854,12 +831,12 @@ body.tank-widewatch #root {
 }
 
 .ocean-betta-overlay {
-  z-index: 5;
+  z-index: 3;
   pointer-events: none;
 }
 
 .ocean-betta-wash {
-  z-index: 5;
+  z-index: 3;
   mix-blend-mode: overlay;
   pointer-events: none;
 }
@@ -889,172 +866,6 @@ body.tank-widewatch #root {
   mask-image: radial-gradient(ellipse 40% 28% at 32% 40%, #000 40%, transparent 42%), radial-gradient(ellipse 34% 24% at 68% 58%, #000 38%, transparent 40%), radial-gradient(ellipse 22% 18% at 54% 28%, #000 50%, transparent 52%);
   mix-blend-mode: overlay;
   opacity: 0.7;
-}
-
-.ocean-betta-body,
-.ocean-betta-tail,
-.ocean-betta-dorsal,
-.ocean-betta-pectoral,
-.ocean-betta-ventral {
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-
-.ocean-betta-body {
-  z-index: 1;
-  -webkit-clip-path: none;
-  clip-path: none;
-  -webkit-mask-image: linear-gradient(to left, #000 38%, transparent 76%);
-  mask-image: linear-gradient(to left, #000 38%, transparent 76%);
-  -webkit-transform-origin: 78% 52%;
-  transform-origin: 78% 52%;
-  -webkit-animation: ocean-betta-body var(--swim-t) ease-in-out infinite;
-  animation: ocean-betta-body var(--swim-t) ease-in-out infinite;
-}
-
-.ocean-betta-dorsal {
-  z-index: 2;
-  -webkit-clip-path: polygon(20% 0%, 68% 2%, 62% 40%, 28% 42%);
-  clip-path: polygon(20% 0%, 68% 2%, 62% 40%, 28% 42%);
-  -webkit-transform-origin: 46% 40%;
-  transform-origin: 46% 40%;
-  -webkit-animation: ocean-betta-dorsal calc(var(--swim-t) * 0.9) ease-in-out infinite;
-  animation: ocean-betta-dorsal calc(var(--swim-t) * 0.9) ease-in-out infinite;
-  -webkit-animation-delay: -0.16s;
-  animation-delay: -0.16s;
-}
-
-.ocean-betta-pectoral {
-  z-index: 3;
-  -webkit-clip-path: polygon(54% 46%, 80% 40%, 88% 78%, 60% 90%, 50% 64%);
-  clip-path: polygon(54% 46%, 80% 40%, 88% 78%, 60% 90%, 50% 64%);
-  -webkit-transform-origin: 64% 52%;
-  transform-origin: 64% 52%;
-  -webkit-animation: ocean-betta-pectoral calc(var(--swim-t) * 0.52) ease-in-out infinite;
-  animation: ocean-betta-pectoral calc(var(--swim-t) * 0.52) ease-in-out infinite;
-}
-
-.ocean-betta-ventral {
-  z-index: 2;
-  -webkit-clip-path: polygon(16% 58%, 50% 54%, 54% 100%, 10% 100%);
-  clip-path: polygon(16% 58%, 50% 54%, 54% 100%, 10% 100%);
-  -webkit-transform-origin: 36% 60%;
-  transform-origin: 36% 60%;
-  -webkit-animation: ocean-betta-ventral calc(var(--swim-t) * 0.84) ease-in-out infinite;
-  animation: ocean-betta-ventral calc(var(--swim-t) * 0.84) ease-in-out infinite;
-  -webkit-animation-delay: -0.1s;
-  animation-delay: -0.1s;
-}
-
-.ocean-betta-tail {
-  z-index: 4;
-  -webkit-clip-path: none;
-  clip-path: none;
-  -webkit-mask-image: linear-gradient(to right, #000 18%, transparent 58%);
-  mask-image: linear-gradient(to right, #000 18%, transparent 58%);
-  -webkit-transform-origin: 42% 50%;
-  transform-origin: 42% 50%;
-  -webkit-animation: ocean-betta-tail var(--swim-t) ease-in-out infinite;
-  animation: ocean-betta-tail var(--swim-t) ease-in-out infinite;
-  -webkit-animation-delay: -0.28s;
-  animation-delay: -0.28s;
-}
-
-.ocean-betta-wide .ocean-betta-dorsal,
-.ocean-betta-shark .ocean-betta-dorsal,
-.ocean-betta-giant .ocean-betta-dorsal {
-  -webkit-clip-path: polygon(26% 2%, 74% 8%, 70% 36%, 30% 32%);
-  clip-path: polygon(26% 2%, 74% 8%, 70% 36%, 30% 32%);
-  -webkit-transform-origin: 52% 34%;
-  transform-origin: 52% 34%;
-}
-
-.ocean-betta-wide .ocean-betta-pectoral,
-.ocean-betta-shark .ocean-betta-pectoral,
-.ocean-betta-giant .ocean-betta-pectoral {
-  -webkit-clip-path: polygon(56% 50%, 74% 46%, 78% 80%, 54% 84%);
-  clip-path: polygon(56% 50%, 74% 46%, 78% 80%, 54% 84%);
-  -webkit-transform-origin: 62% 54%;
-  transform-origin: 62% 54%;
-}
-
-.ocean-betta-koi .ocean-betta-dorsal,
-.ocean-betta-cichlid .ocean-betta-dorsal {
-  -webkit-clip-path: polygon(28% 0%, 62% 0%, 58% 42%, 32% 44%);
-  clip-path: polygon(28% 0%, 62% 0%, 58% 42%, 32% 44%);
-}
-
-.ocean-betta-koi .ocean-betta-pectoral,
-.ocean-betta-cichlid .ocean-betta-pectoral {
-  -webkit-clip-path: polygon(58% 42%, 84% 38%, 90% 86%, 56% 92%, 50% 58%);
-  clip-path: polygon(58% 42%, 84% 38%, 90% 86%, 56% 92%, 50% 58%);
-}
-
-.ocean-betta-ray .ocean-betta-body {
-  -webkit-transform-origin: 62% 50%;
-  transform-origin: 62% 50%;
-  -webkit-animation-name: ocean-betta-ray-body;
-  animation-name: ocean-betta-ray-body;
-}
-
-.ocean-betta-ray .ocean-betta-dorsal {
-  -webkit-clip-path: ellipse(42% 28% at 62% 28%);
-  clip-path: ellipse(42% 28% at 62% 28%);
-  -webkit-transform-origin: 62% 48%;
-  transform-origin: 62% 48%;
-  -webkit-animation-name: ocean-betta-ray-wing;
-  animation-name: ocean-betta-ray-wing;
-}
-
-.ocean-betta-ray .ocean-betta-pectoral {
-  -webkit-clip-path: ellipse(38% 30% at 64% 72%);
-  clip-path: ellipse(38% 30% at 64% 72%);
-  -webkit-transform-origin: 64% 52%;
-  transform-origin: 64% 52%;
-  -webkit-animation-name: ocean-betta-ray-wing;
-  animation-name: ocean-betta-ray-wing;
-  -webkit-animation-delay: -0.2s;
-  animation-delay: -0.2s;
-}
-
-.ocean-betta-ray .ocean-betta-ventral {
-  display: none;
-}
-
-.ocean-betta-turtle .ocean-betta-dorsal {
-  display: none;
-}
-
-.ocean-betta-turtle .ocean-betta-pectoral {
-  display: block;
-  -webkit-clip-path: polygon(68% 52%, 100% 44%, 100% 100%, 66% 96%);
-  clip-path: polygon(68% 52%, 100% 44%, 100% 100%, 66% 96%);
-  -webkit-transform-origin: 74% 58%;
-  transform-origin: 74% 58%;
-  -webkit-animation-name: ocean-betta-paddle;
-  animation-name: ocean-betta-paddle;
-}
-
-.ocean-betta-turtle .ocean-betta-ventral {
-  display: block;
-  -webkit-clip-path: polygon(0% 52%, 34% 50%, 38% 100%, 0% 100%);
-  clip-path: polygon(0% 52%, 34% 50%, 38% 100%, 0% 100%);
-  -webkit-transform-origin: 28% 58%;
-  transform-origin: 28% 58%;
-  -webkit-animation-name: ocean-betta-paddle;
-  animation-name: ocean-betta-paddle;
-  -webkit-animation-delay: -0.22s;
-  animation-delay: -0.22s;
-}
-
-.ocean-betta-b .ocean-betta-tail {
-  -webkit-animation-duration: var(--swim-t);
-  animation-duration: var(--swim-t);
 }
 
 @media (max-width: 640px) {
@@ -1160,178 +971,3 @@ body.tank-widewatch #root {
   }
 }
 
-@-webkit-keyframes ocean-betta-tail {
-  0%,
-  100% {
-    -webkit-transform: rotateZ(-8deg) rotateY(-12deg) skewY(5deg) scaleX(0.96);
-    transform: rotateZ(-8deg) rotateY(-12deg) skewY(5deg) scaleX(0.96);
-  }
-  50% {
-    -webkit-transform: rotateZ(8deg) rotateY(12deg) skewY(-5deg) scaleX(1.04);
-    transform: rotateZ(8deg) rotateY(12deg) skewY(-5deg) scaleX(1.04);
-  }
-}
-
-@keyframes ocean-betta-tail {
-  0%,
-  100% {
-    transform: rotateZ(-8deg) rotateY(-12deg) skewY(5deg) scaleX(0.96);
-  }
-  50% {
-    transform: rotateZ(8deg) rotateY(12deg) skewY(-5deg) scaleX(1.04);
-  }
-}
-
-@-webkit-keyframes ocean-betta-body {
-  0%,
-  100% {
-    -webkit-transform: rotateZ(-2.4deg) skewX(2.2deg) rotateY(-5deg);
-    transform: rotateZ(-2.4deg) skewX(2.2deg) rotateY(-5deg);
-  }
-  50% {
-    -webkit-transform: rotateZ(2.4deg) skewX(-2.2deg) rotateY(5deg);
-    transform: rotateZ(2.4deg) skewX(-2.2deg) rotateY(5deg);
-  }
-}
-
-@keyframes ocean-betta-body {
-  0%,
-  100% {
-    transform: rotateZ(-2.4deg) skewX(2.2deg) rotateY(-5deg);
-  }
-  50% {
-    transform: rotateZ(2.4deg) skewX(-2.2deg) rotateY(5deg);
-  }
-}
-
-@-webkit-keyframes ocean-betta-dorsal {
-  0%,
-  100% {
-    -webkit-transform: rotateZ(-7deg) scaleY(0.92);
-    transform: rotateZ(-7deg) scaleY(0.92);
-  }
-  50% {
-    -webkit-transform: rotateZ(6deg) scaleY(1.08);
-    transform: rotateZ(6deg) scaleY(1.08);
-  }
-}
-
-@keyframes ocean-betta-dorsal {
-  0%,
-  100% {
-    transform: rotateZ(-7deg) scaleY(0.92);
-  }
-  50% {
-    transform: rotateZ(6deg) scaleY(1.08);
-  }
-}
-
-@-webkit-keyframes ocean-betta-pectoral {
-  0%,
-  100% {
-    -webkit-transform: rotateZ(-16deg) rotateX(8deg);
-    transform: rotateZ(-16deg) rotateX(8deg);
-  }
-  50% {
-    -webkit-transform: rotateZ(14deg) rotateX(-10deg);
-    transform: rotateZ(14deg) rotateX(-10deg);
-  }
-}
-
-@keyframes ocean-betta-pectoral {
-  0%,
-  100% {
-    transform: rotateZ(-16deg) rotateX(8deg);
-  }
-  50% {
-    transform: rotateZ(14deg) rotateX(-10deg);
-  }
-}
-
-@-webkit-keyframes ocean-betta-ventral {
-  0%,
-  100% {
-    -webkit-transform: rotateZ(7deg) scaleY(0.94);
-    transform: rotateZ(7deg) scaleY(0.94);
-  }
-  50% {
-    -webkit-transform: rotateZ(-8deg) scaleY(1.06);
-    transform: rotateZ(-8deg) scaleY(1.06);
-  }
-}
-
-@keyframes ocean-betta-ventral {
-  0%,
-  100% {
-    transform: rotateZ(7deg) scaleY(0.94);
-  }
-  50% {
-    transform: rotateZ(-8deg) scaleY(1.06);
-  }
-}
-
-@-webkit-keyframes ocean-betta-ray-body {
-  0%,
-  100% {
-    -webkit-transform: rotateX(-5deg) scaleY(0.97);
-    transform: rotateX(-5deg) scaleY(0.97);
-  }
-  50% {
-    -webkit-transform: rotateX(5deg) scaleY(1.03);
-    transform: rotateX(5deg) scaleY(1.03);
-  }
-}
-
-@keyframes ocean-betta-ray-body {
-  0%,
-  100% {
-    transform: rotateX(-5deg) scaleY(0.97);
-  }
-  50% {
-    transform: rotateX(5deg) scaleY(1.03);
-  }
-}
-
-@-webkit-keyframes ocean-betta-ray-wing {
-  0%,
-  100% {
-    -webkit-transform: rotateX(-11deg) scaleY(0.9);
-    transform: rotateX(-11deg) scaleY(0.9);
-  }
-  50% {
-    -webkit-transform: rotateX(11deg) scaleY(1.08);
-    transform: rotateX(11deg) scaleY(1.08);
-  }
-}
-
-@keyframes ocean-betta-ray-wing {
-  0%,
-  100% {
-    transform: rotateX(-11deg) scaleY(0.9);
-  }
-  50% {
-    transform: rotateX(11deg) scaleY(1.08);
-  }
-}
-
-@-webkit-keyframes ocean-betta-paddle {
-  0%,
-  100% {
-    -webkit-transform: rotateZ(-12deg) rotateX(10deg);
-    transform: rotateZ(-12deg) rotateX(10deg);
-  }
-  50% {
-    -webkit-transform: rotateZ(10deg) rotateX(-14deg);
-    transform: rotateZ(10deg) rotateX(-14deg);
-  }
-}
-
-@keyframes ocean-betta-paddle {
-  0%,
-  100% {
-    transform: rotateZ(-12deg) rotateX(10deg);
-  }
-  50% {
-    transform: rotateZ(10deg) rotateX(-14deg);
-  }
-}
