@@ -39,6 +39,10 @@ function clampRot(n) {
   return r < 0 ? r + 360 : r
 }
 
+function clampFlip(n) {
+  return n === true || n === -1 || n === '-1' ? -1 : 1
+}
+
 function normalizeDecor(row) {
   const itemId = String(row?.itemId || '').trim()
   if (!itemId) return null
@@ -49,7 +53,8 @@ function normalizeDecor(row) {
     x: clampFrac(row?.x),
     y: clampFrac(row?.y, 0.18, 0.94),
     scale: clampScale(row?.scale == null ? 1 : row.scale),
-    rot: clampRot(row?.rot == null ? 0 : row.rot)
+    rot: clampRot(row?.rot == null ? 0 : row.rot),
+    flip: clampFlip(row?.flip)
   }
 }
 
@@ -78,7 +83,8 @@ export function placeTankDecor(account, itemId, xFrac, yFrac, look = 'plant') {
       x: clampFrac(xFrac),
       y: clampFrac(yFrac, 0.18, 0.94),
       scale: 1,
-      rot: 0
+      rot: 0,
+      flip: 1
     }
   ]
   persist({ ...all, [user]: next })
@@ -101,7 +107,8 @@ export function updateTankDecor(account, decorId, patch = {}) {
       x: patch.x == null ? row.x : clampFrac(patch.x),
       y: patch.y == null ? row.y : clampFrac(patch.y, 0.18, 0.94),
       scale: patch.scale == null ? row.scale : clampScale(patch.scale),
-      rot: patch.rot == null ? row.rot : clampRot(patch.rot)
+      rot: patch.rot == null ? row.rot : clampRot(patch.rot),
+      flip: patch.flip == null ? row.flip : clampFlip(patch.flip)
     }
   })
   persist({ ...all, [user]: next })

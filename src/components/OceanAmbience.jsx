@@ -241,6 +241,32 @@ export function resetTankZoom() {
   return setTankZoom(tankFitZoom(), { instant: true })
 }
 
+function tankFocusFromClient(el, clientX, clientY, rotate) {
+  const world = el?.querySelector?.('.ocean-world')
+  if (!world) return { fx: 0.5, fy: 0.5 }
+  if (rotate) return { fx: 0.5, fy: 0.5 }
+  const wr = world.getBoundingClientRect()
+  return {
+    fx: Math.max(0, Math.min(1, (clientX - wr.left) / Math.max(1, wr.width))),
+    fy: Math.max(0, Math.min(1, (clientY - wr.top) / Math.max(1, wr.height)))
+  }
+}
+
+function applyTankFocus(el, fx = 0.5, fy = 0.5) {
+  if (!el) return
+  const world = el.querySelector('.ocean-world')
+  const shell = world?.parentElement
+  const maxL = Math.max(0, el.scrollWidth - el.clientWidth)
+  const maxT = Math.max(0, el.scrollHeight - el.clientHeight)
+  if (maxL < 1 && maxT < 1) return
+  const left = (shell?.offsetLeft || 0) + (world?.offsetLeft || 0)
+  const top = (shell?.offsetTop || 0) + (world?.offsetTop || 0)
+  const ww = world?.offsetWidth || el.scrollWidth
+  const wh = world?.offsetHeight || el.scrollHeight
+  el.scrollLeft = Math.min(maxL, Math.max(0, left + ww * fx - el.clientWidth / 2))
+  el.scrollTop = Math.min(maxT, Math.max(0, top + wh * fy - el.clientHeight / 2))
+}
+
 export const TANK_RALLY_EVENT = 'ocean-tank-rally'
 
 export function openTankRally() {
@@ -1136,19 +1162,12 @@ export default function OceanAmbience({ mode = 'world' }) {
     if (hidden || mode !== 'tank') return undefined
     const onZoom = (e) => {
       const next = Number(e?.detail?.zoom) || getTankZoom()
-      const prev = Math.max(0.01, zoomRef.current || 1)
       zoomRef.current = next
       setZoom(next)
       const el = panRef.current
-      if (!el || Math.abs(prev - next) < 0.001) return
-      const ratio = next / prev
-      const vw = el.clientWidth
-      const vh = el.clientHeight
-      const sl = el.scrollLeft
-      const st = el.scrollTop
+      const focus = pinchRef.current
       requestAnimationFrame(() => {
-        el.scrollLeft = Math.max(0, (sl + vw / 2) * ratio - vw / 2)
-        el.scrollTop = Math.max(0, (st + vh / 2) * ratio - vh / 2)
+        applyTankFocus(el, focus?.fx ?? 0.5, focus?.fy ?? 0.5)
       })
     }
     window.addEventListener(TANK_ZOOM_EVENT, onZoom)
@@ -1160,7 +1179,11 @@ export default function OceanAmbience({ mode = 'world' }) {
       return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
     }
     const onStart = (e) => {
-      if (e.touches.length === 2) pinchRef.current = { dist: distOf(e), zoom: getTankZoom() }
+      if (e.touches.length !== 2 || !el) return
+      const a = e.touches[0]
+      const b = e.touches[1]
+      const focus = tankFocusFromClient(el, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2, rotateFlagRef.current)
+      pinchRef.current = { dist: distOf(e), zoom: getTankZoom(), fx: focus.fx, fy: focus.fy }
     }
     const onMove = (e) => {
       if (!pinchRef.current || e.touches.length !== 2) return
@@ -1169,14 +1192,20 @@ export default function OceanAmbience({ mode = 'world' }) {
       if (d < 10 || pinchRef.current.dist < 10) return
       setTankZoom(pinchRef.current.zoom * (d / pinchRef.current.dist), { instant: true })
     }
-    const onEnd = () => {
+    const onEnd = (e) => {
+      if (e.touches && e.touches.length >= 2) return
       pinchRef.current = null
+    }
+    const onGesture = (e) => {
+      e.preventDefault()
     }
     if (el) {
       el.addEventListener('touchstart', onStart, { passive: true })
       el.addEventListener('touchmove', onMove, { passive: false })
       el.addEventListener('touchend', onEnd)
       el.addEventListener('touchcancel', onEnd)
+      el.addEventListener('gesturestart', onGesture, { passive: false })
+      el.addEventListener('gesturechange', onGesture, { passive: false })
     }
     return () => {
       window.removeEventListener(TANK_ZOOM_EVENT, onZoom)
@@ -1185,9 +1214,16 @@ export default function OceanAmbience({ mode = 'world' }) {
         el.removeEventListener('touchmove', onMove)
         el.removeEventListener('touchend', onEnd)
         el.removeEventListener('touchcancel', onEnd)
+        el.removeEventListener('gesturestart', onGesture)
+        el.removeEventListener('gesturechange', onGesture)
       }
     }
-  }, [hidden, mode, pan])
+  }, [hidden, mode])
+
+  useEffect(() => {
+    if (!pan) return
+    applyTankFocus(panRef.current, pinchRef.current?.fx ?? 0.5, pinchRef.current?.fy ?? 0.5)
+  }, [pan])
 
   useEffect(() => {
     if (mode !== 'tank' || visiting) return undefined
@@ -2061,35 +2097,41 @@ export default function OceanAmbience({ mode = 'world' }) {
       {mode === 'tank' && feedHud ? (
         <div className="ocean-feed-hud">{feedHud}</div>
       ) : null}
-      {mode === 'tank' ? (
+      {mode === 'tank' && (!isMobile() || rallyPhase === 'on') ? (
         <div className="ocean-zoom-bar">
-          <button
-            type="button"
-            className="ocean-zoom-btn"
-            disabled={zoom <= fitZoom + 0.02}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              stepTankZoom(-1)
-            }}
-          >
-            拉開
-          </button>
-          <span className="ocean-zoom-label">{zoom <= fitZoom + 0.02 ? '整缸' : zoom < 1.02 ? '遠看' : `${zoom % 1 ? zoom.toFixed(1) : zoom}×`}</span>
-          <button
-            type="button"
-            className="ocean-zoom-btn"
-            disabled={zoom >= TANK_ZOOM_MAX - 0.02}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              stepTankZoom(1)
-            }}
-          >
-            走近看
-          </button>
+          {isMobile() ? null : (
+            <>
+              <button
+                type="button"
+                className="ocean-zoom-btn"
+                disabled={zoom <= fitZoom + 0.02}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  pinchRef.current = { fx: 0.5, fy: 0.5 }
+                  stepTankZoom(-1)
+                }}
+              >
+                拉開
+              </button>
+              <span className="ocean-zoom-label">{zoom <= fitZoom + 0.02 ? '整缸' : zoom < 1.02 ? '遠看' : `${zoom % 1 ? zoom.toFixed(1) : zoom}×`}</span>
+              <button
+                type="button"
+                className="ocean-zoom-btn"
+                disabled={zoom >= TANK_ZOOM_MAX - 0.02}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  pinchRef.current = { fx: 0.5, fy: 0.5 }
+                  stepTankZoom(1)
+                }}
+              >
+                走近看
+              </button>
+            </>
+          )}
           {rallyPhase === 'on' ? (
             <button
               type="button"
@@ -2187,7 +2229,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="ocean-tank-edit-row">
-            <p>{moveProp ? '點魚缸換位置' : placeItem ? `按住拖到魚缸擺放${placeItem.name}` : pickProp?.kind === 'light' ? '可拖曳換位置或收回' : pickProp ? '可拖曳、旋轉、放大縮小或收回' : '選背包道具拖到魚缸，或拖缸裡的道具'}</p>
+            <p>{moveProp ? '點魚缸換位置' : placeItem ? `按住拖到魚缸擺放${placeItem.name}` : pickProp?.kind === 'light' ? '可拖曳換位置或收回' : pickProp ? '可拖曳、旋轉、鏡向、放大縮小或收回' : '選背包道具拖到魚缸，或拖缸裡的道具'}</p>
             <button
               type="button"
               className="is-cancel"
@@ -2250,6 +2292,18 @@ export default function OceanAmbience({ mode = 'world' }) {
                     }}
                   >
                     右轉
+                  </button>
+                  <button
+                    type="button"
+                    className={(Number(tankDecors.find((it) => it.id === pickProp.id)?.flip) || 1) < 0 ? 'is-on' : ''}
+                    onClick={() => {
+                      const row = tankDecors.find((it) => it.id === pickProp.id)
+                      if (!row) return
+                      const r = updateTankDecor(getCurrentUser(), pickProp.id, { flip: (Number(row.flip) || 1) < 0 ? 1 : -1 })
+                      if (r.success) setTankDecors(r.decors || [])
+                    }}
+                  >
+                    鏡向
                   </button>
                 </>
               ) : (
@@ -2451,6 +2505,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         const box = tankDecorBox(look, worldH)
         const scale = Number(row.scale) || 1
         const rot = Number(row.rot) || 0
+        const flip = (Number(row.flip) || 1) < 0 ? -1 : 1
         const selected = pickProp?.kind === 'decor' && pickProp?.id === row.id
         const inBeam = fishInTankBeam(
           { x: row.x * worldW, y: row.y * worldH },
@@ -2468,7 +2523,7 @@ export default function OceanAmbience({ mode = 'world' }) {
             top: `${row.y * 100}%`,
             width: `${Math.round(box.w * scale)}px`,
             height: `${Math.round(box.h * scale)}px`,
-            transform: `translate(-50%, -92%) rotate(${rot}deg)`
+            transform: `translate(-50%, -92%) scaleX(${flip}) rotate(${rot}deg)`
           }}
           onPointerDown={(e) => {
             e.stopPropagation()

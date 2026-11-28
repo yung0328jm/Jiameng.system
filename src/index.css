@@ -219,12 +219,17 @@ body {
   height: 100svh;
   box-sizing: border-box;
   padding-top: var(--tank-ui-top, 0px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0b0a09;
+  pointer-events: auto;
+  touch-action: pan-x pan-y;
 }
 
 .ocean-ambience.is-tank.is-fit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
   background: #0b0a09;
 }
@@ -235,6 +240,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  margin: auto;
 }
 
 .ocean-ambience.is-tank.is-fit .ocean-tank-shell {
@@ -292,8 +298,7 @@ body.tank-widewatch #root {
   z-index: 80;
   pointer-events: auto;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, #d8f3fb 0%, #8fd4ea 42%, #5eb6d4 100%);
+  background: #0b0a09;
 }
 
 .ocean-ambience.is-widewatch.is-fit {
@@ -302,6 +307,7 @@ body.tank-widewatch #root {
 
 .ocean-ambience.is-widewatch.is-pan {
   overflow: auto;
+  background: #0b0a09;
 }
 
 .ocean-ambience.is-widewatch-rotate {
