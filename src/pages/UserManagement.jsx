@@ -22,7 +22,9 @@ import {
   getPetAppearance,
   getTankRoster,
   getUserPets,
-  purgeFishItemFromUser
+  isTankClosed,
+  purgeFishItemFromUser,
+  setTankClosed
 } from '../utils/petStorage'
 import { getPerformanceViewerAccount, setPerformanceViewerAccount } from '../utils/performanceViewerStorage'
 import { isGuestAccount } from '../utils/guestAuth'
@@ -691,6 +693,29 @@ function UserManagement() {
                           >
                             背包/毓承幣
                           </button>
+                          {isGuestAccount(user.account) ? null : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const closed = isTankClosed(user.account)
+                                const next = !closed
+                                if (!window.confirm(next ? `確定關閉「${user.name || user.account}」的魚缸？關閉後不會出現在參觀名單。` : `確定開放「${user.name || user.account}」的魚缸？`)) return
+                                const r = setTankClosed(user.account, next)
+                                if (!r.success) {
+                                  alert(r.message || '設定失敗')
+                                  return
+                                }
+                                setAssetsRevision((v) => v + 1)
+                              }}
+                              className={`px-3 py-2 rounded transition-colors text-sm ${
+                                isTankClosed(user.account)
+                                  ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                                  : 'bg-slate-600 hover:bg-slate-500 text-white'
+                              }`}
+                            >
+                              {isTankClosed(user.account) ? '已關魚缸' : '關閉魚缸'}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleDeleteUser(user.account, user.name)}

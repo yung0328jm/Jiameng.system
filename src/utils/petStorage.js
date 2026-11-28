@@ -1,5 +1,5 @@
 import { syncKeyToSupabase } from './supabaseSync'
-import { getCurrentUser } from './authStorage'
+import { getCurrentUser, getCurrentUserRole } from './authStorage'
 import { getUsers } from './storage'
 import { getDisplayNameForAccount } from './displayName'
 import { getDropdownOptionsByCategory } from './dropdownStorage'
@@ -70,6 +70,7 @@ function emptyUser() {
     endedPairs: {},
     favorites: {},
     visitors: [],
+    tankClosed: false,
     removed: {},
     updatedAt: ''
   }
@@ -118,6 +119,7 @@ export function getUserPets(username) {
     endedPairs: row.endedPairs && typeof row.endedPairs === 'object' ? row.endedPairs : {},
     favorites: row.favorites && typeof row.favorites === 'object' ? row.favorites : {},
     visitors: Array.isArray(row.visitors) ? row.visitors : [],
+    tankClosed: !!row.tankClosed,
     removed: row.removed && typeof row.removed === 'object' ? row.removed : {},
     updatedAt: String(row.updatedAt || '')
   }
@@ -1169,7 +1171,7 @@ export function listVisitTanks(viewer) {
   const out = []
   const add = (raw) => {
     const acc = String(raw || '').trim()
-    if (!acc || acc === me || isGuestAccount(acc) || seen.has(acc)) return
+    if (!acc || acc === me || isGuestAccount(acc) || seen.has(acc) || isTankClosed(acc)) return
     seen.add(acc)
     out.push({ account: acc, count: listRoamingSlotIds(acc).length })
   }
@@ -1207,6 +1209,18 @@ function upsertVisitor(owner, visitor, extra = {}) {
   }
   const visitors = [row, ...prev.filter((v) => String(v?.account || '') !== who)].slice(0, 40)
   return saveUserPets(host, { ...cur, visitors })
+}
+
+export function isTankClosed(username) {
+  return !!getUserPets(username)?.tankClosed
+}
+
+export function setTankClosed(username, closed) {
+  if (getCurrentUserRole() !== 'admin') return { success: false, message: '僅管理者可設定' }
+  const acc = String(username || '').trim()
+  if (!acc) return { success: false, message: '帳號無效' }
+  const cur = getUserPets(acc)
+  return saveUserPets(acc, { ...cur, tankClosed: !!closed })
 }
 
 export function noteTankVisit(owner, visitor) {

@@ -244,7 +244,7 @@ body.tank-widewatch #root {
   pointer-events: auto;
   overflow: hidden;
   background:
-    linear-gradient(180deg, #163e4c 0%, #0c2e3a 42%, #082430 100%);
+    linear-gradient(180deg, #d8f3fb 0%, #8fd4ea 42%, #5eb6d4 100%);
 }
 
 .ocean-ambience.is-widewatch-rotate {
@@ -399,23 +399,23 @@ body.tank-widewatch #root {
 
 .ocean-ambience.is-tank .ocean-world {
   background:
-    linear-gradient(180deg, rgba(12, 48, 62, 0.55) 0%, rgba(8, 36, 48, 0.2) 22%, transparent 40%),
-    linear-gradient(180deg, #16485a 0%, #0d3342 36%, #0a2834 70%, #081f28 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(180, 230, 245, 0.12) 18%, transparent 40%),
+    linear-gradient(180deg, #e7f7fc 0%, #b5e4f2 32%, #7ec8e0 68%, #5aafcc 100%);
 }
 
 .ocean-tank-back {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.38) 0%, transparent 10%, transparent 90%, rgba(0, 0, 0, 0.38) 100%),
-    linear-gradient(180deg, #1c5c68 0%, #11424e 48%, #0c303c 100%);
-  box-shadow: inset 0 0 90px rgba(0, 16, 24, 0.55);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.35) 0%, transparent 14%, transparent 86%, rgba(40, 90, 110, 0.12) 100%),
+    linear-gradient(180deg, #f2fbfe 0%, #c6ebf6 38%, #8fd0e6 100%);
+  box-shadow: inset 0 0 70px rgba(255, 255, 255, 0.2);
 }
 
 .ocean-tank-caustic {
   position: absolute;
   inset: 0;
-  opacity: 0.28;
+  opacity: 0.45;
   mix-blend-mode: screen;
   background:
     radial-gradient(ellipse 18% 10% at 18% 12%, rgba(255, 255, 255, 0.35), transparent 70%),
@@ -442,11 +442,11 @@ body.tank-widewatch #root {
   left: 0;
   right: 0;
   top: 0;
-  height: 16%;
+  height: 18%;
   background: linear-gradient(
     180deg,
-    rgba(210, 240, 255, 0.22) 0%,
-    rgba(125, 211, 252, 0.08) 42%,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(220, 245, 255, 0.22) 38%,
     transparent 100%
   );
 }
@@ -456,9 +456,9 @@ body.tank-widewatch #root {
   inset: 0;
   z-index: 5;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 7%, transparent 16%, transparent 84%, rgba(255, 255, 255, 0.05) 93%, rgba(0, 0, 0, 0.22) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 9%, transparent 88%, rgba(0, 0, 0, 0.18) 100%);
-  box-shadow: inset 0 0 0 2px rgba(210, 230, 240, 0.18), inset 0 0 40px rgba(0, 20, 30, 0.18);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.08) 8%, transparent 18%, transparent 82%, rgba(255, 255, 255, 0.1) 92%, rgba(255, 255, 255, 0.22) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, transparent 10%, transparent 86%, rgba(255, 255, 255, 0.08) 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35), inset 0 0 28px rgba(255, 255, 255, 0.12);
 }
 
 .ocean-tank-rim {

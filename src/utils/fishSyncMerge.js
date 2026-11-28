@@ -211,6 +211,7 @@ function mergePetUser(a, b) {
     endedPairs,
     showcaseSlotId: showcase,
     visitors: mergeVisitorRows(a.visitors, b.visitors),
+    tankClosed: tsOf(b.updatedAt) >= tsOf(a.updatedAt) ? !!b.tankClosed : !!a.tankClosed,
     removed,
     updatedAt: tsOf(b.updatedAt) >= tsOf(a.updatedAt) ? (b.updatedAt || a.updatedAt) : (a.updatedAt || b.updatedAt)
   }

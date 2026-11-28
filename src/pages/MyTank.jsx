@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import OceanAmbience, { enterTankWideWatch } from '../components/OceanAmbience'
-import { getCurrentUser } from '../utils/authStorage'
+import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { listTankVisitors, listVisitTanks, noteTankVisit } from '../utils/petStorage'
+import { isTankClosed, listTankVisitors, listVisitTanks, noteTankVisit } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
 export default function MyTank() {
@@ -27,8 +27,13 @@ export default function MyTank() {
   }, [host, me, navigate])
 
   useEffect(() => {
-    if (visiting && host && me) noteTankVisit(host, me)
-  }, [visiting, host, me])
+    if (!visiting || !host) return
+    if (isTankClosed(host) && getCurrentUserRole() !== 'admin') {
+      navigate('/my-tank', { replace: true })
+      return
+    }
+    if (me) noteTankVisit(host, me)
+  }, [visiting, host, me, navigate])
 
   useEffect(() => {
     const refresh = () => {
@@ -56,14 +61,14 @@ export default function MyTank() {
   return (
     <div className="relative z-[41] max-w-3xl mx-auto text-cn-parchment pb-8 pointer-events-none">
       <div className="pointer-events-auto mb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">
+        <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
           {visiting ? `${hostName}的魚缸` : '我的魚缸'}
         </h1>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => navigate('/my-pets')}
-            className="px-4 py-2 rounded-md border border-gray-600 text-sm text-cn-parchment hover:bg-black/30"
+            className="px-4 py-2 rounded-md border border-gray-600/80 bg-black/40 text-sm text-cn-parchment hover:bg-black/55"
           >
             回我的寵物
           </button>
@@ -71,7 +76,7 @@ export default function MyTank() {
             <button
               type="button"
               onClick={() => navigate('/my-tank')}
-              className="px-4 py-2 rounded-md border border-gray-600 text-sm text-cn-parchment hover:bg-black/30"
+              className="px-4 py-2 rounded-md border border-gray-600/80 bg-black/40 text-sm text-cn-parchment hover:bg-black/55"
             >
               回自己的魚缸
             </button>
@@ -79,15 +84,15 @@ export default function MyTank() {
           <button
             type="button"
             onClick={() => enterTankWideWatch()}
-            className="px-4 py-2 rounded-md border border-cn-gold/50 text-sm text-cn-gold hover:bg-black/30"
+            className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
           >
             橫向模式
           </button>
           <button
             type="button"
             onClick={() => toggle('visit')}
-            className={`px-4 py-2 rounded-md border text-sm hover:bg-black/30 ${
-              openList === 'visit' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600 text-cn-parchment'
+            className={`px-4 py-2 rounded-md border text-sm bg-black/40 hover:bg-black/55 ${
+              openList === 'visit' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600/80 text-cn-parchment'
             }`}
           >
             參觀別人的魚缸
@@ -95,8 +100,8 @@ export default function MyTank() {
           <button
             type="button"
             onClick={() => toggle('guests')}
-            className={`px-4 py-2 rounded-md border text-sm hover:bg-black/30 ${
-              openList === 'guests' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600 text-cn-parchment'
+            className={`px-4 py-2 rounded-md border text-sm bg-black/40 hover:bg-black/55 ${
+              openList === 'guests' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600/80 text-cn-parchment'
             }`}
           >
             誰來過
@@ -114,8 +119,8 @@ export default function MyTank() {
                     setOpenList('')
                     navigate(`/tank/${encodeURIComponent(row.account)}`)
                   }}
-                  className={`px-3 py-1.5 rounded-md border text-xs hover:bg-black/30 ${
-                    active ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600 text-cn-parchment'
+                  className={`px-3 py-1.5 rounded-md border text-xs bg-black/40 hover:bg-black/55 ${
+                    active ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600/80 text-cn-parchment'
                   }`}
                 >
                   {getDisplayNameForAccount(row.account)}
@@ -129,7 +134,7 @@ export default function MyTank() {
         {openList === 'guests' ? (
           <div className="mt-3 flex flex-col gap-1.5">
             {visitors.length ? visitors.map((row) => (
-              <p key={row.account} className="text-sm text-cn-parchment">
+              <p key={row.account} className="text-sm text-slate-800">
                 {getDisplayNameForAccount(row.account)}
                 {row.fed ? <span className="ml-2 text-sky-200/90">幫忙餵食過魚</span> : null}
               </p>
