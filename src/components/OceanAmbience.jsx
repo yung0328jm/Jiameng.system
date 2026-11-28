@@ -28,10 +28,12 @@ import {
   beginPlaceTankLight,
   endPlaceTankLight,
   isPlacingTankLight,
+  itemIdFromLight,
   listTankLights,
   moveTankLight,
   placeTankLight,
   recallTankLight,
+  setTankLightColor,
   toggleTankLight
 } from '../utils/tankLightStorage'
 import {
@@ -39,7 +41,8 @@ import {
   listTankDecors,
   moveTankDecor,
   placeTankDecor,
-  recallTankDecor
+  recallTankDecor,
+  updateTankDecor
 } from '../utils/tankDecorStorage'
 import FishSprite from './FishSprite'
 
@@ -51,7 +54,7 @@ const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
   delay: `${-(i * 1.3)}s`
 }))
 
-function TankScenery({ w = 0, h = 0, lights = [] }) {
+function TankScenery({ w = 0, h = 0, lights = [], unlit = false, shade = 0 }) {
   const width = Math.max(0, Math.round(Number(w) || 0))
   const height = Math.max(0, Math.round(Number(h) || 0))
   const frame = Math.max(10, Math.min(20, Math.round(width * 0.012)))
@@ -67,21 +70,28 @@ function TankScenery({ w = 0, h = 0, lights = [] }) {
       <div className="ocean-tank-caustic" />
       <div className="ocean-tank-surface" />
       {lamps.map((lamp) => {
+        const kind = lamp.kind || 'barrel'
+        const color = lamp.color || 'white'
         const left = `${Math.max(5, Math.min(95, (Number(lamp.x) || 0.5) * 100))}%`
         return (
           <div key={lamp.id}>
             {lamp.on ? (
-              <div className="ocean-tank-beam" style={{ left }}>
+              <div
+                className={`ocean-tank-beam is-${kind} is-${color}`}
+                style={{ left, width: kind === 'bar' ? '54%' : '22%' }}
+              >
                 <span className="ocean-tank-beam-core" />
                 <span className="ocean-tank-beam-glow" />
               </div>
             ) : null}
-            <div className={`ocean-tank-lamp${lamp.on ? ' is-on' : ''}`} style={{ left }}>
+            <div className={`ocean-tank-lamp is-${kind} is-${color}${lamp.on ? ' is-on' : ''}`} style={{ left }}>
+              {kind !== 'bar' ? <span className="ocean-tank-lamp-hang" /> : null}
               <span className="ocean-tank-lamp-body" />
             </div>
           </div>
         )
       })}
+      {unlit ? <div className="ocean-tank-ambient" style={{ opacity: shade }} /> : null}
       <div className="ocean-tank-glass" />
       <div className="ocean-tank-rim ocean-tank-rim-top" style={sized ? { width: `${width}px` } : undefined} />
       <div
@@ -264,16 +274,57 @@ const TANK_DECOR_ART = {
   fern: '/tank-decor/fern.png',
   moss: '/tank-decor/moss.png',
   lava: '/tank-decor/lava.png',
-  tape: '/tank-decor/tape.png'
+  tape: '/tank-decor/tape.png',
+  dragon: '/tank-decor/dragon.png',
+  pixiu: '/tank-decor/pixiu.png',
+  buddha: '/tank-decor/buddha.png',
+  guanyin: '/tank-decor/guanyin.png',
+  caishen: '/tank-decor/caishen.png',
+  toad: '/tank-decor/toad.png',
+  ohko: '/tank-decor/ohko.png',
+  ryuoh: '/tank-decor/ryuoh.png',
+  strata: '/tank-decor/strata.png',
+  petrified: '/tank-decor/petrified.png',
+  river: '/tank-decor/river.png',
+  elephant: '/tank-decor/elephant.png',
+  taihu: '/tank-decor/taihu.png',
+  blacklava: '/tank-decor/blacklava.png',
+  spider: '/tank-decor/spider.png',
+  redmoor: '/tank-decor/redmoor.png',
+  mangrove: '/tank-decor/mangrove.png',
+  cholla: '/tank-decor/cholla.png',
+  pagoda: '/tank-decor/pagoda.png',
+  bridge: '/tank-decor/bridge.png',
+  pavilion: '/tank-decor/pavilion.png',
+  lantern: '/tank-decor/lantern.png',
+  hut: '/tank-decor/hut.png',
+  boat: '/tank-decor/boat.png',
+  mountain: '/tank-decor/mountain.png',
+  waterfall: '/tank-decor/waterfall.png'
 }
 
 function tankDecorBox(look, worldH) {
   const h = Math.max(80, Number(worldH) || 160)
-  if (look === 'wood' || look === 'moss') return { w: Math.max(72, Math.round(h * 0.58)), h: Math.max(40, Math.round(h * 0.3)) }
-  if (look === 'rock' || look === 'lava') return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(42, Math.round(h * 0.32)) }
+  if (look === 'wood' || look === 'moss' || look === 'spider' || look === 'redmoor' || look === 'mangrove' || look === 'cholla') {
+    return { w: Math.max(72, Math.round(h * 0.58)), h: Math.max(40, Math.round(h * 0.3)) }
+  }
+  if (look === 'rock' || look === 'lava' || look === 'ohko' || look === 'ryuoh' || look === 'strata' || look === 'petrified' || look === 'river' || look === 'elephant' || look === 'taihu' || look === 'blacklava' || look === 'mountain') {
+    return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(42, Math.round(h * 0.32)) }
+  }
+  if (look === 'bridge' || look === 'boat' || look === 'pavilion' || look === 'hut') {
+    return { w: Math.max(64, Math.round(h * 0.46)), h: Math.max(40, Math.round(h * 0.32)) }
+  }
+  if (look === 'pagoda' || look === 'lantern' || look === 'waterfall') {
+    return { w: Math.max(42, Math.round(h * 0.3)), h: Math.max(70, Math.round(h * 0.54)) }
+  }
   if (look === 'cave') return { w: Math.max(60, Math.round(h * 0.44)), h: Math.max(40, Math.round(h * 0.3)) }
   if (look === 'tape') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
   if (look === 'fern') return { w: Math.max(52, Math.round(h * 0.38)), h: Math.max(64, Math.round(h * 0.5)) }
+  if (look === 'guanyin') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
+  if (look === 'dragon' || look === 'buddha' || look === 'caishen') {
+    return { w: Math.max(48, Math.round(h * 0.34)), h: Math.max(70, Math.round(h * 0.54)) }
+  }
+  if (look === 'pixiu' || look === 'toad') return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(48, Math.round(h * 0.36)) }
   return { w: Math.max(52, Math.round(h * 0.4)), h: Math.max(68, Math.round(h * 0.52)) }
 }
 
@@ -519,28 +570,66 @@ function fishSize(entry, L, form = {}) {
   return { width, height }
 }
 
-function beamFromLight(L, xFrac) {
-  const cx = L.w * Math.max(0.05, Math.min(0.95, Number(xFrac) || 0.5))
+function beamFromLight(L, lamp) {
+  const kind = lamp?.kind || 'barrel'
+  const xFrac = Number(lamp?.x) || 0.5
+  const cx = L.w * Math.max(0.05, Math.min(0.95, xFrac))
+  if (kind === 'bar') {
+    return { cx, topHalf: L.w * 0.26, botHalf: L.w * 0.32 }
+  }
   const topHalf = L.w * (L.mobile ? 0.055 : 0.042)
   const botHalf = L.w * (L.mobile ? 0.13 : 0.11)
   return { cx, topHalf, botHalf }
 }
 
+function tankDaylight(now = new Date()) {
+  const h = now.getHours() + now.getMinutes() / 60
+  if (h >= 5 && h < 11) return { key: 'morn', shade: 0.32, fish: 0.74 }
+  if (h >= 11 && h < 17) return { key: 'aft', shade: 0.58, fish: 0.44 }
+  return { key: 'night', shade: 0.84, fish: 0.2 }
+}
+
+function anyTankLightOn(lights) {
+  return (lights || []).some((row) => row && row.on !== false)
+}
+
 function fishInTankBeam(fish, size, L, lights) {
   const ons = (lights || []).filter((row) => row && row.on)
-  if (!ons.length) return 0
+  if (!ons.length) return { amount: 0, color: 'white' }
   const midX = (fish?.x || 0) + (size?.width || 0) * 0.5
   const midY = (fish?.y || 0) + (size?.height || 0) * 0.45
   const t = Math.max(0, Math.min(1, midY / Math.max(1, L.h)))
   let best = 0
+  let color = 'white'
   ons.forEach((lamp) => {
-    const { cx, topHalf, botHalf } = beamFromLight(L, lamp.x)
+    const { cx, topHalf, botHalf } = beamFromLight(L, lamp)
     const half = topHalf + (botHalf - topHalf) * t
     const d = Math.abs(midX - cx)
     if (d >= half) return
-    best = Math.max(best, 1 - d / half)
+    const amount = 1 - d / half
+    if (amount > best) {
+      best = amount
+      color = lamp.kind === 'color' ? (lamp.color || 'white') : 'white'
+    }
   })
-  return Math.max(0, Math.min(1, best))
+  return { amount: Math.max(0, Math.min(1, best)), color }
+}
+
+function lampSwitchLabel(lamp) {
+  if (lamp?.kind === 'bar') return '排燈'
+  if (lamp?.kind === 'color') return '調色桶燈'
+  return '桶燈'
+}
+
+function beamFilter(lit, color) {
+  if (lit <= 0.04) return ''
+  if (color === 'blue') {
+    return `saturate(${(1.2 + lit * 1.2).toFixed(2)}) brightness(${(0.88 + lit * 0.32).toFixed(2)}) hue-rotate(190deg)`
+  }
+  if (color === 'red') {
+    return `saturate(${(1.15 + lit * 1.1).toFixed(2)}) brightness(${(0.92 + lit * 0.28).toFixed(2)}) hue-rotate(-18deg)`
+  }
+  return `saturate(${(1 + lit * 1.15).toFixed(2)}) brightness(${(1 + lit * 0.28).toFixed(2)}) contrast(${(1 + lit * 0.1).toFixed(2)})`
 }
 
 function cruiseSpeed(L, entry, size) {
@@ -916,6 +1005,11 @@ export default function OceanAmbience({ mode = 'world' }) {
   const tankOwner = visiting ? host : me
   const [tankLights, setTankLights] = useState(() => listTankLights(tankOwner))
   const tankLightsRef = useRef(tankLights)
+  const [clockMs, setClockMs] = useState(() => Date.now())
+  const daylight = tankDaylight(new Date(clockMs))
+  const tankUnlit = mode === 'tank' && !anyTankLightOn(tankLights)
+  const daylightRef = useRef(daylight)
+  const tankUnlitRef = useRef(tankUnlit)
   const [placeLight, setPlaceLight] = useState(() => !visiting && isPlacingTankLight())
   const placeLightRef = useRef(false)
   const [tankEdit, setTankEdit] = useState(false)
@@ -927,6 +1021,8 @@ export default function OceanAmbience({ mode = 'world' }) {
   const pickPropRef = useRef(null)
   const [moveProp, setMoveProp] = useState(false)
   const movePropRef = useRef(false)
+  const dragPropRef = useRef(null)
+  const tankDecorsRef = useRef([])
   const [placeables, setPlaceables] = useState(() => listTankPlaceables(me))
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
@@ -976,11 +1072,14 @@ export default function OceanAmbience({ mode = 'world' }) {
   rallyPhaseRef.current = rallyPhase
   rallySpeciesRef.current = rallySpecies
   tankLightsRef.current = tankLights
+  daylightRef.current = daylight
+  tankUnlitRef.current = tankUnlit
   placeLightRef.current = !!placeLight
   tankEditRef.current = !!tankEdit
   placeItemRef.current = placeItem
   pickPropRef.current = pickProp
   movePropRef.current = !!moveProp
+  tankDecorsRef.current = tankDecors
 
   useEffect(() => {
     setPotionMsg('')
@@ -992,6 +1091,14 @@ export default function OceanAmbience({ mode = 'world' }) {
     const t = window.setTimeout(() => setInspect(null), 14000)
     return () => window.clearTimeout(t)
   }, [inspect, visiting])
+
+  useEffect(() => {
+    if (hidden || mode !== 'tank') return undefined
+    const tick = () => setClockMs(Date.now())
+    tick()
+    const t = window.setInterval(tick, 30000)
+    return () => window.clearInterval(t)
+  }, [hidden, mode])
 
   useEffect(() => {
     if (mode !== 'tank') return undefined
@@ -1149,6 +1256,59 @@ export default function OceanAmbience({ mode = 'world' }) {
     window.addEventListener(TANK_EDIT_EVENT, onEdit)
     return () => window.removeEventListener(TANK_EDIT_EVENT, onEdit)
   }, [hidden, mode, visiting])
+
+  useEffect(() => {
+    if (hidden || mode !== 'tank' || visiting || !tankEdit) return undefined
+    const frac = (cx, cy) => {
+      const mapped = mapClientToTank(cx, cy, panRef.current)
+      const L = stableLayout(mode, (rosterRef.current || []).length)
+      return {
+        x: mapped.x / Math.max(1, L.w),
+        y: mapped.y / Math.max(1, L.h)
+      }
+    }
+    const onMove = (e) => {
+      const drag = dragPropRef.current
+      if (!drag) return
+      e.preventDefault()
+      const f = frac(e.clientX, e.clientY)
+      if (drag.kind === 'light') {
+        const x = Math.max(0.06, Math.min(0.94, f.x))
+        setTankLights((prev) => prev.map((row) => (row.id === drag.id ? { ...row, x } : row)))
+        return
+      }
+      const x = Math.max(0.06, Math.min(0.94, f.x))
+      const y = Math.max(0.18, Math.min(0.94, f.y))
+      setTankDecors((prev) => prev.map((row) => (row.id === drag.id ? { ...row, x, y } : row)))
+    }
+    const onUp = () => {
+      const drag = dragPropRef.current
+      if (!drag) return
+      dragPropRef.current = null
+      const user = getCurrentUser()
+      if (drag.kind === 'light') {
+        const row = (tankLightsRef.current || []).find((it) => it.id === drag.id)
+        if (row) {
+          const r = moveTankLight(user, drag.id, row.x)
+          if (r.success) setTankLights(r.lights || [])
+        }
+        return
+      }
+      const row = (tankDecorsRef.current || []).find((it) => it.id === drag.id)
+      if (row) {
+        const r = updateTankDecor(user, drag.id, { x: row.x, y: row.y })
+        if (r.success) setTankDecors(r.decors || [])
+      }
+    }
+    window.addEventListener('pointermove', onMove, { passive: false })
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [hidden, mode, visiting, tankEdit])
 
   useEffect(() => {
     if (hidden || mode !== 'tank') return undefined
@@ -1631,7 +1791,9 @@ export default function OceanAmbience({ mode = 'world' }) {
           node.sprite = node.el.querySelector('.ocean-betta')
         }
         if (!node?.el) return
-        const lit = mode === 'tank' ? fishInTankBeam(f, size, L, tankLightsRef.current) : 0
+        const beam = mode === 'tank' ? fishInTankBeam(f, size, L, tankLightsRef.current) : { amount: 0, color: 'white' }
+        const lit = beam.amount
+        const ambient = mode === 'tank' && tankUnlitRef.current ? daylightRef.current : null
         const px = Math.round(f.x * 4) / 4
         const py = Math.round(f.y * 4) / 4
         const tf = `translate3d(${px}px, ${py}px, 0)`
@@ -1665,8 +1827,10 @@ export default function OceanAmbience({ mode = 'world' }) {
           node.el.classList.toggle('is-lit', isLit)
         }
         const filter = lit > 0.04
-          ? `saturate(${(1 + lit * 1.15).toFixed(2)}) brightness(${(1 + lit * 0.28).toFixed(2)}) contrast(${(1 + lit * 0.1).toFixed(2)})`
-          : ''
+          ? beamFilter(lit, beam.color)
+          : ambient
+            ? `brightness(${ambient.fish}) saturate(${ambient.key === 'night' ? 0.55 : ambient.key === 'aft' ? 0.72 : 0.88})`
+            : ''
         if (node.filter !== filter) {
           node.filter = filter
           node.el.style.filter = filter
@@ -1760,10 +1924,14 @@ export default function OceanAmbience({ mode = 'world' }) {
         }
         const pending = placeItemRef.current
         if (pending?.type === ITEM_TYPES.TANK_LIGHT) {
-          const placed = placeTankLight(user, xf)
+          const placed = placeTankLight(user, xf, pending.itemId)
           if (placed.success) {
-            removeItemFromInventory(user, TANK_LIGHT_ITEM_ID, 1)
+            removeItemFromInventory(user, pending.itemId || TANK_LIGHT_ITEM_ID, 1)
             setTankLights(placed.lights || [])
+            if (placed.id) {
+              dragPropRef.current = { kind: 'light', id: placed.id }
+              setPickProp({ kind: 'light', id: placed.id })
+            }
             const next = listTankPlaceables(user)
             setPlaceables(next)
             if (!next.some((row) => row.itemId === pending.itemId)) setPlaceItem(null)
@@ -1776,6 +1944,10 @@ export default function OceanAmbience({ mode = 'world' }) {
           if (placed.success) {
             removeItemFromInventory(user, pending.itemId, 1)
             setTankDecors(placed.decors || [])
+            if (placed.id) {
+              dragPropRef.current = { kind: 'decor', id: placed.id }
+              setPickProp({ kind: 'decor', id: placed.id })
+            }
             const next = listTankPlaceables(user)
             setPlaceables(next)
             if (!next.some((row) => row.itemId === pending.itemId)) setPlaceItem(null)
@@ -1787,7 +1959,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       }
       if (mode === 'tank' && placeLightRef.current && !visiting) {
         const L = stableLayout(mode, (rosterRef.current || []).length)
-        const placed = placeTankLight(getCurrentUser(), x / Math.max(1, L.w))
+        const placed = placeTankLight(getCurrentUser(), x / Math.max(1, L.w), TANK_LIGHT_ITEM_ID)
         if (placed.success) {
           removeItemFromInventory(getCurrentUser(), TANK_LIGHT_ITEM_ID, 1)
           endPlaceTankLight()
@@ -1845,7 +2017,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight || tankEdit ? ' is-place-light' : ''}${tankEdit ? ' is-tank-edit' : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight || tankEdit ? ' is-place-light' : ''}${tankEdit ? ' is-tank-edit' : ''}${tankUnlit ? ` is-unlit is-tod-${daylight.key}` : ''}`}
       style={
         mode === 'tank' && !rotate
           ? { ['--tank-ui-top']: `${uiTop || 0}px` }
@@ -1996,7 +2168,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="ocean-tank-edit-row">
-            <p>{moveProp ? '點魚缸換位置' : placeItem ? `點魚缸擺放${placeItem.name}` : pickProp ? '已選取，可換位置或收回' : '選背包道具擺放，或點缸裡的道具'}</p>
+            <p>{moveProp ? '點魚缸換位置' : placeItem ? `按住拖到魚缸擺放${placeItem.name}` : pickProp?.kind === 'light' ? '可拖曳換位置或收回' : pickProp ? '可拖曳、旋轉、放大縮小或收回' : '選背包道具拖到魚缸，或拖缸裡的道具'}</p>
             <button
               type="button"
               className="is-cancel"
@@ -2014,13 +2186,98 @@ export default function OceanAmbience({ mode = 'world' }) {
           </div>
           {pickProp ? (
             <div className="ocean-tank-edit-row">
-              <button
-                type="button"
-                className={moveProp ? 'is-on' : ''}
-                onClick={() => setMoveProp((v) => !v)}
-              >
-                換位置
-              </button>
+              {pickProp.kind === 'decor' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const row = tankDecors.find((it) => it.id === pickProp.id)
+                      if (!row) return
+                      const r = updateTankDecor(getCurrentUser(), pickProp.id, { scale: (Number(row.scale) || 1) - 0.15 })
+                      if (r.success) setTankDecors(r.decors || [])
+                    }}
+                  >
+                    縮小
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const row = tankDecors.find((it) => it.id === pickProp.id)
+                      if (!row) return
+                      const r = updateTankDecor(getCurrentUser(), pickProp.id, { scale: (Number(row.scale) || 1) + 0.15 })
+                      if (r.success) setTankDecors(r.decors || [])
+                    }}
+                  >
+                    放大
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const row = tankDecors.find((it) => it.id === pickProp.id)
+                      if (!row) return
+                      const r = updateTankDecor(getCurrentUser(), pickProp.id, { rot: (Number(row.rot) || 0) - 15 })
+                      if (r.success) setTankDecors(r.decors || [])
+                    }}
+                  >
+                    左轉
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const row = tankDecors.find((it) => it.id === pickProp.id)
+                      if (!row) return
+                      const r = updateTankDecor(getCurrentUser(), pickProp.id, { rot: (Number(row.rot) || 0) + 15 })
+                      if (r.success) setTankDecors(r.decors || [])
+                    }}
+                  >
+                    右轉
+                  </button>
+                </>
+              ) : (
+                <>
+                  {tankLights.find((it) => it.id === pickProp.id)?.kind === 'color' ? (
+                    <>
+                      <button
+                        type="button"
+                        className={tankLights.find((it) => it.id === pickProp.id)?.color === 'white' ? 'is-on' : ''}
+                        onClick={() => {
+                          const r = setTankLightColor(getCurrentUser(), pickProp.id, 'white')
+                          if (r.success) setTankLights(r.lights || [])
+                        }}
+                      >
+                        白光
+                      </button>
+                      <button
+                        type="button"
+                        className={tankLights.find((it) => it.id === pickProp.id)?.color === 'blue' ? 'is-on' : ''}
+                        onClick={() => {
+                          const r = setTankLightColor(getCurrentUser(), pickProp.id, 'blue')
+                          if (r.success) setTankLights(r.lights || [])
+                        }}
+                      >
+                        藍光
+                      </button>
+                      <button
+                        type="button"
+                        className={tankLights.find((it) => it.id === pickProp.id)?.color === 'red' ? 'is-on' : ''}
+                        onClick={() => {
+                          const r = setTankLightColor(getCurrentUser(), pickProp.id, 'red')
+                          if (r.success) setTankLights(r.lights || [])
+                        }}
+                      >
+                        紅光
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={moveProp ? 'is-on' : ''}
+                    onClick={() => setMoveProp((v) => !v)}
+                  >
+                    換位置
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -2028,7 +2285,7 @@ export default function OceanAmbience({ mode = 'world' }) {
                   if (pickProp.kind === 'light') {
                     const r = recallTankLight(user, pickProp.id)
                     if (r.success) {
-                      addItemToInventory(user, TANK_LIGHT_ITEM_ID, 1)
+                      addItemToInventory(user, r.itemId || itemIdFromLight(r) || TANK_LIGHT_ITEM_ID, 1)
                       setTankLights(r.lights || [])
                     }
                   } else {
@@ -2040,6 +2297,7 @@ export default function OceanAmbience({ mode = 'world' }) {
                   }
                   setPickProp(null)
                   setMoveProp(false)
+                  dragPropRef.current = null
                   setPlaceables(listTankPlaceables(user))
                 }}
               >
@@ -2070,7 +2328,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       ) : null}
       {mode === 'tank' && placeLight && !visiting && !tankEdit ? createPortal(
         <div className="ocean-rally-hud is-actions" style={{ top: Math.max(12, (uiTop || 0) + 8) }}>
-          <span>點魚缸頂部擺放魚缸燈</span>
+          <span>點魚缸頂部擺放桶燈</span>
           <button
             type="button"
             onClick={() => {
@@ -2089,20 +2347,33 @@ export default function OceanAmbience({ mode = 'world' }) {
           style={{ top: Math.max(12, (uiTop || 0) + (rallyPhase ? 48 : 8)) }}
         >
           {tankLights.map((lamp, i) => (
-            <button
-              key={lamp.id}
-              type="button"
-              className={lamp.on ? 'is-on' : ''}
-              disabled={visiting}
-              onClick={() => {
-                if (visiting) return
-                const r = toggleTankLight(tankOwner, lamp.id)
-                if (r.success) setTankLights(r.lights || [])
-              }}
-            >
-              {tankLights.length > 1 ? `燈${i + 1} ` : '魚缸燈 '}
-              {lamp.on ? '開' : '關'}
-            </button>
+            <div key={lamp.id} className="ocean-light-hud-row">
+              <button
+                type="button"
+                className={lamp.on ? 'is-on' : ''}
+                disabled={visiting}
+                onClick={() => {
+                  if (visiting) return
+                  const r = toggleTankLight(tankOwner, lamp.id)
+                  if (r.success) setTankLights(r.lights || [])
+                }}
+              >
+                {lampSwitchLabel(lamp)}{tankLights.length > 1 ? i + 1 : ''} {lamp.on ? '開' : '關'}
+              </button>
+              {lamp.kind === 'color' && !visiting ? ['white', 'blue', 'red'].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`ocean-light-color is-${c}${lamp.color === c ? ' is-on' : ''}`}
+                  onClick={() => {
+                    const r = setTankLightColor(tankOwner, lamp.id, c)
+                    if (r.success) setTankLights(r.lights || [])
+                  }}
+                >
+                  {c === 'white' ? '白' : c === 'blue' ? '藍' : '紅'}
+                </button>
+              )) : null}
+            </div>
           ))}
         </div>,
         document.body
@@ -2139,24 +2410,37 @@ export default function OceanAmbience({ mode = 'world' }) {
             : undefined
         }
       >
-      {mode === 'tank' ? <TankScenery w={worldW} h={worldH} lights={tankLights} /> : null}
+      {mode === 'tank' ? <TankScenery w={worldW} h={worldH} lights={tankLights} unlit={tankUnlit} shade={daylight.shade} /> : null}
       {mode === 'tank' ? tankDecors.map((row) => {
         const look = row.look || 'plant'
         const box = tankDecorBox(look, worldH)
+        const scale = Number(row.scale) || 1
+        const rot = Number(row.rot) || 0
+        const selected = pickProp?.kind === 'decor' && pickProp?.id === row.id
         return (
         <button
           key={row.id}
           type="button"
-          className={`ocean-tank-decor is-${look}${pickProp?.kind === 'decor' && pickProp?.id === row.id ? ' is-sel' : ''}`}
-          style={{ left: `${row.x * 100}%`, top: `${row.y * 100}%`, width: `${box.w}px`, height: `${box.h}px` }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.preventDefault()
+          className={`ocean-tank-decor is-${look}${selected ? ' is-sel' : ''}`}
+          style={{
+            left: `${row.x * 100}%`,
+            top: `${row.y * 100}%`,
+            width: `${Math.round(box.w * scale)}px`,
+            height: `${Math.round(box.h * scale)}px`,
+            transform: `translate(-50%, -92%) rotate(${rot}deg)`
+          }}
+          onPointerDown={(e) => {
             e.stopPropagation()
             if (visiting || !tankEdit) return
+            e.preventDefault()
             setPickProp({ kind: 'decor', id: row.id })
             setPlaceItem(null)
             setMoveProp(false)
+            dragPropRef.current = { kind: 'decor', id: row.id }
+          }}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
           }}
         >
           <TankDecorArt look={look} />
@@ -2167,15 +2451,19 @@ export default function OceanAmbience({ mode = 'world' }) {
         <button
           key={`hit-${lamp.id}`}
           type="button"
-          className={`ocean-tank-lamp-hit${pickProp?.kind === 'light' && pickProp?.id === lamp.id ? ' is-sel' : ''}`}
+          className={`ocean-tank-lamp-hit is-${lamp.kind || 'barrel'}${pickProp?.kind === 'light' && pickProp?.id === lamp.id ? ' is-sel' : ''}`}
           style={{ left: `${Math.max(5, Math.min(95, (Number(lamp.x) || 0.5) * 100))}%` }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.preventDefault()
+          onPointerDown={(e) => {
             e.stopPropagation()
+            e.preventDefault()
             setPickProp({ kind: 'light', id: lamp.id })
             setPlaceItem(null)
             setMoveProp(false)
+            dragPropRef.current = { kind: 'light', id: lamp.id }
+          }}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
           }}
         />
       )) : null}

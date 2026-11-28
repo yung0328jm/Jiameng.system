@@ -633,6 +633,56 @@ body.tank-widewatch #root {
     linear-gradient(180deg, #e7f7fc 0%, #b5e4f2 32%, #7ec8e0 68%, #5aafcc 100%);
 }
 
+.ocean-ambience.is-tank.is-unlit.is-tod-morn .ocean-world {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 28%),
+    linear-gradient(180deg, #9ec9d8 0%, #6fa3b8 40%, #4a7e96 100%);
+}
+
+.ocean-ambience.is-tank.is-unlit.is-tod-aft .ocean-world {
+  background:
+    linear-gradient(180deg, rgba(40, 55, 70, 0.12) 0%, transparent 30%),
+    linear-gradient(180deg, #5d7d8c 0%, #3d5c6c 42%, #274654 100%);
+}
+
+.ocean-ambience.is-tank.is-unlit.is-tod-night .ocean-world {
+  background:
+    linear-gradient(180deg, rgba(8, 14, 24, 0.35) 0%, transparent 35%),
+    linear-gradient(180deg, #152230 0%, #0b141c 48%, #05080c 100%);
+}
+
+.ocean-tank-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(18, 36, 52, 0.18) 0%, rgba(4, 10, 18, 0.88) 100%);
+}
+
+.ocean-ambience.is-tank.is-unlit .ocean-tank-caustic {
+  opacity: 0.14;
+}
+
+.ocean-ambience.is-tank.is-unlit.is-tod-aft .ocean-tank-caustic {
+  opacity: 0.08;
+}
+
+.ocean-ambience.is-tank.is-unlit.is-tod-night .ocean-tank-caustic {
+  opacity: 0.03;
+}
+
+.ocean-ambience.is-tank.is-unlit.is-tod-morn .ocean-tank-decor {
+  filter: brightness(0.78);
+}
+
+.ocean-ambience.is-tank.is-unlit.is-tod-aft .ocean-tank-decor {
+  filter: brightness(0.5);
+}
+
+.ocean-ambience.is-tank.is-unlit.is-tod-night .ocean-tank-decor {
+  filter: brightness(0.26);
+}
+
 .ocean-tank-back {
   position: absolute;
   inset: 0;
@@ -752,26 +802,59 @@ body.tank-widewatch #root {
 
 .ocean-tank-lamp {
   position: absolute;
-  top: 3px;
+  top: 2px;
   z-index: 8;
-  width: 42px;
-  height: 11px;
+  width: 22px;
+  height: 30px;
   transform: translateX(-50%);
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ocean-tank-lamp-hang {
+  display: block;
+  width: 2px;
+  height: 9px;
+  background: #64748b;
+  flex: 0 0 auto;
 }
 
 .ocean-tank-lamp-body {
   display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 5px 5px 3px 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px 9px 7px 7px;
   background: linear-gradient(180deg, #94a3b8 0%, #475569 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.ocean-tank-lamp.is-bar {
+  width: 52%;
+  height: 11px;
+  top: 4px;
+}
+
+.ocean-tank-lamp.is-bar .ocean-tank-lamp-body {
+  width: 100%;
+  height: 9px;
+  border-radius: 5px;
 }
 
 .ocean-tank-lamp.is-on .ocean-tank-lamp-body {
   background: linear-gradient(180deg, #fff8dc 0%, #fbbf24 55%, #d97706 100%);
   box-shadow: 0 0 12px rgba(253, 224, 71, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.ocean-tank-lamp.is-on.is-blue .ocean-tank-lamp-body {
+  background: linear-gradient(180deg, #dbeafe 0%, #3b82f6 55%, #1d4ed8 100%);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.ocean-tank-lamp.is-on.is-red .ocean-tank-lamp-body {
+  background: linear-gradient(180deg, #fecaca 0%, #ef4444 55%, #b91c1c 100%);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .ocean-light-hud {
@@ -783,6 +866,19 @@ body.tank-widewatch #root {
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
+}
+
+.ocean-light-hud-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  align-items: center;
+}
+
+.ocean-light-hud button.ocean-light-color {
+  min-width: 36px;
+  padding: 0 8px;
 }
 
 .ocean-light-hud button {
@@ -800,6 +896,18 @@ body.tank-widewatch #root {
   border-color: rgba(250, 204, 21, 0.7);
   color: #fde68a;
   background: rgba(69, 26, 3, 0.72);
+}
+
+.ocean-light-hud button.ocean-light-color.is-blue.is-on {
+  border-color: rgba(96, 165, 250, 0.85);
+  color: #bfdbfe;
+  background: rgba(30, 58, 138, 0.75);
+}
+
+.ocean-light-hud button.ocean-light-color.is-red.is-on {
+  border-color: rgba(248, 113, 113, 0.85);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.75);
 }
 
 .ocean-tank-edit-panel {
@@ -866,6 +974,7 @@ body.tank-widewatch #root {
   width: 72px;
   height: 104px;
   transform: translate(-50%, -92%);
+  transform-origin: 50% 92%;
   border: 0;
   padding: 0;
   background: transparent;
@@ -875,6 +984,18 @@ body.tank-widewatch #root {
 
 .ocean-ambience.is-tank-edit .ocean-tank-decor {
   pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  transform-origin: 50% 92%;
+}
+
+.ocean-ambience.is-tank-edit .ocean-tank-decor-art {
+  animation: none;
+}
+
+.ocean-ambience.is-tank-edit .ocean-tank-lamp-hit {
+  touch-action: none;
+  cursor: grab;
 }
 
 .ocean-tank-decor-art {
@@ -918,12 +1039,17 @@ body.tank-widewatch #root {
   top: 0;
   z-index: 9;
   width: 52px;
-  height: 22px;
+  height: 28px;
   transform: translateX(-50%);
   border: 1px dashed rgba(250, 204, 21, 0.65);
   border-radius: 6px;
   background: rgba(250, 204, 21, 0.12);
   padding: 0;
+}
+
+.ocean-tank-lamp-hit.is-bar {
+  width: 52%;
+  height: 22px;
 }
 
 .ocean-tank-beam {
@@ -956,6 +1082,30 @@ body.tank-widewatch #root {
   filter: blur(0.4px);
 }
 
+.ocean-tank-beam.is-bar .ocean-tank-beam-core {
+  clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
+}
+
+.ocean-tank-beam.is-blue .ocean-tank-beam-core {
+  background: linear-gradient(
+    to bottom,
+    rgba(191, 219, 254, 0.42) 0%,
+    rgba(59, 130, 246, 0.2) 28%,
+    rgba(29, 78, 216, 0.08) 62%,
+    rgba(8, 47, 73, 0) 100%
+  );
+}
+
+.ocean-tank-beam.is-red .ocean-tank-beam-core {
+  background: linear-gradient(
+    to bottom,
+    rgba(254, 202, 202, 0.4) 0%,
+    rgba(239, 68, 68, 0.2) 28%,
+    rgba(153, 27, 27, 0.08) 62%,
+    rgba(40, 10, 10, 0) 100%
+  );
+}
+
 .ocean-tank-beam-glow {
   background: linear-gradient(
     to bottom,
@@ -967,6 +1117,28 @@ body.tank-widewatch #root {
   clip-path: polygon(46% 0, 54% 0, 92% 100%, 8% 100%);
   filter: blur(10px);
   opacity: 0.85;
+}
+
+.ocean-tank-beam.is-bar .ocean-tank-beam-glow {
+  clip-path: polygon(8% 0, 92% 0, 98% 100%, 2% 100%);
+}
+
+.ocean-tank-beam.is-blue .ocean-tank-beam-glow {
+  background: linear-gradient(
+    to bottom,
+    rgba(147, 197, 253, 0.32) 0%,
+    rgba(37, 99, 235, 0.12) 40%,
+    transparent 100%
+  );
+}
+
+.ocean-tank-beam.is-red .ocean-tank-beam-glow {
+  background: linear-gradient(
+    to bottom,
+    rgba(252, 165, 165, 0.32) 0%,
+    rgba(220, 38, 38, 0.12) 40%,
+    transparent 100%
+  );
 }
 
 .ocean-fish-actor {

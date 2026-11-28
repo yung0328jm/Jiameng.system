@@ -164,7 +164,7 @@ export default function MyTank() {
         {openList === 'guests' ? (
           <div className="mt-3 flex flex-col gap-1.5">
             {visitors.length ? visitors.map((row) => (
-              <p key={row.account} className="text-sm text-slate-800">
+              <p key={row.account} className="text-sm text-cn-parchment">
                 {getDisplayNameForAccount(row.account)}
                 {row.fed ? <span className="ml-2 text-sky-200/90">幫忙餵食過魚</span> : null}
               </p>
