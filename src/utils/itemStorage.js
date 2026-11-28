@@ -312,11 +312,11 @@ const FISH_POTION_GROWTH_ITEM = {
   name: '魚隻成長藥水',
   type: 'fish_potion',
   potion: 'growth',
-  description: '給自己的魚使用，立刻增加 20 次餵食成長（成魚需 45 次，每天最多 5 次約 9 天）。已成魚無效。公母都能用。僅管理員可兌換。',
+  description: '給自己的魚使用，立刻增加 20 次餵食成長（成魚需 45 次，每天最多 5 次約 9 天）。已成魚無效。公母都能用。',
   icon: '🌿',
   price: 16,
   category: '水族藥水',
-  isHidden: true,
+  isHidden: false,
   createdAt: new Date().toISOString()
 }
 
@@ -325,11 +325,11 @@ const FISH_POTION_GENDER_ITEM = {
   name: '變性藥水',
   type: 'fish_potion',
   potion: 'gender',
-  description: '給自己的魚使用，公轉母、母轉公。懷孕中不可用。僅管理員可兌換。',
+  description: '給自己的魚使用，公轉母、母轉公。懷孕中不可用。',
   icon: '🔮',
   price: 28,
   category: '水族藥水',
-  isHidden: true,
+  isHidden: false,
   createdAt: new Date().toISOString()
 }
 
@@ -777,8 +777,11 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
         priceSeedVer: TANK_AQUA_PRICE_SEED
       }
     }
-    if ((id === FISH_POTION_GROWTH_ID || id === FISH_POTION_GENDER_ID) && !next.isHidden) {
-      next = { ...next, isHidden: true }
+    if (id === FISH_POTION_GROWTH_ID && next.isHidden) {
+      next = { ...next, isHidden: false, description: FISH_POTION_GROWTH_ITEM.description }
+    }
+    if (id === FISH_POTION_GENDER_ID && next.isHidden) {
+      next = { ...next, isHidden: false, description: FISH_POTION_GENDER_ITEM.description }
     }
     const catalog = FISH_SHOP_CATALOG[id]
     if (catalog) {
