@@ -1165,20 +1165,24 @@ export function recordPetEat(username, slotId, itemId, speciesKey, helperAccount
   return saved
 }
 
-function isUnboundPersonnelLabel(acc, userAccounts) {
-  const name = String(acc || '').trim()
-  if (!name) return false
-  if (userAccounts?.has(name)) return false
+function listPersonnelBindings() {
+  const out = []
   try {
-    for (const cat of ['participants', 'responsible_persons']) {
-      for (const opt of getDropdownOptionsByCategory(cat) || []) {
+    ;['participants', 'responsible_persons'].forEach((cat) => {
+      ;(getDropdownOptionsByCategory(cat) || []).forEach((opt) => {
         const val = String(opt?.value || '').trim()
         const bound = String(opt?.boundAccount || '').trim()
-        if (val === name && (!bound || bound === val)) return true
-      }
-    }
+        if (val) out.push({ val, bound })
+      })
+    })
   } catch (_) {}
-  return false
+  return out
+}
+
+function isPlaceholderPersonnel(name, personnel) {
+  const n = String(name || '').trim()
+  if (!n) return false
+  return personnel.some((o) => o.val === n && (!o.bound || o.bound === o.val))
 }
 
 export function listVisitTanks(viewer) {
@@ -1198,30 +1202,32 @@ export function listVisitTanks(viewer) {
   const resigned = new Set(
     users.filter((u) => String(u?.role || '') === 'resigned').map((u) => String(u?.account || '').trim()).filter(Boolean)
   )
+  const personnel = listPersonnelBindings()
   const add = (raw) => {
     let acc = String(raw || '').trim()
     if (!acc || acc === me || isGuestAccount(acc) || seen.has(acc) || resigned.has(acc) || isTankClosed(acc)) return
+    if (isPlaceholderPersonnel(acc, personnel)) return
     if (!userAccounts.has(acc)) {
       const named = users.find((u) => String(u?.name || '').trim() === acc)
       if (named?.account) acc = String(named.account).trim()
     }
     if (!acc || acc === me || seen.has(acc) || resigned.has(acc) || isTankClosed(acc)) return
-    if (isUnboundPersonnelLabel(acc, userAccounts)) return
+    if (isPlaceholderPersonnel(acc, personnel)) return
     seen.add(acc)
     out.push({ account: acc, count: listRoamingSlotIds(acc).length })
   }
   users.forEach((u) => add(u?.account))
-  try {
-    ;['participants', 'responsible_persons'].forEach((cat) => {
-      ;(getDropdownOptionsByCategory(cat) || []).forEach((opt) => add(opt?.boundAccount || opt?.value))
-    })
-  } catch (_) {}
+  personnel.forEach((o) => {
+    if (o.bound && o.bound !== o.val) add(o.bound)
+  })
   try {
     Object.keys(readAll()).forEach(add)
   } catch (_) {}
-  out.sort((a, b) =>
-    getDisplayNameForAccount(a.account).localeCompare(getDisplayNameForAccount(b.account), 'zh-Hant')
-  )
+  out.sort((a, b) => {
+    const byCount = (Number(b.count) || 0) - (Number(a.count) || 0)
+    if (byCount) return byCount
+    return getDisplayNameForAccount(a.account).localeCompare(getDisplayNameForAccount(b.account), 'zh-Hant')
+  })
   return out
 }
 
