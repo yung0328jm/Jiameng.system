@@ -66,6 +66,7 @@ function emptyUser() {
     breedPairs: [],
     endedPairs: {},
     favorites: {},
+    visitors: [],
     removed: {},
     updatedAt: ''
   }
@@ -113,6 +114,7 @@ export function getUserPets(username) {
     breedPairs: Array.isArray(row.breedPairs) ? row.breedPairs : [],
     endedPairs: row.endedPairs && typeof row.endedPairs === 'object' ? row.endedPairs : {},
     favorites: row.favorites && typeof row.favorites === 'object' ? row.favorites : {},
+    visitors: Array.isArray(row.visitors) ? row.visitors : [],
     removed: row.removed && typeof row.removed === 'object' ? row.removed : {},
     updatedAt: String(row.updatedAt || '')
   }
@@ -1153,7 +1155,9 @@ export function recordPetEat(username, slotId, itemId, speciesKey, helperAccount
     ? { ...cur.fedAt, [sid]: new Date().toISOString() }
     : cur.fedAt
   growth[sid] = next
-  return saveUserPets(username, { ...cur, fedAt, growth })
+  const saved = saveUserPets(username, { ...cur, fedAt, growth })
+  if (isHelp) markTankVisitorFed(username, helper)
+  return saved
 }
 
 export function listVisitTanks(viewer) {
@@ -1169,6 +1173,44 @@ export function listVisitTanks(viewer) {
   })
   out.sort((a, b) => a.account.localeCompare(b.account, 'zh-Hant'))
   return out
+}
+
+function upsertVisitor(owner, visitor, extra = {}) {
+  const host = String(owner || '').trim()
+  const who = String(visitor || '').trim()
+  if (!host || !who || host === who || isGuestAccount(who)) return { success: false }
+  const cur = getUserPets(host)
+  const now = new Date().toISOString()
+  const prev = Array.isArray(cur.visitors) ? cur.visitors : []
+  const existing = prev.find((v) => String(v?.account || '') === who) || {}
+  const row = {
+    account: who,
+    at: now,
+    fed: !!(existing.fed || extra.fed),
+    fedAt: extra.fed ? now : (existing.fedAt || '')
+  }
+  const visitors = [row, ...prev.filter((v) => String(v?.account || '') !== who)].slice(0, 40)
+  return saveUserPets(host, { ...cur, visitors })
+}
+
+export function noteTankVisit(owner, visitor) {
+  return upsertVisitor(owner, visitor)
+}
+
+export function markTankVisitorFed(owner, helper) {
+  return upsertVisitor(owner, helper, { fed: true })
+}
+
+export function listTankVisitors(owner) {
+  const rows = Array.isArray(getUserPets(owner)?.visitors) ? getUserPets(owner).visitors : []
+  return rows
+    .map((v) => ({
+      account: String(v?.account || '').trim(),
+      at: v?.at || '',
+      fed: !!v?.fed
+    }))
+    .filter((v) => v.account)
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
 }
 
 export function recentHelpers(rec, now = Date.now()) {

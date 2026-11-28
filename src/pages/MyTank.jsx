@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import OceanAmbience, { enterTankWideWatch } from '../components/OceanAmbience'
 import { getCurrentUser } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
-import { listVisitTanks } from '../utils/petStorage'
+import { listTankVisitors, listVisitTanks, noteTankVisit } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
 
 export default function MyTank() {
@@ -17,14 +17,25 @@ export default function MyTank() {
     host = String(account || '')
   }
   const visiting = !!(host && host !== me)
+  const tankOwner = visiting ? host : me
   const [tanks, setTanks] = useState(() => listVisitTanks(me))
+  const [visitors, setVisitors] = useState(() => listTankVisitors(tankOwner))
+  const [openList, setOpenList] = useState('')
 
   useEffect(() => {
     if (host && host === me) navigate('/my-tank', { replace: true })
   }, [host, me, navigate])
 
   useEffect(() => {
-    const refresh = () => setTanks(listVisitTanks(getCurrentUser()))
+    if (visiting && host && me) noteTankVisit(host, me)
+  }, [visiting, host, me])
+
+  useEffect(() => {
+    const refresh = () => {
+      const user = getCurrentUser()
+      setTanks(listVisitTanks(user))
+      setVisitors(listTankVisitors(visiting ? host : user))
+    }
     refresh()
     const onRt = (e) => {
       const key = e?.detail?.key
@@ -37,9 +48,10 @@ export default function MyTank() {
       window.clearInterval(timer)
       window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
     }
-  }, [])
+  }, [visiting, host])
 
   const hostName = visiting ? getDisplayNameForAccount(host) : ''
+  const toggle = (id) => setOpenList((cur) => (cur === id ? '' : id))
 
   return (
     <div className="relative z-[41] max-w-3xl mx-auto text-cn-parchment pb-8 pointer-events-none">
@@ -47,9 +59,6 @@ export default function MyTank() {
         <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif">
           {visiting ? `${hostName}的魚缸` : '我的魚缸'}
         </h1>
-        {visiting ? (
-          <p className="mt-2 text-sm text-gray-400">可以幫忙餵食，每天每隻最多幫忙 3 次（主人自己還有 5 次）</p>
-        ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
@@ -74,29 +83,59 @@ export default function MyTank() {
           >
             橫向模式
           </button>
+          <button
+            type="button"
+            onClick={() => toggle('visit')}
+            className={`px-4 py-2 rounded-md border text-sm hover:bg-black/30 ${
+              openList === 'visit' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600 text-cn-parchment'
+            }`}
+          >
+            參觀別人的魚缸
+          </button>
+          <button
+            type="button"
+            onClick={() => toggle('guests')}
+            className={`px-4 py-2 rounded-md border text-sm hover:bg-black/30 ${
+              openList === 'guests' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600 text-cn-parchment'
+            }`}
+          >
+            誰來過
+          </button>
         </div>
-        {tanks.length ? (
-          <div className="mt-4">
-            <p className="text-xs text-gray-500 mb-2">參觀別人的魚缸</p>
-            <div className="flex flex-wrap gap-2">
-              {tanks.map((row) => {
-                const active = visiting && row.account === host
-                return (
-                  <button
-                    key={row.account}
-                    type="button"
-                    onClick={() => navigate(`/tank/${encodeURIComponent(row.account)}`)}
-                    className={`px-3 py-1.5 rounded-md border text-xs hover:bg-black/30 ${
-                      active
-                        ? 'border-cn-gold/70 text-cn-gold'
-                        : 'border-gray-600 text-cn-parchment'
-                    }`}
-                  >
-                    {getDisplayNameForAccount(row.account)} · {row.count}隻
-                  </button>
-                )
-              })}
-            </div>
+        {openList === 'visit' ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {tanks.length ? tanks.map((row) => {
+              const active = visiting && row.account === host
+              return (
+                <button
+                  key={row.account}
+                  type="button"
+                  onClick={() => {
+                    setOpenList('')
+                    navigate(`/tank/${encodeURIComponent(row.account)}`)
+                  }}
+                  className={`px-3 py-1.5 rounded-md border text-xs hover:bg-black/30 ${
+                    active ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600 text-cn-parchment'
+                  }`}
+                >
+                  {getDisplayNameForAccount(row.account)}
+                </button>
+              )
+            }) : (
+              <p className="text-xs text-gray-500">目前沒有可參觀的魚缸</p>
+            )}
+          </div>
+        ) : null}
+        {openList === 'guests' ? (
+          <div className="mt-3 flex flex-col gap-1.5">
+            {visitors.length ? visitors.map((row) => (
+              <p key={row.account} className="text-sm text-cn-parchment">
+                {getDisplayNameForAccount(row.account)}
+                {row.fed ? <span className="ml-2 text-sky-200/90">幫忙餵食過魚</span> : null}
+              </p>
+            )) : (
+              <p className="text-xs text-gray-500">還沒有人來過</p>
+            )}
           </div>
         ) : null}
       </div>

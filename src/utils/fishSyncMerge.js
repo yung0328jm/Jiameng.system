@@ -210,9 +210,27 @@ function mergePetUser(a, b) {
     breedPairs: pairs,
     endedPairs,
     showcaseSlotId: showcase,
+    visitors: mergeVisitorRows(a.visitors, b.visitors),
     removed,
     updatedAt: tsOf(b.updatedAt) >= tsOf(a.updatedAt) ? (b.updatedAt || a.updatedAt) : (a.updatedAt || b.updatedAt)
   }
+}
+
+function mergeVisitorRows(a, b) {
+  const map = new Map()
+  ;[...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].forEach((h) => {
+    const acc = String(h?.account || '').trim()
+    if (!acc) return
+    const prev = map.get(acc)
+    const newer = !prev || tsOf(h.at) >= tsOf(prev.at)
+    map.set(acc, {
+      account: acc,
+      at: newer ? (h.at || prev?.at || '') : (prev.at || h.at || ''),
+      fed: !!(prev?.fed || h.fed),
+      fedAt: tsOf(h.fedAt) >= tsOf(prev?.fedAt) ? (h.fedAt || prev?.fedAt || '') : (prev?.fedAt || h.fedAt || '')
+    })
+  })
+  return Array.from(map.values()).sort((x, y) => tsOf(y.at) - tsOf(x.at)).slice(0, 40)
 }
 
 export function mergePetsStore(cloud, incoming) {

@@ -537,6 +537,12 @@ body.tank-widewatch #root {
   transition: filter 0.16s linear;
 }
 
+.ocean-ambience.is-visiting .ocean-fish-actor,
+.ocean-fish-actor.is-viewonly {
+  pointer-events: none;
+  cursor: default;
+}
+
 .ocean-fish-owner-tip {
   position: absolute;
   left: 0;

@@ -129,7 +129,7 @@ function layout(mode = 'world', fishCount = 0) {
     top: headerClearance(),
     cruise: mobile ? 52 : 78,
     dash: mobile ? 260 : 380,
-    eatRange: mobile ? 22 : 32
+    eatRange: mobile ? 36 : 48
   }
 }
 
@@ -277,8 +277,20 @@ function layerBand(L, size, layer) {
   return { minY, maxY }
 }
 
-function clampFish(fish, L, size, layer = fish._layer) {
-  const { minY, maxY } = layerBand(L, size, layer)
+function waterColumn(L, size) {
+  const topPad = L.top ?? headerClearance()
+  const floor = L.floor ?? 8
+  const minY = topPad
+  const maxY = Math.max(minY, L.h - size.height - floor)
+  return { minY, maxY }
+}
+
+function swimBand(L, size, layer, roamAll) {
+  return roamAll ? waterColumn(L, size) : layerBand(L, size, layer)
+}
+
+function clampFish(fish, L, size, layer = fish._layer, roamAll = false) {
+  const { minY, maxY } = swimBand(L, size, layer, roamAll)
   fish.y = Math.max(minY, Math.min(maxY, fish.y))
   if (L.wrapX) {
     const span = L.w + size.width
@@ -301,9 +313,9 @@ function clampFish(fish, L, size, layer = fish._layer) {
   fish.x = Math.max(-size.width * 0.25, Math.min(L.w - size.width * 0.3, fish.x))
 }
 
-function pickWander(fish, L, size) {
+function pickWander(fish, L, size, roamAll = false) {
   const padX = L.pan ? 8 : 16
-  const { minY, maxY } = layerBand(L, size, fish._layer)
+  const { minY, maxY } = swimBand(L, size, fish._layer, roamAll)
   const spanY = Math.max(12, maxY - minY)
   fish.ty = minY + Math.random() * spanY
   if (L.wrapX) {
@@ -352,7 +364,7 @@ function shooFish(fish, L, size, fromX, fromY) {
   }
   const dist = Math.sqrt(dx * dx + dy * dy) || 1
   const run = L.mobile ? 220 : 300
-  const { minY, maxY } = layerBand(L, size, fish._layer)
+  const { minY, maxY } = swimBand(L, size, fish._layer, !!fish._roamAll)
   const nx = fish.x + (dx / dist) * run
   fish.tx = L.wrapX ? nx : Math.max(12, Math.min(L.w - size.width - 12, nx))
   fish.ty = Math.max(minY, Math.min(maxY, fish.y + (dy / dist) * run))
@@ -414,10 +426,14 @@ export default function OceanAmbience({ mode = 'world' }) {
 
   useEffect(() => {
     setPotionMsg('')
+    if (visiting) {
+      setInspect(null)
+      return undefined
+    }
     if (!inspect) return undefined
     const t = window.setTimeout(() => setInspect(null), 14000)
     return () => window.clearTimeout(t)
-  }, [inspect])
+  }, [inspect, visiting])
 
   useEffect(() => {
     if (mode !== 'tank') return undefined
@@ -560,10 +576,15 @@ export default function OceanAmbience({ mode = 'world' }) {
       )
       state.fish.forEach((fish, i) => {
         const size = sizes[i]
+        const entry = currentRoster[i]
+        const look = state.looks?.[entry?.id]
+        if (look?.hunger !== 'full') fish.sated = false
+        const hungry = look?.hunger !== 'full' && !fish.sated
         fish._w = size.width
         fish._h = size.height
-        fish._layer = speciesSwimLayer(currentRoster[i]?.key)
-        clampFish(fish, L, size, fish._layer)
+        fish._layer = speciesSwimLayer(entry?.key)
+        fish._roamAll = mode === 'tank' && hungry
+        clampFish(fish, L, size, fish._layer, fish._roamAll)
       })
 
       const pendingShoo = shooRef.current
@@ -582,11 +603,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         const mouthRatio = entry?.shape === 'ray' || entry?.shape === 'turtle' ? 0.9 : (entry?.wide ? 0.9 : 0.84)
         const mouthX = fish.face === 1 ? fish.x + size.width * mouthRatio : fish.x + size.width * (1 - mouthRatio)
         const mouthY = fish.y + size.height * 0.5
-        const band = layerBand(L, size, fish._layer)
-        const live = state.food.filter((p) => {
-          if (p.eaten) return false
-          return p.y >= band.minY - 36 && p.y <= band.maxY + size.height + 36
-        })
+        const live = state.food.filter((p) => !p.eaten)
         let target = null
         let best = Infinity
         live.forEach((p) => {
@@ -611,26 +628,28 @@ export default function OceanAmbience({ mode = 'world' }) {
           const fd = Math.sqrt(fx * fx + fy * fy) || 1
           if (fd < 28) {
             fish.fleeUntil = 0
-            pickWander(fish, L, size)
+            pickWander(fish, L, size, fish._roamAll)
           } else {
             fish.dash = true
             aimAlong(fish, fx, fy)
             const sprint = L.dash * (L.mobile ? 1.65 : 1.75)
             fish.x += (fx / fd) * sprint * dt
             fish.y += (fy / fd) * sprint * dt
-            clampFish(fish, L, size)
+            clampFish(fish, L, size, fish._layer, fish._roamAll)
             return
           }
         }
 
-        const full = state.looks?.[entry?.id]?.hunger === 'full'
+        const full = state.looks?.[entry?.id]?.hunger === 'full' || !!fish.sated
         if (target && !full) {
           const dx = target.x - mouthX
           const dy = target.y - mouthY
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
           if (dist < L.eatRange) {
             target.eaten = true
-            fish.eatUntil = now + 220
+            fish.eatUntil = now + 280
+            fish.sated = true
+            fish._roamAll = false
             fish.dash = false
             const owner = entry?.owner || getCurrentUser()
             const helper = visiting || (owner && owner !== getCurrentUser()) ? getCurrentUser() : ''
@@ -643,14 +662,14 @@ export default function OceanAmbience({ mode = 'world' }) {
             )
             state.looks = loadLooks(currentRoster, visiting)
             state.looksAt = now
-            pickWander(fish, L, size)
+            pickWander(fish, L, size, false)
             return
           }
           fish.dash = true
           aimAlong(fish, dx, dy)
           fish.x += (dx / dist) * L.dash * dt
           fish.y += (dy / dist) * L.dash * dt
-          clampFish(fish, L, size)
+          clampFish(fish, L, size, fish._layer, true)
         } else {
           fish.dash = false
           if (mode === 'tank' && (!fish.turnAt || now > fish.turnAt)) {
@@ -665,7 +684,7 @@ export default function OceanAmbience({ mode = 'world' }) {
               const dym = (mate.y + msize.height * 0.5) - (fish.y + size.height * 0.5)
               const dm = Math.sqrt(dxm * dxm + dym * dym) || 1
               if (dm > 88) {
-                const band = layerBand(L, size, fish._layer)
+                const band = swimBand(L, size, fish._layer, fish._roamAll)
                 fish.tx = Math.max(12, Math.min(L.w - size.width - 12, mate.x + dxm * 0.35))
                 fish.ty = Math.max(band.minY, Math.min(band.maxY, mate.y + dym * 0.2))
                 fish.turnAt = now + 900 + Math.random() * 700
@@ -676,7 +695,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           const dy = (fish.ty ?? fish.y) - fish.y
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
           if (!fish.turnAt || now > fish.turnAt || dist < 18) {
-            pickWander(fish, L, size)
+            pickWander(fish, L, size, fish._roamAll)
           }
           const wx = (fish.tx ?? fish.x) - fish.x
           const wy = (fish.ty ?? fish.y) - fish.y
@@ -685,7 +704,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           const speed = cruiseSpeed(L, entry, size)
           fish.x += (wx / wd) * speed * dt
           fish.y += (wy / wd) * speed * dt
-          clampFish(fish, L, size)
+          clampFish(fish, L, size, fish._layer, fish._roamAll)
         }
       })
 
@@ -808,7 +827,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       if (!Number.isFinite(x) || !Number.isFinite(y) || !sim.current) return
       const roster = rosterRef.current || []
       const looks = sim.current.looks || {}
-      const anyHungry = roster.some((row) => looks[row?.id]?.hunger !== 'full')
+      const anyHungry = roster.some((row, i) => looks[row?.id]?.hunger !== 'full' && !sim.current.fish[i]?.sated)
       if (!anyHungry) {
         let soonest = Infinity
         roster.forEach((row) => {
@@ -825,16 +844,16 @@ export default function OceanAmbience({ mode = 'world' }) {
         setFeedHud(line)
         return
       }
-      const next = Array.from({ length: 3 }, (_, i) => ({
-        id: genId() + i,
-        x: x + (Math.random() - 0.5) * 28,
-        y: y + (Math.random() - 0.2) * 10,
-        vx: (Math.random() - 0.5) * 18,
-        vy: -42 - Math.random() * 28,
+      const next = [{
+        id: genId(),
+        x: x + (Math.random() - 0.5) * 10,
+        y: y + (Math.random() - 0.2) * 6,
+        vx: (Math.random() - 0.5) * 10,
+        vy: -36 - Math.random() * 16,
         life: 6,
         eaten: false
-      }))
-      sim.current.food = [...sim.current.food, ...next].slice(-18)
+      }]
+      sim.current.food = [...sim.current.food, ...next].slice(-12)
     }
 
     window.addEventListener('ocean-feed', onFeed)
@@ -849,11 +868,12 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${pan ? ' is-pan' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}`}
       aria-hidden={!wide}
       onPointerDown={(e) => {
         if (!wide) return
-        if (e.target.closest('.ocean-fish-actor, .ocean-fish-owner-tip, .ocean-widewatch-exit')) return
+        if (!visiting && e.target.closest('.ocean-fish-actor')) return
+        if (e.target.closest('.ocean-fish-owner-tip, .ocean-widewatch-exit')) return
         const p = mapClientToTank(e.clientX, e.clientY, panRef.current)
         window.dispatchEvent(new CustomEvent('ocean-feed', { detail: { x: p.x, y: p.y, mapped: true } }))
       }}
@@ -919,7 +939,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           key={fish.id}
           role="button"
           tabIndex={-1}
-          className={`ocean-fish-actor${fish.dash ? ' is-dash' : ''}${fish.eating ? ' is-eating' : ''}${fish.lit > 0.18 ? ' is-lit' : ''}`}
+          className={`ocean-fish-actor${visiting ? ' is-viewonly' : ''}${fish.dash ? ' is-dash' : ''}${fish.eating ? ' is-eating' : ''}${fish.lit > 0.18 ? ' is-lit' : ''}`}
           style={{
             transform: `translate3d(${fish.x}px, ${fish.y}px, 0)`,
             width: fish.width ? `${fish.width}px` : undefined,
@@ -929,6 +949,7 @@ export default function OceanAmbience({ mode = 'world' }) {
               : undefined
           }}
           onClick={(e) => {
+            if (visiting) return
             e.preventDefault()
             e.stopPropagation()
             const p = mapClientToTank(e.clientX, e.clientY, panRef.current)
@@ -961,7 +982,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         </div>
       ))}
 
-      {inspect && (() => {
+      {inspect && !visiting && (() => {
         const fish = actors.find((f) => f.id === inspect)
         if (!fish) return null
         const me = getCurrentUser()
