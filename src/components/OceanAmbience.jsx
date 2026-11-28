@@ -108,13 +108,8 @@ function layout(mode = 'world', fishCount = 0) {
   const viewH = window.innerHeight
   const wide = mode === 'tank' && isTankWideWatch()
   const rotate = wide && viewH > viewW
-  const pan = mode === 'tank' && mobile && !wide
-  const n = Math.max(0, Number(fishCount) || 0)
-  const w = rotate
-    ? viewH
-    : pan
-      ? Math.round(Math.min(viewW * 6, Math.max(viewW * 2.7, viewW + n * 64)))
-      : viewW
+  const pan = false
+  const w = rotate ? viewH : viewW
   const h = rotate ? viewW : viewH
   const floor = mode === 'tank' ? 16 : 8
   return {
@@ -224,25 +219,6 @@ function startKick(fish, now, strength = 0.7) {
   fish.kick = Math.max(fish.kick || 0, strength)
   fish.kickDecay = 0.55 + Math.random() * 1.15
   fish.nextKick = now + 220 + Math.random() * 520
-}
-
-function stepLiveSwim(fish, size, now, dt) {
-  const dx = fish.x - (fish._px ?? fish.x)
-  const dy = fish.y - (fish._py ?? fish.y)
-  fish._px = fish.x
-  fish._py = fish.y
-  const spd = Math.hypot(dx, dy) / Math.max(dt, 0.0008)
-  if (fish.dash) startKick(fish, now, 1)
-  if (now > (fish.nextKick || 0)) startKick(fish, now, 0.5 + Math.random() * 0.3)
-  fish.kick = Math.max(0.4, (fish.kick || 0.4) - dt / Math.max(0.4, fish.kickDecay || 1))
-  const moving = now >= (fish.eatUntil || 0)
-  const effort = Math.min(1.2, (fish.kick || 0) * 0.7 + (fish.dash ? 0.28 : 0) + Math.min(0.2, spd / 480))
-  const beat = (moving ? 5.4 : 1.6) + effort * 4.8 + (fish.dash ? 3.2 : 0)
-  fish.swimPhase = (fish.swimPhase || Math.random() * 6.28) + dt * beat
-  const hh = size?.height || 48
-  fish.swimAmp = hh * (moving ? 0.1 + effort * 0.04 : 0.018)
-  fish.finAmp = hh * (moving ? 0.016 + effort * 0.02 : 0.006)
-  fish.swimEffort = effort
 }
 
 function inHomeLayer(fish, L, size) {
@@ -422,10 +398,7 @@ function spawnFish(i, count, L, size, layer, roamAll = false) {
     _roamAll: roamAll,
     tx: col * cellW + cellW * 0.45,
     ty: minY + (maxY - minY) * 0.45,
-    turnAt: 0,
-    swimPhase: Math.random() * 6.28,
-    kick: 0.4 + Math.random() * 0.4,
-    nextKick: 0
+    turnAt: 0
   }
 }
 
@@ -816,11 +789,6 @@ export default function OceanAmbience({ mode = 'world' }) {
         }
       })
 
-      state.fish.forEach((fish, i) => {
-        if (!sizes[i]) return
-        stepLiveSwim(fish, sizes[i], now, dt)
-      })
-
       if (mode === 'tank') {
         if (!state.hearts) state.hearts = []
         if (!state.heartAt) state.heartAt = {}
@@ -891,9 +859,6 @@ export default function OceanAmbience({ mode = 'world' }) {
           y: f.y,
           face: f.face,
           tilt: f.tilt || 0,
-          swimPhase: f.swimPhase || 0,
-          swimAmp: f.swimAmp || 0,
-          finAmp: f.finAmp || 0,
           dash: f.dash,
           eating: now < f.eatUntil,
           lit: mode === 'tank' ? fishInTankBeam(f, size, L) : 0,
@@ -1083,20 +1048,17 @@ export default function OceanAmbience({ mode = 'world' }) {
               transform: `scaleX(${fish.face}) rotate(${fish.tilt || 0}deg)`
             }}
           >
-            <FishSprite
-              src={fish.src}
-              variant={fish.variant}
-              wide={fish.wide}
-              shape={fish.shape}
-              width={fish.width}
-              height={fish.height}
-              parts={fish.parts}
-              live={{
-                phase: fish.swimPhase,
-                amp: fish.swimAmp,
-                fin: fish.finAmp
-              }}
-            />
+            <div className="ocean-fish-bob">
+              <FishSprite
+                src={fish.src}
+                variant={fish.variant}
+                wide={fish.wide}
+                shape={fish.shape}
+                width={fish.width}
+                height={fish.height}
+                parts={fish.parts}
+              />
+            </div>
           </div>
         </div>
       ))}

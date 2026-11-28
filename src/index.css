@@ -208,11 +208,10 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
+  height: 100dvh;
   pointer-events: none;
   z-index: 40;
   overflow: hidden;
-  -webkit-transform: translate3d(0, 0, 0);
-  transform: translate3d(0, 0, 0);
 }
 
 .ocean-ambience.is-pan {
@@ -303,6 +302,7 @@ body.tank-widewatch #root {
   width: 100%;
   height: 100%;
   min-height: 100%;
+  min-height: 100dvh;
 }
 
 .ocean-bubble {
@@ -605,6 +605,11 @@ body.tank-widewatch #root {
   transform-origin: 50% 50%;
 }
 
+.ocean-fish-actor.is-dash .ocean-betta-tail {
+  -webkit-animation-duration: 0.18s;
+  animation-duration: 0.18s;
+}
+
 .ocean-fish-actor.is-eating .ocean-betta {
   -webkit-animation: ocean-eat 0.22s ease-out;
   animation: ocean-eat 0.22s ease-out;
@@ -723,8 +728,8 @@ body.tank-widewatch #root {
     transform: translate3d(0, 0, 0);
   }
   50% {
-    -webkit-transform: translate3d(0, -5px, 0);
-    transform: translate3d(0, -5px, 0);
+    -webkit-transform: translate3d(0, -12px, 0);
+    transform: translate3d(0, -12px, 0);
   }
 }
 
@@ -735,8 +740,8 @@ body.tank-widewatch #root {
     transform: translate3d(0, 0, 0);
   }
   50% {
-    -webkit-transform: translate3d(0, -5px, 0);
-    transform: translate3d(0, -5px, 0);
+    -webkit-transform: translate3d(0, -12px, 0);
+    transform: translate3d(0, -12px, 0);
   }
 }
 
@@ -745,14 +750,8 @@ body.tank-widewatch #root {
   width: 168px;
   height: 88px;
   pointer-events: none;
-  overflow: visible;
-}
-
-.ocean-betta-canvas {
-  position: absolute;
-  left: 0;
-  display: block;
-  pointer-events: none;
+  -webkit-perspective: 160px;
+  perspective: 160px;
 }
 
 .ocean-betta-b {
@@ -820,6 +819,19 @@ body.tank-widewatch #root {
   height: 88px;
 }
 
+.ocean-betta-ray .ocean-betta-tail {
+  -webkit-transform-origin: 40% 50%;
+  transform-origin: 40% 50%;
+}
+
+.ocean-betta-wide .ocean-betta-tail,
+.ocean-betta-shark .ocean-betta-tail,
+.ocean-betta-koi .ocean-betta-tail,
+.ocean-betta-giant .ocean-betta-tail {
+  -webkit-transform-origin: 34% 50%;
+  transform-origin: 34% 50%;
+}
+
 .ocean-betta-layer {
   position: absolute;
   left: 0;
@@ -866,6 +878,40 @@ body.tank-widewatch #root {
   mask-image: radial-gradient(ellipse 40% 28% at 32% 40%, #000 40%, transparent 42%), radial-gradient(ellipse 34% 24% at 68% 58%, #000 38%, transparent 40%), radial-gradient(ellipse 22% 18% at 54% 28%, #000 50%, transparent 52%);
   mix-blend-mode: overlay;
   opacity: 0.7;
+}
+
+.ocean-betta-body,
+.ocean-betta-tail {
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.ocean-betta-body {
+  -webkit-clip-path: none;
+  clip-path: none;
+  -webkit-mask-image: linear-gradient(to left, #000 38%, transparent 76%);
+  mask-image: linear-gradient(to left, #000 38%, transparent 76%);
+}
+
+.ocean-betta-tail {
+  -webkit-clip-path: none;
+  clip-path: none;
+  -webkit-mask-image: linear-gradient(to right, #000 18%, transparent 58%);
+  mask-image: linear-gradient(to right, #000 18%, transparent 58%);
+  -webkit-transform-origin: 42% 50%;
+  transform-origin: 42% 50%;
+  -webkit-animation: ocean-betta-tail 0.7s ease-in-out infinite;
+  animation: ocean-betta-tail 0.7s ease-in-out infinite;
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.ocean-betta-b .ocean-betta-tail {
+  -webkit-animation-duration: 0.7s;
+  animation-duration: 0.7s;
 }
 
 @media (max-width: 640px) {
@@ -968,6 +1014,28 @@ body.tank-widewatch #root {
   .ocean-betta-koi.ocean-betta-b {
     width: 114px;
     height: 56px;
+  }
+}
+
+@-webkit-keyframes ocean-betta-tail {
+  0%,
+  100% {
+    -webkit-transform: rotateY(-18deg) scaleX(0.94);
+    transform: rotateY(-18deg) scaleX(0.94);
+  }
+  50% {
+    -webkit-transform: rotateY(18deg) scaleX(0.94);
+    transform: rotateY(18deg) scaleX(0.94);
+  }
+}
+
+@keyframes ocean-betta-tail {
+  0%,
+  100% {
+    transform: rotateY(-18deg) scaleX(0.94);
+  }
+  50% {
+    transform: rotateY(18deg) scaleX(0.94);
   }
 }
 

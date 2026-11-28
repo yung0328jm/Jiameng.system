@@ -857,7 +857,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-gradient-to-b from-cn-ink via-cn-lacquer/95 to-cn-ink">
+    <div className={`min-h-screen min-h-[100dvh] flex flex-col ${activeTab === 'my-tank' ? 'bg-transparent' : 'bg-gradient-to-b from-cn-ink via-cn-lacquer/95 to-cn-ink'}`}>
       {/* 上方導覽列：手機版精簡；選單開啟時 overflow-visible + z-[100] 讓「更多」選單不被裁切且浮在主題／內容之上可點 */}
       <div className={`bg-gradient-to-b from-[#15556c] to-cn-lacquer border-b border-cn-gold/35 px-3 py-2.5 sm:px-4 sm:py-2 flex flex-row items-center justify-between gap-2 sm:gap-2 shrink-0 min-h-[48px] sm:min-h-[44px] relative shadow-[inset_0_1px_0_rgba(160,240,230,0.08)] ${showTopMenu ? 'z-[100] overflow-visible' : 'z-[45] overflow-hidden'}`}>
         {/* 左：僅圖示（手機隱藏「主題篩選」文字以留空間） */}
@@ -1585,7 +1585,7 @@ function Dashboard({ onLogout, activeTab: initialTab }) {
 
       {/* 內容區：行事曆滿版時減少左右留白，其餘頁面維持間距；底部留安全區域 */}
       <div
-        className={`flex-1 min-h-0 overflow-auto py-4 sm:py-6 ${activeTab === 'calendar' ? 'px-0 sm:px-4 md:px-6' : 'px-4 sm:px-6'}`}
+        className={`flex-1 min-h-0 overflow-auto py-4 sm:py-6 ${activeTab === 'calendar' ? 'px-0 sm:px-4 md:px-6' : 'px-4 sm:px-6'} ${activeTab === 'my-tank' ? 'bg-transparent' : ''}`}
         style={{
           paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))',
         }}
