@@ -93,6 +93,13 @@ export const TANK_ZOOM_MAX = 8
 const TANK_ZOOM_EVENT = 'ocean-tank-zoom'
 
 let tankZoom = 0
+let tankZoomGoal = 0
+let zoomRaf = 0
+
+function stopZoomAnim() {
+  if (zoomRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(zoomRaf)
+  zoomRaf = 0
+}
 
 function tankUiBottom() {
   if (typeof document === 'undefined') return 140
@@ -121,33 +128,61 @@ export function getTankZoom() {
   return tankZoom
 }
 
-export function setTankZoom(z) {
+export function setTankZoom(z, opts = {}) {
   const fit = tankFitZoom()
   const raw = Number(z)
   const next = Math.max(fit, Math.min(TANK_ZOOM_MAX, Number.isFinite(raw) ? raw : fit))
-  if (Math.abs(next - tankZoom) < 0.0008) return tankZoom
-  tankZoom = next
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(TANK_ZOOM_EVENT, { detail: { zoom: next } }))
+  const from = tankZoom > 0 ? tankZoom : fit
+  if (opts.instant || typeof requestAnimationFrame !== 'function') {
+    stopZoomAnim()
+    if (Math.abs(next - from) < 0.0008) {
+      tankZoom = next
+      return tankZoom
+    }
+    tankZoom = next
+    tankZoomGoal = next
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(TANK_ZOOM_EVENT, { detail: { zoom: next } }))
+    }
+    return next
   }
+  tankZoomGoal = next
+  stopZoomAnim()
+  if (Math.abs(next - from) < 0.0008) {
+    tankZoom = next
+    return tankZoom
+  }
+  const t0 = performance.now()
+  const dur = 560
+  const tick = (now) => {
+    const u = Math.min(1, (now - t0) / dur)
+    const e = 1 - (1 - u) * (1 - u) * (1 - u)
+    tankZoom = from + (next - from) * e
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(TANK_ZOOM_EVENT, { detail: { zoom: tankZoom } }))
+    }
+    if (u < 1) zoomRaf = requestAnimationFrame(tick)
+    else {
+      zoomRaf = 0
+      tankZoom = next
+    }
+  }
+  zoomRaf = requestAnimationFrame(tick)
   return next
 }
 
 export function stepTankZoom(dir) {
-  const z = getTankZoom()
   const fit = tankFitZoom()
-  const steps = [fit, ...TANK_ZOOM_STEPS.filter((s) => s > fit + 0.03)]
-  if (dir > 0) {
-    const nxt = steps.find((s) => s > z + 0.03)
-    return setTankZoom(nxt || TANK_ZOOM_MAX)
-  }
-  const prev = steps.filter((s) => s < z - 0.03)
-  return setTankZoom(prev.length ? prev[prev.length - 1] : fit)
+  const z = Math.max(fit, tankZoomGoal || getTankZoom() || fit)
+  const factor = 1.4
+  return setTankZoom(dir > 0 ? z * factor : z / factor)
 }
 
 export function resetTankZoom() {
+  stopZoomAnim()
   tankZoom = 0
-  return setTankZoom(tankFitZoom())
+  tankZoomGoal = 0
+  return setTankZoom(tankFitZoom(), { instant: true })
 }
 
 function isMobile() {
@@ -408,27 +443,38 @@ const LAYER_BANDS = {
   bottom: [0.68, 0.96]
 }
 
+function tankBox(L, size) {
+  const side = L.tank ? 14 : 0
+  const top = L.tank ? Math.max(12, Number(L.top) || 12) : (L.top ?? headerClearance())
+  const floor = Number(L.floor) || 8
+  const maxX = Math.max(0, L.w - size.width - side)
+  const minX = Math.min(side, maxX)
+  const maxY = Math.max(0, L.h - size.height - floor)
+  const minY = Math.min(top, maxY)
+  return { minX, maxX, minY, maxY }
+}
+
 function layerBand(L, size, layer) {
+  const box = tankBox(L, size)
   const [t0, t1] = LAYER_BANDS[layer] || LAYER_BANDS.mid
-  const topPad = L.top ?? headerClearance()
-  const floor = L.floor ?? 8
-  const usable = Math.max(120, L.h - topPad - floor)
+  const topPad = box.minY
+  const floor = Number(L.floor) || 8
+  const usable = Math.max(8, L.h - topPad - floor)
   let minY = topPad + usable * t0
   let maxY = topPad + usable * t1 - size.height
-  if (maxY < minY + 16) {
-    minY = topPad
-    maxY = Math.min(L.h - size.height - floor, minY + Math.max(20, size.height * 0.3))
-    if (maxY < minY) minY = maxY
+  if (maxY < minY + 8) {
+    minY = box.minY
+    maxY = box.maxY
   }
-  return { minY, maxY }
+  return {
+    minY: Math.max(box.minY, Math.min(minY, box.maxY)),
+    maxY: Math.max(box.minY, Math.min(Math.max(minY, maxY), box.maxY))
+  }
 }
 
 function waterColumn(L, size) {
-  const topPad = L.top ?? headerClearance()
-  const floor = L.floor ?? 8
-  const minY = topPad
-  const maxY = Math.max(minY, L.h - size.height - floor)
-  return { minY, maxY }
+  const box = tankBox(L, size)
+  return { minY: box.minY, maxY: box.maxY }
 }
 
 function swimBand(L, size, layer, roamAll) {
@@ -475,13 +521,11 @@ function separateFish(fish, i, all, sizes) {
 }
 
 function clampFish(fish, L, size, layer = fish._layer, roamAll = false) {
+  const box = tankBox(L, size)
   const { minY, maxY } = swimBand(L, size, layer, roamAll)
-  const floorY = Math.max(0, L.h - size.height - (L.floor || 0))
-  const topY = Math.min(Number(L.top) || 0, floorY)
-  const lo = Math.max(topY, Math.min(minY, floorY))
-  const hi = Math.max(lo, Math.min(maxY, floorY))
-  fish.y = Math.max(lo, Math.min(hi, fish.y))
-  if (L.wrapX) {
+  const lo = Math.max(box.minY, Math.min(minY, box.maxY))
+  const hi = Math.max(lo, Math.min(maxY, box.maxY))
+  if (L.wrapX && !L.tank) {
     const span = L.w + size.width
     if (span <= 1) return
     let wrapped = false
@@ -492,24 +536,30 @@ function clampFish(fish, L, size, layer = fish._layer, roamAll = false) {
       fish.x += span
       wrapped = true
     }
+    fish.y = Math.max(lo, Math.min(hi, fish.y))
     if (wrapped) {
       const inward = fish.face >= 0 ? L.w * 0.28 : L.w * 0.55
-      fish.tx = Math.max(12, Math.min(L.w - size.width - 12, inward))
+      fish.tx = Math.max(box.minX, Math.min(box.maxX, inward))
+      fish.ty = Math.max(lo, Math.min(hi, Number(fish.ty) || fish.y))
       fish.turnAt = performance.now() + 1400 + Math.random() * 1800
     }
     return
   }
-  const side = 16
-  const maxX = Math.max(0, L.w - size.width - side)
-  fish.x = Math.max(Math.min(side, maxX), Math.min(maxX, fish.x))
+  fish.x = Math.max(box.minX, Math.min(box.maxX, fish.x))
+  fish.y = Math.max(lo, Math.min(hi, fish.y))
+  fish.tx = Math.max(box.minX, Math.min(box.maxX, Number(fish.tx) || fish.x))
+  fish.ty = Math.max(lo, Math.min(hi, Number(fish.ty) || fish.y))
 }
 
 function pickWander(fish, L, size, roamAll = false) {
-  const padX = L.pan ? 8 : 16
+  const box = tankBox(L, size)
   const { minY, maxY } = swimBand(L, size, fish._layer, roamAll)
-  const spanY = Math.max(12, maxY - minY)
-  fish.ty = minY + Math.random() * spanY
-  if (L.wrapX) {
+  const lo = Math.max(box.minY, Math.min(minY, box.maxY))
+  const hi = Math.max(lo, Math.min(maxY, box.maxY))
+  const spanY = Math.max(4, hi - lo)
+  fish.ty = lo + Math.random() * spanY
+  if (L.wrapX && !L.tank) {
+    const padX = L.pan ? 8 : 16
     const face = fish.face >= 0 ? 1 : -1
     if (Math.random() < 0.62) {
       fish.tx = face > 0 ? L.w + size.width * 0.85 : -size.width * 0.85
@@ -520,8 +570,7 @@ function pickWander(fish, L, size, roamAll = false) {
     startKick(fish, performance.now(), 0.55 + Math.random() * 0.4)
     return
   }
-  const maxX = Math.max(40, L.w - size.width - padX * 2)
-  fish.tx = padX + Math.random() * maxX
+  fish.tx = box.minX + Math.random() * Math.max(4, box.maxX - box.minX)
   fish.turnAt = performance.now() + 1600 + Math.random() * 4200
   startKick(fish, performance.now(), 0.55 + Math.random() * 0.4)
 }
@@ -558,10 +607,11 @@ function shooFish(fish, L, size, fromX, fromY) {
   }
   const dist = Math.sqrt(dx * dx + dy * dy) || 1
   const run = L.mobile ? 220 : 300
+  const box = tankBox(L, size)
   const { minY, maxY } = swimBand(L, size, fish._layer, !!fish._roamAll)
   const nx = fish.x + (dx / dist) * run
-  fish.tx = L.wrapX ? nx : Math.max(12, Math.min(L.w - size.width - 12, nx))
-  fish.ty = Math.max(minY, Math.min(maxY, fish.y + (dy / dist) * run))
+  fish.tx = L.wrapX && !L.tank ? nx : Math.max(box.minX, Math.min(box.maxX, nx))
+  fish.ty = Math.max(box.minY, Math.min(box.maxY, Math.max(minY, Math.min(maxY, fish.y + (dy / dist) * run))))
   fish.fleeUntil = performance.now() + 900
   fish.turnAt = fish.fleeUntil + 500
   fish.eatUntil = 0
@@ -686,7 +736,7 @@ export default function OceanAmbience({ mode = 'world' }) {
       e.preventDefault()
       const d = distOf(e)
       if (d < 10 || pinchRef.current.dist < 10) return
-      setTankZoom(pinchRef.current.zoom * (d / pinchRef.current.dist))
+      setTankZoom(pinchRef.current.zoom * (d / pinchRef.current.dist), { instant: true })
     }
     const onEnd = () => {
       pinchRef.current = null
@@ -834,7 +884,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           fish.face = vx >= 0 ? 1 : -1
         }
         const want = Math.atan2(vy, ax + 0.0001) * (180 / Math.PI)
-        const maxTilt = ay >= ax * 0.65 ? 88 : 68
+        const maxTilt = L.tank ? 22 : (ay >= ax * 0.65 ? 88 : 68)
         const clamped = Math.max(-maxTilt, Math.min(maxTilt, want))
         fish.tilt += (clamped - (fish.tilt || 0)) * Math.min(1, 7 * dt)
       }

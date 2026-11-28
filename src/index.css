@@ -235,6 +235,7 @@ body {
   display: flex;
   flex-direction: column;
   max-width: 100%;
+  overflow: hidden;
 }
 
 .ocean-ambience.is-tank.is-fit .ocean-tank-shell {
@@ -394,10 +395,15 @@ body.tank-widewatch #root {
   min-height: 100dvh;
 }
 
-.ocean-ambience.is-tank .ocean-world,
-.ocean-ambience.is-pan .ocean-world {
+.ocean-ambience.is-pan:not(.is-tank) .ocean-world {
   min-height: 100%;
   height: 100%;
+}
+
+.ocean-ambience.is-tank .ocean-tank-shell,
+.ocean-ambience.is-tank .ocean-world {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .ocean-ambience.is-tank.is-fit .ocean-world {
