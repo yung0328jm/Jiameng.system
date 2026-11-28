@@ -1639,48 +1639,78 @@ export default function OceanAmbience({ mode = 'world' }) {
           ) : null}
         </div>
       ) : null}
-      {mode === 'tank' && rallyPhase === 'pick' ? (
-        <div className="ocean-rally-panel" onPointerDown={(e) => e.stopPropagation()}>
-          <p>集結誰？</p>
-          <button
-            type="button"
-            className={rallySpecies === 'all' ? 'is-on' : ''}
-            onClick={() => {
-              setRallySpecies('all')
-              setRallyLabel('全部')
-              setRallyPhase('aim')
+      {mode === 'tank' && rallyPhase === 'pick' ? createPortal(
+        <>
+          <div
+            className="ocean-rally-scrim"
+            onPointerDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setRallyPhase(sim.current?.rally ? 'on' : '')
             }}
+          />
+          <div
+            className="ocean-rally-panel"
+            style={{ top: Math.max(12, (uiTop || 0) + 8) }}
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            全部
-          </button>
-          {rosterSpeciesOptions(rosterRef.current).map((row) => (
+            <p>集結誰？</p>
             <button
-              key={row.key}
               type="button"
-              className={rallySpecies === row.key ? 'is-on' : ''}
+              className={rallySpecies === 'all' ? 'is-on' : ''}
               onClick={() => {
-                setRallySpecies(row.key)
-                setRallyLabel(row.name)
+                setRallySpecies('all')
+                setRallyLabel('全部')
                 setRallyPhase('aim')
               }}
             >
-              {row.name}
+              全部
             </button>
-          ))}
+            {rosterSpeciesOptions(rosterRef.current).map((row) => (
+              <button
+                key={row.key}
+                type="button"
+                className={rallySpecies === row.key ? 'is-on' : ''}
+                onClick={() => {
+                  setRallySpecies(row.key)
+                  setRallyLabel(row.name)
+                  setRallyPhase('aim')
+                }}
+              >
+                {row.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="is-cancel"
+              onClick={() => setRallyPhase(sim.current?.rally ? 'on' : '')}
+            >
+              取消
+            </button>
+          </div>
+        </>,
+        document.body
+      ) : null}
+      {mode === 'tank' && rallyPhase === 'aim' ? createPortal(
+        <div className="ocean-rally-hud" style={{ top: Math.max(12, (uiTop || 0) + 8) }}>
+          點魚缸指定集結處 · {rallyLabel}
+        </div>,
+        document.body
+      ) : null}
+      {mode === 'tank' && rallyPhase === 'on' ? createPortal(
+        <div className="ocean-rally-hud is-actions" style={{ top: Math.max(12, (uiTop || 0) + 8) }}>
+          <span>集結中 · {rallyLabel}</span>
           <button
             type="button"
-            className="is-cancel"
-            onClick={() => setRallyPhase(sim.current?.rally ? 'on' : '')}
+            onClick={() => {
+              if (sim.current) sim.current.rally = null
+              setRallyPhase('')
+            }}
           >
-            取消
+            解散
           </button>
-        </div>
-      ) : null}
-      {mode === 'tank' && rallyPhase === 'aim' ? (
-        <div className="ocean-rally-hud">點魚缸指定集結處 · {rallyLabel}</div>
-      ) : null}
-      {mode === 'tank' && rallyPhase === 'on' ? (
-        <div className="ocean-rally-hud">集結中 · {rallyLabel}</div>
+        </div>,
+        document.body
       ) : null}
       {wide ? (
         <button
