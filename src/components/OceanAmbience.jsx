@@ -260,14 +260,20 @@ const TANK_DECOR_ART = {
   plant: '/tank-decor/plant.png',
   wood: '/tank-decor/wood.png',
   rock: '/tank-decor/rock.png',
-  cave: '/tank-decor/cave.png'
+  cave: '/tank-decor/cave.png',
+  fern: '/tank-decor/fern.png',
+  moss: '/tank-decor/moss.png',
+  lava: '/tank-decor/lava.png',
+  tape: '/tank-decor/tape.png'
 }
 
 function tankDecorBox(look, worldH) {
   const h = Math.max(80, Number(worldH) || 160)
-  if (look === 'wood') return { w: Math.max(72, Math.round(h * 0.58)), h: Math.max(40, Math.round(h * 0.3)) }
-  if (look === 'rock') return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(42, Math.round(h * 0.32)) }
+  if (look === 'wood' || look === 'moss') return { w: Math.max(72, Math.round(h * 0.58)), h: Math.max(40, Math.round(h * 0.3)) }
+  if (look === 'rock' || look === 'lava') return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(42, Math.round(h * 0.32)) }
   if (look === 'cave') return { w: Math.max(60, Math.round(h * 0.44)), h: Math.max(40, Math.round(h * 0.3)) }
+  if (look === 'tape') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
+  if (look === 'fern') return { w: Math.max(52, Math.round(h * 0.38)), h: Math.max(64, Math.round(h * 0.5)) }
   return { w: Math.max(52, Math.round(h * 0.4)), h: Math.max(68, Math.round(h * 0.52)) }
 }
 

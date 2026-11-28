@@ -887,7 +887,9 @@ body.tank-widewatch #root {
   filter: drop-shadow(0 5px 5px rgba(8, 16, 12, 0.32));
 }
 
-.ocean-tank-decor.is-plant .ocean-tank-decor-art {
+.ocean-tank-decor.is-plant .ocean-tank-decor-art,
+.ocean-tank-decor.is-fern .ocean-tank-decor-art,
+.ocean-tank-decor.is-tape .ocean-tank-decor-art {
   transform-origin: 50% 92%;
   animation: ocean-plant-sway 7s ease-in-out infinite;
 }
@@ -898,7 +900,9 @@ body.tank-widewatch #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ocean-tank-decor.is-plant .ocean-tank-decor-art {
+  .ocean-tank-decor.is-plant .ocean-tank-decor-art,
+  .ocean-tank-decor.is-fern .ocean-tank-decor-art,
+  .ocean-tank-decor.is-tape .ocean-tank-decor-art {
     animation: none;
   }
 }
