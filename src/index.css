@@ -394,6 +394,93 @@ body.tank-widewatch #root {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
+.ocean-ambience.is-rally-aim {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.ocean-ambience.is-rally-aim .ocean-fish-actor {
+  pointer-events: none;
+}
+
+.ocean-rally-mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: none;
+  border: 2px dashed rgba(250, 204, 21, 0.72);
+  border-radius: 50%;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.28);
+  pointer-events: none;
+}
+
+.ocean-rally-hud {
+  position: absolute;
+  left: 50%;
+  top: max(4.6rem, calc(env(safe-area-inset-top, 0px) + 4.1rem));
+  z-index: 31;
+  transform: translateX(-50%);
+  pointer-events: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(4, 16, 24, 0.78);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #fde68a;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ocean-ambience.is-widewatch .ocean-rally-hud {
+  top: 44px;
+}
+
+.ocean-rally-panel {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: max(5.6rem, calc(env(safe-area-inset-top, 0px) + 5.2rem));
+  z-index: 32;
+  pointer-events: auto;
+  max-width: 22rem;
+  margin: 0 auto;
+  padding: 0.7rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(8, 18, 28, 0.92);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ocean-rally-panel p {
+  width: 100%;
+  margin: 0 0 2px;
+  color: #fde68a;
+  font-size: 13px;
+}
+
+.ocean-rally-panel button {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.7);
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.ocean-rally-panel button.is-on {
+  border-color: rgba(250, 204, 21, 0.7);
+  color: #fde68a;
+}
+
+.ocean-rally-panel button.is-cancel {
+  margin-left: auto;
+  color: #94a3b8;
+}
+
 .ocean-world {
   position: relative;
   width: 100%;

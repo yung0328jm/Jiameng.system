@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import OceanAmbience, { enterTankWideWatch, stepTankZoom } from '../components/OceanAmbience'
+import OceanAmbience, { enterTankWideWatch, openTankRally, stepTankZoom } from '../components/OceanAmbience'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { isTankClosed, listTankVisitors, listVisitTanks, noteTankVisit } from '../utils/petStorage'
@@ -101,6 +101,13 @@ export default function MyTank() {
             className="px-4 py-2 rounded-md border border-gray-600/80 bg-black/40 text-sm text-cn-parchment hover:bg-black/55"
           >
             拉開
+          </button>
+          <button
+            type="button"
+            onClick={() => openTankRally()}
+            className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
+          >
+            集結
           </button>
           <button
             type="button"
