@@ -256,6 +256,26 @@ function listTankPlaceables(user) {
   }).filter((row) => row && row.qty > 0)
 }
 
+const TANK_DECOR_ART = {
+  plant: '/tank-decor/plant.png',
+  wood: '/tank-decor/wood.png',
+  rock: '/tank-decor/rock.png',
+  cave: '/tank-decor/cave.png'
+}
+
+function tankDecorBox(look, worldH) {
+  const h = Math.max(80, Number(worldH) || 160)
+  if (look === 'wood') return { w: Math.max(72, Math.round(h * 0.58)), h: Math.max(40, Math.round(h * 0.3)) }
+  if (look === 'rock') return { w: Math.max(58, Math.round(h * 0.4)), h: Math.max(42, Math.round(h * 0.32)) }
+  if (look === 'cave') return { w: Math.max(60, Math.round(h * 0.44)), h: Math.max(40, Math.round(h * 0.3)) }
+  return { w: Math.max(52, Math.round(h * 0.4)), h: Math.max(68, Math.round(h * 0.52)) }
+}
+
+function TankDecorArt({ look = 'plant' }) {
+  const src = TANK_DECOR_ART[look] || TANK_DECOR_ART.plant
+  return <img className="ocean-tank-decor-art" src={src} alt="" draggable={false} />
+}
+
 function isMobile() {
   if (typeof window === 'undefined') return false
   return Math.min(window.innerWidth, window.innerHeight) <= 640
@@ -2114,12 +2134,15 @@ export default function OceanAmbience({ mode = 'world' }) {
         }
       >
       {mode === 'tank' ? <TankScenery w={worldW} h={worldH} lights={tankLights} /> : null}
-      {mode === 'tank' ? tankDecors.map((row) => (
+      {mode === 'tank' ? tankDecors.map((row) => {
+        const look = row.look || 'plant'
+        const box = tankDecorBox(look, worldH)
+        return (
         <button
           key={row.id}
           type="button"
-          className={`ocean-tank-decor is-${row.look || 'plant'}${pickProp?.kind === 'decor' && pickProp?.id === row.id ? ' is-sel' : ''}`}
-          style={{ left: `${row.x * 100}%`, top: `${row.y * 100}%` }}
+          className={`ocean-tank-decor is-${look}${pickProp?.kind === 'decor' && pickProp?.id === row.id ? ' is-sel' : ''}`}
+          style={{ left: `${row.x * 100}%`, top: `${row.y * 100}%`, width: `${box.w}px`, height: `${box.h}px` }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.preventDefault()
@@ -2129,8 +2152,11 @@ export default function OceanAmbience({ mode = 'world' }) {
             setPlaceItem(null)
             setMoveProp(false)
           }}
-        />
-      )) : null}
+        >
+          <TankDecorArt look={look} />
+        </button>
+        )
+      }) : null}
       {mode === 'tank' && tankEdit && !visiting ? tankLights.map((lamp) => (
         <button
           key={`hit-${lamp.id}`}

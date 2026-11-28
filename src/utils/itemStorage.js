@@ -41,6 +41,9 @@ export const FISH_TURTLE_MAP_ITEM_ID = 'fish_turtle_map'
 export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
 export const TANK_LIGHT_ITEM_ID = 'tank_light'
 export const TANK_PLANT_ITEM_ID = 'tank_decor_plant'
+export const TANK_WOOD_ITEM_ID = 'tank_decor_wood'
+export const TANK_ROCK_ITEM_ID = 'tank_decor_rock'
+export const TANK_CAVE_ITEM_ID = 'tank_decor_cave'
 
 const AROWANA_SHOP_ITEM = {
   id: FISH_AROANA_ITEM_ID,
@@ -309,14 +312,52 @@ const FISH_POTION_WORM_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const TANK_DECOR_DESC = '到我的魚缸點「編輯」即可擺放、換位置或收回背包。'
+
 const TANK_PLANT_SHOP_ITEM = {
   id: TANK_PLANT_ITEM_ID,
-  name: '水草',
+  name: '皇冠草',
   type: 'tank_decor',
   look: 'plant',
-  description: '到我的魚缸點「編輯」即可擺放、換位置或收回背包。',
+  description: TANK_DECOR_DESC,
   icon: '🌿',
   price: 12,
+  category: '水族佈置',
+  createdAt: new Date().toISOString()
+}
+
+const TANK_WOOD_SHOP_ITEM = {
+  id: TANK_WOOD_ITEM_ID,
+  name: '沉木',
+  type: 'tank_decor',
+  look: 'wood',
+  description: TANK_DECOR_DESC,
+  icon: '🪵',
+  price: 16,
+  category: '水族佈置',
+  createdAt: new Date().toISOString()
+}
+
+const TANK_ROCK_SHOP_ITEM = {
+  id: TANK_ROCK_ITEM_ID,
+  name: '青龍石',
+  type: 'tank_decor',
+  look: 'rock',
+  description: TANK_DECOR_DESC,
+  icon: '🪨',
+  price: 14,
+  category: '水族佈置',
+  createdAt: new Date().toISOString()
+}
+
+const TANK_CAVE_SHOP_ITEM = {
+  id: TANK_CAVE_ITEM_ID,
+  name: '陶穴',
+  type: 'tank_decor',
+  look: 'cave',
+  description: TANK_DECOR_DESC,
+  icon: '🛖',
+  price: 15,
   category: '水族佈置',
   createdAt: new Date().toISOString()
 }
@@ -381,6 +422,9 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_WORM_ID)) extras.push({ ...FISH_POTION_WORM_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === TANK_LIGHT_ITEM_ID)) extras.push({ ...TANK_LIGHT_SHOP_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === TANK_PLANT_ITEM_ID)) extras.push({ ...TANK_PLANT_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === TANK_WOOD_ITEM_ID)) extras.push({ ...TANK_WOOD_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === TANK_ROCK_ITEM_ID)) extras.push({ ...TANK_ROCK_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === TANK_CAVE_ITEM_ID)) extras.push({ ...TANK_CAVE_SHOP_ITEM, createdAt: new Date().toISOString() })
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const affectionWanted = FISH_POTION_AFFECTION_ITEM.description
   const growthWanted = FISH_POTION_GROWTH_ITEM.description
@@ -403,6 +447,9 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
     }
     if (id === FISH_POTION_WORM_ID && String(it?.description || '') !== wormWanted) {
       next = { ...next, description: wormWanted, name: FISH_POTION_WORM_ITEM.name, price: FISH_POTION_WORM_ITEM.price }
+    }
+    if (id === TANK_PLANT_ITEM_ID && (it?.name !== TANK_PLANT_SHOP_ITEM.name || it?.look !== 'plant')) {
+      next = { ...next, name: TANK_PLANT_SHOP_ITEM.name, look: 'plant', description: TANK_DECOR_DESC, icon: TANK_PLANT_SHOP_ITEM.icon }
     }
     if ((id === FISH_POTION_GROWTH_ID || id === FISH_POTION_GENDER_ID) && !next.isHidden) {
       next = { ...next, isHidden: true }
