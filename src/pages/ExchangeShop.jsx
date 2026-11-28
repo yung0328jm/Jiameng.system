@@ -1043,6 +1043,7 @@ function ExchangeShop() {
                     <option value="special">特殊道具</option>
                     <option value="fish_skin">魚類（進我的寵物）</option>
                     <option value="tank_light">魚缸燈</option>
+                    <option value="tank_decor">水族道具</option>
                   </select>
                 </div>
 

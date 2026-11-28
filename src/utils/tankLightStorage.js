@@ -51,6 +51,30 @@ export function placeTankLight(account, xFrac) {
   return { success: true, lights: next }
 }
 
+export function moveTankLight(account, id, xFrac) {
+  const user = String(account || '').trim()
+  const want = String(id || '')
+  if (!user || !want) return { success: false, lights: [] }
+  const x = Math.max(0.06, Math.min(0.94, Number(xFrac)))
+  if (!Number.isFinite(x)) return { success: false, lights: listTankLights(user) }
+  const all = readAll()
+  const next = listTankLights(user).map((row) => (row.id === want ? { ...row, x } : row))
+  persist({ ...all, [user]: next })
+  return { success: true, lights: next }
+}
+
+export function recallTankLight(account, id) {
+  const user = String(account || '').trim()
+  const want = String(id || '')
+  const rows = listTankLights(user)
+  const found = rows.find((row) => row.id === want)
+  if (!found) return { success: false, lights: rows }
+  const next = rows.filter((row) => row.id !== want)
+  const all = readAll()
+  persist({ ...all, [user]: next })
+  return { success: true, itemId: 'tank_light', lights: next }
+}
+
 export function toggleTankLight(account, id) {
   const user = String(account || '').trim()
   const want = String(id || '')

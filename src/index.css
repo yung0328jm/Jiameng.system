@@ -802,6 +802,132 @@ body.tank-widewatch #root {
   background: rgba(69, 26, 3, 0.72);
 }
 
+.ocean-tank-edit-panel {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  z-index: 120;
+  pointer-events: auto;
+  max-width: 24rem;
+  margin: 0 auto;
+  padding: 0.85rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(8, 18, 28, 0.96);
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.ocean-tank-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ocean-tank-edit-row p {
+  flex: 1 1 auto;
+  margin: 0;
+  color: #fde68a;
+  font-size: 13px;
+}
+
+.ocean-tank-edit-panel button {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.7);
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.ocean-tank-edit-panel button.is-on {
+  border-color: rgba(250, 204, 21, 0.7);
+  color: #fde68a;
+}
+
+.ocean-tank-edit-panel button.is-cancel {
+  margin-left: auto;
+  color: #94a3b8;
+}
+
+.ocean-tank-edit-empty {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.ocean-tank-decor {
+  position: absolute;
+  z-index: 1;
+  width: 52px;
+  height: 92px;
+  transform: translate(-50%, -90%);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  pointer-events: none;
+  appearance: none;
+}
+
+.ocean-ambience.is-tank-edit .ocean-tank-decor {
+  pointer-events: auto;
+}
+
+.ocean-tank-decor.is-plant {
+  background:
+    radial-gradient(ellipse 18px 10px at 50% 94%, #14532d 0 70%, transparent 72%),
+    linear-gradient(180deg, transparent 8%, #166534 8%, #14532d 92%, transparent 93%);
+  background-size: 100% 100%, 8px 78%;
+  background-position: center, 50% 100%;
+  background-repeat: no-repeat;
+}
+
+.ocean-tank-decor.is-plant::before,
+.ocean-tank-decor.is-plant::after {
+  content: '';
+  position: absolute;
+  bottom: 10%;
+  width: 22px;
+  height: 70%;
+  border-radius: 80% 20% 60% 40%;
+  background: linear-gradient(180deg, #4ade80 0%, #166534 100%);
+  opacity: 0.92;
+}
+
+.ocean-tank-decor.is-plant::before {
+  left: 8px;
+  transform: rotate(-28deg);
+}
+
+.ocean-tank-decor.is-plant::after {
+  right: 8px;
+  transform: rotate(26deg);
+  background: linear-gradient(180deg, #86efac 0%, #15803d 100%);
+}
+
+.ocean-tank-decor.is-sel,
+.ocean-tank-lamp-hit.is-sel {
+  outline: 2px solid #fde68a;
+  outline-offset: 3px;
+}
+
+.ocean-tank-lamp-hit {
+  position: absolute;
+  top: 0;
+  z-index: 9;
+  width: 52px;
+  height: 22px;
+  transform: translateX(-50%);
+  border: 1px dashed rgba(250, 204, 21, 0.65);
+  border-radius: 6px;
+  background: rgba(250, 204, 21, 0.12);
+  padding: 0;
+}
+
 .ocean-tank-beam {
   position: absolute;
   top: -4%;

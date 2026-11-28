@@ -13,7 +13,8 @@ export const ITEM_TYPES = {
   FISH_SKIN: 'fish_skin', // 水族：兌換後進入我的寵物
   FISH_SLOT: 'fish_slot', // 已停用：魚隻擴充欄
   FISH_POTION: 'fish_potion',
-  TANK_LIGHT: 'tank_light'
+  TANK_LIGHT: 'tank_light',
+  TANK_DECOR: 'tank_decor'
 }
 
 export const FISH_POTION_HEAT_ID = 'fish_potion_heat'
@@ -39,6 +40,7 @@ export const FISH_TURTLE_PIG_ITEM_ID = 'fish_turtle_pig'
 export const FISH_TURTLE_MAP_ITEM_ID = 'fish_turtle_map'
 export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
 export const TANK_LIGHT_ITEM_ID = 'tank_light'
+export const TANK_PLANT_ITEM_ID = 'tank_decor_plant'
 
 const AROWANA_SHOP_ITEM = {
   id: FISH_AROANA_ITEM_ID,
@@ -307,11 +309,23 @@ const FISH_POTION_WORM_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const TANK_PLANT_SHOP_ITEM = {
+  id: TANK_PLANT_ITEM_ID,
+  name: '水草',
+  type: 'tank_decor',
+  look: 'plant',
+  description: '到我的魚缸點「編輯」即可擺放、換位置或收回背包。',
+  icon: '🌿',
+  price: 12,
+  category: '水族佈置',
+  createdAt: new Date().toISOString()
+}
+
 const TANK_LIGHT_SHOP_ITEM = {
   id: TANK_LIGHT_ITEM_ID,
   name: '魚缸燈',
   type: 'tank_light',
-  description: '到背包點放入魚缸，再點缸頂任意位置擺放。擺好後可用開關開燈關燈。',
+  description: '到我的魚缸點「編輯」即可擺在缸頂、換位置或收回。擺好後可用開關開燈關燈。',
   icon: '💡',
   price: 18,
   category: '水族佈置',
@@ -366,6 +380,7 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_GENDER_ID)) extras.push({ ...FISH_POTION_GENDER_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_WORM_ID)) extras.push({ ...FISH_POTION_WORM_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === TANK_LIGHT_ITEM_ID)) extras.push({ ...TANK_LIGHT_SHOP_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === TANK_PLANT_ITEM_ID)) extras.push({ ...TANK_PLANT_SHOP_ITEM, createdAt: new Date().toISOString() })
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const affectionWanted = FISH_POTION_AFFECTION_ITEM.description
   const growthWanted = FISH_POTION_GROWTH_ITEM.description

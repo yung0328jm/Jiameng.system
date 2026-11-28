@@ -22,16 +22,25 @@ import {
   useFishPotion
 } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
-import { TANK_LIGHT_ITEM_ID } from '../utils/itemStorage'
-import { removeItemFromInventory } from '../utils/inventoryStorage'
+import { TANK_LIGHT_ITEM_ID, getItem, ITEM_TYPES } from '../utils/itemStorage'
+import { addItemToInventory, getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import {
   beginPlaceTankLight,
   endPlaceTankLight,
   isPlacingTankLight,
   listTankLights,
+  moveTankLight,
   placeTankLight,
+  recallTankLight,
   toggleTankLight
 } from '../utils/tankLightStorage'
+import {
+  TANK_EDIT_EVENT,
+  listTankDecors,
+  moveTankDecor,
+  placeTankDecor,
+  recallTankDecor
+} from '../utils/tankDecorStorage'
 import FishSprite from './FishSprite'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
@@ -227,6 +236,24 @@ export const TANK_RALLY_EVENT = 'ocean-tank-rally'
 export function openTankRally() {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent(TANK_RALLY_EVENT, { detail: { action: 'open' } }))
+}
+
+export { openTankEdit } from '../utils/tankDecorStorage'
+
+function listTankPlaceables(user) {
+  return (getUserInventory(user) || []).map((row) => {
+    const item = getItem(row?.itemId)
+    if (!item) return null
+    if (item.type !== ITEM_TYPES.TANK_DECOR && item.type !== ITEM_TYPES.TANK_LIGHT) return null
+    return {
+      itemId: item.id,
+      qty: Math.max(0, Number(row.quantity) || 0),
+      name: item.name || '道具',
+      icon: item.icon || '🎁',
+      type: item.type,
+      look: item.look || 'plant'
+    }
+  }).filter((row) => row && row.qty > 0)
 }
 
 function isMobile() {
@@ -865,6 +892,16 @@ export default function OceanAmbience({ mode = 'world' }) {
   const tankLightsRef = useRef(tankLights)
   const [placeLight, setPlaceLight] = useState(() => !visiting && isPlacingTankLight())
   const placeLightRef = useRef(false)
+  const [tankEdit, setTankEdit] = useState(false)
+  const tankEditRef = useRef(false)
+  const [tankDecors, setTankDecors] = useState(() => listTankDecors(tankOwner))
+  const [placeItem, setPlaceItem] = useState(null)
+  const placeItemRef = useRef(null)
+  const [pickProp, setPickProp] = useState(null)
+  const pickPropRef = useRef(null)
+  const [moveProp, setMoveProp] = useState(false)
+  const movePropRef = useRef(false)
+  const [placeables, setPlaceables] = useState(() => listTankPlaceables(me))
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
   const [feedHud, setFeedHud] = useState('')
@@ -914,6 +951,10 @@ export default function OceanAmbience({ mode = 'world' }) {
   rallySpeciesRef.current = rallySpecies
   tankLightsRef.current = tankLights
   placeLightRef.current = !!placeLight
+  tankEditRef.current = !!tankEdit
+  placeItemRef.current = placeItem
+  pickPropRef.current = pickProp
+  movePropRef.current = !!moveProp
 
   useEffect(() => {
     setPotionMsg('')
@@ -1002,21 +1043,86 @@ export default function OceanAmbience({ mode = 'world' }) {
       beginPlaceTankLight()
       setPlaceLight(true)
     }
+    const itemId = String(location?.state?.editItemId || '')
+    if (location?.state?.tankEdit || itemId) {
+      setTankEdit(true)
+      setPlaceables(listTankPlaceables(getCurrentUser()))
+      if (itemId) {
+        const item = getItem(itemId)
+        if (item) {
+          setPlaceItem({
+            itemId: item.id,
+            qty: 1,
+            name: item.name || '道具',
+            icon: item.icon || '🎁',
+            type: item.type,
+            look: item.look || 'plant'
+          })
+          setPickProp(null)
+          setMoveProp(false)
+        }
+      }
+      navigate(location.pathname, { replace: true, state: {} })
+    }
     return undefined
-  }, [mode, visiting, location?.state?.placeLight])
+  }, [mode, visiting, location?.state?.placeLight, location?.state?.tankEdit, location?.state?.editItemId, location?.pathname, navigate])
 
   useEffect(() => {
     const owner = visiting ? host : getCurrentUser()
-    const refresh = () => setTankLights(listTankLights(owner))
+    const refresh = () => {
+      setTankLights(listTankLights(owner))
+      setTankDecors(listTankDecors(owner))
+      if (!visiting) setPlaceables(listTankPlaceables(getCurrentUser()))
+    }
     refresh()
     const onRt = (e) => {
       const key = e?.detail?.key
-      if (key && key !== '__ALL__' && key !== 'jiameng_tank_lights') return
+      if (
+        key &&
+        key !== '__ALL__' &&
+        key !== 'jiameng_tank_lights' &&
+        key !== 'jiameng_tank_decors' &&
+        key !== 'jiameng_inventories'
+      ) return
       refresh()
     }
     window.addEventListener(REALTIME_UPDATE_EVENT, onRt)
     return () => window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
   }, [visiting, host])
+
+  useEffect(() => {
+    if (hidden || mode !== 'tank' || visiting) return undefined
+    const onEdit = (e) => {
+      const action = e?.detail?.action
+      if (action === 'close') {
+        setTankEdit(false)
+        setPlaceItem(null)
+        setPickProp(null)
+        setMoveProp(false)
+        endPlaceTankLight()
+        setPlaceLight(false)
+        return
+      }
+      setTankEdit(true)
+      setPlaceables(listTankPlaceables(getCurrentUser()))
+      const itemId = String(e?.detail?.itemId || '')
+      if (itemId) {
+        const item = getItem(itemId)
+        if (item) {
+          setPlaceItem({
+            itemId: item.id,
+            type: item.type,
+            look: item.look || 'plant',
+            name: item.name || '道具'
+          })
+          setPickProp(null)
+          setMoveProp(false)
+        }
+      }
+    }
+    window.addEventListener(TANK_EDIT_EVENT, onEdit)
+    return () => window.removeEventListener(TANK_EDIT_EVENT, onEdit)
+  }, [hidden, mode, visiting])
 
   useEffect(() => {
     if (hidden || mode !== 'tank') return undefined
@@ -1608,6 +1714,51 @@ export default function OceanAmbience({ mode = 'world' }) {
         setRallyPhase('on')
         return
       }
+      if (mode === 'tank' && tankEditRef.current && !visiting) {
+        const L = stableLayout(mode, (rosterRef.current || []).length)
+        const user = getCurrentUser()
+        const xf = x / Math.max(1, L.w)
+        const yf = y / Math.max(1, L.h)
+        if (movePropRef.current && pickPropRef.current) {
+          const pick = pickPropRef.current
+          if (pick.kind === 'light') {
+            const moved = moveTankLight(user, pick.id, xf)
+            if (moved.success) setTankLights(moved.lights || [])
+          } else {
+            const moved = moveTankDecor(user, pick.id, xf, yf)
+            if (moved.success) setTankDecors(moved.decors || [])
+          }
+          setMoveProp(false)
+          rallyIgnoreFeedUntil.current = performance.now() + 400
+          return
+        }
+        const pending = placeItemRef.current
+        if (pending?.type === ITEM_TYPES.TANK_LIGHT) {
+          const placed = placeTankLight(user, xf)
+          if (placed.success) {
+            removeItemFromInventory(user, TANK_LIGHT_ITEM_ID, 1)
+            setTankLights(placed.lights || [])
+            const next = listTankPlaceables(user)
+            setPlaceables(next)
+            if (!next.some((row) => row.itemId === pending.itemId)) setPlaceItem(null)
+          }
+          rallyIgnoreFeedUntil.current = performance.now() + 400
+          return
+        }
+        if (pending?.itemId) {
+          const placed = placeTankDecor(user, pending.itemId, xf, yf, pending.look)
+          if (placed.success) {
+            removeItemFromInventory(user, pending.itemId, 1)
+            setTankDecors(placed.decors || [])
+            const next = listTankPlaceables(user)
+            setPlaceables(next)
+            if (!next.some((row) => row.itemId === pending.itemId)) setPlaceItem(null)
+          }
+          rallyIgnoreFeedUntil.current = performance.now() + 400
+          return
+        }
+        return
+      }
       if (mode === 'tank' && placeLightRef.current && !visiting) {
         const L = stableLayout(mode, (rosterRef.current || []).length)
         const placed = placeTankLight(getCurrentUser(), x / Math.max(1, L.w))
@@ -1668,7 +1819,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight ? ' is-place-light' : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight || tankEdit ? ' is-place-light' : ''}${tankEdit ? ' is-tank-edit' : ''}`}
       style={
         mode === 'tank' && !rotate
           ? { ['--tank-ui-top']: `${uiTop || 0}px` }
@@ -1676,8 +1827,8 @@ export default function OceanAmbience({ mode = 'world' }) {
       }
       aria-hidden={!wide}
       onPointerDown={(e) => {
-        if (e.target.closest('.ocean-fish-owner-tip, .ocean-widewatch-exit, .ocean-zoom-bar, .ocean-rally-panel, .ocean-light-hud')) return
-        if (rallyPhase === 'aim' || placeLight) {
+        if (e.target.closest('.ocean-fish-owner-tip, .ocean-widewatch-exit, .ocean-zoom-bar, .ocean-rally-panel, .ocean-light-hud, .ocean-tank-edit-panel, .ocean-tank-decor, .ocean-tank-lamp-hit')) return
+        if (rallyPhase === 'aim' || placeLight || tankEdit) {
           e.preventDefault()
           e.stopPropagation()
           const p = mapClientToTank(e.clientX, e.clientY, panRef.current)
@@ -1812,7 +1963,86 @@ export default function OceanAmbience({ mode = 'world' }) {
         </div>,
         document.body
       ) : null}
-      {mode === 'tank' && placeLight && !visiting ? createPortal(
+      {mode === 'tank' && tankEdit && !visiting ? createPortal(
+        <div
+          className="ocean-tank-edit-panel"
+          style={{ top: Math.max(12, (uiTop || 0) + 8) }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <div className="ocean-tank-edit-row">
+            <p>{moveProp ? '點魚缸換位置' : placeItem ? `點魚缸擺放${placeItem.name}` : pickProp ? '已選取，可換位置或收回' : '選背包道具擺放，或點缸裡的道具'}</p>
+            <button
+              type="button"
+              className="is-cancel"
+              onClick={() => {
+                setTankEdit(false)
+                setPlaceItem(null)
+                setPickProp(null)
+                setMoveProp(false)
+                endPlaceTankLight()
+                setPlaceLight(false)
+              }}
+            >
+              結束編輯
+            </button>
+          </div>
+          {pickProp ? (
+            <div className="ocean-tank-edit-row">
+              <button
+                type="button"
+                className={moveProp ? 'is-on' : ''}
+                onClick={() => setMoveProp((v) => !v)}
+              >
+                換位置
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const user = getCurrentUser()
+                  if (pickProp.kind === 'light') {
+                    const r = recallTankLight(user, pickProp.id)
+                    if (r.success) {
+                      addItemToInventory(user, TANK_LIGHT_ITEM_ID, 1)
+                      setTankLights(r.lights || [])
+                    }
+                  } else {
+                    const r = recallTankDecor(user, pickProp.id)
+                    if (r.success && r.itemId) {
+                      addItemToInventory(user, r.itemId, 1)
+                      setTankDecors(r.decors || [])
+                    }
+                  }
+                  setPickProp(null)
+                  setMoveProp(false)
+                  setPlaceables(listTankPlaceables(user))
+                }}
+              >
+                收回
+              </button>
+            </div>
+          ) : null}
+          <div className="ocean-tank-edit-row">
+            {placeables.length ? placeables.map((row) => (
+              <button
+                key={row.itemId}
+                type="button"
+                className={placeItem?.itemId === row.itemId ? 'is-on' : ''}
+                onClick={() => {
+                  setPlaceItem(row)
+                  setPickProp(null)
+                  setMoveProp(false)
+                }}
+              >
+                {row.icon} {row.name} ×{row.qty}
+              </button>
+            )) : (
+              <span className="ocean-tank-edit-empty">背包沒有水族道具</span>
+            )}
+          </div>
+        </div>,
+        document.body
+      ) : null}
+      {mode === 'tank' && placeLight && !visiting && !tankEdit ? createPortal(
         <div className="ocean-rally-hud is-actions" style={{ top: Math.max(12, (uiTop || 0) + 8) }}>
           <span>點魚缸頂部擺放魚缸燈</span>
           <button
@@ -1827,7 +2057,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         </div>,
         document.body
       ) : null}
-      {mode === 'tank' && !placeLight && tankLights.length ? createPortal(
+      {mode === 'tank' && !placeLight && !tankEdit && tankLights.length ? createPortal(
         <div
           className="ocean-light-hud"
           style={{ top: Math.max(12, (uiTop || 0) + (rallyPhase ? 48 : 8)) }}
@@ -1884,6 +2114,39 @@ export default function OceanAmbience({ mode = 'world' }) {
         }
       >
       {mode === 'tank' ? <TankScenery w={worldW} h={worldH} lights={tankLights} /> : null}
+      {mode === 'tank' ? tankDecors.map((row) => (
+        <button
+          key={row.id}
+          type="button"
+          className={`ocean-tank-decor is-${row.look || 'plant'}${pickProp?.kind === 'decor' && pickProp?.id === row.id ? ' is-sel' : ''}`}
+          style={{ left: `${row.x * 100}%`, top: `${row.y * 100}%` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (visiting || !tankEdit) return
+            setPickProp({ kind: 'decor', id: row.id })
+            setPlaceItem(null)
+            setMoveProp(false)
+          }}
+        />
+      )) : null}
+      {mode === 'tank' && tankEdit && !visiting ? tankLights.map((lamp) => (
+        <button
+          key={`hit-${lamp.id}`}
+          type="button"
+          className={`ocean-tank-lamp-hit${pickProp?.kind === 'light' && pickProp?.id === lamp.id ? ' is-sel' : ''}`}
+          style={{ left: `${Math.max(5, Math.min(95, (Number(lamp.x) || 0.5) * 100))}%` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setPickProp({ kind: 'light', id: lamp.id })
+            setPlaceItem(null)
+            setMoveProp(false)
+          }}
+        />
+      )) : null}
       {bubbles.map((b) => (
         <span
           key={b.id}

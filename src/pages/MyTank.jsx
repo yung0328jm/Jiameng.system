@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import OceanAmbience, { enterTankWideWatch, openTankRally, stepTankZoom } from '../components/OceanAmbience'
+import OceanAmbience, { enterTankWideWatch, openTankEdit, openTankRally, stepTankZoom } from '../components/OceanAmbience'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { isTankClosed, listTankVisitors, listVisitTanks, noteTankVisit } from '../utils/petStorage'
@@ -109,6 +109,15 @@ export default function MyTank() {
           >
             集結
           </button>
+          {!visiting ? (
+            <button
+              type="button"
+              onClick={() => openTankEdit()}
+              className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
+            >
+              編輯
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => toggle('visit')}
