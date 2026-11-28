@@ -1,6 +1,19 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 const imgCache = new Map()
+
+function overlayMaskStyle(mask, extra = {}) {
+  if (!mask) return extra
+  return {
+    ...extra,
+    WebkitMaskImage: mask,
+    maskImage: mask,
+    WebkitMaskRepeat: 'no-repeat',
+    maskRepeat: 'no-repeat',
+    WebkitMaskSize: '100% 100%',
+    maskSize: '100% 100%'
+  }
+}
 
 function loadFishImage(src) {
   if (!src) return null
@@ -43,7 +56,7 @@ function warpDraw(ctx, img, w, h, pad, live, shape) {
   const srcW = img.naturalWidth || img.width
   const srcH = img.naturalHeight || img.height
   if (!srcW || !srcH) return
-  const strips = Math.max(22, Math.min(72, Math.round(w / 2.4)))
+  const strips = Math.max(18, Math.min(48, Math.round(w / 3.2)))
   const slice = srcW / strips
   for (let i = 0; i < strips; i += 1) {
     const t = (i + 0.5) / strips
@@ -70,11 +83,11 @@ function paintFish(canvas, img, width, height, live, parts, shape) {
   canvas.style.width = `${cssW}px`
   canvas.style.height = `${cssH}px`
   canvas.style.top = `${-pad}px`
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d', { alpha: true })
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssW, cssH)
   ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
+  ctx.imageSmoothingQuality = 'medium'
   const overlay = parts?.overlay || ''
   ctx.save()
   ctx.filter = parts?.body || 'none'
@@ -105,6 +118,58 @@ function paintFish(canvas, img, width, height, live, parts, shape) {
   }
 }
 
+function shellClass(variant, wide, shape, glow, className) {
+  return `ocean-betta ocean-betta-${variant || 'a'}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}${shape === 'turtle' ? ' ocean-betta-ray ocean-betta-turtle' : ''}${shape === 'cichlid' ? ' ocean-betta-cichlid' : ''}${shape === 'shark' ? ' ocean-betta-shark' : ''}${shape === 'koi' ? ' ocean-betta-koi' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''}${glow ? ' ocean-betta-glow' : ''} ${className}`.trim()
+}
+
+function StaticFish({ src, variant, wide, shape, width, height, parts, className }) {
+  const overlay = parts?.overlay || ''
+  const mask = parts?.overlayMask || ''
+  const overlayLook = overlayMaskStyle(mask, {
+    filter: overlay === 'panda' ? undefined : parts?.overlayFilter || undefined,
+    WebkitFilter: overlay === 'panda' ? undefined : parts?.overlayFilter || undefined,
+    opacity: parts?.overlayOpacity != null ? parts.overlayOpacity : undefined
+  })
+  return (
+    <div
+      className={shellClass(variant, wide, shape, parts?.glow, className)}
+      style={{
+        width: width ? `${width}px` : undefined,
+        height: height ? `${height}px` : undefined,
+        ...(parts?.glowAura || {})
+      }}
+    >
+      <img
+        src={src}
+        alt=""
+        className="ocean-betta-layer ocean-betta-body"
+        style={{ filter: parts?.body || undefined, WebkitFilter: parts?.body || undefined }}
+        draggable={false}
+      />
+      {parts?.washMask ? (
+        <img
+          src={src}
+          alt=""
+          className="ocean-betta-layer ocean-betta-wash"
+          style={overlayMaskStyle(parts.washMask, {
+            filter: parts.washFilter || undefined,
+            WebkitFilter: parts.washFilter || undefined,
+            opacity: parts.washOpacity != null ? parts.washOpacity : 0.22
+          })}
+          draggable={false}
+        />
+      ) : null}
+      {overlay === 'panda' ? (
+        <img src={src} alt="" className="ocean-betta-layer ocean-betta-overlay ocean-betta-overlay-panda" style={overlayLook} draggable={false} />
+      ) : overlay === 'spots' ? (
+        <img src={src} alt="" className="ocean-betta-layer ocean-betta-overlay ocean-betta-overlay-spots" style={overlayLook} draggable={false} />
+      ) : overlay ? (
+        <img src={src} alt="" className={`ocean-betta-layer ocean-betta-overlay ocean-betta-overlay-${overlay}`} style={overlayLook} draggable={false} />
+      ) : null}
+    </div>
+  )
+}
+
 export default function FishSprite({
   src,
   variant,
@@ -122,64 +187,38 @@ export default function FishSprite({
   const w = Math.max(8, Number(width) || 0)
   const h = Math.max(8, Number(height) || 0)
 
-  const draw = (nextLive) => {
-    const rec = loadFishImage(src)
-    const canvas = canvasRef.current
-    if (!rec?.ready || !canvas || !w || !h) return
-    paintFish(canvas, rec.img, w, h, nextLive || { phase: 0, amp: 0, fin: 0 }, parts, shape)
-  }
-
   useLayoutEffect(() => {
+    if (!live) return undefined
     const rec = loadFishImage(src)
     if (!rec) return undefined
-    const run = () => draw(liveRef.current)
+    const run = () => {
+      const canvas = canvasRef.current
+      if (!rec.ready || !canvas || !w || !h) return
+      paintFish(canvas, rec.img, w, h, liveRef.current, parts, shape)
+    }
     if (rec.ready) run()
     else rec.wait.push(run)
     return undefined
-  }, [src, w, h, shape, parts, live?.phase, live?.amp, live?.fin])
+  }, [src, w, h, shape, parts, live, live?.phase, live?.amp, live?.fin])
 
-  useEffect(() => {
-    if (live) return undefined
-    const rec = loadFishImage(src)
-    let raf = 0
-    let last = 0
-    let kick = 0.55
-    let decay = 1
-    let next = 0
-    let phase = Math.random() * 6.28
-    const tick = (now) => {
-      if (!last) last = now
-      const dt = Math.min(0.05, (now - last) / 1000)
-      last = now
-      if (now > next) {
-        if (kick < 0.1 && Math.random() < 0.6) {
-          kick = 0.4 + Math.random() * 0.55
-          decay = 0.55 + Math.random() * 1.2
-          next = now + 260 + Math.random() * 520
-        } else {
-          kick = 0
-          next = now + 520 + Math.random() * 1700
-        }
-      }
-      kick = Math.max(0, kick - dt / Math.max(0.4, decay))
-      const effort = 0.35 + kick * 0.5
-      phase += dt * (5.2 + effort * 4)
-      if (rec?.ready) {
-        draw({
-          phase,
-          amp: 4.8 + effort * 2.6,
-          fin: 0.7 + effort * 1.1
-        })
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [live, src, w, h, shape, parts])
+  if (!live) {
+    return (
+      <StaticFish
+        src={src}
+        variant={variant}
+        wide={wide}
+        shape={shape}
+        width={width}
+        height={height}
+        parts={parts}
+        className={className}
+      />
+    )
+  }
 
   return (
     <div
-      className={`ocean-betta ocean-betta-${variant || 'a'}${wide ? ' ocean-betta-wide' : ''}${shape === 'ray' ? ' ocean-betta-ray' : ''}${shape === 'turtle' ? ' ocean-betta-ray ocean-betta-turtle' : ''}${shape === 'cichlid' ? ' ocean-betta-cichlid' : ''}${shape === 'shark' ? ' ocean-betta-shark' : ''}${shape === 'koi' ? ' ocean-betta-koi' : ''}${shape === 'giant' ? ' ocean-betta-giant' : ''}${parts?.glow ? ' ocean-betta-glow' : ''} ${className}`.trim()}
+      className={shellClass(variant, wide, shape, parts?.glow, className)}
       style={{
         width: width ? `${width}px` : undefined,
         height: height ? `${height}px` : undefined,

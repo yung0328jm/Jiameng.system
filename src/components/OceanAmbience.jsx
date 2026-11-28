@@ -469,7 +469,8 @@ export default function OceanAmbience({ mode = 'world' }) {
   const me = getCurrentUser()
   const visiting = mode === 'tank' && !!host && host !== me
   const onTankPage = path.includes('my-tank') || /\/tank\//.test(path)
-  const hidden = (mode === 'world' && onTankPage) || (mode === 'tank' && !onTankPage)
+  const busyPage = /\/my-pets(?:\/|$)|\/my-backpack|\/fish-auction|\/fish-swap/.test(path)
+  const hidden = (mode === 'world' && (onTankPage || busyPage)) || (mode === 'tank' && !onTankPage)
   const bubbles = useMemo(() => BUBBLES, [])
   const [food, setFood] = useState([])
   const [hearts, setHearts] = useState([])
