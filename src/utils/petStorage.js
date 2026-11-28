@@ -1169,24 +1169,26 @@ export function listVisitTanks(viewer) {
   const me = String(viewer || '').trim()
   const seen = new Set()
   const out = []
+  const real = new Set()
+  try {
+    ;(getUsers() || []).forEach((u) => {
+      const acc = String(u?.account || '').trim()
+      if (!acc || isGuestAccount(acc) || String(u?.role || '') === 'resigned') return
+      real.add(acc)
+    })
+  } catch (_) {}
   const add = (raw) => {
     const acc = String(raw || '').trim()
-    if (!acc || acc === me || isGuestAccount(acc) || seen.has(acc) || isTankClosed(acc)) return
+    if (!acc || acc === me || !real.has(acc) || seen.has(acc) || isTankClosed(acc)) return
     seen.add(acc)
     out.push({ account: acc, count: listRoamingSlotIds(acc).length })
   }
-  try {
-    ;(getUsers() || []).forEach((u) => {
-      if (String(u?.role || '') === 'resigned') return
-      add(u?.account)
-    })
-  } catch (_) {}
+  real.forEach(add)
   try {
     ;['participants', 'responsible_persons'].forEach((cat) => {
       ;(getDropdownOptionsByCategory(cat) || []).forEach((opt) => add(opt?.boundAccount))
     })
   } catch (_) {}
-  Object.keys(readAll()).forEach(add)
   out.sort((a, b) =>
     getDisplayNameForAccount(a.account).localeCompare(getDisplayNameForAccount(b.account), 'zh-Hant')
   )
