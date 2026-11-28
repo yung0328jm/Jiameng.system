@@ -1,0 +1,62 @@
+export const TANK_DECOR_ART = {
+  plant: '/tank-decor/plant.png',
+  wood: '/tank-decor/wood.png',
+  rock: '/tank-decor/rock.png',
+  cave: '/tank-decor/cave.png',
+  fern: '/tank-decor/fern.png',
+  moss: '/tank-decor/moss.png',
+  lava: '/tank-decor/lava.png',
+  tape: '/tank-decor/tape.png',
+  dragon: '/tank-decor/dragon.png',
+  pixiu: '/tank-decor/pixiu.png',
+  buddha: '/tank-decor/buddha.png',
+  guanyin: '/tank-decor/guanyin.png',
+  caishen: '/tank-decor/caishen.png',
+  toad: '/tank-decor/toad.png',
+  ohko: '/tank-decor/ohko.png',
+  ryuoh: '/tank-decor/ryuoh.png',
+  strata: '/tank-decor/strata.png',
+  petrified: '/tank-decor/petrified.png',
+  river: '/tank-decor/river.png',
+  elephant: '/tank-decor/elephant.png',
+  taihu: '/tank-decor/taihu.png',
+  blacklava: '/tank-decor/blacklava.png',
+  spider: '/tank-decor/spider.png',
+  redmoor: '/tank-decor/redmoor.png',
+  mangrove: '/tank-decor/mangrove.png',
+  cholla: '/tank-decor/cholla.png',
+  pagoda: '/tank-decor/pagoda.png',
+  bridge: '/tank-decor/bridge.png',
+  pavilion: '/tank-decor/pavilion.png',
+  lantern: '/tank-decor/lantern.png',
+  hut: '/tank-decor/hut.png',
+  boat: '/tank-decor/boat.png',
+  mountain: '/tank-decor/mountain.png',
+  waterfall: '/tank-decor/waterfall.png',
+  coral: '/tank-decor/coral.png',
+  brick: '/tank-decor/brick.png',
+  sand: '/tank-decor/sand.png',
+  blacksand: '/tank-decor/blacksand.png',
+  volcsand: '/tank-decor/volcsand.png',
+  quartz: '/tank-decor/quartz.png',
+  guandi: '/tank-decor/guandi.png',
+  tudi: '/tank-decor/tudi.png',
+  qilin: '/tank-decor/qilin.png',
+  cointree: '/tank-decor/cointree.png',
+  shishi: '/tank-decor/shishi.png',
+  censer: '/tank-decor/censer.png',
+  anubias: '/tank-decor/anubias.png',
+  crypt: '/tank-decor/crypt.png',
+  rotala: '/tank-decor/rotala.png',
+  ludwigia: '/tank-decor/ludwigia.png',
+  hydro: '/tank-decor/hydro.png',
+  buce: '/tank-decor/buce.png'
+}
+
+export function shopItemArtSrc(item) {
+  const uploaded = String(item?.image || item?.imageUrl || '').trim()
+  if (uploaded) return uploaded
+  const look = String(item?.look || '').trim()
+  if (look && TANK_DECOR_ART[look]) return TANK_DECOR_ART[look]
+  return ''
+}

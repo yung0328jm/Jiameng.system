@@ -7,6 +7,7 @@ import { createExchangeRequest, getUserExchangeRequests } from '../utils/exchang
 import { getEquippedEffects, equipEffect, unequipEffect } from '../utils/effectStorage'
 import { migrateOwned } from '../utils/petStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
+import { shopItemArtSrc } from '../utils/tankDecorArt'
 
 function MyBackpack() {
   const navigate = useNavigate()
@@ -280,8 +281,16 @@ function MyBackpack() {
                 >
                   {/* 道具圖標和名稱 */}
                   <div className="text-center mb-5 sm:mb-4">
-                    {invItem.image ? (
-                      <img src={invItem.image} alt="" className="mx-auto mb-3 sm:mb-2 h-20 w-auto object-contain" />
+                    {shopItemArtSrc(invItem.item || invItem) ? (
+                      <div className={(invItem.item?.type === ITEM_TYPES.TANK_DECOR) ? 'mx-auto mb-3 sm:mb-2 w-full rounded-lg bg-[#0b2233] flex items-center justify-center p-4 min-h-[220px]' : ''}>
+                        <img
+                          src={shopItemArtSrc(invItem.item || invItem)}
+                          alt=""
+                          className={(invItem.item?.type === ITEM_TYPES.TANK_DECOR)
+                            ? 'max-h-[52vh] w-auto max-w-full object-contain'
+                            : 'mx-auto mb-3 sm:mb-2 h-20 w-auto object-contain'}
+                        />
+                      </div>
                     ) : (
                       <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{invItem.icon}</div>
                     )}
@@ -468,8 +477,8 @@ function MyBackpack() {
                     className="relative rounded-lg overflow-hidden shadow-lg min-w-0 flex flex-col min-h-[100px] sm:min-h-[120px] border border-gray-600 hover:border-purple-400 transition-colors cursor-pointer bg-gray-800"
                   >
                     <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
-                      {invItem.image ? (
-                        <img src={invItem.image} alt="" className="h-10 w-auto object-contain" />
+                      {shopItemArtSrc(invItem.item || invItem) ? (
+                        <img src={shopItemArtSrc(invItem.item || invItem)} alt="" className="h-12 w-12 sm:h-14 sm:w-14 object-contain" />
                       ) : (
                         <div className="text-4xl sm:text-5xl">{invItem.icon}</div>
                       )}

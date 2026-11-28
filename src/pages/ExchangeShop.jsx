@@ -9,6 +9,34 @@ import { addShopFishToPets, purgeFishItemFromEveryone } from '../utils/petStorag
 import { syncKeyToSupabase } from '../utils/supabaseSync'
 import { getSupabaseClient, isSupabaseEnabled } from '../utils/supabaseClient'
 import CoinPurchasePanel from '../components/CoinPurchasePanel'
+import { shopItemArtSrc } from '../utils/tankDecorArt'
+
+function ShopItemArt({ item, size = 'thumb' }) {
+  const src = shopItemArtSrc(item)
+  const preview = size === 'preview'
+  const isDecor = item?.type === ITEM_TYPES.TANK_DECOR
+  if (src) {
+    if (preview && isDecor) {
+      return (
+        <div className="mx-auto mb-3 sm:mb-2 w-full rounded-lg bg-[#0b2233] flex items-center justify-center p-4 min-h-[240px]">
+          <img src={src} alt={item?.name || ''} className="max-h-[52vh] w-auto max-w-full object-contain" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={src}
+        alt={item?.name || ''}
+        className={preview ? 'mx-auto mb-3 sm:mb-2 h-20 w-auto object-contain' : 'h-12 w-12 sm:h-14 sm:w-14 object-contain'}
+      />
+    )
+  }
+  return (
+    <div className={preview ? 'text-7xl sm:text-6xl mb-3 sm:mb-2' : 'text-4xl sm:text-5xl'}>
+      {item?.icon}
+    </div>
+  )
+}
 
 function ExchangeShop() {
   const [shopItems, setShopItems] = useState([])
@@ -801,11 +829,7 @@ function ExchangeShop() {
               >
                 {/* 道具圖標和名稱 */}
                 <div className="text-center mb-5 sm:mb-4">
-                  {(item.image || item.imageUrl) ? (
-                    <img src={item.image || item.imageUrl} alt="" className="mx-auto mb-3 sm:mb-2 h-20 w-auto object-contain" />
-                  ) : (
-                    <div className="text-7xl sm:text-6xl mb-3 sm:mb-2">{item.icon}</div>
-                  )}
+                  <ShopItemArt item={item} size="preview" />
                   <h3 className="text-2xl sm:text-xl font-bold text-white mb-2">{item.name}</h3>
                       {String(item.category || '').trim() && (
                         <div className="mb-2">
@@ -914,11 +938,7 @@ function ExchangeShop() {
                     </div>
                   )}
                   <div className="flex flex-col items-center justify-center gap-1 p-2 flex-1">
-                    {(item.image || item.imageUrl) ? (
-                      <img src={item.image || item.imageUrl} alt="" className="h-10 w-auto object-contain" />
-                    ) : (
-                      <div className="text-4xl sm:text-5xl">{item.icon}</div>
-                    )}
+                    <ShopItemArt item={item} size="thumb" />
                     <p className="text-white font-semibold text-center text-xs sm:text-sm truncate w-full">{item.name}</p>
                     <p className="text-yellow-400 text-[10px] sm:text-xs font-bold">{item.price || 0} 幣</p>
                     {String(item.category || '').trim() && (
