@@ -219,6 +219,18 @@ body {
   height: 100svh;
 }
 
+.ocean-ambience.is-tank.is-fit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ocean-ambience.is-tank.is-fit .ocean-world {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
 .ocean-ambience.is-pan {
   overflow-x: auto;
   overflow-y: hidden;
