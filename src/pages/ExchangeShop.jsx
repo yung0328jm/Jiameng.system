@@ -1042,6 +1042,7 @@ function ExchangeShop() {
                     <option value="danmu">彈幕道具</option>
                     <option value="special">特殊道具</option>
                     <option value="fish_skin">魚類（進我的寵物）</option>
+                    <option value="tank_light">魚缸燈</option>
                   </select>
                 </div>
 

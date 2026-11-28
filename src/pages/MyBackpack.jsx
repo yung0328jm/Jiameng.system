@@ -1,13 +1,16 @@
 import { useState, useEffect, Fragment } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
 import { getItems, ITEM_TYPES } from '../utils/itemStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { createExchangeRequest, getUserExchangeRequests } from '../utils/exchangeRequestStorage'
 import { getEquippedEffects, equipEffect, unequipEffect } from '../utils/effectStorage'
 import { migrateOwned } from '../utils/petStorage'
+import { beginPlaceTankLight } from '../utils/tankLightStorage'
 import { useRealtimeKeys } from '../contexts/SyncContext'
 
 function MyBackpack() {
+  const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState('')
   const [userRole, setUserRole] = useState(null)
   const [inventory, setInventory] = useState([])
@@ -370,6 +373,19 @@ function MyBackpack() {
                       <div className="w-full bg-gray-700 text-gray-400 px-4 py-3 sm:py-2 rounded text-center text-base sm:text-sm leading-relaxed">
                         魚隻擴充已停用。寵物欄固定 50 隻，有魚即可放入魚缸。
                       </div>
+                    ) : invItem.item && invItem.item.type === ITEM_TYPES.TANK_LIGHT ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          beginPlaceTankLight()
+                          setPreviewItemId(null)
+                          navigate('/my-tank', { state: { placeLight: true } })
+                        }}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-4 py-3 sm:py-2 rounded transition-colors text-base sm:text-sm min-h-[44px]"
+                      >
+                        放入魚缸
+                      </button>
                     ) : hasPendingExchangeRequest(invItem.itemId) ? (
                       <button
                         disabled

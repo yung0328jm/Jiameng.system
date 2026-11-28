@@ -12,7 +12,8 @@ export const ITEM_TYPES = {
   TITLE: 'title', // 稱號道具
   FISH_SKIN: 'fish_skin', // 水族：兌換後進入我的寵物
   FISH_SLOT: 'fish_slot', // 已停用：魚隻擴充欄
-  FISH_POTION: 'fish_potion'
+  FISH_POTION: 'fish_potion',
+  TANK_LIGHT: 'tank_light'
 }
 
 export const FISH_POTION_HEAT_ID = 'fish_potion_heat'
@@ -37,6 +38,7 @@ export const FISH_TURTLE_SLIDER_ITEM_ID = 'fish_turtle_slider'
 export const FISH_TURTLE_PIG_ITEM_ID = 'fish_turtle_pig'
 export const FISH_TURTLE_MAP_ITEM_ID = 'fish_turtle_map'
 export const FISH_SLOT_EXPAND_ITEM_ID = 'fish_slot_expand'
+export const TANK_LIGHT_ITEM_ID = 'tank_light'
 
 const AROWANA_SHOP_ITEM = {
   id: FISH_AROANA_ITEM_ID,
@@ -305,6 +307,17 @@ const FISH_POTION_WORM_ITEM = {
   createdAt: new Date().toISOString()
 }
 
+const TANK_LIGHT_SHOP_ITEM = {
+  id: TANK_LIGHT_ITEM_ID,
+  name: '魚缸燈',
+  type: 'tank_light',
+  description: '到背包點放入魚缸，再點缸頂任意位置擺放。擺好後可用開關開燈關燈。',
+  icon: '💡',
+  price: 18,
+  category: '水族佈置',
+  createdAt: new Date().toISOString()
+}
+
 const FISH_PRICE_SEED = 20261127
 const FISH_SHOP_CATALOG = {
   [FISH_AROANA_ITEM_ID]: AROWANA_SHOP_ITEM,
@@ -352,6 +365,7 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_GROWTH_ID)) extras.push({ ...FISH_POTION_GROWTH_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_GENDER_ID)) extras.push({ ...FISH_POTION_GENDER_ITEM, createdAt: new Date().toISOString() })
   if (!list.some((it) => String(it?.id || '') === FISH_POTION_WORM_ID)) extras.push({ ...FISH_POTION_WORM_ITEM, createdAt: new Date().toISOString() })
+  if (!list.some((it) => String(it?.id || '') === TANK_LIGHT_ITEM_ID)) extras.push({ ...TANK_LIGHT_SHOP_ITEM, createdAt: new Date().toISOString() })
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const affectionWanted = FISH_POTION_AFFECTION_ITEM.description
   const growthWanted = FISH_POTION_GROWTH_ITEM.description

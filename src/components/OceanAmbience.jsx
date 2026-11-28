@@ -22,6 +22,16 @@ import {
   useFishPotion
 } from '../utils/petStorage'
 import { REALTIME_UPDATE_EVENT } from '../utils/supabaseRealtime'
+import { TANK_LIGHT_ITEM_ID } from '../utils/itemStorage'
+import { removeItemFromInventory } from '../utils/inventoryStorage'
+import {
+  beginPlaceTankLight,
+  endPlaceTankLight,
+  isPlacingTankLight,
+  listTankLights,
+  placeTankLight,
+  toggleTankLight
+} from '../utils/tankLightStorage'
 import FishSprite from './FishSprite'
 
 const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
@@ -32,11 +42,12 @@ const BUBBLES = Array.from({ length: 18 }, (_, i) => ({
   delay: `${-(i * 1.3)}s`
 }))
 
-function TankScenery({ w = 0, h = 0 }) {
+function TankScenery({ w = 0, h = 0, lights = [] }) {
   const width = Math.max(0, Math.round(Number(w) || 0))
   const height = Math.max(0, Math.round(Number(h) || 0))
   const frame = Math.max(10, Math.min(20, Math.round(width * 0.012)))
   const sized = width > 0 && height > 0
+  const lamps = Array.isArray(lights) ? lights : []
   return (
     <div
       className="ocean-tank-scenery"
@@ -46,10 +57,22 @@ function TankScenery({ w = 0, h = 0 }) {
       <div className="ocean-tank-back" />
       <div className="ocean-tank-caustic" />
       <div className="ocean-tank-surface" />
-      <div className="ocean-tank-beam">
-        <span className="ocean-tank-beam-core" />
-        <span className="ocean-tank-beam-glow" />
-      </div>
+      {lamps.map((lamp) => {
+        const left = `${Math.max(5, Math.min(95, (Number(lamp.x) || 0.5) * 100))}%`
+        return (
+          <div key={lamp.id}>
+            {lamp.on ? (
+              <div className="ocean-tank-beam" style={{ left }}>
+                <span className="ocean-tank-beam-core" />
+                <span className="ocean-tank-beam-glow" />
+              </div>
+            ) : null}
+            <div className={`ocean-tank-lamp${lamp.on ? ' is-on' : ''}`} style={{ left }}>
+              <span className="ocean-tank-lamp-body" />
+            </div>
+          </div>
+        )
+      })}
       <div className="ocean-tank-glass" />
       <div className="ocean-tank-rim ocean-tank-rim-top" style={sized ? { width: `${width}px` } : undefined} />
       <div
@@ -443,22 +466,28 @@ function fishSize(entry, L, form = {}) {
   return { width, height }
 }
 
-function tankBeam(L) {
-  const cx = L.w * 0.4
-  const topHalf = L.w * (L.mobile ? 0.07 : 0.055)
-  const botHalf = L.w * (L.mobile ? 0.16 : 0.13)
+function beamFromLight(L, xFrac) {
+  const cx = L.w * Math.max(0.05, Math.min(0.95, Number(xFrac) || 0.5))
+  const topHalf = L.w * (L.mobile ? 0.055 : 0.042)
+  const botHalf = L.w * (L.mobile ? 0.13 : 0.11)
   return { cx, topHalf, botHalf }
 }
 
-function fishInTankBeam(fish, size, L) {
-  const { cx, topHalf, botHalf } = tankBeam(L)
+function fishInTankBeam(fish, size, L, lights) {
+  const ons = (lights || []).filter((row) => row && row.on)
+  if (!ons.length) return 0
   const midX = (fish?.x || 0) + (size?.width || 0) * 0.5
   const midY = (fish?.y || 0) + (size?.height || 0) * 0.45
   const t = Math.max(0, Math.min(1, midY / Math.max(1, L.h)))
-  const half = topHalf + (botHalf - topHalf) * t
-  const d = Math.abs(midX - cx)
-  if (d >= half) return 0
-  return Math.max(0, Math.min(1, 1 - d / half))
+  let best = 0
+  ons.forEach((lamp) => {
+    const { cx, topHalf, botHalf } = beamFromLight(L, lamp.x)
+    const half = topHalf + (botHalf - topHalf) * t
+    const d = Math.abs(midX - cx)
+    if (d >= half) return
+    best = Math.max(best, 1 - d / half)
+  })
+  return Math.max(0, Math.min(1, best))
 }
 
 function cruiseSpeed(L, entry, size) {
@@ -831,6 +860,11 @@ export default function OceanAmbience({ mode = 'world' }) {
   const rallySpeciesRef = useRef('all')
   const rallyMarkRef = useRef(null)
   const rallyIgnoreFeedUntil = useRef(0)
+  const tankOwner = visiting ? host : me
+  const [tankLights, setTankLights] = useState(() => listTankLights(tankOwner))
+  const tankLightsRef = useRef(tankLights)
+  const [placeLight, setPlaceLight] = useState(() => !visiting && isPlacingTankLight())
+  const placeLightRef = useRef(false)
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
   const [feedHud, setFeedHud] = useState('')
@@ -878,6 +912,8 @@ export default function OceanAmbience({ mode = 'world' }) {
   inspectRef.current = inspect
   rallyPhaseRef.current = rallyPhase
   rallySpeciesRef.current = rallySpecies
+  tankLightsRef.current = tankLights
+  placeLightRef.current = !!placeLight
 
   useEffect(() => {
     setPotionMsg('')
@@ -959,6 +995,28 @@ export default function OceanAmbience({ mode = 'world' }) {
       }
     }
   }, [hidden, mode, pan])
+
+  useEffect(() => {
+    if (mode !== 'tank' || visiting) return undefined
+    if (location?.state?.placeLight || isPlacingTankLight()) {
+      beginPlaceTankLight()
+      setPlaceLight(true)
+    }
+    return undefined
+  }, [mode, visiting, location?.state?.placeLight])
+
+  useEffect(() => {
+    const owner = visiting ? host : getCurrentUser()
+    const refresh = () => setTankLights(listTankLights(owner))
+    refresh()
+    const onRt = (e) => {
+      const key = e?.detail?.key
+      if (key && key !== '__ALL__' && key !== 'jiameng_tank_lights') return
+      refresh()
+    }
+    window.addEventListener(REALTIME_UPDATE_EVENT, onRt)
+    return () => window.removeEventListener(REALTIME_UPDATE_EVENT, onRt)
+  }, [visiting, host])
 
   useEffect(() => {
     if (hidden || mode !== 'tank') return undefined
@@ -1441,7 +1499,7 @@ export default function OceanAmbience({ mode = 'world' }) {
           node.sprite = node.el.querySelector('.ocean-betta')
         }
         if (!node?.el) return
-        const lit = mode === 'tank' ? fishInTankBeam(f, size, L) : 0
+        const lit = mode === 'tank' ? fishInTankBeam(f, size, L, tankLightsRef.current) : 0
         const px = Math.round(f.x * 4) / 4
         const py = Math.round(f.y * 4) / 4
         const tf = `translate3d(${px}px, ${py}px, 0)`
@@ -1550,6 +1608,19 @@ export default function OceanAmbience({ mode = 'world' }) {
         setRallyPhase('on')
         return
       }
+      if (mode === 'tank' && placeLightRef.current && !visiting) {
+        const L = stableLayout(mode, (rosterRef.current || []).length)
+        const placed = placeTankLight(getCurrentUser(), x / Math.max(1, L.w))
+        if (placed.success) {
+          removeItemFromInventory(getCurrentUser(), TANK_LIGHT_ITEM_ID, 1)
+          endPlaceTankLight()
+          placeLightRef.current = false
+          setPlaceLight(false)
+          setTankLights(placed.lights || [])
+          rallyIgnoreFeedUntil.current = performance.now() + 700
+        }
+        return
+      }
       const roster = rosterRef.current || []
       const looks = sim.current.looks || {}
       const anyHungry = roster.some((row, i) => !fishIsFull(sim.current.fish[i], looks[row?.id], Date.now()))
@@ -1597,7 +1668,7 @@ export default function OceanAmbience({ mode = 'world' }) {
   return createPortal(
     <div
       ref={panRef}
-      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}`}
+      className={`ocean-ambience${mode === 'tank' ? ' is-tank' : ''}${visiting ? ' is-visiting' : ''}${pan ? ' is-pan' : ''}${pan ? ' is-close' : ''}${mode === 'tank' && !pan && zoom <= fitZoom + 0.02 ? ' is-fit' : ''}${wide ? ' is-widewatch' : ''}${rotate ? ' is-widewatch-rotate' : ''}${rallyPhase === 'aim' ? ' is-rally-aim' : ''}${rallyPhase === 'on' ? ' is-rally-on' : ''}${placeLight ? ' is-place-light' : ''}`}
       style={
         mode === 'tank' && !rotate
           ? { ['--tank-ui-top']: `${uiTop || 0}px` }
@@ -1605,8 +1676,8 @@ export default function OceanAmbience({ mode = 'world' }) {
       }
       aria-hidden={!wide}
       onPointerDown={(e) => {
-        if (e.target.closest('.ocean-fish-owner-tip, .ocean-widewatch-exit, .ocean-zoom-bar, .ocean-rally-panel')) return
-        if (rallyPhase === 'aim') {
+        if (e.target.closest('.ocean-fish-owner-tip, .ocean-widewatch-exit, .ocean-zoom-bar, .ocean-rally-panel, .ocean-light-hud')) return
+        if (rallyPhase === 'aim' || placeLight) {
           e.preventDefault()
           e.stopPropagation()
           const p = mapClientToTank(e.clientX, e.clientY, panRef.current)
@@ -1741,6 +1812,45 @@ export default function OceanAmbience({ mode = 'world' }) {
         </div>,
         document.body
       ) : null}
+      {mode === 'tank' && placeLight && !visiting ? createPortal(
+        <div className="ocean-rally-hud is-actions" style={{ top: Math.max(12, (uiTop || 0) + 8) }}>
+          <span>點魚缸頂部擺放魚缸燈</span>
+          <button
+            type="button"
+            onClick={() => {
+              endPlaceTankLight()
+              setPlaceLight(false)
+            }}
+          >
+            取消
+          </button>
+        </div>,
+        document.body
+      ) : null}
+      {mode === 'tank' && !placeLight && tankLights.length ? createPortal(
+        <div
+          className="ocean-light-hud"
+          style={{ top: Math.max(12, (uiTop || 0) + (rallyPhase ? 48 : 8)) }}
+        >
+          {tankLights.map((lamp, i) => (
+            <button
+              key={lamp.id}
+              type="button"
+              className={lamp.on ? 'is-on' : ''}
+              disabled={visiting}
+              onClick={() => {
+                if (visiting) return
+                const r = toggleTankLight(tankOwner, lamp.id)
+                if (r.success) setTankLights(r.lights || [])
+              }}
+            >
+              {tankLights.length > 1 ? `燈${i + 1} ` : '魚缸燈 '}
+              {lamp.on ? '開' : '關'}
+            </button>
+          ))}
+        </div>,
+        document.body
+      ) : null}
       {wide ? (
         <button
           type="button"
@@ -1773,7 +1883,7 @@ export default function OceanAmbience({ mode = 'world' }) {
             : undefined
         }
       >
-      {mode === 'tank' ? <TankScenery w={worldW} h={worldH} /> : null}
+      {mode === 'tank' ? <TankScenery w={worldW} h={worldH} lights={tankLights} /> : null}
       {bubbles.map((b) => (
         <span
           key={b.id}
