@@ -223,6 +223,30 @@ function viewBox() {
   }
 }
 
+let layoutMemo = { key: '', zoom: 0, at: 0, L: null }
+
+function stableLayout(mode = 'world', fishCount = 0) {
+  const L = layout(mode, fishCount)
+  const zoom = Number(L.zoom) || 1
+  const now = typeof performance !== 'undefined' ? performance.now() : 0
+  const prev = layoutMemo.L
+  if (
+    prev &&
+    prev.tank === L.tank &&
+    prev.pan === L.pan &&
+    prev.fit === L.fit &&
+    Math.abs((layoutMemo.zoom || 0) - zoom) < 0.0008 &&
+    Math.abs(prev.w - L.w) <= 1 &&
+    Math.abs(prev.h - L.h) <= 1 &&
+    Math.abs((prev.uiTop || 0) - (L.uiTop || 0)) <= 1 &&
+    now - layoutMemo.at < 480
+  ) {
+    return prev
+  }
+  layoutMemo = { L, zoom, at: now, key: `${L.w}x${L.h}` }
+  return L
+}
+
 function layout(mode = 'world', fishCount = 0) {
   const mobile = isMobile()
   const box = viewBox()
@@ -642,6 +666,54 @@ function rosterKey(roster) {
   return (roster || []).map((f) => `${f.id}:${f.key}:${f.src}:${f.owner || ''}`).join('|')
 }
 
+function actorLookSig(roster, looks) {
+  return (roster || []).map((entry) => {
+    const look = looks?.[entry?.id] || {}
+    return [
+      entry?.id,
+      look.art === 'b' ? 'b' : 'a',
+      look.gender || '',
+      look.pregnant ? 1 : 0,
+      look.generation || 0,
+      entry?.nick || '',
+      look.morphLabel || '',
+      look.shineText || '',
+      look.feedWait?.waiting ? 1 : 0,
+      look.feedWait?.today || 0,
+      look.feedWait?.helpToday || 0,
+      (look.helpers || []).length
+    ].join(':')
+  }).join('|')
+}
+
+function syncFloatLayer(map, layer, items, className, apply, text) {
+  if (!layer) {
+    map.forEach((el) => el.remove())
+    map.clear()
+    return
+  }
+  const keep = new Set()
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i]
+    if (!item?.id) continue
+    keep.add(item.id)
+    let el = map.get(item.id)
+    if (!el) {
+      el = document.createElement('span')
+      el.className = className
+      if (text) el.textContent = text
+      layer.appendChild(el)
+      map.set(item.id, el)
+    }
+    apply(el, item)
+  }
+  map.forEach((el, id) => {
+    if (keep.has(id)) return
+    el.remove()
+    map.delete(id)
+  })
+}
+
 
 function loadRoster(mode, host) {
   const user = mode === 'tank' ? (host || getCurrentUser()) : getCurrentUser()
@@ -659,8 +731,6 @@ export default function OceanAmbience({ mode = 'world' }) {
   const busyPage = path.includes('my-backpack') || path.includes('fish-auction') || path.includes('fish-swap')
   const hidden = (mode === 'world' && (onTankPage || busyPage)) || (mode === 'tank' && !onTankPage)
   const bubbles = useMemo(() => BUBBLES, [])
-  const [food, setFood] = useState([])
-  const [hearts, setHearts] = useState([])
   const [inspect, setInspect] = useState(null)
   const [potionMsg, setPotionMsg] = useState('')
   const [feedHud, setFeedHud] = useState('')
@@ -668,8 +738,18 @@ export default function OceanAmbience({ mode = 'world' }) {
   const lookBump = useRef(0)
   const shooRef = useRef([])
   const panRef = useRef(null)
+  const foodLayerRef = useRef(null)
+  const heartLayerRef = useRef(null)
+  const foodNodeRef = useRef(new Map())
+  const heartNodeRef = useRef(new Map())
+  const actorNodeRef = useRef(new Map())
+  const tipRef = useRef(null)
+  const inspectRef = useRef(null)
+  const actorSigRef = useRef('')
+  const fitZoomRef = useRef(typeof window === 'undefined' ? 0.12 : tankFitZoom())
   const rosterRef = useRef(loadRoster(mode, host))
   const bootLayout = typeof window === 'undefined' ? { w: 0, pan: false, wide: false, rotate: false } : layout(mode, (rosterRef.current || []).length)
+  const uiTopRef = useRef(bootLayout.uiTop || 0)
   const worldWRef = useRef(bootLayout.w)
   const worldHRef = useRef(bootLayout.h || 0)
   const panFlagRef = useRef(!!bootLayout.pan)
@@ -695,6 +775,7 @@ export default function OceanAmbience({ mode = 'world' }) {
     eating: false
   })))
   const sim = useRef(null)
+  inspectRef.current = inspect
 
   useEffect(() => {
     setPotionMsg('')
@@ -837,7 +918,7 @@ export default function OceanAmbience({ mode = 'world' }) {
     const tick = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const L = layout(mode, (rosterRef.current || []).length)
+      const L = stableLayout(mode, (rosterRef.current || []).length)
       if (worldWRef.current !== L.w || worldHRef.current !== L.h) {
         const ox = Math.max(1, worldWRef.current || L.w)
         const oy = Math.max(1, worldHRef.current || L.h)
@@ -849,11 +930,13 @@ export default function OceanAmbience({ mode = 'world' }) {
         setWorldW(L.w)
         setWorldH(L.h)
       }
-      if (L.fitZoom) {
-        setFitZoom((cur) => (Math.abs(cur - L.fitZoom) > 0.0008 ? L.fitZoom : cur))
+      if (L.fitZoom && Math.abs(fitZoomRef.current - L.fitZoom) > 0.0008) {
+        fitZoomRef.current = L.fitZoom
+        setFitZoom(L.fitZoom)
       }
-      if (L.uiTop != null) {
-        setUiTop((cur) => (cur !== L.uiTop ? L.uiTop : cur))
+      if (L.uiTop != null && uiTopRef.current !== L.uiTop) {
+        uiTopRef.current = L.uiTop
+        setUiTop(L.uiTop)
       }
       if (panFlagRef.current !== !!L.pan) {
         panFlagRef.current = !!L.pan
@@ -899,13 +982,22 @@ export default function OceanAmbience({ mode = 'world' }) {
       const aimAlong = (fish, vx, vy) => {
         const ax = Math.abs(vx)
         const ay = Math.abs(vy)
-        if (ax > 0.12 && ax > ay * 0.34) {
-          fish.face = vx >= 0 ? 1 : -1
+        if (ax > 2.8 && ax > ay * 0.5) {
+          const wantFace = vx >= 0 ? 1 : -1
+          if (wantFace === fish.face) {
+            fish._flipHold = 0
+          } else {
+            fish._flipHold = (fish._flipHold || 0) + dt
+            if (fish._flipHold > 0.18) {
+              fish.face = wantFace
+              fish._flipHold = 0
+            }
+          }
         }
-        const want = Math.atan2(vy, ax + 0.0001) * (180 / Math.PI)
-        const maxTilt = L.tank ? 22 : (ay >= ax * 0.65 ? 88 : 68)
+        const want = ax < 1.2 ? 0 : Math.atan2(vy, ax + 0.0001) * (180 / Math.PI)
+        const maxTilt = L.tank ? 16 : (ay >= ax * 0.65 ? 88 : 68)
         const clamped = Math.max(-maxTilt, Math.min(maxTilt, want))
-        fish.tilt += (clamped - (fish.tilt || 0)) * Math.min(1, 7 * dt)
+        fish.tilt += (clamped - (fish.tilt || 0)) * Math.min(1, 3.4 * dt)
       }
 
       state.food = state.food.filter((p) => {
@@ -1070,11 +1162,18 @@ export default function OceanAmbience({ mode = 'world' }) {
           const dx = (fish.tx ?? fish.x) - fish.x
           const dy = (fish.ty ?? fish.y) - fish.y
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
-          if (!fish.turnAt || now > fish.turnAt || dist < 18) {
+          const near = dist < Math.max(14, Math.min(36, size.width * 0.45))
+          if (!fish.turnAt || now > fish.turnAt) {
             pickWander(fish, L, size, fish._headHome ? false : fish._roamAll)
+          } else if (near) {
+            fish.tilt += (0 - (fish.tilt || 0)) * Math.min(1, 4 * dt)
+            fish.x += sep.sx * 18 * dt
+            fish.y += sep.sy * 18 * dt
+            clampFish(fish, L, size, fish._layer, fish._roamAll)
+            return
           }
-          const wx = (fish.tx ?? fish.x) - fish.x + sep.sx * 40
-          const wy = (fish.ty ?? fish.y) - fish.y + sep.sy * 40
+          const wx = (fish.tx ?? fish.x) - fish.x + sep.sx * 22
+          const wy = (fish.ty ?? fish.y) - fish.y + sep.sy * 22
           const wd = Math.sqrt(wx * wx + wy * wy) || 1
           aimAlong(fish, wx, wy)
           const speed = cruiseSpeed(L, entry, size) * (fish._headHome ? 1.2 : 1)
@@ -1118,49 +1217,143 @@ export default function OceanAmbience({ mode = 'world' }) {
         }).slice(-24)
       }
 
-      setFood(state.food.map((p) => ({ id: p.id, x: p.x, y: p.y })))
-      setHearts(mode === 'tank' ? (state.hearts || []).map((h) => ({ id: h.id, x: h.x, y: h.y, life: h.life })) : [])
-      setActors(state.fish.map((f, i) => {
-        const entry = currentRoster[i] || {}
-        const look = state.looks?.[entry.id] || {}
-        const speciesKey = speciesKeyFromRefs({
-          itemId: entry.itemId,
-          key: entry.key,
-          rec: { species: look.species, itemId: entry.itemId },
-          nick: entry.nick
-        })
-        const pack = FISH_PACKS[speciesKey] || FISH_PACKS[entry.key] || FISH_PACKS.betta
-        const size = sizes[i] || fishSize({ ...entry, key: pack.key, wide: pack.wide, shape: pack.shape || 'fish' }, L, look)
-        const art = look.art === 'b' ? 'b' : 'a'
-        return {
-          id: entry.id || `fish-${i}`,
-          src: pack[art] || entry.src,
-          wide: !!pack.wide,
-          shape: pack.shape || entry.shape || 'fish',
-          variant: art,
-          parts: look.parts || null,
-          morphLabel: look.morphLabel || '',
-          shineText: look.shineText || '',
-          gender: look.gender || '',
-          pregnant: !!look.pregnant,
-          generation: Math.max(0, Number(look.generation) || 0),
-          width: size.width,
-          height: size.height,
-          owner: entry.owner || getCurrentUser() || '',
-          growthSlotId: entry.growthSlotId || entry.id || '',
-          nick: entry.nick || '',
-          species: getFishSpeciesName({ ...entry, key: pack.key }),
-          x: f.x,
-          y: f.y,
-          face: f.face,
-          tilt: f.tilt || 0,
-          dash: f.dash,
-          eating: now < f.eatUntil,
-          lit: mode === 'tank' ? fishInTankBeam(f, size, L) : 0,
-          feedWait: look.feedWait || null,
-          helpers: look.helpers || []
+      const lookSig = actorLookSig(currentRoster, state.looks)
+      if (lookSig !== actorSigRef.current) {
+        actorSigRef.current = lookSig
+        setActors(currentRoster.map((entry, i) => {
+          const look = state.looks?.[entry.id] || {}
+          const speciesKey = speciesKeyFromRefs({
+            itemId: entry.itemId,
+            key: entry.key,
+            rec: { species: look.species, itemId: entry.itemId },
+            nick: entry.nick
+          })
+          const pack = FISH_PACKS[speciesKey] || FISH_PACKS[entry.key] || FISH_PACKS.betta
+          const size = sizes[i] || fishSize({ ...entry, key: pack.key, wide: pack.wide, shape: pack.shape || 'fish' }, L, look)
+          const art = look.art === 'b' ? 'b' : 'a'
+          const f = state.fish[i] || {}
+          return {
+            id: entry.id || `fish-${i}`,
+            src: pack[art] || entry.src,
+            wide: !!pack.wide,
+            shape: pack.shape || entry.shape || 'fish',
+            variant: art,
+            parts: look.parts || null,
+            morphLabel: look.morphLabel || '',
+            shineText: look.shineText || '',
+            gender: look.gender || '',
+            pregnant: !!look.pregnant,
+            generation: Math.max(0, Number(look.generation) || 0),
+            width: size.width,
+            height: size.height,
+            owner: entry.owner || getCurrentUser() || '',
+            growthSlotId: entry.growthSlotId || entry.id || '',
+            nick: entry.nick || '',
+            species: getFishSpeciesName({ ...entry, key: pack.key }),
+            x: f.x,
+            y: f.y,
+            face: f.face,
+            tilt: f.tilt || 0,
+            dash: !!f.dash,
+            eating: now < f.eatUntil,
+            lit: 0,
+            feedWait: look.feedWait || null,
+            helpers: look.helpers || []
+          }
+        }))
+      }
+
+      const pellet = feedPelletPx(L.w, L.h, !!L.tank)
+      const pelletH = Math.max(1.2, pellet * 0.78)
+      syncFloatLayer(foodNodeRef.current, foodLayerRef.current, state.food || [], 'ocean-feed', (el, p) => {
+        el.style.width = `${pellet}px`
+        el.style.height = `${pelletH}px`
+        el.style.marginLeft = `${-pellet / 2}px`
+        el.style.marginTop = `${-pelletH / 2}px`
+        el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`
+      })
+      syncFloatLayer(
+        heartNodeRef.current,
+        heartLayerRef.current,
+        mode === 'tank' ? (state.hearts || []) : [],
+        'ocean-heart',
+        (el, h) => {
+          const life = Math.max(0, Math.min(1, h.life))
+          el.style.transform = `translate3d(${h.x}px, ${h.y}px, 0) scale(${0.7 + (1 - life) * 0.45})`
+          el.style.opacity = `${life}`
+        },
+        '♥'
+      )
+
+      const nodes = actorNodeRef.current
+      currentRoster.forEach((entry, i) => {
+        const f = state.fish[i]
+        const size = sizes[i]
+        const id = entry?.id || `fish-${i}`
+        if (!f || !size) return
+        let node = nodes.get(id)
+        if (node?.el && (!node.face || !node.sprite)) {
+          node.face = node.el.querySelector('.ocean-fish-face')
+          node.sprite = node.el.querySelector('.ocean-betta')
         }
-      }))
+        if (!node?.el) return
+        const lit = mode === 'tank' ? fishInTankBeam(f, size, L) : 0
+        const px = Math.round(f.x * 4) / 4
+        const py = Math.round(f.y * 4) / 4
+        const tf = `translate3d(${px}px, ${py}px, 0)`
+        if (node.tf !== tf) {
+          node.tf = tf
+          node.el.style.transform = tf
+        }
+        if (node.sw !== size.width || node.sh !== size.height) {
+          node.sw = size.width
+          node.sh = size.height
+          node.el.style.width = `${size.width}px`
+          node.el.style.height = `${size.height}px`
+          if (node.sprite) {
+            node.sprite.style.width = `${size.width}px`
+            node.sprite.style.height = `${size.height}px`
+          }
+        }
+        const dash = !!f.dash
+        const eating = now < f.eatUntil
+        const isLit = lit > 0.18
+        if (node.dash !== dash) {
+          node.dash = dash
+          node.el.classList.toggle('is-dash', dash)
+        }
+        if (node.eating !== eating) {
+          node.eating = eating
+          node.el.classList.toggle('is-eating', eating)
+        }
+        if (node.isLit !== isLit) {
+          node.isLit = isLit
+          node.el.classList.toggle('is-lit', isLit)
+        }
+        const filter = lit > 0.04
+          ? `saturate(${(1 + lit * 1.15).toFixed(2)}) brightness(${(1 + lit * 0.28).toFixed(2)}) contrast(${(1 + lit * 0.1).toFixed(2)})`
+          : ''
+        if (node.filter !== filter) {
+          node.filter = filter
+          node.el.style.filter = filter
+        }
+        const faceTf = `scaleX(${f.face}) rotate(${(Math.round((f.tilt || 0) * 4) / 4)}deg)`
+        if (node.face && node.faceTf !== faceTf) {
+          node.faceTf = faceTf
+          node.face.style.transform = faceTf
+        }
+      })
+
+      const tip = tipRef.current
+      const inspectId = inspectRef.current
+      if (tip && inspectId) {
+        const i = currentRoster.findIndex((row) => row?.id === inspectId)
+        const f = i >= 0 ? state.fish[i] : null
+        const size = i >= 0 ? sizes[i] : null
+        if (f && size) {
+          tip.style.transform = `translate3d(${f.x + size.width / 2}px, ${f.y}px, 0) translate(-50%, calc(-100% - 8px))`
+        }
+      }
 
       if (mode === 'tank') {
         let ready = 0
@@ -1236,13 +1429,14 @@ export default function OceanAmbience({ mode = 'world' }) {
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('ocean-feed', onFeed)
+      foodNodeRef.current.forEach((el) => el.remove())
+      foodNodeRef.current.clear()
+      heartNodeRef.current.forEach((el) => el.remove())
+      heartNodeRef.current.clear()
     }
   }, [hidden, mode, host, visiting])
 
   if (hidden || typeof document === 'undefined') return null
-
-  const pellet = feedPelletPx(worldW, worldH, mode === 'tank')
-  const pelletH = Math.max(1.2, pellet * 0.78)
 
   return createPortal(
     <div
@@ -1345,46 +1539,31 @@ export default function OceanAmbience({ mode = 'world' }) {
         />
       ))}
 
-      {food.map((p) => (
-        <span
-          key={p.id}
-          className="ocean-feed"
-          style={{
-            width: `${pellet}px`,
-            height: `${pelletH}px`,
-            marginLeft: `${-pellet / 2}px`,
-            marginTop: `${-pelletH / 2}px`,
-            transform: `translate3d(${p.x}px, ${p.y}px, 0)`
-          }}
-        />
-      ))}
-
-      {hearts.map((h) => (
-        <span
-          key={h.id}
-          className="ocean-heart"
-          style={{
-            transform: `translate3d(${h.x}px, ${h.y}px, 0) scale(${0.7 + (1 - Math.max(0, Math.min(1, h.life))) * 0.45})`,
-            opacity: Math.max(0, Math.min(1, h.life))
-          }}
-        >
-          ♥
-        </span>
-      ))}
+      <div ref={foodLayerRef} className="ocean-float-layer" />
+      <div ref={heartLayerRef} className="ocean-float-layer is-hearts" />
 
       {actors.map((fish) => (
         <div
           key={fish.id}
+          ref={(el) => {
+            const map = actorNodeRef.current
+            if (!el) {
+              map.delete(fish.id)
+              return
+            }
+            map.set(fish.id, {
+              el,
+              face: el.querySelector('.ocean-fish-face'),
+              sprite: el.querySelector('.ocean-betta')
+            })
+          }}
           role="button"
           tabIndex={-1}
-          className={`ocean-fish-actor${visiting ? ' is-viewonly' : ''}${fish.dash ? ' is-dash' : ''}${fish.eating ? ' is-eating' : ''}${fish.lit > 0.18 ? ' is-lit' : ''}`}
+          className={`ocean-fish-actor${visiting ? ' is-viewonly' : ''}`}
           style={{
             transform: `translate3d(${fish.x}px, ${fish.y}px, 0)`,
             width: fish.width ? `${fish.width}px` : undefined,
-            height: fish.height ? `${fish.height}px` : undefined,
-            filter: fish.lit > 0.04
-              ? `saturate(${(1 + fish.lit * 1.15).toFixed(3)}) brightness(${(1 + fish.lit * 0.28).toFixed(3)}) contrast(${(1 + fish.lit * 0.1).toFixed(3)})`
-              : undefined
+            height: fish.height ? `${fish.height}px` : undefined
           }}
           onClick={(e) => {
             if (visiting) return
@@ -1449,6 +1628,7 @@ export default function OceanAmbience({ mode = 'world' }) {
         }
         return (
           <div
+            ref={tipRef}
             className={`ocean-fish-owner-tip${canPotions || showVisit ? ' is-actions' : ''}`}
             style={{
               transform: `translate3d(${fish.x + (fish.width || 0) / 2}px, ${fish.y}px, 0) translate(-50%, calc(-100% - 8px))`
