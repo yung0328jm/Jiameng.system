@@ -300,7 +300,13 @@ const TANK_DECOR_ART = {
   hut: '/tank-decor/hut.png',
   boat: '/tank-decor/boat.png',
   mountain: '/tank-decor/mountain.png',
-  waterfall: '/tank-decor/waterfall.png'
+  waterfall: '/tank-decor/waterfall.png',
+  coral: '/tank-decor/coral.png',
+  brick: '/tank-decor/brick.png',
+  sand: '/tank-decor/sand.png',
+  blacksand: '/tank-decor/blacksand.png',
+  volcsand: '/tank-decor/volcsand.png',
+  quartz: '/tank-decor/quartz.png'
 }
 
 function tankDecorBox(look, worldH) {
@@ -316,6 +322,9 @@ function tankDecorBox(look, worldH) {
   }
   if (look === 'pagoda' || look === 'lantern' || look === 'waterfall') {
     return { w: Math.max(42, Math.round(h * 0.3)), h: Math.max(70, Math.round(h * 0.54)) }
+  }
+  if (look === 'coral' || look === 'brick' || look === 'sand' || look === 'blacksand' || look === 'volcsand' || look === 'quartz') {
+    return { w: Math.max(88, Math.round(h * 0.72)), h: Math.max(28, Math.round(h * 0.2)) }
   }
   if (look === 'cave') return { w: Math.max(60, Math.round(h * 0.44)), h: Math.max(40, Math.round(h * 0.3)) }
   if (look === 'tape') return { w: Math.max(40, Math.round(h * 0.28)), h: Math.max(72, Math.round(h * 0.58)) }
@@ -1001,6 +1010,8 @@ export default function OceanAmbience({ mode = 'world' }) {
   const tankOwner = visiting ? host : me
   const [tankLights, setTankLights] = useState(() => listTankLights(tankOwner))
   const tankLightsRef = useRef(tankLights)
+  const visitLightOnRef = useRef({})
+  const [lightHudOpen, setLightHudOpen] = useState(false)
   const [clockMs, setClockMs] = useState(() => Date.now())
   const daylight = tankDaylight(new Date(clockMs))
   const tankUnlit = mode === 'tank'
@@ -1196,8 +1207,16 @@ export default function OceanAmbience({ mode = 'world' }) {
 
   useEffect(() => {
     const owner = visiting ? host : getCurrentUser()
+    if (!visiting) visitLightOnRef.current = {}
+    const applyVisitLights = (list) => {
+      if (!visiting) return list
+      const map = visitLightOnRef.current || {}
+      return (Array.isArray(list) ? list : []).map((lamp) => (
+        Object.prototype.hasOwnProperty.call(map, lamp.id) ? { ...lamp, on: !!map[lamp.id] } : lamp
+      ))
+    }
     const refresh = () => {
-      setTankLights(listTankLights(owner))
+      setTankLights(applyVisitLights(listTankLights(owner)))
       setTankDecors(listTankDecors(owner))
       if (!visiting) setPlaceables(listTankPlaceables(getCurrentUser()))
     }
@@ -2301,10 +2320,12 @@ export default function OceanAmbience({ mode = 'world' }) {
           ) : null}
           {(() => {
             const plantLooks = new Set(['plant', 'fern', 'tape', 'moss'])
+            const sandLooks = new Set(['coral', 'brick', 'sand', 'blacksand', 'volcsand', 'quartz'])
             const groups = [
               { label: '燈具', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_LIGHT) },
               { label: '植物類', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && plantLooks.has(row.look)) },
-              { label: '擺件', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && !plantLooks.has(row.look)) }
+              { label: '底沙類', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && sandLooks.has(row.look)) },
+              { label: '擺件', rows: placeables.filter((row) => row.type === ITEM_TYPES.TANK_DECOR && !plantLooks.has(row.look) && !sandLooks.has(row.look)) }
             ]
             if (!placeables.length) {
               return <span className="ocean-tank-edit-empty">背包沒有水族道具</span>
@@ -2348,18 +2369,26 @@ export default function OceanAmbience({ mode = 'world' }) {
         document.body
       ) : null}
       {mode === 'tank' && !placeLight && !tankEdit && tankLights.length ? createPortal(
-        <div
-          className="ocean-light-hud"
-          style={{ top: Math.max(12, (uiTop || 0) + (rallyPhase ? 48 : 8)) }}
-        >
-          {tankLights.map((lamp, i) => (
+        <div className={`ocean-light-hud${lightHudOpen ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            className={`ocean-light-toggle${tankLights.some((lamp) => lamp.on) ? ' is-on' : ''}`}
+            onClick={() => setLightHudOpen((v) => !v)}
+          >
+            燈 {tankLights.filter((lamp) => lamp.on).length}/{tankLights.length}
+          </button>
+          {lightHudOpen ? tankLights.map((lamp, i) => (
             <div key={lamp.id} className="ocean-light-hud-row">
               <button
                 type="button"
                 className={lamp.on ? 'is-on' : ''}
-                disabled={visiting}
                 onClick={() => {
-                  if (visiting) return
+                  if (visiting) {
+                    const nextOn = !lamp.on
+                    visitLightOnRef.current = { ...visitLightOnRef.current, [lamp.id]: nextOn }
+                    setTankLights((prev) => prev.map((row) => (row.id === lamp.id ? { ...row, on: nextOn } : row)))
+                    return
+                  }
                   const r = toggleTankLight(tankOwner, lamp.id)
                   if (r.success) setTankLights(r.lights || [])
                 }}
@@ -2380,7 +2409,7 @@ export default function OceanAmbience({ mode = 'world' }) {
                 </button>
               )) : null}
             </div>
-          ))}
+          )) : null}
         </div>,
         document.body
       ) : null}

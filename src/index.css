@@ -357,13 +357,13 @@ body.tank-widewatch #root {
 
 .ocean-zoom-bar {
   position: absolute;
-  top: max(4.6rem, calc(env(safe-area-inset-top, 0px) + 4.1rem));
-  right: 10px;
+  top: 8px;
+  right: 8px;
   z-index: 30;
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ocean-ambience.is-widewatch .ocean-zoom-bar {
@@ -372,13 +372,13 @@ body.tank-widewatch #root {
 }
 
 .ocean-zoom-btn {
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 32px;
+  padding: 0 8px;
   border-radius: 8px;
   border: 1px solid rgba(212, 175, 55, 0.55);
   background: rgba(4, 16, 24, 0.72);
   color: #e6c35c;
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
 }
 
@@ -392,6 +392,12 @@ body.tank-widewatch #root {
   color: #fde68a;
   font-size: 12px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 640px) {
+  .ocean-zoom-label {
+    display: none;
+  }
 }
 
 .ocean-ambience.is-rally-aim,
@@ -863,13 +869,21 @@ body.tank-widewatch #root {
 
 .ocean-light-hud {
   position: fixed;
-  right: 12px;
+  right: 10px;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  top: auto;
   z-index: 120;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
+  max-width: min(70vw, 220px);
+}
+
+.ocean-light-hud .ocean-light-toggle {
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .ocean-light-hud-row {

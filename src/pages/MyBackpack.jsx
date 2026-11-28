@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUserInventory, removeItemFromInventory } from '../utils/inventoryStorage'
-import { getItems, ITEM_TYPES, SHOP_CAT_LIVE, SHOP_CAT_PLANT, SHOP_CAT_DECOR, SHOP_CAT_LIGHT, aquariumShopCategory } from '../utils/itemStorage'
+import { getItems, ITEM_TYPES, SHOP_CAT_LIVE, SHOP_CAT_PLANT, SHOP_CAT_SAND, SHOP_CAT_DECOR, SHOP_CAT_LIGHT, aquariumShopCategory } from '../utils/itemStorage'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { createExchangeRequest, getUserExchangeRequests } from '../utils/exchangeRequestStorage'
 import { getEquippedEffects, equipEffect, unequipEffect } from '../utils/effectStorage'
@@ -239,6 +239,7 @@ function MyBackpack() {
               { key: 'all', label: '全部' },
               { key: SHOP_CAT_LIVE, label: '活體' },
               { key: SHOP_CAT_PLANT, label: '植物類' },
+              { key: SHOP_CAT_SAND, label: '底沙類' },
               { key: SHOP_CAT_DECOR, label: '擺件' },
               { key: SHOP_CAT_LIGHT, label: '燈具' }
             ].map((row) => (

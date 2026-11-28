@@ -19,16 +19,21 @@ export const ITEM_TYPES = {
 
 export const SHOP_CAT_LIVE = '活體'
 export const SHOP_CAT_PLANT = '植物類'
+export const SHOP_CAT_SAND = '底沙類'
 export const SHOP_CAT_DECOR = '擺件'
 export const SHOP_CAT_LIGHT = '燈具'
 const PLANT_LOOKS = new Set(['plant', 'fern', 'tape', 'moss'])
+const SAND_LOOKS = new Set(['coral', 'brick', 'sand', 'blacksand', 'volcsand', 'quartz'])
 
 export function aquariumShopCategory(item) {
   const type = String(item?.type || '')
   if (type === ITEM_TYPES.FISH_SKIN) return SHOP_CAT_LIVE
   if (type === ITEM_TYPES.TANK_LIGHT) return SHOP_CAT_LIGHT
   if (type === ITEM_TYPES.TANK_DECOR) {
-    return PLANT_LOOKS.has(String(item?.look || '')) ? SHOP_CAT_PLANT : SHOP_CAT_DECOR
+    const look = String(item?.look || '')
+    if (PLANT_LOOKS.has(look)) return SHOP_CAT_PLANT
+    if (SAND_LOOKS.has(look)) return SHOP_CAT_SAND
+    return SHOP_CAT_DECOR
   }
   return String(item?.category || '').trim()
 }
@@ -349,7 +354,7 @@ const TANK_PLANT_SHOP_ITEM = {
   look: 'plant',
   description: TANK_DECOR_DESC,
   icon: '🌿',
-  price: 12,
+  price: 11,
   category: SHOP_CAT_PLANT,
   createdAt: new Date().toISOString()
 }
@@ -362,7 +367,7 @@ const TANK_WOOD_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🪵',
   price: 16,
-  category: '擺件',
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -373,8 +378,8 @@ const TANK_ROCK_SHOP_ITEM = {
   look: 'rock',
   description: TANK_DECOR_DESC,
   icon: '🪨',
-  price: 14,
-  category: '擺件',
+  price: 16,
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -385,8 +390,8 @@ const TANK_CAVE_SHOP_ITEM = {
   look: 'cave',
   description: TANK_DECOR_DESC,
   icon: '🛖',
-  price: 15,
-  category: '擺件',
+  price: 16,
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -397,7 +402,7 @@ const TANK_FERN_SHOP_ITEM = {
   look: 'fern',
   description: TANK_DECOR_DESC,
   icon: '🌱',
-  price: 13,
+  price: 12,
   category: SHOP_CAT_PLANT,
   createdAt: new Date().toISOString()
 }
@@ -421,8 +426,8 @@ const TANK_LAVA_SHOP_ITEM = {
   look: 'lava',
   description: TANK_DECOR_DESC,
   icon: '🌋',
-  price: 13,
-  category: '擺件',
+  price: 15,
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -433,7 +438,7 @@ const TANK_TAPE_SHOP_ITEM = {
   look: 'tape',
   description: TANK_DECOR_DESC,
   icon: '🌾',
-  price: 11,
+  price: 8,
   category: SHOP_CAT_PLANT,
   createdAt: new Date().toISOString()
 }
@@ -445,8 +450,8 @@ const TANK_DRAGON_SHOP_ITEM = {
   look: 'dragon',
   description: TANK_DECOR_DESC,
   icon: '🐉',
-  price: 22,
-  category: '擺件',
+  price: 20,
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -458,7 +463,7 @@ const TANK_PIXIU_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🦁',
   price: 20,
-  category: '擺件',
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -470,7 +475,7 @@ const TANK_BUDDHA_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🪷',
   price: 18,
-  category: '擺件',
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -482,7 +487,7 @@ const TANK_GUANYIN_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🙏',
   price: 18,
-  category: '擺件',
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -494,7 +499,7 @@ const TANK_CAISHEN_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🧧',
   price: 19,
-  category: '擺件',
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
@@ -506,36 +511,51 @@ const TANK_TOAD_SHOP_ITEM = {
   description: TANK_DECOR_DESC,
   icon: '🐸',
   price: 16,
-  category: '擺件',
+  category: SHOP_CAT_DECOR,
   createdAt: new Date().toISOString()
 }
 
 const TANK_SCAPE_SHOP_ITEMS = [
-  { id: 'tank_decor_ohko', name: '龍王石', look: 'ohko', icon: '🪨', price: 14 },
-  { id: 'tank_decor_ryuoh', name: '黑山石', look: 'ryuoh', icon: '⛰️', price: 15 },
-  { id: 'tank_decor_strata', name: '千層石', look: 'strata', icon: '🧱', price: 15 },
-  { id: 'tank_decor_petrified', name: '木化石', look: 'petrified', icon: '🪵', price: 16 },
-  { id: 'tank_decor_river', name: '溪流石', look: 'river', icon: '⚪', price: 12 },
-  { id: 'tank_decor_elephant', name: '象皮石', look: 'elephant', icon: '🪨', price: 15 },
-  { id: 'tank_decor_taihu', name: '太湖石', look: 'taihu', icon: '🕳️', price: 16 },
-  { id: 'tank_decor_blacklava', name: '黑熔岩', look: 'blacklava', icon: '🖤', price: 13 },
+  { id: 'tank_decor_ohko', name: '龍王石', look: 'ohko', icon: '🪨', price: 16 },
+  { id: 'tank_decor_ryuoh', name: '黑山石', look: 'ryuoh', icon: '⛰️', price: 18 },
+  { id: 'tank_decor_strata', name: '千層石', look: 'strata', icon: '🧱', price: 18 },
+  { id: 'tank_decor_petrified', name: '木化石', look: 'petrified', icon: '🪵', price: 17 },
+  { id: 'tank_decor_river', name: '溪流石', look: 'river', icon: '⚪', price: 15 },
+  { id: 'tank_decor_elephant', name: '象皮石', look: 'elephant', icon: '🪨', price: 16 },
+  { id: 'tank_decor_taihu', name: '太湖石', look: 'taihu', icon: '🕳️', price: 17 },
+  { id: 'tank_decor_blacklava', name: '黑熔岩', look: 'blacklava', icon: '🖤', price: 15 },
   { id: 'tank_decor_spider', name: '杜鵑根', look: 'spider', icon: '🌿', price: 17 },
   { id: 'tank_decor_redmoor', name: '紅木根', look: 'redmoor', icon: '🪵', price: 17 },
-  { id: 'tank_decor_mangrove', name: '紅樹沉木', look: 'mangrove', icon: '🌳', price: 16 },
+  { id: 'tank_decor_mangrove', name: '紅樹沉木', look: 'mangrove', icon: '🌳', price: 17 },
   { id: 'tank_decor_cholla', name: '枝桠沉木', look: 'cholla', icon: '🪵', price: 15 },
-  { id: 'tank_decor_pagoda', name: '寶塔', look: 'pagoda', icon: '🏯', price: 18 },
+  { id: 'tank_decor_pagoda', name: '寶塔', look: 'pagoda', icon: '🏯', price: 19 },
   { id: 'tank_decor_bridge', name: '拱橋', look: 'bridge', icon: '🌉', price: 16 },
-  { id: 'tank_decor_pavilion', name: '涼亭', look: 'pavilion', icon: '🏛️', price: 17 },
+  { id: 'tank_decor_pavilion', name: '涼亭', look: 'pavilion', icon: '🏛️', price: 18 },
   { id: 'tank_decor_lantern', name: '石燈籠', look: 'lantern', icon: '🏮', price: 15 },
   { id: 'tank_decor_hut', name: '茅屋', look: 'hut', icon: '🏠', price: 16 },
-  { id: 'tank_decor_boat', name: '小漁船', look: 'boat', icon: '🛶', price: 14 },
-  { id: 'tank_decor_mountain', name: '假山', look: 'mountain', icon: '🏔️', price: 18 },
+  { id: 'tank_decor_boat', name: '小漁船', look: 'boat', icon: '🛶', price: 15 },
+  { id: 'tank_decor_mountain', name: '假山', look: 'mountain', icon: '🏔️', price: 20 },
   { id: 'tank_decor_waterfall', name: '小瀑布', look: 'waterfall', icon: '💧', price: 17 }
 ].map((row) => ({
   ...row,
   type: 'tank_decor',
   description: TANK_DECOR_DESC,
-  category: '擺件',
+  category: SHOP_CAT_DECOR,
+  createdAt: new Date().toISOString()
+}))
+
+const TANK_SAND_SHOP_ITEMS = [
+  { id: 'tank_decor_sand', name: '化粧砂', look: 'sand', icon: '🏖️', price: 10 },
+  { id: 'tank_decor_quartz', name: '石英砂', look: 'quartz', icon: '✨', price: 12 },
+  { id: 'tank_decor_brick', name: '紅磚', look: 'brick', icon: '🧱', price: 13 },
+  { id: 'tank_decor_blacksand', name: '黑砂', look: 'blacksand', icon: '⬛', price: 15 },
+  { id: 'tank_decor_volcsand', name: '火山砂', look: 'volcsand', icon: '🌋', price: 17 },
+  { id: 'tank_decor_coral', name: '珊瑚骨', look: 'coral', icon: '🪸', price: 19 }
+].map((row) => ({
+  ...row,
+  type: 'tank_decor',
+  description: TANK_DECOR_DESC,
+  category: SHOP_CAT_SAND,
   createdAt: new Date().toISOString()
 }))
 
@@ -548,7 +568,7 @@ const TANK_LIGHT_SHOP_ITEM = {
   look: 'barrel',
   description: TANK_LIGHT_DESC,
   icon: '💡',
-  price: 18,
+  price: 22,
   category: SHOP_CAT_LIGHT,
   createdAt: new Date().toISOString()
 }
@@ -560,7 +580,7 @@ const TANK_LIGHT_COLOR_SHOP_ITEM = {
   look: 'color',
   description: '白光、藍光、紅光可切換。每盞有獨立開關。',
   icon: '🔵',
-  price: 24,
+  price: 28,
   category: SHOP_CAT_LIGHT,
   createdAt: new Date().toISOString()
 }
@@ -572,10 +592,33 @@ const TANK_LIGHT_BAR_SHOP_ITEM = {
   look: 'bar',
   description: '長條燈，約兩盞可罩滿整缸長度。每盞有獨立開關。',
   icon: '▬',
-  price: 28,
+  price: 34,
   category: SHOP_CAT_LIGHT,
   createdAt: new Date().toISOString()
 }
+
+const TANK_AQUA_PRICE_SEED = 20261128
+const TANK_AQUA_CATALOG = Object.fromEntries([
+  TANK_PLANT_SHOP_ITEM,
+  TANK_WOOD_SHOP_ITEM,
+  TANK_ROCK_SHOP_ITEM,
+  TANK_CAVE_SHOP_ITEM,
+  TANK_FERN_SHOP_ITEM,
+  TANK_MOSS_SHOP_ITEM,
+  TANK_LAVA_SHOP_ITEM,
+  TANK_TAPE_SHOP_ITEM,
+  TANK_DRAGON_SHOP_ITEM,
+  TANK_PIXIU_SHOP_ITEM,
+  TANK_BUDDHA_SHOP_ITEM,
+  TANK_GUANYIN_SHOP_ITEM,
+  TANK_CAISHEN_SHOP_ITEM,
+  TANK_TOAD_SHOP_ITEM,
+  ...TANK_SCAPE_SHOP_ITEMS,
+  ...TANK_SAND_SHOP_ITEMS,
+  TANK_LIGHT_SHOP_ITEM,
+  TANK_LIGHT_COLOR_SHOP_ITEM,
+  TANK_LIGHT_BAR_SHOP_ITEM
+].map((it) => [it.id, it]))
 
 const FISH_PRICE_SEED = 20261127
 const FISH_SHOP_CATALOG = {
@@ -644,6 +687,9 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
   TANK_SCAPE_SHOP_ITEMS.forEach((item) => {
     if (!list.some((it) => String(it?.id || '') === item.id)) extras.push({ ...item, createdAt: new Date().toISOString() })
   })
+  TANK_SAND_SHOP_ITEMS.forEach((item) => {
+    if (!list.some((it) => String(it?.id || '') === item.id)) extras.push({ ...item, createdAt: new Date().toISOString() })
+  })
   const birthWanted = FISH_POTION_BIRTH_ITEM.description
   const affectionWanted = FISH_POTION_AFFECTION_ITEM.description
   const growthWanted = FISH_POTION_GROWTH_ITEM.description
@@ -676,6 +722,18 @@ function seedFishSkinItems(items, { allowCloudWrite } = { allowCloudWrite: true 
     const aquaCat = aquariumShopCategory(next)
     if (aquaCat && String(next?.category || '') !== aquaCat && (next?.type === ITEM_TYPES.FISH_SKIN || next?.type === ITEM_TYPES.TANK_LIGHT || next?.type === ITEM_TYPES.TANK_DECOR)) {
       next = { ...next, category: aquaCat }
+    }
+    const aqua = TANK_AQUA_CATALOG[id]
+    if (aqua && Number(next?.priceSeedVer) !== TANK_AQUA_PRICE_SEED) {
+      next = {
+        ...next,
+        price: aqua.price,
+        category: aqua.category,
+        look: aqua.look,
+        name: aqua.name,
+        icon: aqua.icon,
+        priceSeedVer: TANK_AQUA_PRICE_SEED
+      }
     }
     if ((id === FISH_POTION_GROWTH_ID || id === FISH_POTION_GENDER_ID) && !next.isHidden) {
       next = { ...next, isHidden: true }

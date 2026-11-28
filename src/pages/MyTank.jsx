@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import OceanAmbience, { enterTankWideWatch, openTankEdit, openTankRally, stepTankZoom } from '../components/OceanAmbience'
+import OceanAmbience, { enterTankWideWatch, openTankEdit, openTankRally } from '../components/OceanAmbience'
 import { getCurrentUser, getCurrentUserRole } from '../utils/authStorage'
 import { getDisplayNameForAccount } from '../utils/displayName'
 import { isTankClosed, listTankVisitors, listVisitTanks, noteTankVisit } from '../utils/petStorage'
@@ -60,52 +60,38 @@ export default function MyTank() {
 
   return (
     <div className="relative z-[41] max-w-3xl mx-auto text-cn-parchment pb-8 pointer-events-none">
-      <div className="pointer-events-auto mb-5" data-ocean-tank-ui>
-        <h1 className="text-2xl sm:text-3xl font-bold text-cn-gold font-serif drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
+      <div className="pointer-events-auto mb-2 sm:mb-3" data-ocean-tank-ui>
+        <h1 className="text-xl sm:text-3xl font-bold text-cn-gold font-serif drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
           {visiting ? `${hostName}的魚缸` : '我的魚缸'}
         </h1>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
             onClick={() => navigate('/my-pets')}
-            className="px-4 py-2 rounded-md border border-gray-600/80 bg-black/40 text-sm text-cn-parchment hover:bg-black/55"
+            className="shrink-0 px-2.5 py-1.5 rounded-md border border-gray-600/80 bg-black/40 text-xs sm:text-sm text-cn-parchment hover:bg-black/55"
           >
-            回我的寵物
+            寵物
           </button>
           {visiting ? (
             <button
               type="button"
               onClick={() => navigate('/my-tank')}
-              className="px-4 py-2 rounded-md border border-gray-600/80 bg-black/40 text-sm text-cn-parchment hover:bg-black/55"
+              className="shrink-0 px-2.5 py-1.5 rounded-md border border-gray-600/80 bg-black/40 text-xs sm:text-sm text-cn-parchment hover:bg-black/55"
             >
-              回自己的魚缸
+              回自己
             </button>
           ) : null}
           <button
             type="button"
             onClick={() => enterTankWideWatch()}
-            className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
+            className="shrink-0 px-2.5 py-1.5 rounded-md border border-cn-gold/50 bg-black/40 text-xs sm:text-sm text-cn-gold hover:bg-black/55"
           >
-            橫向模式
-          </button>
-          <button
-            type="button"
-            onClick={() => stepTankZoom(1)}
-            className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
-          >
-            走近看
-          </button>
-          <button
-            type="button"
-            onClick={() => stepTankZoom(-1)}
-            className="px-4 py-2 rounded-md border border-gray-600/80 bg-black/40 text-sm text-cn-parchment hover:bg-black/55"
-          >
-            拉開
+            橫向
           </button>
           <button
             type="button"
             onClick={() => openTankRally()}
-            className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
+            className="shrink-0 px-2.5 py-1.5 rounded-md border border-cn-gold/50 bg-black/40 text-xs sm:text-sm text-cn-gold hover:bg-black/55"
           >
             集結
           </button>
@@ -113,7 +99,7 @@ export default function MyTank() {
             <button
               type="button"
               onClick={() => openTankEdit()}
-              className="px-4 py-2 rounded-md border border-cn-gold/50 bg-black/40 text-sm text-cn-gold hover:bg-black/55"
+              className="shrink-0 px-2.5 py-1.5 rounded-md border border-cn-gold/50 bg-black/40 text-xs sm:text-sm text-cn-gold hover:bg-black/55"
             >
               編輯
             </button>
@@ -121,20 +107,20 @@ export default function MyTank() {
           <button
             type="button"
             onClick={() => toggle('visit')}
-            className={`px-4 py-2 rounded-md border text-sm bg-black/40 hover:bg-black/55 ${
+            className={`shrink-0 px-2.5 py-1.5 rounded-md border text-xs sm:text-sm bg-black/40 hover:bg-black/55 ${
               openList === 'visit' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600/80 text-cn-parchment'
             }`}
           >
-            參觀別人的魚缸
+            參觀
           </button>
           <button
             type="button"
             onClick={() => toggle('guests')}
-            className={`px-4 py-2 rounded-md border text-sm bg-black/40 hover:bg-black/55 ${
+            className={`shrink-0 px-2.5 py-1.5 rounded-md border text-xs sm:text-sm bg-black/40 hover:bg-black/55 ${
               openList === 'guests' ? 'border-cn-gold/70 text-cn-gold' : 'border-gray-600/80 text-cn-parchment'
             }`}
           >
-            誰來過
+            來過
           </button>
         </div>
         {openList === 'visit' ? (
